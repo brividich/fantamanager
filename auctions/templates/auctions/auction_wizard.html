@@ -1,0 +1,392 @@
+{% extends "auctions/base.html" %}
+{% block title %}Nuova asta{% endblock %}
+{% block bodyclass %}role-admin{% endblock %}
+{% block wrapclass %}wrap-wide{% endblock %}
+
+{% block content %}
+<style>
+    /* .wiz-head / .wnav / .sumtable / .opt base — shared with the other
+       wizards, see static/css/console.css. Only .opt-t (below) stays local:
+       this wizard's card title is heavier/smaller than the others'. */
+    .steps { display:flex; gap:10px; margin-bottom:20px; }
+    .steps .step {
+        flex:1; display:flex; align-items:center; gap:10px; padding:12px 14px; border-radius:12px;
+        border:1px solid var(--line); background:rgba(0,0,0,.25); color:var(--muted);
+        font-size:11px; letter-spacing:.12em; text-transform:uppercase; font-weight:700;
+        transition:border-color .15s, background .15s, color .15s;
+    }
+    .steps .step .n {
+        display:inline-flex; align-items:center; justify-content:center; flex-shrink:0;
+        width:26px; height:26px; border-radius:50%;
+        background:rgba(255,255,255,.08); color:var(--muted); font-family:var(--display); font-size:14px;
+    }
+    .steps .step.active { border-color:var(--fm-border-active); background:rgba(8,124,240,.14); color:var(--fm-primary-light); }
+    .steps .step.active .n { background:var(--fm-gradient); color:#fff; }
+    .steps .step.done { color:var(--fm-text); }
+    .steps .step.done .n { background:var(--fm-gradient); color:#fff; }
+    .steps .step.done .n::before { content:"✓"; }
+    .steps .step.done .n .num { display:none; }
+    @media (max-width:560px){ .steps .step .lbl { display:none; } .steps { gap:6px; } }
+
+    .wstep { display:none; }
+    .wstep.active { display:block; animation:fadeStep .22s ease; }
+    @keyframes fadeStep { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+
+    .sec-title { font-weight:700; text-transform:uppercase; letter-spacing:.14em;
+        font-size:11px; color:var(--fm-text-secondary); margin:22px 0 10px; padding-bottom:6px;
+        border-bottom:1px solid var(--fm-border); }
+    .sec-title:first-of-type { margin-top:4px; }
+
+    .opt-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:10px; }
+    .opt .opt-t { font-family:var(--fm-display); font-weight:800; font-size:17px; letter-spacing:.01em; color:#fff; }
+
+    .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    @media (max-width:560px){ .grid2 { grid-template-columns:1fr; } }
+    label.inline { display:flex; align-items:center; gap:10px; margin-top:14px; cursor:pointer; text-transform:none;
+        font-size:13px; letter-spacing:0; color:var(--ink); font-weight:500; }
+    label.inline input { width:auto; }
+
+    .hint { font-size:13px; color:var(--muted); margin-top:8px; }
+    .hint a { font-weight:700; }
+
+    .lg-meta { display:flex; gap:14px; flex-wrap:wrap; margin-top:10px; font-size:12.5px; color:var(--muted); }
+    .lg-meta b { color:#fff; font-family:var(--display); }
+</style>
+
+<div class="wiz-head">
+    <div class="brand">
+        <div class="brand-icon"><svg class="ic" style="width:28px;height:28px"><use href="#i-shield"/></svg></div>
+        <div class="brand-text"><div class="top">NUOVA</div><div class="bottom">ASTA</div><div class="sub">Su una lega esistente</div></div>
+    </div>
+    <a class="btn btn-ghost" href="{% url 'admin_dashboard' %}">← Dashboard</a>
+</div>
+
+{% if not leagues %}
+<div class="panel" style="text-align:center; padding:40px 20px">
+    <div style="font-size:40px; margin-bottom:10px"><svg class="ic" style="width:40px;height:40px"><use href="#i-trophy"/></svg></div>
+    <div class="sec-title" style="border:0; text-align:center">Nessuna lega ancora</div>
+    <p class="hint" style="margin:0 auto 18px; max-width:440px">
+        L'asta si gioca su una <b>lega</b> (squadre + budget + listone). Crea prima la lega, poi torna qui per l'asta.
+    </p>
+    <a class="btn-ok" href="{% url 'admin_setup' %}"><svg class="ic"><use href="#i-trophy"/></svg> Crea la prima lega</a>
+</div>
+{% else %}
+
+<div class="steps" id="steps">
+    <div class="step active" data-step="1"><div class="n"><span class="num">1</span></div><span class="lbl">Lega &amp; tipo</span></div>
+    <div class="step" data-step="2"><div class="n"><span class="num">2</span></div><span class="lbl">Modalità &amp; regole</span></div>
+    <div class="step" data-step="3"><div class="n"><span class="num">3</span></div><span class="lbl">Riepilogo</span></div>
+</div>
+
+<details class="howto">
+    <summary><svg class="ic"><use href="#i-shield"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        Crei una <b>nuova asta su una lega che esiste già</b> (squadre, budget e listone sono pronti).
+        <ol>
+            <li><b>Lega &amp; tipo</b>: scegli la lega e il tipo di asta (iniziale da zero, riparazione, continuativa).</li>
+            <li><b>Modalità &amp; regole</b>: come avanza l'asta, ordine di chiamata, rilanci, timer, anti-snipe, limiti e svincoli.</li>
+            <li><b>Riepilogo</b>: controlla tutto e premi <b>Crea asta</b>.</li>
+        </ol>
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Manca il listone o le rose? Usa i link “Listone &amp; giocatori” o “Import rose Fantapazz” nel passo 1. Tutte le regole restano modificabili dopo, dalle impostazioni dell'asta.</div>
+    </div>
+</details>
+
+<form id="wiz-form" method="post" action="{% url 'admin_wizard_create' %}">
+    {% csrf_token %}
+
+    <!-- STEP 1 — Lega & tipo asta -->
+    <div class="wstep panel active" data-step="1">
+        <div class="sec-title">Lega</div>
+        <label>Su quale lega vuoi fare l'asta?</label>
+        <select name="league_id" id="league-select">
+            {% for lg in leagues %}
+            <option value="{{ lg.id }}"
+                {% if preselect == lg.id %}selected{% endif %}
+                data-teams="{{ lg.team_count }}" data-pool="{{ lg.pool_count }}" data-free="{{ lg.free_count }}"
+                data-name="{{ lg.name }}" data-slots="{{ lg.slots_label }}"
+                data-budget="{{ lg.budget|floatformat:0 }}" data-source="{{ lg.source_site|default:'—' }}">
+                {{ lg.name }}
+            </option>
+            {% endfor %}
+        </select>
+        <div class="lg-meta" id="lg-meta"></div>
+        <div id="no-listone" class="hint" style="display:none; color:var(--closed); font-weight:700">
+            Questa lega non ha ancora il listone: caricalo da
+            <a href="{% url 'admin_players' %}" target="_blank">Listone &amp; giocatori</a> prima di creare l'asta.
+        </div>
+        <div class="hint">
+            Manca qualcosa? <a href="{% url 'admin_setup' %}">＋ Nuova lega</a> ·
+            <a href="{% url 'admin_players' %}" target="_blank">Listone &amp; giocatori →</a> ·
+            <a href="{% url 'admin_fantapazz' %}" target="_blank">Import rose Fantapazz →</a>
+        </div>
+
+        <div class="sec-title">Tipo di asta</div>
+        <div class="opt-grid" id="mode-grid">
+            {% for value, label in modes %}
+            <label class="opt {% if forloop.first %}sel{% endif %}">
+                <input type="radio" name="mode" value="{{ value }}" {% if forloop.first %}checked{% endif %}>
+                <div class="opt-t">{{ label }}</div>
+                <div class="opt-d">
+                    {% if value == 'NEW_FROM_ZERO' %}Asta iniziale da zero, nessuna rosa preesistente.
+                    {% elif value == 'REPAIR_AUCTION' %}Rose già esistenti e budget residuo da completare (carica le rose dall'import).
+                    {% else %}Lega continuativa: rose e budget storici.{% endif %}
+                </div>
+            </label>
+            {% endfor %}
+        </div>
+
+        <div class="wnav">
+            <a class="btn btn-ghost" href="{% url 'admin_dashboard' %}">Annulla</a>
+            <button type="button" class="btn-ok" onclick="wiz.next()">Avanti →</button>
+        </div>
+    </div>
+
+    <!-- STEP 2 — Modalità & regole -->
+    <div class="wstep panel" data-step="2">
+        <div class="sec-title">Come avanza l'asta</div>
+        <label>Modalità d'asta</label>
+        <select name="flow_mode" id="flow-mode-select" onchange="wzToggleOrder()">
+            {% for value, label in flow_modes %}
+            <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
+        </select>
+        <div class="hint" id="flow-hint"></div>
+        <div id="wz-order-wrap" style="display:none">
+            <div class="grid2" style="margin-top:12px">
+                <div>
+                    <label>Ordine di chiamata</label>
+                    <select name="call_order" id="call-order-select" onchange="wzToggleWithin()">
+                        {% for value, label in call_orders %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div id="wz-within-wrap">
+                    <label>Dentro al ruolo</label>
+                    <select name="within_role_order" id="within-role-select">
+                        {% for value, label in within_roles %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="hint">Gli svincolati rientrano in coda al loro ruolo.</div>
+        </div>
+        <!-- Manuale soltanto: "continua" scorre già da sola, "a chiamata" non
+             ha una coda che possa scorrere. -->
+        <div id="wz-auto-advance-wrap" style="display:none">
+            <label class="inline" style="margin-top:12px">
+                <input type="checkbox" name="manual_auto_advance" value="1">
+                <span>Scorri anche senza rilanci: ogni giocatore parte col timer già avviato,
+                    se nessuno rilancia va invenduto e si passa al successivo. I tasti
+                    avanti/indietro restano attivi.</span>
+            </label>
+        </div>
+
+        
+        <div class="sec-title">Asta alle buste</div>
+        <label class="inline">
+            <input type="checkbox" name="sealed_bids" value="1" id="aw-sealed-toggle"
+                   onchange="awToggleSealed()">
+            <span>Sopra la soglia del ruolo si va alle buste: si smette di gridare e ognuno
+                scrive una cifra non inferiore all'ultima dichiarata +1. Si aprono tutte
+                insieme, vince la piu' alta; a parita' si rifa', a oltranza, fra i soli
+                pari merito.</span>
+        </label>
+        <div id="aw-sealed-wrap" style="display:none">
+            <div class="grid2" style="margin-top:12px">
+                <div><label>Soglia portieri (FM)</label>
+                    <input name="sealed_threshold_p" value="50" inputmode="numeric"></div>
+                <div><label>Soglia difensori (FM)</label>
+                    <input name="sealed_threshold_d" value="50" inputmode="numeric"></div>
+                <div><label>Soglia centrocampisti (FM)</label>
+                    <input name="sealed_threshold_c" value="100" inputmode="numeric"></div>
+                <div><label>Soglia attaccanti (FM)</label>
+                    <input name="sealed_threshold_a" value="150" inputmode="numeric"></div>
+                <div><label>Tempo per busta (secondi)</label>
+                    <input name="sealed_seconds" value="45" inputmode="numeric"></div>
+            </div>
+            <div class="hint">0 in un ruolo = quel reparto non va mai alle buste.
+                Soglie e tempi restano modificabili dalle impostazioni dell'asta.</div>
+        </div>
+
+<div class="sec-title">Rilanci &amp; timer</div>
+        <div class="grid2">
+            <div><label>Rilancio minimo (FM)</label><input name="min_increment" value="1" inputmode="decimal"></div>
+            <div><label>Incrementi rapidi</label><input name="quick_increments" value="1,2,5,10"></div>
+            <div><label>Timer (secondi)</label><input name="duration_seconds" value="60" inputmode="numeric"></div>
+            <div><label>Anti-snipe (secondi, 0=off)</label><input name="antisnipe_seconds" value="10" inputmode="numeric"></div>
+        </div>
+        <label style="margin-top:12px">Prezzo di partenza</label>
+        <select name="opening_price_mode" id="opening-price-select">
+            {% for value, label in opening_price_modes %}
+            <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
+        </select>
+        <div class="hint">Da dove parte l'offerta per ogni giocatore: dalla quotazione (valore attuale) o da una base fissa di 1. Modificabile anche dopo, nelle impostazioni.</div>
+        <label class="inline" style="margin-top:12px">
+            <input type="checkbox" name="enforce_limits" value="1" checked>
+            <span>Applica limiti rosa e budget (slot per ruolo + 1 credito riservato per ogni slot libero). Disattiva per asta libera.</span>
+        </label>
+        <label class="inline">
+            <input type="checkbox" name="block_leader_rebid" value="1" checked>
+            <span>Blocca il rilancio di chi sta già vincendo (evita i doppi click che gonfiano il prezzo).</span>
+        </label>
+
+        <div class="sec-title">Svincoli</div>
+        <label>Rimborso quando una squadra svincola un giocatore</label>
+        <select name="release_refund_mode" id="refund-select">
+            <option value="purchase">Costo di acquisto (prezzo pagato all'asta)</option>
+            <option value="current">Costo attuale (quotazione del listone)</option>
+            <option value="none">Nessun rimborso</option>
+        </select>
+        <div class="hint">Modificabile anche dopo, nelle impostazioni dell'asta.</div>
+
+        <div class="wnav">
+            <button type="button" class="btn-ghost" onclick="wiz.prev()">← Indietro</button>
+            <button type="button" class="btn-ok" onclick="wiz.next()">Avanti →</button>
+        </div>
+    </div>
+
+    <!-- STEP 3 — Riepilogo & avvio -->
+    <div class="wstep panel" data-step="3">
+        <div class="sec-title">Riepilogo</div>
+        <table class="sumtable"><tbody id="summary"></tbody></table>
+
+        <label class="opt sel inline" style="margin-top:18px; padding:14px 16px; border-radius:12px">
+            <input type="checkbox" name="start_now" value="1">
+            <span><span class="opt-t" style="font-size:15px; display:block">Avvia subito l'asta</span>
+                <span class="opt-d">Altrimenti resta in stato “Pronta” e la avvii dalla dashboard.</span></span>
+        </label>
+
+        <div class="wnav">
+            <button type="button" class="btn-ghost" onclick="wiz.prev()">← Indietro</button>
+            <button type="submit" class="btn-ok" style="font-size:16px"><svg class="ic"><use href="#i-shield"/></svg> Crea asta</button>
+        </div>
+    </div>
+</form>
+
+<script>
+const FLOW_HINTS = {
+    call: "A chiamata: scegli tu chi mettere all'asta, uno alla volta.",
+    continuous: "Asta continua: la coda avanza da sola al giocatore successivo a fine timer.",
+    manual: "Manuale: la coda è precostruita e la fai scorrere tu (avanti/indietro).",
+};
+function wzToggleOrder() {
+    const flow = (document.getElementById("flow-mode-select") || {}).value;
+    document.getElementById("flow-hint").textContent = FLOW_HINTS[flow] || "";
+    const wrap = document.getElementById("wz-order-wrap");
+    if (wrap) wrap.style.display = (flow === "call") ? "none" : "";
+    const auto = document.getElementById("wz-auto-advance-wrap");
+    if (auto) auto.style.display = (flow === "manual") ? "" : "none";
+    wzToggleWithin();
+}
+function wzToggleWithin() {
+    const order = (document.getElementById("call-order-select") || {}).value;
+    const wrap = document.getElementById("wz-within-wrap");
+    if (wrap) wrap.style.display = (order === "pdca" || order === "acdp") ? "" : "none";
+}
+const wiz = {
+    cur: 1, max: 3,
+    show(n) {
+        this.cur = Math.min(this.max, Math.max(1, n));
+        document.querySelectorAll(".wstep").forEach(el =>
+            el.classList.toggle("active", +el.dataset.step === this.cur));
+        document.querySelectorAll("#steps .step").forEach(el => {
+            const s = +el.dataset.step;
+            el.classList.toggle("active", s === this.cur);
+            el.classList.toggle("done", s < this.cur);
+        });
+        if (this.cur === this.max) this.buildSummary();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    },
+    next() {
+        // No listone, no auction: there would be nothing to put on the block.
+        if (this.cur === 1 && !leaguePoolCount()) {
+            document.getElementById("no-listone").style.display = "block";
+            window.scrollTo({ top: 0, behavior: "smooth" });
+            return;
+        }
+        this.show(this.cur + 1);
+    },
+    prev() { this.show(this.cur - 1); },
+    buildSummary() {
+        const f = document.getElementById("wiz-form");
+        const sel = document.getElementById("league-select");
+        const o = sel.options[sel.selectedIndex] || { dataset: {} };
+        const v = n => (f.querySelector(`[name="${n}"]`) || {}).value || "";
+        const modeLabel = (f.querySelector('[name="mode"]:checked')?.closest(".opt")?.querySelector(".opt-t")?.textContent || "").trim();
+        const flowSel = f.querySelector('[name="flow_mode"]');
+        const ordered = flowSel.value !== "call";
+        const orderLabel = ordered
+            ? ((f.querySelector('[name="call_order"]').selectedOptions[0] || {}).text || "—")
+              + (["pdca", "acdp"].includes(f.querySelector('[name="call_order"]').value)
+                 ? " · " + ((f.querySelector('[name="within_role_order"]').selectedOptions[0] || {}).text || "") : "")
+            : "—";
+        const rows = [
+            ["Lega", o.dataset.name + " (" + o.dataset.teams + " squadre · " + o.dataset.free + " svincolati)"],
+            ["Tipo asta", modeLabel],
+            ["Budget / Slot", o.dataset.budget + " FM · " + o.dataset.slots],
+            ["Modalità d'asta", flowSel.selectedOptions[0].text
+                + (flowSel.value === "manual" && f.querySelector('[name="manual_auto_advance"]').checked
+                   ? " · scorre senza rilanci" : "")],
+            ["Ordine di chiamata", orderLabel],
+            ["Rilancio minimo", v("min_increment") + " FM"],
+            ["Incrementi rapidi", v("quick_increments")],
+            ["Timer", v("duration_seconds") + " s · anti-snipe " + v("antisnipe_seconds") + " s"],
+            ["Prezzo di partenza", (f.querySelector('[name="opening_price_mode"]').selectedOptions[0] || {}).text || "—"],
+            ["Limiti rosa/budget", f.querySelector('[name="enforce_limits"]').checked ? "Attivi" : "Disattivati"],
+            ["Rilancio su se stessi", f.querySelector('[name="block_leader_rebid"]').checked ? "Bloccato" : "Permesso"],
+            ["Rimborso svincolo", (f.querySelector('[name="release_refund_mode"]').selectedOptions[0] || {}).text || "—"],
+        ];
+        document.getElementById("summary").innerHTML =
+            rows.map(([k, val]) => `<tr><td>${k}</td><td><b>${val || "—"}</b></td></tr>`).join("");
+    },
+};
+
+function leaguePoolCount() {
+    const sel = document.getElementById("league-select");
+    const o = sel.options[sel.selectedIndex];
+    return o ? (parseInt(o.dataset.pool, 10) || 0) : 0;
+}
+function refreshLeagueMeta() {
+    const sel = document.getElementById("league-select");
+    const o = sel.options[sel.selectedIndex];
+    if (!o) return;
+    document.getElementById("no-listone").style.display = leaguePoolCount() ? "none" : "block";
+    document.getElementById("lg-meta").innerHTML =
+        `<span>Squadre <b>${o.dataset.teams}</b></span>` +
+        `<span>Budget <b>${o.dataset.budget} FM</b></span>` +
+        `<span>Slot <b>${o.dataset.slots}</b></span>` +
+        `<span>Listone <b>${o.dataset.pool}</b></span>` +
+        `<span>Svincolati <b>${o.dataset.free}</b></span>` +
+        `<span>Fonte <b>${o.dataset.source}</b></span>`;
+}
+document.getElementById("league-select").addEventListener("change", refreshLeagueMeta);
+document.getElementById("wiz-form").addEventListener("submit", ev => {
+    if (!leaguePoolCount()) {
+        ev.preventDefault();
+        wiz.show(1);
+        document.getElementById("no-listone").style.display = "block";
+    }
+});
+
+// Mode card highlight.
+document.querySelectorAll('.opt input[name="mode"]').forEach(inp => {
+    inp.addEventListener("change", () => {
+        document.querySelectorAll('.opt input[name="mode"]').forEach(o =>
+            o.closest(".opt").classList.toggle("sel", o.checked));
+    });
+});
+
+refreshLeagueMeta();
+wzToggleOrder();
+
+    function awToggleSealed() {
+        const on = (document.getElementById("aw-sealed-toggle") || {}).checked;
+        const wrap = document.getElementById("aw-sealed-wrap");
+        if (wrap) wrap.style.display = on ? "" : "none";
+    }
+</script>
+{% endif %}
+{% endblock %}

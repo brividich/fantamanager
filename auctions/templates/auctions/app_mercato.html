@@ -1,0 +1,394 @@
+{% extends "auctions/app_base.html" %}
+{% block title %}Mercato & Buste — FantaManager{% endblock %}
+{% block app %}
+<style>
+    .market-filters { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+    .search-row { display: flex; gap: 8px; }
+    .search-input {
+        flex: 1; min-width: 0; padding: 10px 14px; border-radius: 10px;
+        background: var(--panel-2); border: 1px solid var(--line); color: var(--ink);
+        font-family: var(--sans); font-size: 14px; font-weight: 600;
+    }
+    .search-input:focus { outline: none; border-color: var(--accent); }
+    .role-chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+    .role-chip {
+        padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 800;
+        background: var(--panel-2); border: 1px solid var(--line); color: var(--muted);
+        text-decoration: none; text-transform: uppercase; white-space: nowrap;
+        transition: all .12s;
+    }
+    .role-chip.on { background: var(--accent); color: #0a1108; border-color: var(--accent); }
+    .free-agent-row {
+        padding: 10px 14px; border-bottom: 1px solid var(--line);
+        display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    }
+    .free-agent-row:last-child { border-bottom: none; }
+    .fa-main { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .fa-meta { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+    .fa-name { font-weight: 800; font-size: 14px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .fa-sub { font-size: 11.5px; color: var(--muted); font-weight: 600; }
+    .fa-quota { font-family: var(--display); font-weight: 900; font-size: 15px; color: var(--ink); text-align: right; white-space: nowrap; }
+    .fa-quota small { font-size: 11px; color: var(--muted); font-weight: 600; }
+
+    /* Market session card */
+    .market-banner {
+        background: linear-gradient(135deg, rgba(8,124,240,.18), rgba(0,229,153,.12));
+        border: 1px solid rgba(8,124,240,.35); border-radius: 14px; padding: 14px; margin-bottom: 14px;
+    }
+    .mb-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .mb-title { font-family: var(--display); font-weight: 900; font-size: 17px; color: var(--ink); }
+    .mb-badge {
+        padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 800;
+        background: var(--accent); color: #0a1108; text-transform: uppercase;
+    }
+    .mb-meta { font-size: 12px; color: var(--muted); margin-top: 4px; line-height: 1.4; }
+    .mb-rules {
+        display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; padding-top: 8px;
+        border-top: 1px dashed rgba(255,255,255,.1); font-size: 11.5px; color: var(--ink);
+    }
+
+    /* Bids list */
+    .bids-card { margin-bottom: 14px; }
+    .bid-row {
+        padding: 10px 14px; border-bottom: 1px solid var(--line);
+        display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    }
+    .bid-row:last-child { border-bottom: none; }
+    .bid-prio {
+        width: 22px; height: 22px; border-radius: 6px; background: rgba(255,255,255,.08);
+        display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800;
+    }
+    .bid-del-btn {
+        background: none; border: 1px solid rgba(239,68,68,.3); color: #ef4444; border-radius: 6px;
+        padding: 4px 8px; font-size: 11px; font-weight: 700; cursor: pointer;
+    }
+    .bid-del-btn:hover { background: rgba(239,68,68,.15); }
+
+    /* Bid modal */
+    .modal-overlay {
+        position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.75);
+        display: flex; align-items: flex-end; justify-content: center;
+        opacity: 0; pointer-events: none; transition: opacity .2s;
+    }
+    .modal-overlay.open { opacity: 1; pointer-events: auto; }
+    .modal-sheet {
+        background: var(--bg-deep, #0f172a); border: 1px solid var(--line); border-radius: 20px 20px 0 0;
+        width: 100%; max-width: 520px; padding: 20px; max-height: 90vh; overflow-y: auto;
+        transform: translateY(100%); transition: transform .25s ease-out;
+    }
+    .modal-overlay.open .modal-sheet { transform: translateY(0); }
+    .modal-sheet h2 { font-size: 18px; font-weight: 900; margin: 0 0 14px; }
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
+    .form-group input, .form-group select {
+        width: 100%; padding: 10px 12px; border-radius: 10px; background: var(--panel-2);
+        border: 1px solid var(--line); color: var(--ink); font-size: 14px; font-weight: 600;
+    }
+    .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--accent); }
+    .modal-btns { display: flex; gap: 8px; margin-top: 18px; }
+    .modal-btns button {
+        flex: 1; padding: 12px; border-radius: 10px; font-weight: 800; font-size: 14px; cursor: pointer; border: none;
+    }
+    .btn-submit { background: var(--accent); color: #0a1108; }
+    .btn-cancel { background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); }
+</style>
+
+<div class="tab-head">
+    <h1>Mercato & Buste</h1>
+    <p>Calciatori liberi e mercato di riparazione · <b>{{ participant.remaining_credits|floatformat:0 }} FM</b> disponibili</p>
+</div>
+
+{% if active_auction %}
+<a class="a-cta" href="{% url 'bid' active_auction.id %}" style="margin-bottom:14px">
+    <svg class="ic"><use href="#i-gavel"/></svg>
+    <span class="t">
+        <b>Asta live in corso: {{ active_auction.title }}</b>
+        <span>Entra nella sala d'asta per rilanciare</span>
+    </span>
+    <span class="go">›</span>
+</a>
+{% endif %}
+
+<!-- Sessione di mercato a buste aperta -->
+{% if market_session %}
+<div class="market-banner">
+    <div class="mb-head">
+        <div class="mb-title">{{ market_session.title }}</div>
+        <span class="mb-badge">Buste Aperte</span>
+    </div>
+    <div class="mb-meta">
+        {% if market_session.closes_at %}
+        Chiusura consegna buste: <b>{{ market_session.closes_at|date:"d/m/Y H:i" }}</b>
+        {% else %}
+        Finestra di mercato aperta · Consegna le tue offerte prima dello spoglio
+        {% endif %}
+    </div>
+    <div class="mb-rules">
+        <span>Tagli condizionati: <b>{% if market_session.allow_conditional_release %}Sì ({{ market_session.get_release_refund_mode_display }}){% else %}No{% endif %}</b></span>
+        {% if market_session.max_acquisitions_p or market_session.max_acquisitions_d or market_session.max_acquisitions_c or market_session.max_acquisitions_a %}
+        <span>Tetti acquisti:
+            {% if market_session.max_acquisitions_p %}{{ market_session.max_acquisitions_p }}P {% endif %}
+            {% if market_session.max_acquisitions_d %}{{ market_session.max_acquisitions_d }}D {% endif %}
+            {% if market_session.max_acquisitions_c %}{{ market_session.max_acquisitions_c }}C {% endif %}
+            {% if market_session.max_acquisitions_a %}{{ market_session.max_acquisitions_a }}A{% endif %}
+        </span>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Le tue buste consegnate -->
+<div class="a-card bids-card" id="my-bids-card">
+    <div class="a-label">
+        <svg class="ic"><use href="#i-shield"/></svg>
+        Le tue buste consegnate (<span id="bids-count">{{ my_bids|length }}</span>)
+    </div>
+    <div id="my-bids-list">
+    {% for b in my_bids %}
+    <div class="bid-row" id="bid-row-{{ b.id }}">
+        <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="bid-prio" title="Priorità">{{ b.priority }}</span>
+            <span class="role-badge role-{{ b.player_role }}">{{ b.player_role }}</span>
+            <div style="min-width:0">
+                <div style="font-weight:800;font-size:13.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                    {{ b.player_name }}
+                </div>
+                <div style="font-size:11px;color:var(--muted)">
+                    {{ b.player_team }}
+                    {% if b.release_player_name %}
+                    · <span style="color:#ef4444">Taglio: {{ b.release_player_name }} (+{{ b.refund }} FM)</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+            <div style="text-align:right">
+                <span style="font-family:var(--display);font-weight:900;font-size:15px;color:var(--accent)">{{ b.amount }} FM</span>
+            </div>
+            <button type="button" class="bid-del-btn" onclick="deleteBid({{ b.id }})">✕</button>
+        </div>
+    </div>
+    {% empty %}
+    <div class="soon" style="border:none;background:none;padding:18px 10px" id="bids-empty">
+        <b>Nessuna busta consegnata</b>
+        <span>Scegli uno svincolato dall'elenco sotto e premi “Invia Busta”.</span>
+    </div>
+    {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Filtri ricerca svincolati -->
+<form method="get" class="market-filters">
+    <div class="search-row">
+        <input type="text" name="q" value="{{ q }}" placeholder="Cerca calciatore o squadra..." class="search-input">
+        <button type="submit" class="role-chip on" style="cursor:pointer;border:none;padding:0 16px;font-size:13px">Cerca</button>
+    </div>
+    <div class="role-chips">
+        <a href="?{% if q %}q={{ q }}&{% endif %}sort={{ sort }}" class="role-chip {% if not role %}on{% endif %}">Tutti</a>
+        <a href="?role=P{% if q %}&q={{ q }}{% endif %}&sort={{ sort }}" class="role-chip {% if role == 'P' %}on{% endif %}">Portieri</a>
+        <a href="?role=D{% if q %}&q={{ q }}{% endif %}&sort={{ sort }}" class="role-chip {% if role == 'D' %}on{% endif %}">Difensori</a>
+        <a href="?role=C{% if q %}&q={{ q }}{% endif %}&sort={{ sort }}" class="role-chip {% if role == 'C' %}on{% endif %}">Centrocampisti</a>
+        <a href="?role=A{% if q %}&q={{ q }}{% endif %}&sort={{ sort }}" class="role-chip {% if role == 'A' %}on{% endif %}">Attaccanti</a>
+    </div>
+</form>
+
+<!-- Elenco svincolati -->
+<div class="a-card">
+    <div class="a-label">
+        <svg class="ic"><use href="#i-users"/></svg>
+        Svincolati (mostrati {{ free_agents|length }})
+    </div>
+    {% for pl in free_agents %}
+    <div class="free-agent-row">
+        <div class="fa-main">
+            <span class="role-badge role-{{ pl.role }}">{{ pl.role }}</span>
+            <div class="fa-meta">
+                <span class="fa-name">{{ pl.name }}</span>
+                <span class="fa-sub">
+                    {{ pl.team }}
+                    {% if is_mantra and pl.roles_display %} · <span style="color:var(--accent)">{{ pl.roles_display }}</span>{% endif %}
+                    {% if pl.fanta_avg %} · Fm: <b>{{ pl.fanta_avg|floatformat:2 }}</b>{% endif %}
+                </span>
+            </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+            <div class="fa-quota">
+                {{ pl.initial_price|floatformat:0 }} <small>FM</small>
+            </div>
+            {% if market_session %}
+            <button type="button" class="role-chip on" style="cursor:pointer;border:none;padding:6px 10px;font-size:11.5px"
+                    onclick="openBidModal({{ pl.id }}, '{{ pl.name|escapejs }}', '{{ pl.role }}', '{{ pl.team|escapejs }}', {{ pl.initial_price|floatformat:0 }})">
+                Invia busta
+            </button>
+            {% endif %}
+        </div>
+    </div>
+    {% empty %}
+    <div class="soon" style="border:none;background:none;padding:24px 10px">
+        <svg class="ic"><use href="#i-search"/></svg>
+        <b>Nessun calciatore trovato</b>
+        <span>Nessuno svincolato corrisponde ai criteri di ricerca impostati.</span>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Modal Invia Busta -->
+{% if market_session %}
+<div class="modal-overlay" id="bid-modal" onclick="if(event.target===this) closeBidModal()">
+    <div class="modal-sheet">
+        <h2>Invia Busta di Mercato</h2>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;padding:10px;border-radius:10px;background:var(--panel-2)">
+            <span class="role-badge" id="modal-role"></span>
+            <div>
+                <div style="font-weight:800;font-size:15px;color:var(--ink)" id="modal-name"></div>
+                <div style="font-size:11px;color:var(--muted)" id="modal-team"></div>
+            </div>
+            <div style="margin-left:auto;text-align:right">
+                <div style="font-size:11px;color:var(--muted)">Quotazione</div>
+                <div style="font-weight:900;font-size:14px;color:var(--ink)" id="modal-quota"></div>
+            </div>
+        </div>
+
+        <form id="bid-form" onsubmit="submitBid(event)">
+            <input type="hidden" id="bid-player-id" name="player_id">
+            <input type="hidden" name="session_id" value="{{ market_session.id }}">
+
+            <div class="form-group">
+                <label>Offerta (FM)</label>
+                <input type="number" id="bid-amount" name="amount" min="1" required style="font-size:18px;font-weight:900;color:var(--accent)" oninput="updateBudgetCalc()">
+            </div>
+
+            <div class="form-group">
+                <label>Priorità di scelta</label>
+                <select name="priority" id="bid-priority">
+                    <option value="1">1ª scelta (massima priorità)</option>
+                    <option value="2">2ª scelta</option>
+                    <option value="3">3ª scelta</option>
+                    <option value="4">4ª scelta</option>
+                    <option value="5">5ª scelta</option>
+                </select>
+            </div>
+
+            {% if market_session.allow_conditional_release %}
+            <div class="form-group">
+                <label>Taglio condizionato (opzionale)</label>
+                <select name="release_player_id" id="bid-release-player" onchange="updateBudgetCalc()">
+                    <option value="">-- Nessun taglio (mantieni rosa) --</option>
+                    {% for rp in my_roster %}
+                    <option value="{{ rp.id }}" data-refund="{% if market_session.release_refund_mode == 'current' %}{{ rp.initial_price|floatformat:0 }}{% elif market_session.release_refund_mode == 'none' %}0{% else %}{{ rp.cost|floatformat:0|default:1 }}{% endif %}">
+                        Taglia {{ rp.name }} ({{ rp.role }} - {{ rp.team }})
+                        [+{% if market_session.release_refund_mode == 'current' %}{{ rp.initial_price|floatformat:0 }}{% elif market_session.release_refund_mode == 'none' %}0{% else %}{{ rp.cost|floatformat:0|default:1 }}{% endif %} FM]
+                    </option>
+                    {% endfor %}
+                </select>
+                <small style="color:var(--muted);font-size:11px;display:block;margin-top:4px">
+                    Il giocatore selezionato verrà svincolato solo se ti aggiudicherai questo calciatore.
+                </small>
+            </div>
+            {% endif %}
+
+            <div style="background:rgba(255,255,255,.04);padding:10px 12px;border-radius:10px;margin-bottom:14px;font-size:12px">
+                <div style="display:flex;justify-content:space-between">
+                    <span style="color:var(--muted)">Crediti attuali:</span>
+                    <b>{{ participant.remaining_credits|floatformat:0 }} FM</b>
+                </div>
+                <div style="display:flex;justify-content:space-between;margin-top:3px" id="calc-refund-row">
+                    <span style="color:var(--muted)">Recupero da taglio:</span>
+                    <b style="color:var(--accent)" id="calc-refund">+0 FM</b>
+                </div>
+                <div style="display:flex;justify-content:space-between;margin-top:3px;border-top:1px dashed rgba(255,255,255,.1);padding-top:4px">
+                    <span style="color:var(--muted)">Budget massimo spendibile:</span>
+                    <b id="calc-max-spendable">{{ participant.remaining_credits|floatformat:0 }} FM</b>
+                </div>
+            </div>
+
+            <div class="modal-btns">
+                <button type="button" class="btn-cancel" onclick="closeBidModal()">Annulla</button>
+                <button type="submit" class="btn-submit">Consegna Busta</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    const REMAINING_CREDITS = {{ participant.remaining_credits|floatformat:0 }};
+    const CSRF_TOKEN = '{{ csrf_token }}';
+
+    function openBidModal(id, name, role, team, quota) {
+        document.getElementById("bid-player-id").value = id;
+        document.getElementById("modal-name").textContent = name;
+        document.getElementById("modal-team").textContent = team;
+        document.getElementById("modal-quota").textContent = quota + " FM";
+        const rEl = document.getElementById("modal-role");
+        rEl.textContent = role;
+        rEl.className = "role-badge role-" + role;
+        document.getElementById("bid-amount").value = Math.max(1, quota);
+        if (document.getElementById("bid-release-player")) {
+            document.getElementById("bid-release-player").value = "";
+        }
+        updateBudgetCalc();
+        document.getElementById("bid-modal").classList.add("open");
+    }
+
+    function closeBidModal() {
+        document.getElementById("bid-modal").classList.remove("open");
+    }
+
+    function updateBudgetCalc() {
+        let refund = 0;
+        const relSel = document.getElementById("bid-release-player");
+        if (relSel && relSel.value) {
+            const opt = relSel.options[relSel.selectedIndex];
+            refund = parseInt(opt.dataset.refund || "0", 10) || 0;
+        }
+        document.getElementById("calc-refund").textContent = "+" + refund + " FM";
+        const maxSpend = REMAINING_CREDITS + refund;
+        document.getElementById("calc-max-spendable").textContent = maxSpend + " FM";
+    }
+
+    async function submitBid(e) {
+        e.preventDefault();
+        const form = document.getElementById("bid-form");
+        const data = new FormData(form);
+        try {
+            const r = await fetch("{% url 'app_market_bid' %}", {
+                method: "POST", body: data, headers: { "X-CSRFToken": CSRF_TOKEN },
+            });
+            const res = await r.json();
+            if (res.ok) {
+                closeBidModal();
+                location.reload();
+            } else {
+                alert(res.message || "Errore durante l'invio della busta");
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Errore di connessione");
+        }
+    }
+
+    async function deleteBid(bidId) {
+        if (!confirm("Sei sicuro di voler ritirare questa offerta?")) return;
+        const data = new FormData();
+        data.append("session_id", "{{ market_session.id }}");
+        data.append("bid_id", bidId);
+        try {
+            const r = await fetch("{% url 'app_market_delete_bid' %}", {
+                method: "POST", body: data, headers: { "X-CSRFToken": CSRF_TOKEN },
+            });
+            const res = await r.json();
+            if (res.ok) {
+                const row = document.getElementById("bid-row-" + bidId);
+                if (row) row.remove();
+                location.reload();
+            } else {
+                alert(res.message || "Impossibile eliminare l'offerta");
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Errore di connessione");
+        }
+    }
+</script>
+{% endif %}
+{% endblock %}

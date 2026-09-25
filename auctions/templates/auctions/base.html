@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>{% block title %}FantaManager — Asta Live{% endblock %}</title>
+    <!-- Webfonts are a nicety, not a dependency: FantaManager runs on a LAN
+         with no internet at all. They load without blocking rendering, and the
+         stacks below fall back to fonts every OS already ships. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" media="print" onload="this.media='all'"
+          href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Inter:wght@400;500;600;700;800;900&display=swap">
+    <noscript>
+        <link rel="stylesheet"
+              href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Inter:wght@400;500;600;700;800;900&display=swap">
+    </noscript>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/console.css' %}">
+</head>
+<body class="{% block bodyclass %}role-player{% endblock %}">
+    {% include "auctions/_icons.html" %}
+    <div class="role-edge"></div>
+    <div class="wrap {% block wrapclass %}{% endblock %}">
+        {% block content %}{% endblock %}
+    </div>
+
+    <div id="extend-banner" class="extend-banner"><svg class="ic"><use href="#i-shield"/></svg> Tempo esteso — l'asta continua</div>
+    <div id="toast" class="toast"></div>
+    <div id="alert-banner" class="alert-banner"></div>
+
+    <!-- Build label — regia only: which version to name in a bug report. -->
+    <div class="app-version-badge">v{{ app_version }}</div>
+    <style>
+        .app-version-badge {
+            display: none; position: fixed; right: 10px; bottom: 8px; z-index: 5;
+            font-size: 10px; font-weight: 700; letter-spacing: .04em;
+            color: var(--fm-text-muted, #7d8ba1); opacity: .55;
+            pointer-events: none; user-select: none;
+        }
+        body.role-admin .app-version-badge { display: block; }
+    </style>
+
+    <style>
+        .alert-banner {
+            position: fixed; top: 14px; left: 50%;
+            transform: translateX(-50%) translateY(-120%);
+            visibility: hidden;
+            z-index: 180; max-width: 92%; width: max-content;
+            padding: 12px 20px; border-radius: 10px;
+            display: flex; align-items: center; gap: 10px;
+            font-weight: 800; font-size: 13px; letter-spacing: 0.06em;
+            text-transform: uppercase;
+            background: var(--fm-surface-2); border: 1px solid rgba(255,61,80,.45);
+            color: var(--closed); box-shadow: 0 8px 32px rgba(0,0,0,.6);
+            transition: transform .28s cubic-bezier(.34,1.56,.64,1), visibility 0s linear .28s;
+            pointer-events: none;
+        }
+        .alert-banner.show { transform: translateX(-50%) translateY(0); visibility: visible; transition: transform .28s cubic-bezier(.34,1.56,.64,1); }
+        .alert-banner .alert-icon { font-size: 16px; flex-shrink: 0; }
+    </style>
+
+    <!-- Award overlay — one short, calm beat: no confetti, no loops. -->
+    <div id="award-overlay" class="award-overlay" aria-hidden="true">
+        <div class="award-inner">
+            <div class="award-stamp" id="award-stamp">AGGIUDICATO!</div>
+            <div class="award-winner" id="award-winner"></div>
+            <div class="award-amount" id="award-amount"></div>
+        </div>
+    </div>
+
+    <style>
+        .award-overlay {
+            position: fixed; inset: 0; z-index: 200;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(3,10,24,.95);
+            opacity: 0; pointer-events: none;
+            transition: opacity .22s ease;
+        }
+        .award-overlay.show { opacity: 1; pointer-events: auto; }
+        .award-overlay.hiding { opacity: 0; }
+        .award-inner { position: relative; z-index: 1; text-align: center; padding: 32px 24px; }
+        .award-stamp {
+            font-family: var(--fm-display); font-weight: 800;
+            font-size: clamp(44px, 12vw, 88px); color: var(--fm-primary-light);
+            text-transform: uppercase; letter-spacing: .04em; line-height: 1;
+            opacity: 0; transform: scale(2.4) rotate(-4deg);
+            text-shadow: 0 0 60px rgba(8,124,240,.55);
+        }
+        .award-overlay.show .award-stamp { animation: stampIn .30s cubic-bezier(.22,.61,.36,1) forwards; }
+        @keyframes stampIn {
+            0%   { opacity:0; transform:scale(2.4) rotate(-4deg); }
+            60%  { opacity:1; transform:scale(.92) rotate(1deg); }
+            80%  { transform:scale(1.04) rotate(-.5deg); }
+            100% { opacity:1; transform:scale(1) rotate(0deg); }
+        }
+        .award-winner {
+            font-family: var(--fm-display); font-weight: 800; font-size: clamp(26px,6vw,52px);
+            color: #fff; letter-spacing: .02em; margin-top: 10px;
+            opacity: 0; transform: translateY(18px);
+        }
+        .award-overlay.show .award-winner { animation: slideUp .26s ease .16s forwards; }
+        .award-amount {
+            font-family: var(--fm-display); font-weight: 800; font-size: clamp(36px,9vw,72px);
+            color: var(--fm-cyan); letter-spacing: .02em; line-height: 1; margin-top: 4px;
+            opacity: 0; transform: translateY(14px);
+        }
+        .award-overlay.show .award-amount { animation: slideUp .26s ease .26s forwards; }
+        @keyframes slideUp { to { opacity: 1; transform: translateY(0); } }
+    </style>
+
+    <script>
+        function auctionSocketUrl(id) {
+            const p = location.protocol === "https:" ? "wss" : "ws";
+            return `${p}://${location.host}/ws/auction/${id}/`;
+        }
+        function fmtTime(s) {
+            s = Math.max(0, Math.ceil(s));
+            return String(Math.floor(s/60)).padStart(2,"0") + ":" + String(s%60).padStart(2,"0");
+        }
+        function showToast(msg, kind) {
+            const t = document.getElementById("toast");
+            t.textContent = msg; t.className = "toast show " + (kind||"info");
+            clearTimeout(window.__toastT);
+            window.__toastT = setTimeout(() => t.classList.remove("show"), 2600);
+        }
+        function showAlert(icon, msg, durationMs) {
+            const b = document.getElementById("alert-banner");
+            b.innerHTML = `<span class="alert-icon">${icon}</span><span>${msg}</span>`;
+            b.classList.add("show");
+            clearTimeout(window.__alertT);
+            window.__alertT = setTimeout(() => b.classList.remove("show"), durationMs || 6000);
+        }
+
+        function flashExtended() {
+            soundExtension();
+            const b = document.getElementById("extend-banner");
+            b.classList.add("show"); clearTimeout(window.__extT);
+            window.__extT = setTimeout(() => b.classList.remove("show"), 2800);
+        }
+        const STATUS_LABEL = {
+            DRAFT:"Non iniziata", READY:"Non iniziata",
+            LIVE:"In corso", PAUSED:"In pausa", CLOSED:"Chiusa",
+        };
+        function money(v) {
+            const n = parseFloat(v); if (isNaN(n)) return v;
+            return n.toLocaleString("it-IT", {minimumFractionDigits:0, maximumFractionDigits:2});
+        }
+        /* ---- Sound engine (Web Audio API, no files needed) --------------- */
+        const _ACtx = window.AudioContext || window.webkitAudioContext;
+        let _ac = null;
+
+        function _getAC() {
+            if (!_ac) { try { _ac = new _ACtx(); } catch(e) { return null; } }
+            if (_ac.state === "suspended") _ac.resume();
+            return _ac;
+        }
+
+        function _tone(freq, type, vol, startOffset, dur) {
+            const ac = _getAC(); if (!ac) return;
+            const t = ac.currentTime + startOffset;
+            const osc = ac.createOscillator();
+            const g   = ac.createGain();
+            osc.connect(g); g.connect(ac.destination);
+            osc.frequency.value = freq; osc.type = type;
+            g.gain.setValueAtTime(vol, t);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+            osc.start(t); osc.stop(t + dur + 0.01);
+        }
+
+        function soundBid() {
+            _tone(523, "sine",     0.26, 0,    0.18);
+            _tone(784, "sine",     0.20, 0.11, 0.28);
+        }
+        function soundSold() {
+            [523, 659, 784, 1047].forEach((f, i) =>
+                _tone(f, "triangle", 0.20, i * 0.13, 0.55));
+        }
+        function soundRejected() {
+            _tone(200, "sawtooth", 0.16, 0,    0.12);
+            _tone(150, "sawtooth", 0.16, 0.13, 0.18);
+        }
+        function soundExtension() {
+            _tone(440, "sine", 0.16, 0,    0.22);
+            _tone(660, "sine", 0.16, 0.20, 0.32);
+        }
+        function soundReset() {
+            _tone(330, "sine", 0.10, 0,    0.18);
+            _tone(440, "sine", 0.10, 0.14, 0.18);
+            _tone(330, "sine", 0.10, 0.28, 0.22);
+        }
+
+        let _lastTickSec = -1;
+        function soundTick(remaining) {
+            if (remaining <= 0 || remaining > 10) { _lastTickSec = -1; return; }
+            const s = Math.ceil(remaining);
+            if (s === _lastTickSec) return;
+            _lastTickSec = s;
+            _tone(remaining <= 5 ? 1100 : 880, "sine", 0.10, 0, 0.045);
+        }
+        /* ------------------------------------------------------------------ */
+
+        /* Timer con millisecondi (attivo sotto i 3 secondi) */
+        function fmtTimerMs(r) {
+            r = Math.max(0, r);
+            const s  = Math.floor(r);
+            const ms = Math.floor((r % 1) * 1000);
+            return `${s}<span class="timer-ms">.${String(ms).padStart(3,'0').slice(0,2)}</span>`;
+        }
+
+        function updateRing(bar, wrap, remaining, total) {
+            const C = parseFloat(bar.getAttribute("data-circ"));
+            const frac = total>0 ? Math.max(0,Math.min(1,remaining/total)) : 0;
+            bar.style.strokeDashoffset = C*(1-frac);
+            // > 20s blue · 10-20s amber · < 10s red (absolute seconds, so the
+            // colour means the same thing whatever the round length is).
+            let color = "var(--fm-primary-light)";
+            if (remaining <= 10) color = "var(--fm-danger)";
+            else if (remaining <= 20) color = "var(--fm-warning)";
+            bar.style.stroke = color;
+            if (wrap) wrap.classList.toggle("urgent", remaining>0 && remaining<=10);
+        }
+
+        /* Award animation */
+    function showAwardAnimation(winner, amount) {
+        soundSold();
+        const o = document.getElementById("award-overlay");
+        document.getElementById("award-winner").textContent = winner;
+        document.getElementById("award-amount").textContent = money(amount) + " FM";
+        o.classList.remove("hiding"); o.classList.add("show");
+        // ~1s total: long enough to register, short enough not to block the room.
+        setTimeout(() => {
+            o.classList.add("hiding");
+            setTimeout(() => o.classList.remove("show", "hiding"), 260);
+        }, 1000);
+    }
+
+        /* ---- Stay awake: bidder phones and the big screen must not lock
+           mid-asta. Screen Wake Lock API where available; on browsers without
+           it (older Android WebViews, iOS < 16.4) a 1x1 canvas streamed into a
+           hidden looping <video> tricks the OS the same way a real video
+           playback would — no embedded media file needed. ------------------ */
+        (function () {
+            const stayAwake = document.body.classList.contains("role-player")
+                || document.body.classList.contains("role-tv");
+            if (!stayAwake) return;
+
+            let wakeLock = null, fallbackVideo = null;
+
+            async function requestWakeLock() {
+                if (!("wakeLock" in navigator)) return false;
+                try {
+                    wakeLock = await navigator.wakeLock.request("screen");
+                    wakeLock.addEventListener("release", () => { wakeLock = null; });
+                    return true;
+                } catch (e) {
+                    return false;
+                }
+            }
+
+            function startFallbackVideo() {
+                if (fallbackVideo) { fallbackVideo.play().catch(() => {}); return; }
+                try {
+                    const canvas = document.createElement("canvas");
+                    canvas.width = 1; canvas.height = 1;
+                    if (!canvas.captureStream) return;
+                    const video = document.createElement("video");
+                    video.muted = true;
+                    video.loop = true;
+                    video.playsInline = true;
+                    video.setAttribute("playsinline", "");
+                    video.style.cssText = "position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;";
+                    video.srcObject = canvas.captureStream(1);
+                    document.body.appendChild(video);
+                    video.play().catch(() => {});
+                    fallbackVideo = video;
+                } catch (e) { /* no canvas/video support — nothing we can do */ }
+            }
+
+            async function keepAwake() {
+                if (!(await requestWakeLock())) startFallbackVideo();
+            }
+
+            // The Wake Lock API silently drops on tab hide/minimize; grab it
+            // again whenever the page comes back to the foreground.
+            document.addEventListener("visibilitychange", () => {
+                if (document.visibilityState === "visible") keepAwake();
+            });
+            // Some browsers refuse the very first request without a user
+            // gesture — retry once on the first tap/click if that happens.
+            const retryOnGesture = () => { keepAwake(); };
+            document.addEventListener("click", retryOnGesture, { once: true });
+            document.addEventListener("touchstart", retryOnGesture, { once: true, passive: true });
+            keepAwake();
+        })();
+        </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

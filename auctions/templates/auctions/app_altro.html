@@ -1,0 +1,82 @@
+{% extends "auctions/app_base.html" %}
+{% block title %}Altro — FantaManager{% endblock %}
+{% block app %}
+<div class="tab-head">
+    <h1>Altro</h1>
+    <p>Profilo, sicurezza e accessi</p>
+</div>
+
+{% if messages %}
+<div style="margin-bottom: 14px;">
+    {% for msg in messages %}
+    <div style="padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; margin-bottom: 6px;
+                background:{% if msg.tags == 'error' %}rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3){% else %}rgba(34,197,94,0.15);color:#22c55e;border:1px solid rgba(34,197,94,0.3){% endif %}">
+        {{ msg }}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="a-card">
+    <div class="a-label"><svg class="ic"><use href="#i-shield"/></svg> Profilo squadra</div>
+    <div class="a-row">
+        <span class="nm">Squadra</span>
+        <span class="val">{{ participant.display_name }}</span>
+    </div>
+    <div class="a-row">
+        <span class="nm">Lega</span>
+        <span class="val">{% if app_league %}{{ app_league.name }}{% else %}—{% endif %}</span>
+    </div>
+    <div class="a-row">
+        <span class="nm">Crediti</span>
+        <span class="val">{{ participant.remaining_credits|floatformat:0 }} / {{ participant.credits|floatformat:0 }} FM</span>
+    </div>
+    <div class="a-row">
+        <span class="nm">Accesso</span>
+        <span class="val">
+            {% if request.user.is_authenticated %}
+                <span style="color:#22c55e;font-weight:700">Account: {{ request.user.username }}</span>
+            {% else %}
+                <span style="color:var(--muted)">Codice Squadra / PIN</span>
+            {% endif %}
+        </span>
+    </div>
+</div>
+
+<div class="a-card">
+    <div class="a-label"><svg class="ic"><use href="#i-lock"/></svg> Codice di Accesso Squadra (PIN)</div>
+    <form method="post" action="{% url 'app_update_pin' %}" style="display:flex;flex-direction:column;gap:10px">
+        {% csrf_token %}
+        <div class="muted" style="font-size:12px;line-height:1.4">
+            Questo codice protegge l'accesso alla tua squadra nell'area manageriale (formazione, mercato a buste, rosa).
+        </div>
+        <div style="display:flex;gap:8px">
+            <input type="text" name="access_code" value="{{ participant.access_code }}" maxlength="20"
+                   placeholder="Es. DRAGO23" required autocomplete="off"
+                   style="flex:1;padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:rgba(0,0,0,0.25);color:var(--ink);font-weight:800;letter-spacing:0.1em;text-transform:uppercase">
+            <button type="submit" class="btn btn-primary" style="padding:10px 16px;font-size:13px;font-weight:700">
+                Salva
+            </button>
+        </div>
+    </form>
+</div>
+
+<a class="btn btn-ghost" href="{% url 'app_login' %}?switch=1" style="width:100%;justify-content:center">
+    <svg class="ic"><use href="#i-swap"/></svg> Cambia squadra / Account
+</a>
+
+<a class="btn btn-ghost" href="{% url 'app_logout' %}" style="width:100%;justify-content:center;color:#ef4444;border-color:rgba(239,68,68,0.3)">
+    <svg class="ic"><use href="#i-lock"/></svg> Disconnetti (Logout)
+</a>
+
+<a class="btn btn-ghost" href="{% url 'admin_dashboard' %}" style="width:100%;justify-content:center">
+    <svg class="ic"><use href="#i-gear"/></svg> Accesso Regia (organizzatore)
+</a>
+
+<div class="soon">
+    <svg class="ic"><use href="#i-gear"/></svg>
+    <b>Impostazioni & notifiche</b>
+    <span>Preferenze, avvisi e gestione account completa arriveranno con il profilo manager esteso.</span>
+    <span class="soon-tag">In arrivo</span>
+</div>
+{% endblock %}

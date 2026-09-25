@@ -1,0 +1,166 @@
+{% extends "auctions/base.html" %}
+{% block title %}Squadre — FantaManager{% endblock %}
+{% block bodyclass %}role-admin{% endblock %}
+{% block wrapclass %}wrap-wide{% endblock %}
+
+{% block content %}
+<style>
+    .pg-head { display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap; margin:6px 0 14px; }
+    .pg-head h1 { margin:0; font-size:26px; letter-spacing:.02em; }
+    .pg-head .sub { font-size:12.5px; color:var(--fm-text-secondary); }
+    .pg-head .spacer { flex:1 1 auto; }
+
+    .team-name { font-weight:700; }
+    .num { text-align:right; }
+    .rank-cell { font-family:var(--fm-display); font-weight:800; font-size:15px; color:var(--fm-text-muted); text-align:center; }
+    .roles { font-size:11px; color:var(--fm-text-muted); margin-top:3px; }
+    .code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:11.5px;
+        background:rgba(8,124,240,.12); border:1px solid var(--fm-border);
+        border-radius:4px; padding:2px 7px; color:var(--fm-primary-light);
+    }
+    .linkcell { max-width:320px; }
+    .linkcell input {
+        width:100%; height:30px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size:11px; padding:0 8px; margin:0;
+    }
+    .qr { width:84px; height:84px; border-radius:8px; background:#fff; padding:4px; display:block; }
+    .netlabel { font-size:9.5px; text-transform:uppercase; letter-spacing:.12em;
+        color:var(--fm-primary-light); font-weight:700; margin-bottom:4px; }
+    .netlabel .muted { text-transform:none; letter-spacing:0; font-weight:500; }
+    .empty-state { text-align:center; padding:34px 20px; color:var(--fm-text-muted); }
+
+    /* Print: paper is white and QR codes need contrast — the dark theme stays
+       on screen only. */
+    @media print {
+        .noprint, .no-print, .fm-topbar, .fm-nav, .howto,
+        .role-edge, #toast, #award-overlay, #extend-banner { display:none !important; }
+        html, body { background:#fff !important; color:#000 !important; }
+        body::before, body::after { display:none !important; }
+        .wrap, .wrap-wide { padding:0 !important; max-width:none !important; }
+        .fm-card, .panel {
+            background:#fff !important; border:1px solid #999 !important;
+            box-shadow:none !important; break-inside:avoid;
+        }
+        table, th, td { color:#000 !important; }
+        th { border-bottom:1px solid #666 !important; }
+        td { border-bottom:1px solid #ddd !important; }
+        .team-name, .num, strong, b { color:#000 !important; }
+        .muted, .netlabel, .roles { color:#444 !important; }
+        .code { background:#eee !important; color:#000 !important; border-color:#999 !important; }
+        .linkcell input {
+            background:#fff !important; color:#000 !important; border:0 !important;
+            font-size:10px !important; padding:0 !important;
+        }
+        .qr { width:104px !important; height:104px !important; padding:0 !important;
+              background:#fff !important; filter:contrast(1.25); }
+        .fm-meter { display:none !important; }
+        a { color:#000 !important; text-decoration:none; }
+    }
+</style>
+
+{% include "auctions/_console_head.html" %}
+
+<div class="pg-head noprint">
+    <div>
+        <h1>Gestione squadre</h1>
+        <div class="sub">{{ rows|length }} squadre{% if current_league %} · {{ current_league.name }}{% endif %}</div>
+    </div>
+    <span class="spacer"></span>
+    <a class="fm-btn fm-btn-secondary" href="{% url 'admin_players' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
+        <svg class="ic"><use href="#i-import"/></svg> Importa rose</a>
+    <a class="fm-btn fm-btn-primary" href="{% url 'admin_dashboard' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
+        <svg class="ic"><use href="#i-plus"/></svg> Aggiungi squadra</a>
+    <button type="button" class="fm-btn fm-btn-ghost noprint" onclick="window.print()">
+        <svg class="ic"><use href="#i-print"/></svg> Stampa</button>
+</div>
+
+<details class="howto noprint">
+    <summary><svg class="ic"><use href="#i-shield"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        L'elenco delle squadre della lega, con crediti, rosa e <b>link di accesso personale</b>.
+        <ol>
+            <li>Passa a ogni allenatore il <b>suo</b> link (o fagli inquadrare il QR): entra
+                {% if target_auction %}direttamente nell'asta <b>{{ target_auction.title }}</b>{% else %}già riconosciuto{% endif %}
+                come la sua squadra, senza digitare codici.</li>
+            <li><b>Stampa</b> la pagina per avere i QR su carta la sera dell'asta.</li>
+            {% if remote_on %}
+            <li>Con l'<b>accesso da internet</b> attivo ogni squadra ha due link: usa quello
+                <b>wifi di casa</b> per chi è nella stanza (più veloce e non passa da internet)
+                e quello <b>da internet</b> per chi è altrove.</li>
+            {% endif %}
+        </ol>
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Il link è personale: chi ce l'ha offre a nome di quella squadra. Le squadre si creano e si modificano dalla dashboard.</div>
+    </div>
+</details>
+
+<div class="fm-card">
+    {% if rows %}
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th style="width:36px">Pos</th>
+                    <th>Squadra</th>
+                    <th class="num">Crediti</th>
+                    <th class="num">Spesi</th>
+                    <th class="num">Residuo</th>
+                    <th>Rosa</th>
+                    <th>Accesso</th>
+                    <th class="noprint"></th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for r in rows %}
+                <tr>
+                    <td class="rank-cell">{{ forloop.counter }}</td>
+                    <td>
+                        <div class="team-name">{{ r.p.display_name }}</div>
+                        {% if not r.p.is_active %}<div class="muted" style="font-size:12px">disattivata</div>{% endif %}
+                        {% if r.p.access_code %}<div style="margin-top:4px"><span class="code">{{ r.p.access_code }}</span></div>{% endif %}
+                    </td>
+                    <td class="num">{{ r.p.credits|floatformat:0 }}</td>
+                    <td class="num">{{ r.p.spent_credits|floatformat:0 }}</td>
+                    <td class="num"><strong>{{ r.p.remaining_credits|floatformat:0 }}</strong></td>
+                    <td>
+                        <div style="display:flex;align-items:center;gap:8px">
+                            <b>{{ r.roster }}</b>
+                            <span class="fm-meter"><span style="width:{{ r.roster_pct }}%"></span></span>
+                        </div>
+                        <div class="roles">P{{ r.counts.P }} D{{ r.counts.D }} C{{ r.counts.C }} A{{ r.counts.A }}</div>
+                    </td>
+                    <td class="linkcell">
+                        {% if r.lan_join_url %}
+                        <div class="netlabel">Wifi di casa <span class="muted">— usalo per chi è nella stanza</span></div>
+                        <input type="text" readonly value="{{ r.lan_join_url }}" onclick="this.select()">
+                        <div class="netlabel" style="margin-top:8px">Da internet</div>
+                        {% endif %}
+                        <input type="text" readonly value="{{ r.join_url }}" onclick="this.select()">
+                    </td>
+                    <td style="text-align:right">
+                        {% if r.lan_join_url %}
+                        <div>
+                            <img class="qr" src="{% url 'participant_qr' r.p.id %}?net=lan{% if target_auction %}&a={{ target_auction.id }}{% endif %}"
+                                 alt="QR wifi {{ r.p.display_name }}" loading="lazy">
+                            <div class="netlabel" style="text-align:center">Wifi</div>
+                        </div>
+                        {% endif %}
+                        <div>
+                            <img class="qr" src="{% url 'participant_qr' r.p.id %}{% if target_auction %}?a={{ target_auction.id }}{% endif %}"
+                                 alt="QR accesso {{ r.p.display_name }}" loading="lazy">
+                            {% if r.lan_join_url %}<div class="netlabel" style="text-align:center">Internet</div>{% endif %}
+                        </div>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        Nessuna squadra in questa lega.<br>
+        Aggiungile dalla dashboard o dal wizard di creazione lega.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

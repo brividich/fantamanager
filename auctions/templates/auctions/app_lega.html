@@ -1,0 +1,40 @@
+{% extends "auctions/app_base.html" %}
+{% block title %}Lega — FantaManager{% endblock %}
+{% block app %}
+<div class="tab-head">
+    <h1>{% if app_league %}{{ app_league.name }}{% else %}Lega{% endif %}</h1>
+    <p>{{ standings|length }} squadre</p>
+</div>
+
+<div class="a-card">
+    <div class="a-label"><svg class="ic"><use href="#i-trophy"/></svg> Classifica rose</div>
+    {% for row in standings %}
+    <div class="a-row">
+        <span class="a-rank {% if forloop.counter <= 3 %}top{% endif %}">{{ forloop.counter }}</span>
+        <span class="nm">{{ row.name }}{% if row.is_me %} <small style="display:inline;color:var(--accent)">· tu</small>{% endif %}<small>{{ row.owned }} gioc. · {{ row.spent|floatformat:0 }} FM spesi</small></span>
+        <span class="val">{{ row.remaining|floatformat:0 }} <span class="muted" style="font-weight:600;font-size:12px">FM</span></span>
+    </div>
+    {% empty %}
+    <p class="muted" style="font-size:13px;text-align:center;padding:6px 0">Nessuna squadra in lega.</p>
+    {% endfor %}
+</div>
+
+{% if auctions %}
+<div class="a-card">
+    <div class="a-label"><svg class="ic"><use href="#i-gavel"/></svg> Aste</div>
+    {% for a in auctions %}
+    <a class="a-row" href="{% url 'bid' a.id %}" style="text-decoration:none;color:inherit">
+        <span class="nm">{{ a.title }}<small>{{ a.get_status_display }}</small></span>
+        <span class="status-pill s-{{ a.status }}" style="font-size:9px;padding:4px 9px">{{ a.get_status_display }}</span>
+    </a>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="soon">
+    <svg class="ic"><use href="#i-table"/></svg>
+    <b>Calendario · Risultati · Regolamento</b>
+    <span>Giornate, scontri diretti e statistiche di lega si accenderanno all'avvio del campionato.</span>
+    <span class="soon-tag">In arrivo</span>
+</div>
+{% endblock %}

@@ -1,0 +1,68 @@
+{% extends "auctions/base.html" %}
+{% block title %}Entra nell'asta{% endblock %}
+
+{% block content %}
+<div class="mast">
+    <div class="eyebrow"><span class="rule"></span><svg class="ic"><use href="#i-shield"/></svg> Asta Live<span class="rule"></span></div>
+</div>
+
+<details class="howto">
+    <summary><svg class="ic"><use href="#i-info"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        Da qui <b>entri come la tua squadra</b> per partecipare all'asta dal telefono.
+        <ol>
+            <li>Inserisci il <b>codice squadra</b> che ti ha dato l'organizzatore (se sei arrivato dal link/QR sei già riconosciuto).</li>
+            <li>Scegli l'<b>asta</b> a cui unirti.</li>
+            <li>Premi <b>Entra</b>: arrivi alla schermata delle offerte.</li>
+        </ol>
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Non hai un codice? Chiedilo a chi gestisce la regia.</div>
+    </div>
+</details>
+
+<div class="panel">
+    {% if recognized %}
+    <h1 style="margin-bottom:6px">Ciao, {{ recognized.display_name }} <svg class="ic"><use href="#i-wave"/></svg></h1>
+    <p class="muted" style="margin:0 0 20px; font-size:14px">Sei stato riconosciuto dal link. Scegli l'asta ed entra.</p>
+    {% else %}
+    <h1 style="margin-bottom:6px">Entra nell'asta</h1>
+    <p class="muted" style="margin:0 0 20px; font-size:14px">Inserisci il codice della tua squadra.</p>
+    {% endif %}
+
+    {% if error %}
+    <div style="background:rgba(255,61,61,0.12); border:1px solid rgba(255,61,61,0.35);
+                color:var(--closed); padding:12px 14px; border-radius:8px; margin-bottom:16px; font-weight:600">
+        {{ error }}
+    </div>
+    {% endif %}
+
+    <form method="post">
+        {% csrf_token %}
+        {% if token %}<input type="hidden" name="public_token" value="{{ token }}">{% endif %}
+
+        {% if not recognized %}
+        <label for="access_code">Codice squadra</label>
+        <input id="access_code" name="access_code" maxlength="20"
+               autocomplete="off" placeholder="Inserisci il codice ricevuto"
+               style="font-size:20px; letter-spacing:0.14em; text-transform:uppercase; text-align:center">
+        {% endif %}
+
+        <label for="auction_id">Asta</label>
+        <select id="auction_id" name="auction_id" required>
+            {% for a in joinable %}
+                <option value="{{ a.id }}"
+                    {% if request.GET.next == a.id|stringformat:'s' %}selected{% endif %}>
+                    {% if a.league %}[{{ a.league.name }}] {% endif %}{{ a.title }} — {{ a.get_status_display }}
+                </option>
+            {% empty %}
+                <option value="" disabled>Nessuna asta disponibile</option>
+            {% endfor %}
+        </select>
+
+        <div style="margin-top:22px">
+            <button type="submit" class="btn-ok" style="width:100%; font-size:18px; padding:18px">
+                Entra →
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

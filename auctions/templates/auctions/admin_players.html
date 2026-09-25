@@ -1,0 +1,591 @@
+{% extends "auctions/base.html" %}
+{% block title %}Giocatori — FantaManager{% endblock %}
+{% block bodyclass %}role-admin{% endblock %}
+{% block wrapclass %}wrap-wide{% endblock %}
+
+{% block content %}
+<style>
+    /* ---- Listone — layout only ---------------------------------------- */
+    .pg-head { display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap; margin:6px 0 14px; }
+    .pg-head h1 { margin:0; font-size:26px; letter-spacing:.02em; }
+    .pg-head .sub { font-size:12.5px; color:var(--fm-text-secondary); }
+    .pg-head .spacer { flex:1 1 auto; }
+
+    .stat-bar { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+    .stat-bar .glass {
+        flex:1 1 130px; padding:11px 14px; display:flex; align-items:center; gap:11px;
+        background:var(--fm-card); border:1px solid rgba(70,145,220,.20); border-radius:var(--fm-radius-md);
+    }
+    .stat-bar .stat-num { font-family:var(--fm-display); font-weight:800; font-size:22px; line-height:1; }
+    .stat-bar .stat-name { font-size:11px; color:var(--fm-text-muted); line-height:1.2; }
+    .stat-bar .glass.is-total .stat-num { color:var(--fm-primary-light); }
+    .stat-bar .glass.is-free  .stat-num { color:var(--fm-success); }
+
+    /* Filters */
+    .filters { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+    .fm-search { position:relative; flex:1 1 260px; max-width:340px; }
+    .fm-search .ic { position:absolute; left:11px; top:50%; transform:translateY(-50%);
+        width:15px; height:15px; color:var(--fm-text-muted); pointer-events:none; }
+    #player-search { padding-left:33px; }
+    .chip-group { display:flex; gap:4px; flex-wrap:wrap; padding:3px;
+        background:rgba(255,255,255,.03); border:1px solid var(--fm-border); border-radius:var(--fm-radius-sm); }
+    .chip-group button {
+        height:30px; padding:0 11px; font-size:12px; font-weight:600; border-radius:4px;
+        background:transparent; border:0; box-shadow:none; color:var(--fm-text-secondary);
+        display:inline-flex; align-items:center; gap:6px;
+    }
+    .chip-group button:hover { filter:none; background:rgba(255,255,255,.06); color:#fff; }
+    .chip-group button.active { background:rgba(8,124,240,.20); color:var(--fm-primary-light); }
+    .chip-group .role-badge { width:18px; height:18px; font-size:10px; }
+
+    /* Rows */
+    .player-row { display:none; }
+    .player-row.visible { display:table-row; }
+    .owner-tag { display:inline-flex; align-items:center; gap:5px; font-size:12px; color:var(--fm-text-secondary); font-weight:600; }
+    .free-tag { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--fm-success); font-weight:600; }
+    .free-tag .dot { width:6px; height:6px; border-radius:50%; background:var(--fm-success); }
+    .row-actions { display:inline-flex; gap:6px; justify-content:flex-end; }
+    .row-actions button, .row-actions .fm-btn { height:28px; padding:0 10px; font-size:11.5px; }
+    .quota { font-family:var(--fm-display); font-weight:800; font-size:17px; color:var(--fm-primary-light); }
+
+    /* Tools drawer */
+    .tools { margin-bottom:14px; }
+    .tools > summary {
+        list-style:none; cursor:pointer; display:flex; align-items:center; gap:9px;
+        padding:11px 14px; border-radius:var(--fm-radius-md);
+        background:var(--fm-card); border:1px solid rgba(70,145,220,.20);
+        font-size:12.5px; font-weight:600; color:var(--fm-text-secondary);
+    }
+    .tools > summary::-webkit-details-marker { display:none; }
+    .tools > summary .ic { color:var(--fm-primary-light); }
+    .tools > summary .chev { margin-left:auto; font-size:11px; transition:transform .18s; }
+    .tools[open] > summary .chev { transform:rotate(180deg); }
+    .tools-body { display:grid; grid-template-columns:repeat(auto-fit,minmax(420px,1fr)); gap:12px; margin-top:12px; }
+    .tools-body .fm-card { margin-bottom:0; }
+
+    .opt-row { display:flex; align-items:center; gap:8px; cursor:pointer; margin:0;
+        text-transform:none; letter-spacing:0; font-size:12.5px; color:var(--fm-text); font-weight:500; }
+    .opt-row input { width:auto; }
+
+    /* 50 rows per page: the table no longer needs to be a 30.000px scroller. */
+    #listone-scroll { max-height:calc(100vh - 300px); min-height:280px; }
+    #listone-scroll thead th { position:sticky; top:0; z-index:2;
+        background:#061a33; backdrop-filter:blur(2px); }
+
+    .pager { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:12px;
+        padding-top:10px; border-top:1px solid var(--fm-border); font-size:12.5px; }
+    .filters select { width:auto; min-width:150px; }
+
+    .section-label {
+        font-size:11px; font-weight:700; letter-spacing:.16em; text-transform:uppercase;
+        color:var(--fm-text-secondary); margin:0 0 10px; display:flex; align-items:center; gap:10px;
+    }
+    .section-label::after { content:""; flex:1 1 auto; height:1px; background:var(--fm-border); }
+    .section-label .dot { width:7px; height:7px; border-radius:50%; background:var(--fm-primary-light); }
+    /* Ruoli Mantra sotto la sigla classica: servono a controllare che il
+       listone sia arrivato con la colonna RM, prima di aprire l'asta. */
+    .mroles { display:block; margin-top:3px; font-size:10px; font-weight:800;
+              letter-spacing:.05em; color:var(--fm-text-muted); }
+</style>
+
+{% include "auctions/_console_head.html" %}
+
+<div class="pg-head">
+    <div>
+        <h1>Giocatori</h1>
+        <div class="sub">Totale: <b>{{ total_count }}</b> giocatori{% if current_league %} · lega {{ current_league.name }}{% endif %}</div>
+    </div>
+    <span class="spacer"></span>
+    <a class="fm-btn fm-btn-secondary" href="{% url 'admin_export' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
+        <svg class="ic"><use href="#i-export"/></svg> Esporta rose</a>
+</div>
+
+{% if need_listone %}
+<div style="margin-bottom:14px;padding:14px 16px;border-radius:12px;border:1px solid rgba(248,113,113,.45);
+            background:rgba(248,113,113,.10);color:#fca5a5;font-size:13.5px;line-height:1.5">
+    {% if need_listone_from == "resume" %}
+    <b style="color:#fff">Sessione ripresa senza listone.</b> È stata salvata prima che il
+    listone viaggiasse dentro le sessioni: importa qui il file Quotazioni e l'asta parte.
+    D'ora in poi le sessioni salvate se lo portano dietro da sole.
+    {% else %}
+    <b style="color:#fff">L'asta non è stata creata.</b> La lega
+    {% if current_league %}<b style="color:#fff">{{ current_league.name }}</b>{% endif %}
+    non ha ancora il listone: importa qui il file Quotazioni, poi torna a
+    <a href="{% url 'admin_auction_wizard' %}{% if current_league %}?league={{ current_league.id }}{% endif %}"
+       style="color:var(--accent)">Nuova asta</a>.
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Stats -->
+<div class="stat-bar">
+    <div class="glass">
+        <span class="role-badge role-P">P</span>
+        <div><div class="stat-num">{{ counts.P }}</div><div class="stat-name">Portieri</div></div>
+    </div>
+    <div class="glass">
+        <span class="role-badge role-D">D</span>
+        <div><div class="stat-num">{{ counts.D }}</div><div class="stat-name">Difensori</div></div>
+    </div>
+    <div class="glass">
+        <span class="role-badge role-C">C</span>
+        <div><div class="stat-num">{{ counts.C }}</div><div class="stat-name">Centrocampisti</div></div>
+    </div>
+    <div class="glass">
+        <span class="role-badge role-A">A</span>
+        <div><div class="stat-num">{{ counts.A }}</div><div class="stat-name">Attaccanti</div></div>
+    </div>
+    <div class="glass is-free">
+        <div><div class="stat-num">{{ free_count }}</div><div class="stat-name">Svincolati</div></div>
+    </div>
+    <div class="glass is-total">
+        <div><div class="stat-num">{{ total_count }}</div><div class="stat-name">Totale</div></div>
+    </div>
+</div>
+
+<details class="howto">
+    <summary><svg class="ic"><use href="#i-shield"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        Qui gestisci il <b>listone</b> della lega: l'elenco dei giocatori che andranno all'asta.
+        <ol>
+            <li><b>Importa</b> il file ufficiale delle Quotazioni (<code>.xlsx</code>) o un <code>.csv</code>: i nuovi entrano come <b>svincolati</b>, quelli già in rosa restano al proprietario.</li>
+            <li>Usa <b>cerca</b> e i filtri per <b>ruolo</b> e <b>stato</b> (svincolati / in rosa) per trovare un giocatore.</li>
+            <li><b>Svincola</b> rimette un giocatore tra i liberi; <b>✕</b> lo elimina dal listone.</li>
+        </ol>
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> “Rimuovi svincolati non più in lista” ripulisce i doppioni; “Sostituisci tutto” azzera anche le rose — usalo solo per ripartire da zero.</div>
+    </div>
+</details>
+
+<details class="tools" {% if need_listone %}open{% endif %}>
+    <summary><svg class="ic"><use href="#i-gear"/></svg> Strumenti listone — importa quotazioni, rose, foto e statistiche <span class="chev">▼</span></summary>
+    <div class="tools-body">
+<!-- Import -->
+<section class="fm-card"><div class="fm-section-title"><svg class="ic"><use href="#i-import"/></svg> Importa listone <span class="sep"></span></div>
+    <p class="muted" style="font-size:13px;margin:0 0 16px;line-height:1.6">
+        Carica il file ufficiale delle <strong style="color:var(--ink)">Quotazioni</strong> (<code>.xlsx</code>) o un <code>.csv</code> con le colonne
+        <code style="background:rgba(255,255,255,.07);padding:2px 7px;border-radius:4px">Nome, Ruolo, Squadra, Quotazione</code>.
+        Il ruolo può essere <code>P / D / C / A</code> o esteso; le intestazioni possono variare.<br>
+        I giocatori già presenti in una rosa vengono <strong style="color:var(--ink)">riconosciuti e lasciati al proprietario</strong> (niente doppioni);
+        i nuovi entrano come <strong style="color:var(--ink)">svincolati</strong>.
+    </p>
+    <div style="display:flex;gap:18px;align-items:flex-end;flex-wrap:wrap">
+        <div style="flex:1;min-width:220px">
+            <label>File listone / CSV</label>
+            <input type="file" id="csv-file" accept=".xlsx,.xls,.csv,.txt" style="padding:10px;font-size:14px">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:9px">
+            <label class="opt-row"><input type="checkbox" id="csv-prune" value="1" checked> Rimuovi svincolati non più in lista</label>
+            <label class="opt-row"><input type="checkbox" id="csv-replace" value="1"> Sostituisci tutto (azzera anche le rose)</label>
+        </div>
+        <div style="display:flex;gap:10px">
+            <button onclick="importCSV()" class="btn-ok" style="padding:13px 24px">Importa</button>
+            <button onclick="clearPlayers()" class="btn-bad" style="padding:13px 18px">Svuota</button>
+        </div>
+    </div>
+    <p id="import-msg" style="margin:14px 0 0;font-size:13px;font-weight:700;display:none"></p>
+</section>
+
+<!-- Import rose squadre -->
+<section class="fm-card"><div class="fm-section-title"><svg class="ic"><use href="#i-users"/></svg> Importa rose squadre <span class="sep"></span></div>
+    <p class="muted" style="font-size:13px;margin:0 0 16px;line-height:1.6">
+        Carica l'export delle <strong style="color:var(--ink)">rose</strong>: il sistema riconosce
+        <strong style="color:var(--ink)">automaticamente</strong> il formato —
+        <strong style="color:var(--ink)">Fantapazz</strong> (<code>.xls</code> «Rose Lega»),
+        <strong style="color:var(--ink)">Fantacalcio.it</strong> (<code>.xlsx</code> «Lista calciatori»),
+        <strong style="color:var(--ink)">Leghe Fantacalcio</strong> (<code>.csv</code> «Rose Mantra/Classic»)
+        o un file generico con una colonna squadra/proprietario.<br>
+        I giocatori vengono <strong style="color:var(--ink)">assegnati</strong> alle squadre sul listone esistente
+        (per nome, o per Id ufficiale per l'export Leghe Fantacalcio — carica prima il listone di questa lega);
+        gli svincolati restano liberi.
+    </p>
+    <div style="display:flex;gap:18px;align-items:flex-end;flex-wrap:wrap">
+        <div style="flex:1;min-width:220px">
+            <label>File rose (.xls / .xlsx / .csv)</label>
+            <input type="file" id="rose-file" accept=".xlsx,.xls,.csv,.txt" style="padding:10px;font-size:14px"
+                   onchange="document.getElementById('rose-msg').style.display='none'">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:9px">
+            <label class="opt-row"><input type="checkbox" id="rose-listone" value="1" checked> Importa anche il listone dal file (se presente)</label>
+            <label class="opt-row"><input type="checkbox" id="rose-replace" value="1"> Sostituisci tutto (azzera le rose esistenti)</label>
+        </div>
+        <div style="display:flex;gap:10px">
+            <button onclick="importRose(true)" class="btn-ghost" style="padding:13px 18px">Anteprima</button>
+            <button onclick="importRose(false)" class="btn-ok" style="padding:13px 24px">Importa rose</button>
+        </div>
+    </div>
+    <p id="rose-msg" style="margin:14px 0 0;font-size:13px;font-weight:700;display:none"></p>
+    <div id="rose-preview" style="display:none;margin-top:14px"></div>
+</section>
+
+<!-- Foto giocatori -->
+
+
+<!-- Statistiche giocatori -->
+<section class="fm-card"><div class="fm-section-title"><svg class="ic"><use href="#i-chart"/></svg> Statistiche giocatori <span class="sep"></span></div>
+    <p class="muted" style="font-size:13px;margin:0 0 16px;line-height:1.6">
+        Presenze, media voto, fantamedia, gol e assist della stagione
+        <strong style="color:var(--ink)">{{ stats_season }}</strong> sono
+        <strong style="color:var(--ink)">già incluse nell'app</strong> e vengono applicate da sole
+        appena importi il listone: i numeri compaiono nella scheda del giocatore
+        <strong style="color:var(--ink)">sul maxischermo e nella pagina offerte</strong>, per decidere
+        quanto spendere durante l'asta. Non devi scaricare niente.
+    </p>
+    <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:14px 16px;border-radius:12px;
+                background:var(--fm-surface-2,rgba(255,255,255,.04));margin-bottom:18px">
+        <svg class="ic" style="width:20px;height:20px;color:var(--ok,#22c55e)"><use href="#i-chart"/></svg>
+        <div style="flex:1;min-width:200px;font-size:13px;line-height:1.5">
+            <strong style="font-size:14px">{{ stats_covered }}</strong> di
+            <strong style="font-size:14px">{{ total_count }}</strong> giocatori hanno le statistiche {{ stats_season }}.
+            {% if stats_covered == 0 and total_count > 0 %}
+            <span class="muted">Premi «Applica statistiche» per aggiungerle al listone già caricato.</span>
+            {% endif %}
+        </div>
+        <button onclick="importStats()" class="btn-ok" style="padding:11px 20px">Applica statistiche {{ stats_season }}</button>
+    </div>
+    <details>
+        <summary class="muted" style="font-size:13px;cursor:pointer">Usa un file diverso (stagione nuova o listone personale)</summary>
+        <div style="display:flex;gap:18px;align-items:flex-end;flex-wrap:wrap;margin-top:14px">
+            <div style="flex:1;min-width:220px">
+                <label>File Statistiche di Fantacalcio.it (.xlsx / .xls / .csv)</label>
+                <input type="file" id="stats-file" accept=".xlsx,.xls,.csv" style="padding:10px;font-size:14px">
+            </div>
+            <div style="display:flex;gap:10px">
+                <button onclick="importStats()" class="btn-ok" style="padding:13px 24px">Importa dal file</button>
+            </div>
+        </div>
+        <p class="muted" style="font-size:12px;margin:12px 0 0;line-height:1.6">
+            Additivo: aggiorna solo i giocatori già presenti nel listone, senza toccare proprietà o prezzi.
+        </p>
+    </details>
+    <p id="stats-msg" style="margin:14px 0 0;font-size:13px;font-weight:700;display:none"></p>
+</section>
+
+    </div>
+</details>
+
+<!-- Listone -->
+<div class="fm-card">
+    <!-- Filters are a plain GET form: the database does the work and every
+         link (pagination included) keeps league, search, role, squadra e sort. -->
+    <form method="get" class="filters" id="player-filters">
+        {% if current_league %}<input type="hidden" name="league" value="{{ current_league.id }}">{% endif %}
+        <div class="fm-search">
+            <svg class="ic"><use href="#i-search"/></svg>
+            <input id="player-search" name="q" type="search" value="{{ filters.q }}"
+                   placeholder="Cerca giocatore o squadra…" aria-label="Cerca giocatore o squadra">
+        </div>
+        <select name="role" aria-label="Filtra per ruolo" onchange="this.form.submit()">
+            <option value="">Tutti i ruoli</option>
+            <option value="P" {% if filters.role == "P" %}selected{% endif %}>Portieri</option>
+            <option value="D" {% if filters.role == "D" %}selected{% endif %}>Difensori</option>
+            <option value="C" {% if filters.role == "C" %}selected{% endif %}>Centrocampisti</option>
+            <option value="A" {% if filters.role == "A" %}selected{% endif %}>Attaccanti</option>
+        </select>
+        <select name="team" aria-label="Filtra per squadra" onchange="this.form.submit()">
+            <option value="">Tutte le squadre</option>
+            {% for t in teams %}
+            <option value="{{ t }}" {% if filters.team == t %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+        </select>
+        <select name="status" aria-label="Filtra per stato" onchange="this.form.submit()">
+            <option value="">Tutti</option>
+            <option value="free" {% if filters.status == "free" %}selected{% endif %}>Svincolati</option>
+            <option value="owned" {% if filters.status == "owned" %}selected{% endif %}>In rosa</option>
+        </select>
+        <select name="sort" aria-label="Ordina" onchange="this.form.submit()">
+            <option value="name"   {% if filters.sort == "name" %}selected{% endif %}>Nome A-Z</option>
+            <option value="-name"  {% if filters.sort == "-name" %}selected{% endif %}>Nome Z-A</option>
+            <option value="-quota" {% if filters.sort == "-quota" %}selected{% endif %}>Quotazione ↓</option>
+            <option value="quota"  {% if filters.sort == "quota" %}selected{% endif %}>Quotazione ↑</option>
+            <option value="role"   {% if filters.sort == "role" %}selected{% endif %}>Ruolo</option>
+            <option value="team"   {% if filters.sort == "team" %}selected{% endif %}>Squadra</option>
+        </select>
+        <button type="submit" class="fm-btn fm-btn-secondary">
+            <svg class="ic"><use href="#i-filter"/></svg> Filtra</button>
+        {% if filters.q or filters.role or filters.team or filters.status %}
+        <a class="fm-btn fm-btn-ghost" href="{% url 'admin_players' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">Azzera</a>
+        {% endif %}
+    </form>
+
+    <div class="table-scroll" id="listone-scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th style="width:34px">Ruolo</th>
+                    <th>Giocatore</th>
+                    <th>Squadra</th>
+                    <th>Stato</th>
+                    <th style="text-align:right">Quotazione</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="player-tbody">
+            {% for p in players %}
+            <tr class="player-row visible">
+                <td><span class="role-badge role-{{ p.role }}">{{ p.role }}</span>{% if current_league.is_mantra and p.roles_display %}<span class="mroles">{{ p.roles_display }}</span>{% endif %}</td>
+                <td style="font-weight:600">{{ p.name }}</td>
+                <td class="muted">{{ p.team }}</td>
+                <td>
+                    {% if p.owner_id %}
+                        <span class="owner-tag"><svg class="ic"><use href="#i-lock"/></svg> {{ p.owner.display_name }}</span>
+                    {% else %}
+                        <span class="free-tag"><span class="dot"></span>Svincolato</span>
+                    {% endif %}
+                </td>
+                <td style="text-align:right"><span class="quota">{{ p.initial_price|floatformat:0 }}</span> <span class="muted" style="font-size:11px">FM</span></td>
+                <td style="text-align:right">
+                    <div class="row-actions">
+                        <button class="btn-ghost" title="Assegna / correggi proprietario"
+                                onclick="openAssign({{ p.id }}, '{{ p.name|escapejs }}', {{ p.initial_price|floatformat:0 }}, {{ p.owner_id|default:'null' }})">Assegna</button>
+                        {% if p.owner_id %}
+                        <button class="btn-warn" title="Svincola — rimette il giocatore tra i liberi"
+                                onclick="releasePlayer({{ p.id }}, this)">Svincola</button>
+                        {% endif %}
+                        <button class="btn-ghost" title="Elimina dal listone"
+                                onclick="deletePlayer({{ p.id }}, this)">✕</button>
+                    </div>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="fm-empty">
+                {% if filters.q or filters.role or filters.team or filters.status %}
+                Nessun giocatore per questi filtri.
+                {% else %}Nessun giocatore. Importa un listone per iniziare.{% endif %}
+            </td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <nav class="pager" aria-label="Paginazione listone">
+        <span class="muted">
+            {% if page_obj.paginator.count %}
+            {{ page_obj.start_index }}–{{ page_obj.end_index }} di {{ page_obj.paginator.count }}
+            {% if page_obj.paginator.count != total_count %}<span class="muted">(su {{ total_count }})</span>{% endif %}
+            {% else %}0 risultati{% endif %}
+        </span>
+        <span style="flex:1 1 auto"></span>
+        {% if page_obj.has_previous %}
+        <a class="fm-btn fm-btn-secondary fm-btn-sm" aria-label="Pagina precedente"
+           href="?{{ filter_qs }}&page={{ page_obj.previous_page_number }}">
+           <svg class="ic"><use href="#i-arrow-left"/></svg> Precedente</a>
+        {% endif %}
+        <span class="muted" style="font-size:12px">Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+        <a class="fm-btn fm-btn-secondary fm-btn-sm" aria-label="Pagina successiva"
+           href="?{{ filter_qs }}&page={{ page_obj.next_page_number }}">
+           Successiva <svg class="ic"><use href="#i-arrow-right"/></svg></a>
+        {% endif %}
+    </nav>
+</div>
+
+<!-- Assign modal -->
+<div id="assign-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:50;align-items:center;justify-content:center">
+  <div style="background:var(--panel,#15171c);border:1px solid var(--accent-line,#333);border-radius:14px;padding:24px;width:min(420px,92vw)">
+    <h3 style="margin:0 0 4px">Assegna giocatore</h3>
+    <p id="assign-pname" class="muted" style="margin:0 0 16px;font-weight:600"></p>
+    <label class="muted" style="font-size:13px">Squadra</label>
+    <select id="assign-team" style="width:100%;margin:6px 0 14px;padding:10px;border-radius:8px">
+      {% for t in participants %}
+      <option value="{{ t.id }}">{{ t.display_name }}</option>
+      {% empty %}
+      <option value="" disabled>Nessuna squadra nella lega</option>
+      {% endfor %}
+    </select>
+    <label class="muted" style="font-size:13px">Prezzo (FM)</label>
+    <input id="assign-price" type="number" min="0" step="1" style="width:100%;margin:6px 0 18px;padding:10px;border-radius:8px">
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn-ghost" onclick="closeAssign()">Annulla</button>
+      <button class="btn-primary" id="assign-go" onclick="doAssign()">Assegna</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function getCookie(name) {
+        const m = document.cookie.match("(^|;)\\s*" + name + "\\s*=\\s*([^;]+)");
+        return m ? m.pop() : "";
+    }
+    const CSRF = getCookie("csrftoken");
+    const LEAGUE_ID = "{{ current_league.id|default:'' }}";
+
+    async function importCSV() {
+        const file = document.getElementById("csv-file").files[0];
+        if (!file) { showImportMsg("Seleziona un file.", "var(--closed)"); return; }
+        const replace = document.getElementById("csv-replace").checked ? "1" : "0";
+        const prune = document.getElementById("csv-prune").checked ? "1" : "0";
+        const form = new FormData();
+        form.append("csv_file", file);
+        form.append("replace", replace);
+        form.append("prune", prune);
+        if (LEAGUE_ID) form.append("league_id", LEAGUE_ID);
+        showImportMsg("Importazione…", "var(--muted)");
+        const r = await fetch("{% url 'admin_import_players' %}", { method: "POST", body: form, headers: { "X-CSRFToken": CSRF } });
+        const data = await r.json();
+        if (data.ok) {
+            const parts = [];
+            if (data.created)  parts.push(`${data.created} nuovi svincolati`);
+            if (data.updated)  parts.push(`${data.updated} aggiornati`);
+            if (data.matched_owned) parts.push(`${data.matched_owned} già in rosa preservati`);
+            if (data.pruned)   parts.push(`${data.pruned} svincolati rimossi`);
+            showImportMsg("✓ " + (parts.join(" · ") || "nessuna modifica") +
+                (data.errors.length ? ` · ${data.errors.length} righe ignorate.` : ""), "var(--live)");
+            setTimeout(() => location.reload(), 1800);
+        } else {
+            showImportMsg("✗ " + data.error, "var(--closed)");
+        }
+    }
+
+    function showImportMsg(text, color) {
+        const msg = document.getElementById("import-msg");
+        msg.style.display = "block"; msg.style.color = color; msg.textContent = text;
+    }
+
+    function showRoseMsg(text, color) {
+        const msg = document.getElementById("rose-msg");
+        msg.style.display = "block"; msg.style.color = color; msg.textContent = text;
+    }
+
+    async function importRose(preview) {
+        const file = document.getElementById("rose-file").files[0];
+        if (!file) { showRoseMsg("Seleziona un file.", "var(--closed)"); return; }
+        const form = new FormData();
+        form.append("rose_file", file);
+        if (preview) form.append("action", "preview");
+        form.append("replace", document.getElementById("rose-replace").checked ? "1" : "0");
+        form.append("import_listone", document.getElementById("rose-listone").checked ? "1" : "0");
+        if (LEAGUE_ID) form.append("league_id", LEAGUE_ID);
+
+        document.getElementById("rose-preview").style.display = "none";
+        showRoseMsg(preview ? "Analisi del file…" : "Importazione…", "var(--muted)");
+        const r = await fetch("{% url 'admin_import_rose' %}", { method: "POST", body: form, headers: { "X-CSRFToken": CSRF } });
+        const data = await r.json();
+        if (!data.ok) { showRoseMsg("✗ " + data.error, "var(--closed)"); return; }
+
+        if (data.preview) {
+            const rows = data.teams.map(t =>
+                `<tr><td style="font-weight:600">${esc(t.name)}</td>` +
+                `<td style="text-align:right">${t.n_players}</td>` +
+                `<td style="text-align:right" class="muted">${t.credits == null ? "—" : Math.round(t.credits)}</td></tr>`).join("");
+            document.getElementById("rose-preview").innerHTML =
+                `<div class="muted" style="font-size:12px;margin-bottom:8px">` +
+                `Formato rilevato: <b style="color:var(--accent-bright)">${esc(data.source_label)}</b> · ` +
+                `${data.teams.length} squadre · ${data.total_players} giocatori in rosa` +
+                (data.n_listone ? ` · listone ${data.n_listone}` : "") + `</div>` +
+                `<div class="table-scroll"><table><thead><tr><th>Squadra</th>` +
+                `<th style="text-align:right">Giocatori</th><th style="text-align:right">Crediti residui</th>` +
+                `</tr></thead><tbody>${rows}</tbody></table></div>`;
+            document.getElementById("rose-preview").style.display = "block";
+            showRoseMsg("Anteprima — premi «Importa rose» per confermare." +
+                (data.warning ? " ⚠ " + data.warning : ""), data.warning ? "var(--closed)" : "var(--gold)");
+            return;
+        }
+
+        const parts = [`${data.teams} squadre`, `${data.players} giocatori assegnati`];
+        if (data.listone_created) parts.push(`${data.listone_created} aggiunti al listone`);
+        showRoseMsg(`✓ ${esc(data.source_label)}: ` + parts.join(" · ") +
+            (data.warning ? " · ⚠ " + data.warning : ""), "var(--live)");
+        setTimeout(() => location.reload(), 1800);
+    }
+
+    function esc(s) {
+        const d = document.createElement("div"); d.textContent = s == null ? "" : s; return d.innerHTML;
+    }
+
+    async function clearPlayers() {
+        if (!confirm("Eliminare tutti i giocatori dal listone di questa lega?")) return;
+        const form = new FormData();
+        if (LEAGUE_ID) form.append("league_id", LEAGUE_ID);
+        await fetch("{% url 'admin_clear_players' %}", { method: "POST", body: form, headers: { "X-CSRFToken": CSRF } });
+        location.reload();
+    }
+
+    async function deletePlayer(id, btn) {
+        if (!confirm("Eliminare questo giocatore dal listone?")) return;
+        await fetch(`/admin-auction/players/${id}/delete/`, { method: "POST", headers: { "X-CSRFToken": CSRF } });
+        btn.closest("tr").remove();
+    }
+
+    async function releasePlayer(id, btn) {
+        if (!confirm("Svincolare il giocatore? Tornerà tra i liberi.")) return;
+        await fetch(`/admin-auction/players/${id}/release/`, { method: "POST", headers: { "X-CSRFToken": CSRF } });
+        location.reload();
+    }
+
+    async function importStats() {
+        const msg = document.getElementById("stats-msg");
+        // Nessun file = usa quello incluso nell'app: è il caso normale, non un errore.
+        const f = document.getElementById("stats-file").files[0];
+        msg.style.display = "block"; msg.style.color = "var(--muted)";
+        msg.textContent = "Applico le statistiche…";
+        const form = new FormData();
+        if (LEAGUE_ID) form.append("league_id", LEAGUE_ID);
+        if (f) form.append("stats_file", f);
+        try {
+            const r = await fetch("{% url 'admin_import_stats' %}",
+                { method: "POST", body: form, headers: { "X-CSRFToken": CSRF } });
+            const d = await r.json();
+            if (d.ok) {
+                msg.style.color = "var(--ok,#22c55e)";
+                msg.textContent = `✓ Statistiche aggiornate su ${d.matched} giocatori` +
+                    (d.missing ? ` · ${d.missing} non abbinati` : "") +
+                    (d.source ? ` · ${d.source}` : "");
+                setTimeout(() => location.reload(), 1600);
+            } else {
+                msg.style.color = "var(--closed,#ef4444)";
+                msg.textContent = d.error || "Errore.";
+            }
+        } catch (e) {
+            msg.style.color = "var(--closed,#ef4444)";
+            msg.textContent = "Errore di rete.";
+        }
+    }
+
+    // Manual assign / re-assign / price correction
+    let assignId = null;
+    function openAssign(id, name, quota, ownerId) {
+        assignId = id;
+        document.getElementById("assign-pname").textContent = name;
+        document.getElementById("assign-price").value = quota;
+        const sel = document.getElementById("assign-team");
+        if (ownerId != null) { sel.value = String(ownerId); }
+        document.getElementById("assign-overlay").style.display = "flex";
+    }
+    function closeAssign() {
+        document.getElementById("assign-overlay").style.display = "none";
+        assignId = null;
+    }
+    async function doAssign() {
+        const team = document.getElementById("assign-team").value;
+        if (!team) { alert("Seleziona una squadra."); return; }
+        const price = document.getElementById("assign-price").value || "0";
+        const btn = document.getElementById("assign-go");
+        btn.disabled = true;
+        const form = new FormData();
+        form.append("participant_id", team);
+        form.append("price", price);
+        const r = await fetch(`/admin-auction/players/${assignId}/assign/`,
+            { method: "POST", body: form, headers: { "X-CSRFToken": CSRF } });
+        btn.disabled = false;
+        const data = await r.json();
+        if (data.ok) { location.reload(); }
+        else { alert(data.error || "Errore nell'assegnazione."); }
+    }
+    document.getElementById("assign-overlay").addEventListener("click", (e) => {
+        if (e.target.id === "assign-overlay") closeAssign();
+    });
+
+    // Filters are server-side (see the GET form): the only client-side touch is
+    // submitting the search box after a pause, so typing does not need Enter.
+    const $search = document.getElementById("player-search");
+    if ($search) {
+        let t = null;
+        $search.addEventListener("input", () => {
+            clearTimeout(t);
+            t = setTimeout(() => document.getElementById("player-filters").submit(), 450);
+        });
+    }
+</script>
+{% endblock %}

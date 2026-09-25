@@ -1,0 +1,69 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: fantamanager-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-fantamanager}
+      POSTGRES_USER: ${POSTGRES_USER:-fantamanager}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fantamanager_secret_pass}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fantamanager} -d ${POSTGRES_DB:-fantamanager}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  app:
+    image: ${DOCKER_IMAGE:-ghcr.io/tuo-utente/fantamanager:latest}
+    container_name: fantamanager
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${PORT:-8088}:8000"
+    environment:
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-fantamanager-secret-key-production-change-me}
+      - DJANGO_DEBUG=${DJANGO_DEBUG:-True}
+      - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS:-*}
+      - DJANGO_BEHIND_PROXY=True
+      - DJANGO_SECURE_SSL_REDIRECT=False
+      - POSTGRES_DB=${POSTGRES_DB:-fantamanager}
+      - POSTGRES_USER=${POSTGRES_USER:-fantamanager}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-fantamanager_secret_pass}
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - FANTAMANAGER_MEDIA_ROOT=/app/media
+      - DJANGO_STATIC_ROOT=/app/staticfiles
+      - DJANGO_CSRF_TRUSTED_ORIGINS=${DJANGO_CSRF_TRUSTED_ORIGINS:-https://fantamngr.nasbovabracci.synology.me,https://*.synology.me,http://*.synology.me,http://localhost:8088,http://127.0.0.1:8088}
+    volumes:
+      - ./data:/app/data
+      - ./media:/app/media
+      - ./logs:/app/logs
+      - ./backups:/app/backups
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: fantamanager-watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_POLL_INTERVAL=300
+      - WATCHTOWER_INCLUDE_RESTARTING=true
+    command: fantamanager
+
+volumes:
+  postgres_data:

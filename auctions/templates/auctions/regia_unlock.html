@@ -1,0 +1,54 @@
+{% extends "auctions/base.html" %}
+{% block title %}Sblocca la regia — FantaManager{% endblock %}
+{% block bodyclass %}role-admin{% endblock %}
+
+{% block content %}
+<style>
+    .unlock-wrap { max-width: 380px; margin: 8vh auto 0; text-align: center; }
+    .unlock-wrap .brand { justify-content: center; margin-bottom: 22px; }
+    .pin-input {
+        width: 100%; text-align: center; letter-spacing: .38em;
+        font-family: var(--display); font-size: 30px; font-weight: 800;
+        padding: 14px 10px; margin: 0 0 14px;
+    }
+    .unlock-note { font-size: 13px; line-height: 1.65; color: var(--muted); margin-top: 18px; }
+    .unlock-err {
+        margin: 0 0 14px; padding: 11px 14px; border-radius: 10px;
+        font-size: 13px; font-weight: 700; color: #fecaca;
+        background: rgba(239, 68, 68, .12); border: 1px solid rgba(239, 68, 68, .35);
+    }
+</style>
+
+<div class="unlock-wrap">
+    <div class="brand">
+        <div class="brand-icon"><svg class="ic" style="width:26px;height:26px;color:var(--accent)"><use href="#i-shield"/></svg></div>
+        <div class="brand-text">
+            <div class="top">FANTA</div><div class="bottom">MANAGER</div>
+            <div class="sub">Regia protetta</div>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h2>PIN della regia</h2>
+        {% if error %}<div class="unlock-err">{{ error }}</div>{% endif %}
+        <form method="post" autocomplete="off">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ next }}">
+            <input class="pin-input" type="text" name="pin" inputmode="numeric"
+                   pattern="[0-9]*" maxlength="6" placeholder="——————"
+                   autofocus aria-label="PIN a 6 cifre">
+            <button type="submit" style="width:100%;margin:0">Sblocca</button>
+        </form>
+        <div class="unlock-note">
+            Stai raggiungendo la regia <strong style="color:var(--ink)">da internet</strong>.
+            Il PIN a 6 cifre è mostrato sul PC che ospita l'asta, nel pannello
+            “Accesso da internet”.
+        </div>
+    </div>
+
+    <div class="unlock-note">
+        Sei un allenatore? Non ti serve il PIN: usa il <strong style="color:var(--ink)">tuo link
+        personale</strong> per entrare e fare offerte.
+    </div>
+</div>
+{% endblock %}

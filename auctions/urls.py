@@ -1,0 +1,138 @@
+"""URL routing for the auctions app."""
+from django.urls import path
+from django.views.generic import RedirectView
+
+from . import views
+
+urlpatterns = [
+    path("", views.portal_view, name="home"),
+    path("login/", views.login_view, name="login"),
+    path("register/", views.register_view, name="register"),
+    path("logout/", views.logout_view, name="logout"),
+    path("onboarding/", views.onboarding_view, name="onboarding"),
+    path("supervisor/", views.supervisor_dashboard, name="supervisor_dashboard"),
+    path("portal/", views.home_portal, name="home_portal"),
+
+    # Clean Sports Management Dashboard Routes
+    path("dashboard/", views.admin_dashboard, name="dashboard"),
+    path("dashboard/leghe/", views.admin_dashboard, {"hub": True}, name="dashboard_hub"),
+    path("dashboard/<int:league_id>/", views.admin_dashboard, name="dashboard_league"),
+    path("lega/<int:league_id>/", views.admin_dashboard, name="league_view"),
+    path("dashboard/regia/<int:auction_id>/", views.admin_dashboard, name="dashboard_regia"),
+    path("regia/<int:auction_id>/", views.admin_dashboard, name="regia_auction"),
+
+    # Version & System Status API
+    path("api/version/", views.version_status_api, name="api_version"),
+
+    # Direct team actions in single-league console
+    path("dashboard/team/<int:participant_id>/credits/", views.admin_adjust_team_credits, name="admin_adjust_team_credits"),
+    path("dashboard/team/<int:participant_id>/pin/", views.admin_reset_team_pin, name="admin_reset_team_pin"),
+    path("dashboard/team/assign-player/", views.admin_quick_assign_player, name="admin_quick_assign_player"),
+
+    # Admin dashboard (legacy alias, behind Django login).
+    path("admin-auction/", views.admin_dashboard, name="admin_dashboard"),
+    path("admin-auction/create/", views.admin_create_auction, name="admin_create_auction"),
+    path("admin-auction/<int:auction_id>/classifica/", views.admin_classifica_partial, name="admin_classifica_partial"),
+    path("admin-auction/<int:auction_id>/storico/", views.admin_storico_partial, name="admin_storico_partial"),
+    path("admin-auction/league/new/", views.admin_create_league, name="admin_create_league"),
+    path("admin-auction/setup/", views.admin_setup, name="admin_setup"),
+    path("admin-auction/setup/create/", views.admin_setup_create, name="admin_setup_create"),
+    path("admin-auction/setup/analyze/", views.admin_setup_analyze, name="admin_setup_analyze"),
+    path("admin-auction/wizard/", views.admin_auction_wizard, name="admin_auction_wizard"),
+    path("admin-auction/wizard/create/", views.admin_wizard_create, name="admin_wizard_create"),
+    path("admin-auction/players/search/", views.admin_player_search, name="admin_player_search"),
+    path("admin-auction/participants/<int:participant_id>/roster/", views.admin_participant_roster, name="admin_participant_roster"),
+    path("admin-auction/config/", views.admin_config, name="admin_config"),
+    path("admin-auction/config/action/", views.admin_config_action, name="admin_config_action"),
+    path("admin-auction/sessions/", views.admin_sessions, name="admin_sessions"),
+    path("admin-auction/sessions/resume-latest/", views.admin_resume_latest, name="admin_resume_latest"),
+    path("admin-auction/<int:auction_id>/save-session/", views.admin_save_session, name="admin_save_session"),
+    path("admin-auction/sessions/<int:session_id>/resume/", views.admin_resume_session, name="admin_resume_session"),
+    path("admin-auction/<int:auction_id>/build-queue/", views.admin_build_queue, name="admin_build_queue"),
+    path("admin-auction/<int:auction_id>/queue/", views.admin_queue_preview, name="admin_queue_preview"),
+    path("admin-auction/<int:auction_id>/queue/prioritize/", views.admin_queue_prioritize, name="admin_queue_prioritize"),
+    path("admin-auction/<int:auction_id>/queue/postpone/", views.admin_queue_postpone, name="admin_queue_postpone"),
+    path("admin-auction/<int:auction_id>/queue/exclude/", views.admin_queue_exclude, name="admin_queue_exclude"),
+    path("admin-auction/<int:auction_id>/call-player/", views.admin_call_player, name="admin_call_player"),
+    path("admin-auction/<int:auction_id>/step/", views.admin_manual_step, name="admin_manual_step"),
+    path("admin-auction/<int:auction_id>/announce/", views.admin_announce, name="admin_announce"),
+    path("admin-auction/<int:auction_id>/timer/", views.admin_adjust_timer, name="admin_adjust_timer"),
+    path("admin-auction/<int:auction_id>/force-close/", views.admin_force_close_lot, name="admin_force_close_lot"),
+    path("admin-auction/<int:auction_id>/auto-advance/", views.admin_set_auto_advance, name="admin_set_auto_advance"),
+    path("admin-auction/<int:auction_id>/confirm-advance/", views.admin_confirm_advance, name="admin_confirm_advance"),
+    path("admin-auction/<int:auction_id>/bid-for/", views.admin_bid_for, name="admin_bid_for"),
+    path("admin-auction/<int:auction_id>/open-sealed/", views.admin_open_sealed, name="admin_open_sealed"),
+    path("admin-auction/<int:auction_id>/resolve-sealed/", views.admin_resolve_sealed, name="admin_resolve_sealed"),
+    path("admin-auction/<int:auction_id>/edit/", views.admin_edit_auction, name="admin_edit_auction"),
+    # NB: this catch-all must stay AFTER every specific "<int:auction_id>/<verb>/"
+    # route above, otherwise it shadows them (e.g. .../edit/ → admin_control).
+    path(
+        "admin-auction/<int:auction_id>/<str:action>/",
+        views.admin_control,
+        name="admin_control",
+    ),
+    path("admin-auction/bid/<int:bid_id>/cancel/", views.admin_cancel_bid, name="admin_cancel_bid"),
+    path("admin-auction/logs/", views.admin_logs_tail, name="admin_logs_tail"),
+    path("admin-auction/fantapazz/", views.admin_fantapazz, name="admin_fantapazz"),
+    path("admin-auction/fantapazz/cookie-sync/", views.admin_fantapazz_cookie_sync, name="admin_fantapazz_cookie_sync"),
+    path("admin-auction/fantapazz/browser-login/", views.admin_fantapazz_browser_login, name="admin_fantapazz_browser_login"),
+    path("admin-auction/fantapazz/auth-status/", views.admin_fantapazz_auth_status, name="admin_fantapazz_auth_status"),
+    path("admin-auction/fantapazz/import-rose/", views.admin_fantapazz_import_rose, name="admin_fantapazz_import_rose"),
+    # Market sessions (Buste di mercato)
+    path("admin-auction/market/", views.admin_market_dashboard, name="admin_market_dashboard"),
+    path("admin-auction/market/create/", views.admin_market_create, name="admin_market_create"),
+    path("admin-auction/market/<int:session_id>/status/", views.admin_market_status, name="admin_market_status"),
+    path("admin-auction/market/<int:session_id>/resolve/", views.admin_market_resolve, name="admin_market_resolve"),
+    path("admin-auction/market/<int:session_id>/delete/", views.admin_market_delete, name="admin_market_delete"),
+    # Internet access (Cloudflare quick tunnel) + the remote console PIN gate.
+    path("admin-auction/remote/", views.admin_remote_status, name="admin_remote_status"),
+    path("admin-auction/remote/console/", views.admin_remote_page, name="admin_remote_page"),
+    path("admin-auction/remote/qr.png", views.admin_remote_qr, name="admin_remote_qr"),
+    path("admin-auction/remote/start/", views.admin_remote_start, name="admin_remote_start"),
+    path("admin-auction/remote/stop/", views.admin_remote_stop, name="admin_remote_stop"),
+    path("admin-auction/quit/", views.admin_quit, name="admin_quit"),
+    path("regia/unlock/", views.regia_unlock, name="regia_unlock"),
+    path("admin-auction/export/", views.admin_export, name="admin_export"),
+    path("admin-auction/export/xlsx/", views.admin_export_xlsx, name="admin_export_xlsx"),
+    path("admin-auction/export/csv/", views.admin_export_csv, name="admin_export_csv"),
+    path("admin-auction/export/leghe/", views.admin_export_leghe, name="admin_export_leghe"),
+    path("admin-auction/players/", views.admin_players, name="admin_players"),
+    path("admin-auction/players/import/", views.admin_import_players, name="admin_import_players"),
+    path("admin-auction/players/photos/", views.admin_apply_photos, name="admin_apply_photos"),
+    path("admin-auction/players/stats/", views.admin_import_stats, name="admin_import_stats"),
+    path("admin-auction/rose/import/", views.admin_import_rose, name="admin_import_rose"),
+    path("admin-auction/players/<int:player_id>/delete/", views.admin_delete_player, name="admin_delete_player"),
+    path("admin-auction/players/<int:player_id>/release/", views.admin_release_player, name="admin_release_player"),
+    path("admin-auction/players/<int:player_id>/assign/", views.admin_assign_player, name="admin_assign_player"),
+    path("admin-auction/players/clear/", views.admin_clear_players, name="admin_clear_players"),
+    path("admin-auction/participants/", views.admin_participants, name="admin_participants"),
+    path("admin-auction/participants/create/", views.admin_create_participant, name="admin_create_participant"),
+    path("admin-auction/participants/<int:participant_id>/edit/", views.admin_edit_participant, name="admin_edit_participant"),
+    path("admin-auction/participants/<int:participant_id>/delete/", views.admin_delete_participant, name="admin_delete_participant"),
+    path("participants/<int:participant_id>/qr.png", views.participant_qr, name="participant_qr"),
+
+    # Participant flow.
+    path("join/", views.join, name="join"),
+    path("bid/<int:auction_id>/", views.bid_page, name="bid"),
+    path("release/<int:player_id>/", views.participant_release_player, name="participant_release_player"),
+    path("watch/<int:auction_id>/toggle/", views.participant_watch_toggle, name="participant_watch_toggle"),
+    path("watch/<int:auction_id>/search/", views.participant_watch_search, name="participant_watch_search"),
+    path("watch/item/<int:watch_id>/", views.participant_watch_update, name="participant_watch_update"),
+
+    # Product shell (mobile-first FantaManager app; session-participant identity).
+    path("app/login/", views.app_login, name="app_login"),
+    path("app/logout/", views.app_logout, name="app_logout"),
+    path("app/", views.app_home, name="app_home"),
+    path("app/rosa/", views.app_rosa, name="app_rosa"),
+    path("app/formazione/", views.app_formazione, name="app_formazione"),
+    path("app/live/", views.app_live, name="app_live"),
+    path("app/lega/", views.app_lega, name="app_lega"),
+    path("app/mercato/", views.app_mercato, name="app_mercato"),
+    path("app/mercato/bid/", views.app_market_bid, name="app_market_bid"),
+    path("app/mercato/bid/delete/", views.app_market_delete_bid, name="app_market_delete_bid"),
+    path("app/altro/", views.app_altro, name="app_altro"),
+    path("app/altro/pin/", views.app_update_pin, name="app_update_pin"),
+
+    # Big screen.
+    path("screen/<int:auction_id>/", views.screen, name="screen"),
+]

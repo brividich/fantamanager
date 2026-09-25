@@ -1,0 +1,35 @@
+{% for r in storico %}
+    <tr class="storico-row" data-role="{{ r.player_role }}" data-name="{{ r.player_name|default:"" }} {{ r.winner_name|default:"" }}">
+        <td class="muted" style="font-variant-numeric:tabular-nums">{{ r.cycle }}</td>
+        <td>{% if r.player_role %}<span class="role-badge role-{{ r.player_role }}">{{ r.player_role }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td style="font-weight:600">{{ r.player_name|default:"—" }}</td>
+        <td>
+            {% if r.assigned %}
+                <span style="color:var(--live)"><svg class="ic"><use href="#i-gavel"/></svg> {{ r.winner_name|default:"—" }}</span>
+            {% else %}
+                <span style="color:var(--paused)">invenduto</span>
+            {% endif %}
+        </td>
+        <td style="text-align:right;font-variant-numeric:tabular-nums;font-family:var(--display);font-weight:800">
+            {% if r.assigned %}{{ r.amount|floatformat:0 }} FM{% else %}—{% endif %}
+        </td>
+        <td style="text-align:right;white-space:nowrap">
+            {% if r.player_id %}
+                {% if r.assigned %}
+                    <button type="button" class="btn-ghost" style="padding:6px 10px;font-size:12px"
+                            title="Svincola — annulla l'aggiudicazione e riaccredita il costo"
+                            onclick="releaseFromStorico({{ r.player_id }}, this)">Svincola</button>
+                {% else %}
+                    <button type="button" class="btn-ghost" style="padding:6px 10px;font-size:12px"
+                            title="Rimette il giocatore in asta"
+                            onclick="retryFromStorico({{ r.player_id }}, this)">Rifai asta</button>
+                {% endif %}
+            {% endif %}
+        </td>
+    </tr>
+{% empty %}
+    <tr><td colspan="6" class="muted" style="text-align:center;padding:18px">Ancora nessun lotto concluso.</td></tr>
+{% endfor %}
+    <tr id="storico-no-match" class="muted" style="display:none">
+        <td colspan="6" style="text-align:center;padding:18px">Nessun giocatore trovato.</td>
+    </tr>

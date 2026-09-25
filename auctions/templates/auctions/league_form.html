@@ -1,0 +1,246 @@
+{% extends "auctions/base.html" %}
+{% block title %}Nuova lega{% endblock %}
+{% block bodyclass %}role-admin{% endblock %}
+{% block wrapclass %}wrap-wide{% endblock %}
+
+{% block content %}
+<style>
+    /* .wiz-head / .wnav / .opt base — shared with the other wizards, see
+       static/css/console.css. Only .opt-t (below) stays local. */
+    .sec-title { font-family:var(--display); font-weight:900; text-transform:uppercase; letter-spacing:.04em;
+        font-size:13px; color:var(--accent); margin:22px 0 10px; padding-bottom:6px;
+        border-bottom:1px solid var(--line); }
+    .sec-title:first-of-type { margin-top:4px; }
+    .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .grid4 { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+    @media (max-width:560px){ .grid4 { grid-template-columns:repeat(2,1fr); } .grid2 { grid-template-columns:1fr; } }
+    .part-row { display:grid; grid-template-columns:1fr 130px 46px; gap:8px; align-items:center; margin-bottom:8px; }
+    .part-row input { margin:0; }
+    .rm-btn { background:transparent; border:1px solid rgba(248,113,113,.45); color:var(--closed); padding:13px 0; }
+    .rm-btn:hover { background:rgba(248,113,113,.08); filter:none; }
+    .attach-list { max-height:200px; overflow:auto; padding:4px 12px; margin-top:6px; }
+    .attach-item { display:flex; align-items:center; gap:10px; padding:9px 4px; border-bottom:1px solid rgba(255,255,255,.05); }
+    .attach-item:last-child { border-bottom:0; }
+    .attach-item input { width:auto; margin:0; }
+    .hint { font-size:13px; color:var(--muted); margin-top:8px; }
+    .opt-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:10px; }
+    .opt .opt-t { font-family:var(--display); font-weight:900; font-size:16px; text-transform:uppercase; letter-spacing:.02em; color:#fff; }
+    input.bad { border-color:var(--closed) !important; }
+</style>
+
+<div class="wiz-head">
+    <div class="brand">
+        <div class="brand-icon"><svg class="ic" style="width:28px;height:28px"><use href="#i-trophy"/></svg></div>
+        <div class="brand-text"><div class="top">NUOVA</div><div class="bottom">LEGA</div><div class="sub">Contenitore stagionale</div></div>
+    </div>
+    <a class="btn btn-ghost" href="{% url 'admin_dashboard' %}">← Dashboard</a>
+</div>
+
+<details class="howto">
+    <summary><svg class="ic"><use href="#i-trophy"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        Crei il <b>contenitore lega</b> per la stagione: i dati di base, senza ancora l'asta.
+        <ol>
+            <li>Inserisci <b>nome lega</b> e <b>budget</b> per squadra, scegli la piattaforma di riferimento.</li>
+            <li>Scegli la <b>composizione della rosa</b>: <b>limite slot per ruolo</b> (P/D/C/A) oppure <b>nessun limite</b>, dove conta solo il budget.</li>
+            <li>Aggiungi le <b>squadre</b> con <b>nome e crediti</b> (a mano o spuntando quelle esistenti) e premi <b>Crea lega</b>.</li>
+        </ol>
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Listone e rose si caricano dopo, creando un'<b>asta</b> su questa lega. Le squadre potrai aggiungerle anche più tardi.</div>
+    </div>
+</details>
+
+<form method="post" action="{% url 'admin_create_league' %}" class="panel">
+    {% csrf_token %}
+    <input type="hidden" name="participants_json" id="participants_json">
+
+    <div class="hint" style="margin:0 0 6px">
+        <svg class="ic"><use href="#i-info"/></svg> La <b>lega</b> dura tutta la stagione: nome, squadre e piattaforma. Il <b>listone</b> e le <b>rose</b>
+        si caricano dopo, creando un'<b>asta</b> su questa lega (iniziale, di riparazione, …).
+    </div>
+
+    <div class="sec-title">Dati lega</div>
+    <div class="grid2">
+        <div><label>Nome lega</label><input name="name" value="{{ cfg.name }}" placeholder="La mia lega" autofocus></div>
+        <div><label>Budget squadra (FM)</label><input name="budget" value="{{ cfg.budget|floatformat:0 }}" inputmode="decimal"></div>
+    </div>
+
+    <label>Piattaforma di riferimento</label>
+    <select name="source_site" id="source-select">
+        <option value="">Nessuna — gestione manuale</option>
+        <option value="fantapazz">Fantapazz</option>
+        <option value="excel">Excel / Listone</option>
+    </select>
+    <div id="source-extra" style="display:none">
+        <div class="grid2" style="margin-top:12px">
+            <div><label>ID lega sulla piattaforma <span class="muted">(opzionale)</span></label><input name="external_id" placeholder="es. 332175"></div>
+        </div>
+    </div>
+
+    <div class="sec-title">Sistema di gioco</div>
+    <input type="hidden" name="game_mode" id="game_mode" value="{{ cfg.game_mode|default:'CLASSIC' }}">
+    <div class="opt-grid" id="mode-grid">
+        <label class="opt" data-mode="CLASSIC" onclick="selectGameMode('CLASSIC')">
+            <div class="opt-t"><svg class="ic"><use href="#i-shield"/></svg> Classic</div>
+            <div class="opt-d">Quattro ruoli: portiere, difensore, centrocampista, attaccante.</div>
+        </label>
+        <label class="opt" data-mode="MANTRA" onclick="selectGameMode('MANTRA')">
+            <div class="opt-t"><svg class="ic"><use href="#i-users"/></svg> Mantra</div>
+            <div class="opt-d">Ruoli reali e multipli (Dc, M/C, W;A), quotazioni Mantra del listone
+                e formazioni con gli slot dei moduli ufficiali.</div>
+        </label>
+    </div>
+    <div class="hint" id="mantra-hint" style="display:none">
+        <svg class="ic"><use href="#i-info"/></svg> I ruoli Mantra arrivano dalla colonna
+        <b>RM</b> del listone ufficiale: importalo (o reimportalo) dopo aver creato la lega.
+    </div>
+
+    <div class="sec-title">Composizione della rosa</div>
+    <input type="hidden" name="slot_limits" id="slot_limits" value="{% if cfg.slot_limits %}1{% else %}0{% endif %}">
+    <div class="opt-grid" id="slotmode-grid">
+        <label class="opt {% if cfg.slot_limits %}sel{% endif %}" data-slotmode="1" onclick="selectSlotMode('1')">
+            <div class="opt-t"><svg class="ic"><use href="#i-shield"/></svg> Limite slot per ruolo</div>
+            <div class="opt-d">Ogni squadra può comprare al massimo il numero di P/D/C/A qui sotto.</div>
+        </label>
+        <label class="opt {% if not cfg.slot_limits %}sel{% endif %}" data-slotmode="0" onclick="selectSlotMode('0')">
+            <div class="opt-t"><svg class="ic"><use href="#i-info"/></svg> Nessun limite slot</div>
+            <div class="opt-d">Rosa libera: nessun tetto per ruolo né per numero di giocatori, conta solo il budget.</div>
+        </label>
+    </div>
+    <div id="slots-wrap">
+        <div class="sec-title">Slot rosa per ruolo</div>
+        <div class="grid4" id="slots-classic">
+            <div><label>Portieri</label><input name="slots_p" value="{{ cfg.slots_p }}" inputmode="numeric"></div>
+            <div><label>Difensori</label><input name="slots_d" value="{{ cfg.slots_d }}" inputmode="numeric"></div>
+            <div><label>Centrocamp.</label><input name="slots_c" value="{{ cfg.slots_c }}" inputmode="numeric"></div>
+            <div><label>Attaccanti</label><input name="slots_a" value="{{ cfg.slots_a }}" inputmode="numeric"></div>
+        </div>
+        {# In Mantra i ruoli sono dodici e quasi tutti multipli: "otto difensori"
+           non vuol dire piu' niente, quindi la rosa si conta a portieri e
+           giocatori di movimento. #}
+        <div class="grid2" id="slots-mantra" style="display:none">
+            <div><label>Portieri</label><input name="slots_gk" value="{{ cfg.slots_gk|default:3 }}" inputmode="numeric"></div>
+            <div><label>Giocatori di movimento</label><input name="slots_out" value="{{ cfg.slots_out|default:22 }}" inputmode="numeric"></div>
+        </div>
+    </div>
+
+    <div class="sec-title">Squadre</div>
+    {% if free_teams %}
+    <label>Includi squadre esistenti (non ancora in una lega)</label>
+    <div class="glass attach-list">
+        {% for p in free_teams %}
+        <label class="attach-item">
+            <input type="checkbox" name="attach_ids" value="{{ p.id }}">
+            <span style="flex:1">{{ p.display_name }}</span>
+            <span class="muted" style="font-size:12px">{{ p.remaining_credits|floatformat:0 }} FM</span>
+        </label>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <label style="margin-top:16px">Aggiungi squadre a mano</label>
+    <div id="part-list"></div>
+    <button type="button" class="btn-ghost" onclick="addPart()" style="margin-top:6px">＋ Aggiungi squadra</button>
+    <div id="part-error" class="hint" style="display:none; color:var(--closed); font-weight:700">
+        Completa nome e crediti della squadra prima di aggiungerne un'altra.
+    </div>
+    <div class="hint">I crediti partono dal budget di lega: cambiali solo se questa squadra parte diversa. Potrai aggiungerne altre dopo.</div>
+
+    <div class="wnav">
+        <a class="btn btn-ghost" href="{% url 'admin_dashboard' %}">Annulla</a>
+        <button type="submit" class="btn-ok" style="font-size:16px"><svg class="ic"><use href="#i-trophy"/></svg> Crea lega</button>
+    </div>
+</form>
+
+<script>
+function selectSlotMode(v) {
+    document.getElementById("slot_limits").value = v;
+    document.querySelectorAll("#slotmode-grid .opt").forEach(el =>
+        el.classList.toggle("sel", el.dataset.slotmode === v));
+    document.getElementById("slots-wrap").style.display = (v === "1") ? "" : "none";
+}
+
+// Il sistema di gioco decide quali caselle di rosa hanno senso: quattro reparti
+// in Classic, portieri e movimento in Mantra. I valori dell'altro set restano
+// nel form e vengono salvati comunque, cosi' tornare indietro non li perde.
+function selectGameMode(v) {
+    document.getElementById("game_mode").value = v;
+    document.querySelectorAll("#mode-grid .opt").forEach(el =>
+        el.classList.toggle("sel", el.dataset.mode === v));
+    const mantra = v === "MANTRA";
+    document.getElementById("slots-classic").style.display = mantra ? "none" : "";
+    document.getElementById("slots-mantra").style.display = mantra ? "" : "none";
+    document.getElementById("mantra-hint").style.display = mantra ? "" : "none";
+    const label = document.querySelector('#slotmode-grid .opt[data-slotmode="1"] .opt-d');
+    if (label) label.textContent = mantra
+        ? "Ogni squadra può comprare al massimo i portieri e i giocatori di movimento qui sotto."
+        : "Ogni squadra può comprare al massimo il numero di P/D/C/A qui sotto.";
+}
+
+// A team row needs both a name and a credits figure before another can open.
+function incompletePartRow() {
+    return [...document.querySelectorAll("#part-list .part-row")].find(r => {
+        const n = r.querySelector(".p-name").value.trim();
+        const c = r.querySelector(".p-cred").value.trim();
+        return !n || !c || isNaN(Number(c));
+    }) || null;
+}
+// On submit a still-blank row is simply dropped; a *named* one must have credits.
+function invalidPartRow() {
+    return [...document.querySelectorAll("#part-list .part-row")].find(r => {
+        const n = r.querySelector(".p-name").value.trim();
+        const c = r.querySelector(".p-cred").value.trim();
+        return n && (!c || isNaN(Number(c)));
+    }) || null;
+}
+function flagPartRow(row) {
+    const err = document.getElementById("part-error");
+    document.querySelectorAll("#part-list input").forEach(i => i.classList.remove("bad"));
+    if (!row) { err.style.display = "none"; return; }
+    const n = row.querySelector(".p-name"), c = row.querySelector(".p-cred");
+    const cv = c.value.trim();
+    if (!n.value.trim()) n.classList.add("bad");
+    if (!cv || isNaN(Number(cv))) c.classList.add("bad");
+    err.style.display = "block";
+    (n.classList.contains("bad") ? n : c).focus();
+}
+function defaultCredits() {
+    const b = document.querySelector('[name="budget"]');
+    return b ? b.value.trim() : "";
+}
+function addPart(name = "", credits = "") {
+    if (!name) {
+        const bad = incompletePartRow();
+        if (bad) { flagPartRow(bad); return; }
+    }
+    flagPartRow(null);
+    const div = document.createElement("div");
+    div.className = "part-row";
+    div.innerHTML =
+        `<input class="p-name" placeholder="Nome squadra" value="${name}">` +
+        `<input class="p-cred" placeholder="Crediti" inputmode="decimal" value="${credits || defaultCredits()}">` +
+        `<button type="button" class="rm-btn" onclick="this.parentNode.remove(); flagPartRow(null)">✕</button>`;
+    document.getElementById("part-list").appendChild(div);
+    div.querySelectorAll("input").forEach(i =>
+        i.addEventListener("input", () => flagPartRow(null)));
+}
+function collectParts() {
+    const rows = [...document.querySelectorAll("#part-list .part-row")];
+    const data = rows.map(r => ({
+        name: r.querySelector(".p-name").value.trim(),
+        credits: r.querySelector(".p-cred").value.trim(),
+    })).filter(p => p.name);
+    document.getElementById("participants_json").value = JSON.stringify(data);
+}
+document.getElementById("source-select").addEventListener("change", e => {
+    document.getElementById("source-extra").style.display = e.target.value ? "block" : "none";
+});
+document.querySelector("form.panel").addEventListener("submit", ev => {
+    const bad = invalidPartRow();
+    if (bad) { ev.preventDefault(); flagPartRow(bad); return; }
+    collectParts();
+});
+selectSlotMode(document.getElementById("slot_limits").value);
+selectGameMode(document.getElementById("game_mode").value);
+addPart();
+</script>
+{% endblock %}

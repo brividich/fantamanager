@@ -1,0 +1,235 @@
+{% extends "auctions/base.html" %}
+{% block title %}Accesso remoto — FantaManager{% endblock %}
+{% block bodyclass %}role-admin{% endblock %}
+{% block wrapclass %}wrap-wide{% endblock %}
+
+{% block content %}
+<style>
+    .rm-head { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
+    .rm-head h1 { margin:0; font-size:26px; letter-spacing:.02em; }
+    .rm-head .spacer { flex:1 1 auto; }
+    .rm-grid { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(0,1fr); gap:12px; margin-bottom:12px; }
+    .rm-addr { display:flex; gap:20px; flex-wrap:wrap; }
+    .rm-addr-main { flex:1 1 280px; min-width:240px; }
+    .rm-url {
+        display:flex; align-items:center; gap:8px; margin-top:6px;
+        font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:14px;
+        color:var(--fm-primary-light); word-break:break-all;
+    }
+    .rm-qr { flex:0 0 auto; text-align:center; }
+    .rm-qr img { width:148px; height:148px; display:block; background:#fff; padding:8px; border-radius:var(--fm-radius-md); }
+    .rm-pin {
+        font-family:var(--fm-display); font-weight:800; font-size:52px; letter-spacing:.14em;
+        color:var(--fm-primary-light); line-height:1.1;
+    }
+    .rm-links { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
+    .rm-link-row {
+        display:flex; align-items:center; justify-content:space-between; gap:10px;
+        padding:9px 12px; border:1px solid var(--fm-border); border-radius:var(--fm-radius-sm);
+        background:rgba(255,255,255,.03); font-size:13px;
+    }
+    .rm-tech { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:2px 26px; }
+    .rm-tech .row {
+        display:flex; align-items:center; justify-content:space-between; gap:12px;
+        padding:8px 0; border-bottom:1px solid rgba(85,160,230,.09); font-size:13px;
+    }
+    .rm-tech .row .k { color:var(--fm-text-muted); }
+    .rm-tech .row .v { font-weight:600; }
+    .rm-off { text-align:center; padding:26px 16px; }
+    @media (max-width: 1080px) { .rm-grid { grid-template-columns:minmax(0,1fr); } }
+</style>
+
+{% include "auctions/_console_head.html" %}
+
+<div class="rm-head">
+    <h1>Accesso remoto</h1>
+    <span id="rmp-pill" class="fm-badge is-off"><span class="dot"></span>Non attivo</span>
+    <span class="spacer"></span>
+    <button type="button" id="rmp-start" class="fm-btn fm-btn-primary" onclick="rmStart()">
+        <svg class="ic"><use href="#i-play"/></svg> Attiva tunnel</button>
+    <button type="button" id="rmp-renew" class="fm-btn fm-btn-secondary" style="display:none" onclick="rmRenew()">
+        <svg class="ic"><use href="#i-refresh"/></svg> Rinnova tunnel</button>
+    <button type="button" id="rmp-stop" class="fm-btn fm-btn-danger" style="display:none" onclick="rmStop()">
+        <svg class="ic"><use href="#i-stop"/></svg> Chiudi tunnel</button>
+</div>
+
+<div id="rmp-error" class="fm-card" style="display:none;border-color:rgba(255,61,80,.45);color:var(--fm-danger);font-size:13px;margin-bottom:12px"></div>
+
+<div id="rmp-off" class="fm-card" style="margin-bottom:12px">
+    <div class="rm-off">
+        <div class="fm-jersey" style="margin:0 auto 14px"><svg class="ic"><use href="#i-globe"/></svg></div>
+        <h2 style="justify-content:center">Il tunnel non è attivo</h2>
+        <p class="muted" style="max-width:52ch;margin:6px auto 0;line-height:1.65;font-size:13px">
+            Serve solo quando gli allenatori <b style="color:var(--fm-text)">non sono sul tuo wifi</b>.
+            Questo PC apre un collegamento verso l'esterno e ottiene un indirizzo pubblico:
+            nessuna configurazione del router, nessuna porta da aprire.
+            {% if lan_url %}<br>In casa, sullo stesso wifi, va già bene <code>{{ lan_url }}</code>.{% endif %}
+        </p>
+        <div class="muted" id="rmp-detail" style="font-size:12.5px;margin-top:12px"></div>
+    </div>
+</div>
+
+<div id="rmp-on" style="display:none">
+    <div class="rm-grid">
+        <section class="fm-card">
+            <div class="fm-section-title"><svg class="ic"><use href="#i-link"/></svg> Indirizzo pubblico <span class="sep"></span></div>
+            <div class="rm-addr">
+                <div class="rm-addr-main">
+                    <div class="fm-kpi-label">Da condividere con gli allenatori</div>
+                    <div class="rm-url"><a id="rmp-url" href="#" target="_blank" rel="noopener"></a></div>
+                    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+                        <button type="button" class="fm-btn fm-btn-secondary fm-btn-sm" onclick="rmCopy()">
+                            <svg class="ic"><use href="#i-copy"/></svg> Copia link</button>
+                        <a id="rmp-open" class="fm-btn fm-btn-ghost fm-btn-sm" href="#" target="_blank" rel="noopener">
+                            <svg class="ic"><use href="#i-eye"/></svg> Apri</a>
+                    </div>
+                    <p class="muted" style="font-size:12.5px;margin:12px 0 0;line-height:1.6">
+                        Finché è attivo, l'ingresso libero scrivendo un nome è disattivato: si entra
+                        solo col <b style="color:var(--fm-text)">link personale</b> della squadra.
+                    </p>
+                </div>
+                <div class="rm-qr">
+                    <!-- src is set by rmRender once the tunnel answers: asking
+                         for it while the tunnel is closed is a guaranteed 404. -->
+                    <img id="rmp-qr" src="" alt="QR indirizzo pubblico">
+                    <div class="muted" style="font-size:11px;margin-top:6px">Inquadra per aprire</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="fm-card">
+            <div class="fm-section-title"><svg class="ic"><use href="#i-lock"/></svg> PIN regia <span class="sep"></span></div>
+            <div id="rmp-pin" class="rm-pin">——————</div>
+            <p class="muted" style="font-size:12.5px;margin:8px 0 0;line-height:1.6">
+                Serve solo a te, per aprire <i>questa</i> regia da un altro dispositivo.
+                Non darlo agli allenatori.
+            </p>
+
+            <div class="fm-section-title" style="margin-top:20px"><svg class="ic"><use href="#i-list"/></svg> Collegamenti rapidi <span class="sep"></span></div>
+            <div class="rm-links">
+                <div class="rm-link-row">
+                    <span>Link per le squadre (allenatori)</span>
+                    <a class="fm-btn fm-btn-secondary fm-btn-sm"
+                       href="{% url 'admin_participants' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">Apri</a>
+                </div>
+                {% if selected %}
+                <div class="rm-link-row">
+                    <span>Pagina asta (spettatori)</span>
+                    <a class="fm-btn fm-btn-secondary fm-btn-sm" href="{% url 'screen' selected.id %}?t={{ selected.public_token }}" target="_blank">Apri</a>
+                </div>
+                {% endif %}
+            </div>
+        </section>
+    </div>
+
+    <section class="fm-card">
+        <div class="fm-section-title"><svg class="ic"><use href="#i-info"/></svg> Informazioni tecniche <span class="sep"></span></div>
+        <div class="rm-tech">
+            <div class="row"><span class="k">Stato tunnel</span><span class="v" id="rmp-t-state">—</span></div>
+            <div class="row"><span class="k">Uptime</span><span class="v" id="rmp-t-uptime">—</span></div>
+            <div class="row"><span class="k">Protocollo</span><span class="v">HTTPS / WSS</span></div>
+            <div class="row"><span class="k">Porta locale</span><span class="v" id="rmp-t-port">—</span></div>
+            <div class="row"><span class="k">Indirizzo sul wifi</span><span class="v">{{ lan_url|default:"—" }}</span></div>
+            <div class="row"><span class="k">Provider</span><span class="v">Cloudflare quick tunnel</span></div>
+        </div>
+        <p class="muted" style="font-size:11.5px;margin:10px 0 0">
+            Numero di connessioni, latenza e regione non sono esposti dal tunnel: non li
+            inventiamo, quindi non compaiono qui.
+        </p>
+    </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let rmPoll = null, rmUrl = "";
+    function rmCsrf() {
+        const m = document.cookie.match("(^|;)\\s*csrftoken\\s*=\\s*([^;]+)");
+        return m ? m.pop() : "";
+    }
+    function rmFmtUptime(sec) {
+        sec = Math.max(0, sec | 0);
+        const h = String(Math.floor(sec / 3600)).padStart(2, "0");
+        const m = String(Math.floor((sec % 3600) / 60)).padStart(2, "0");
+        const s = String(sec % 60).padStart(2, "0");
+        return `${h}:${m}:${s}`;
+    }
+    function rmRender(r) {
+        const on = r.status === "on";
+        const busy = r.status === "preparing" || r.status === "starting";
+        const labels = { off:"Non attivo", preparing:"Preparazione…", starting:"Apertura…", on:"Attivo", error:"Errore" };
+
+        const pill = document.getElementById("rmp-pill");
+        pill.innerHTML = '<span class="dot"></span>' + (labels[r.status] || r.status);
+        pill.className = "fm-badge " + (on ? "is-ok" : r.status === "error" ? "is-live" : "is-off");
+
+        document.getElementById("rmp-on").style.display  = on ? "" : "none";
+        document.getElementById("rmp-off").style.display = on ? "none" : "";
+        document.getElementById("rmp-start").style.display = on ? "none" : "";
+        document.getElementById("rmp-start").disabled = busy;
+        document.getElementById("rmp-renew").style.display = on ? "" : "none";
+        document.getElementById("rmp-stop").style.display  = on ? "" : "none";
+        document.getElementById("rmp-detail").textContent = r.detail || "";
+
+        const err = document.getElementById("rmp-error");
+        err.style.display = r.error ? "" : "none";
+        err.textContent = r.error || "";
+
+        rmUrl = r.url || "";
+        if (on) {
+            const a = document.getElementById("rmp-url");
+            a.textContent = r.url; a.href = r.url;
+            document.getElementById("rmp-open").href = r.url;
+            document.getElementById("rmp-pin").textContent = r.pin || "——————";
+            document.getElementById("rmp-qr").src = "{% url 'admin_remote_qr' %}?t=" + encodeURIComponent(r.url);
+            document.getElementById("rmp-t-state").textContent = "Connesso";
+            document.getElementById("rmp-t-port").textContent = r.port || "—";
+            document.getElementById("rmp-t-uptime").textContent = rmFmtUptime(r.uptime_seconds || 0);
+        }
+        if (busy && !rmPoll) rmPoll = setInterval(rmRefresh, 1500);
+        if (!busy && rmPoll) { clearInterval(rmPoll); rmPoll = null; }
+    }
+    async function rmRefresh() {
+        try {
+            const d = await (await fetch("{% url 'admin_remote_status' %}")).json();
+            if (d.ok) rmRender(d.remote);
+        } catch (e) { /* transient */ }
+    }
+    async function rmStart() {
+        rmRender({ status: "preparing", detail: "Avvio…" });
+        try {
+            const d = await (await fetch("{% url 'admin_remote_start' %}", {
+                method: "POST",
+                headers: { "X-CSRFToken": rmCsrf(), "Content-Type": "application/x-www-form-urlencoded" },
+                body: new URLSearchParams({ port: location.port || "80" }),
+            })).json();
+            if (d.ok) rmRender(d.remote); else showToast("✗ Avvio non riuscito", "bad");
+        } catch (e) { showToast("✗ Errore di rete", "bad"); }
+    }
+    async function rmStop(silent) {
+        if (!silent && !confirm("Chiudere l'accesso da internet? I link pubblici smetteranno di funzionare.")) return false;
+        const d = await (await fetch("{% url 'admin_remote_stop' %}", {
+            method: "POST", headers: { "X-CSRFToken": rmCsrf() } })).json();
+        if (d.ok) { rmRender(d.remote); if (!silent) showToast("Accesso da internet chiuso", "ok"); }
+        return !!d.ok;
+    }
+    async function rmRenew() {
+        if (!confirm("Rinnovare il tunnel? L'indirizzo pubblico cambia: i link già distribuiti smettono di funzionare.")) return;
+        if (await rmStop(true)) { showToast("Riapro il tunnel…", "info"); rmStart(); }
+    }
+    function rmCopy() {
+        if (!rmUrl) return;
+        navigator.clipboard?.writeText(rmUrl).then(
+            () => showToast("Indirizzo copiato", "ok"),
+            () => showToast("Copia manualmente l'indirizzo", "bad"));
+    }
+    rmRender({{ remote_json|safe }});
+    // Uptime ticks locally; the server figure re-syncs it on every refresh.
+    setInterval(() => {
+        const el = document.getElementById("rmp-t-uptime");
+        if (!el || !el.textContent.includes(":")) return;
+        const [h, m, s] = el.textContent.split(":").map(Number);
+        el.textContent = rmFmtUptime(h * 3600 + m * 60 + s + 1);
+    }, 1000);
+</script>
+{% endblock %}

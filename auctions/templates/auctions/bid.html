@@ -1,0 +1,1162 @@
+{% extends "auctions/base.html" %}
+{% block title %}{{ auction.title }} — Offerte{% endblock %}
+{% block bodyclass %}role-player{% endblock %}
+{% block wrapclass %}bid-wrap{% endblock %}
+
+{% block content %}
+<style>
+    /* ---- Participant view ------------------------------------------------ */
+    .p-shell {
+        max-width: 440px; margin: 0 auto;
+        border-radius: 28px; overflow: hidden;
+        border: 1px solid rgba(255,255,255,.10);
+        box-shadow: 0 32px 80px rgba(0,0,0,.65);
+    }
+    .p-header {
+        position: relative;
+        background: linear-gradient(180deg, rgba(10,36,69,.92), rgba(4,20,41,.98));
+        padding: 18px 20px;
+        border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+    .p-header::before {
+        content: "";
+        position: absolute; inset: 0;
+        background: radial-gradient(circle at top left, rgba(8,124,240,.28), transparent 42%);
+        pointer-events: none;
+    }
+    .p-header-row {
+        position: relative;
+        display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    }
+    .p-body { background: rgba(5,24,47,.97); padding: 16px; }
+    .p-body > * + * { margin-top: 12px; }
+
+    /* 2-col grid: timer + price */
+    .p-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    /* Best bidder card */
+    .p-best {
+        display: flex; align-items: center; justify-content: center; gap: 14px;
+        padding: 16px;
+    }
+    .p-best-logo {
+        width: 52px; height: 52px; border-radius: 10px; object-fit: cover;
+        border: 1px solid rgba(255,255,255,.15); flex-shrink: 0;
+    }
+    .p-best-placeholder {
+        width: 52px; height: 52px; border-radius: 10px;
+        background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.10);
+        display: flex; align-items: center; justify-content: center; font-size: 26px; flex-shrink: 0;
+    }
+    .bp-ava {
+        width: 52px; height: 52px; border-radius: 50%; flex-shrink: 0; overflow: hidden;
+        display: flex; align-items: center; justify-content: center;
+        font-family: var(--display); font-weight: 900; font-size: 22px; color: #fff;
+        background: #0a2445; border: 3px solid var(--accent, #13b5ff);
+    }
+    .bp-ava img { width: 100%; height: 100%; object-fit: cover; }
+    .bp-ava.role-P{border-color:#f59e0b}.bp-ava.role-D{border-color:#38bdf8}
+    .bp-ava.role-C{border-color:#13b5ff}.bp-ava.role-A{border-color:#ff6b7f}
+    /* Season stats: a tile grid, not pills — on a phone the number has to be
+       readable at arm's length while the timer runs. Fantamedia is the figure
+       a bid hangs on, so it takes a double-width tile at the head of the grid. */
+    .bp-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(62px,1fr));
+        gap:6px; margin:2px 0 12px; }
+    .bp-stats:empty { display:none; }
+    .bp-stats .stat {
+        display:flex; flex-direction:column; align-items:center; justify-content:center;
+        gap:3px; padding:9px 6px 8px; border-radius:11px;
+        background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.10);
+    }
+    .bp-stats .stat b { font-family:var(--display); font-weight:800; font-size:20px; line-height:1; }
+    .bp-stats .stat span { color:var(--muted); font-size:9px; font-weight:700;
+        text-transform:uppercase; letter-spacing:.07em; text-align:center; }
+    .bp-stats .stat.key { grid-column:span 2;
+        background:rgba(19,181,255,.12); border-color:rgba(19,181,255,.32); }
+    .bp-stats .stat.key b { color:var(--accent, #13b5ff); font-size:27px; }
+    .bp-stats .stat.key span { color:var(--accent, #13b5ff); opacity:.85; }
+    /* Live reactions */
+    .react-bar { display:flex; justify-content:center; gap:8px; flex-wrap:wrap; margin:2px 0 2px; }
+    .react-bar button {
+        font-size:22px; line-height:1; padding:8px 12px; border-radius:14px; cursor:pointer;
+        background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.10);
+        transition:transform .08s ease, background .15s ease;
+    }
+    .react-bar button:hover { background:rgba(255,255,255,.10); }
+    .react-bar button:active { transform:scale(.86); }
+    .react-layer { position:fixed; inset:0; pointer-events:none; overflow:hidden; z-index:60; }
+    .react-float { position:absolute; bottom:96px; font-size:34px; will-change:transform,opacity;
+        animation:reactUp 2.1s ease-out forwards; }
+    @keyframes reactUp {
+        0% { opacity:0; transform:translateY(0) scale(.6); }
+        15% { opacity:1; transform:translateY(-14px) scale(1.1); }
+        100% { opacity:0; transform:translateY(-190px) scale(1); }
+    }
+    .announce-banner {
+        position:fixed; top:0; left:0; right:0; z-index:70; display:none;
+        padding:14px 18px; text-align:center; font-family:var(--display); font-weight:800;
+        font-size:16px; color:#ffffff; background:var(--accent, #13b5ff);
+        box-shadow:0 6px 24px rgba(0,0,0,.4); animation:annDrop .3s ease-out;
+    }
+    .announce-banner.call { background:#f43f5e; color:#fff; }
+    @keyframes annDrop { from { transform:translateY(-100%); } to { transform:translateY(0); } }
+    /* Budget/slot planner */
+    .planner { display:flex; gap:6px; align-items:stretch; margin:-4px 0 12px; }
+    .pl-role { flex:1; display:flex; flex-direction:column; align-items:center; gap:1px; padding:7px 4px;
+        border-radius:10px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); }
+    .pl-role.full { opacity:.45; }
+    .pl-role .pl-r { font-family:var(--display); font-weight:900; font-size:13px; }
+    .pl-role.role-P .pl-r{color:#f59e0b}.pl-role.role-D .pl-r{color:#38bdf8}
+    .pl-role.role-C .pl-r{color:#13b5ff}.pl-role.role-A .pl-r{color:#ff6b7f}
+    /* Mantra: un solo tetto per tutti i giocatori di movimento. Verde, per non
+       somigliare a nessuno dei tre reparti classici che sostituisce. */
+    .pl-role.role-X .pl-r{color:#4ade80}
+    /* Ruoli Mantra del giocatore all'asta: chip accanto al nome, cosi' sai
+       subito se copre lo slot che ti manca davvero. */
+    .bp-mroles { display:flex; gap:4px; flex-wrap:wrap; margin-top:4px; }
+    .bp-mrole { font-size:10px; font-weight:900; letter-spacing:.06em; text-transform:uppercase;
+                padding:2px 6px; border-radius:5px; background:rgba(19,181,255,.16);
+                color:#8ed8ff; border:1px solid rgba(19,181,255,.3); }
+    .pl-role .pl-n { font-size:12px; font-weight:700; color:var(--muted); }
+    .pl-max { flex:1.4; display:flex; flex-direction:column; align-items:center; justify-content:center;
+        border-radius:10px; background:rgba(8,124,240,.10); border:1px solid rgba(8,124,240,.25); }
+    .pl-max .pl-lbl { font-size:9px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); font-weight:800; }
+    .pl-max .pl-v { font-family:var(--display); font-weight:900; font-size:18px; color:var(--accent,#13b5ff); }
+    .pl-max .pl-v small { font-size:10px; color:var(--muted); }
+    /* Watch star + objective highlight */
+    .watch-star { position:absolute; top:8px; right:10px; background:none; border:none; cursor:pointer;
+        font-size:24px; line-height:1; color:var(--muted); transition:transform .1s ease; }
+    .watch-star.on { color:#facc15; }
+    .watch-star:active { transform:scale(.8); }
+    #block-player-wrap.objective { border:1px solid rgba(250,204,21,.5); box-shadow:0 0 22px rgba(250,204,21,.25); }
+    /* Watchlist items + search results */
+    .watch-item, .wr-row { display:flex; align-items:center; gap:8px; padding:7px 2px;
+        border-bottom:1px solid rgba(255,255,255,.05); }
+    .wi-name, .wr-name { flex:1; min-width:0; font-weight:600; font-size:14px; white-space:nowrap;
+        overflow:hidden; text-overflow:ellipsis; }
+    .wi-name small, .wr-name small { display:block; font-size:11px; color:var(--muted); }
+    .wi-max { width:66px; padding:6px 8px; font-size:13px; text-align:right; border-radius:8px;
+        background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); color:var(--ink); }
+    .wi-del { background:none; border:none; color:var(--muted); cursor:pointer; font-size:15px; padding:4px 6px; }
+    .wr-add { background:rgba(8,124,240,.14); border:1px solid rgba(8,124,240,.3); color:var(--accent,#13b5ff);
+        border-radius:8px; padding:6px 10px; font-weight:800; cursor:pointer; font-size:13px; }
+    #watch-results:not(:empty) { margin-bottom:8px; padding-bottom:6px; border-bottom:1px dashed rgba(255,255,255,.12); }
+    .p-best-info { text-align: left; }
+    .p-best-label { font-size: 10px; letter-spacing: 0.28em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+    .p-best-name { font-family: var(--display); font-size: 22px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.03em; color: #fff; margin-top: 2px; }
+    .p-best-badge {
+        display: inline-block; margin-top: 5px;
+        background: rgba(8,124,240,.20); color: var(--gold); border-radius: 7px;
+        padding: 3px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em;
+    }
+
+    /* WebSocket indicator */
+    .ws-indicator {
+        display: inline-flex; align-items: center; gap: 5px;
+        padding: 4px 10px; border-radius: 6px; font-size: 10px;
+        font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase;
+        border: 1px solid; transition: background .3s, border-color .3s, color .3s;
+    }
+    .ws-indicator .ws-dot {
+        width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+        transition: background .3s;
+    }
+    .ws-indicator.ws-open {
+        background: rgba(8,124,240,.12); border-color: rgba(8,124,240,.40); color: var(--live);
+    }
+    .ws-indicator.ws-open .ws-dot {
+        background: var(--live);
+        box-shadow: 0 0 6px var(--live);
+        animation: wsPulse 1.8s ease-in-out infinite;
+    }
+    .ws-indicator.ws-connecting {
+        background: rgba(253,224,71,.10); border-color: rgba(253,224,71,.35); color: var(--paused);
+    }
+    .ws-indicator.ws-connecting .ws-dot {
+        background: var(--paused);
+        animation: wsBlink .7s ease-in-out infinite;
+    }
+    .ws-indicator.ws-closed {
+        background: rgba(248,113,113,.12); border-color: rgba(248,113,113,.38); color: var(--closed);
+    }
+    .ws-indicator.ws-closed .ws-dot { background: var(--closed); }
+    @keyframes wsPulse { 0%,100% { opacity:1; } 50% { opacity:.35; } }
+    @keyframes wsBlink  { 0%,100% { opacity:1; } 50% { opacity:.2;  } }
+
+    /* Bid hint / disclaimer */
+    .p-disclaimer {
+        display: flex; align-items: center; justify-content: center; gap: 8px;
+        padding: 10px 14px; border-radius: 12px;
+        background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+        font-size: 11px; color: var(--muted); text-align: center;
+    }
+
+    /* Credits strip */
+    .p-credits {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 10px 16px; border-radius: 10px;
+        background: rgba(8,124,240,.07); border: 1px solid rgba(8,124,240,.20);
+    }
+    .p-credits-label { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+    .p-credits-value { font-family: var(--display); font-size: 22px; font-weight: 900; color: var(--gold); letter-spacing: 0.02em; }
+
+    /* Your own noted ceiling (watchlist "obiettivi"), compared live against
+       the current price while the lot you flagged is on the block — the
+       "am I still under my own number" glance the best auction cheat-sheet
+       tools give you, built on the watchlist data already collected. */
+    .target-chip {
+        margin-top: 8px; font-size: 11px; font-weight: 800; letter-spacing: 0.06em;
+        text-transform: uppercase; padding: 4px 10px; border-radius: 8px;
+        display: inline-flex; align-items: center; gap: 5px;
+    }
+    .target-chip.ok   { background: rgba(74,222,128,.14); border: 1px solid rgba(74,222,128,.4); color: #4ade80; }
+    .target-chip.over { background: rgba(248,113,113,.14); border: 1px solid rgba(248,113,113,.4); color: #f87171; }
+
+    /* ---- Desktop / tablet: two columns, bid buttons pinned and enlarged --
+       On a phone this page is a single scrolling card (unchanged below).
+       From ~900px up there is room for a real layout: info on the left,
+       the buttons that actually place a bid fixed on the right where the
+       eye (and the mouse) already is, sized so they read as the primary
+       action of the page, not one control among many. */
+    .wrap.bid-wrap { max-width: 780px; }
+    @media (min-width: 900px) {
+        .wrap.bid-wrap { max-width: 1180px; }
+        /* overflow:hidden (kept for the mobile card's clipped corners) would
+           break #bid-panel's position:sticky below — it counts as a scroll
+           container even without a visible scrollbar. */
+        .p-shell { max-width: none; overflow: visible; }
+        .p-header { border-radius: 28px 28px 0 0; }
+        .p-body { border-radius: 0 0 28px 28px; }
+        .p-body {
+            display: grid; align-items: start;
+            grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.9fr);
+            gap: 16px 22px;
+            grid-template-areas:
+                "howto    howto"
+                "credits  bid"
+                "planner  bid"
+                "player   bid"
+                "stats    bid"
+                "price    bid"
+                "best     bid"
+                "mininc   bid"
+                "disclaim bid"
+                "watch    watch"
+                "roster   roster"
+                "exit     exit";
+        }
+        .p-body > * + * { margin-top: 0; }  /* grid `gap` replaces the mobile stack margin */
+        .p-body > .howto        { grid-area: howto; }
+        .p-body > .p-credits    { grid-area: credits; }
+        .p-body > .planner      { grid-area: planner; }
+        #block-player-wrap      { grid-area: player; }
+        #bp-stats                { grid-area: stats; }
+        .p-body > .p-grid2      { grid-area: price; }
+        #best-card               { grid-area: best; }
+        #min-inc-row              { grid-area: mininc; }
+        #p-disclaimer             { grid-area: disclaim; }
+        #watch-panel              { grid-area: watch; }
+        #roster-panel             { grid-area: roster; }
+        #exit-links               { grid-area: exit; }
+
+        /* The sidebar: sticks in view while the left column scrolls, so the
+           rilancio buttons stay reachable through a long asta. */
+        #bid-panel {
+            grid-area: bid;
+            position: sticky; top: 18px;
+            display: flex; flex-direction: column; gap: 14px;
+            padding: 18px; border-radius: 18px;
+            background: linear-gradient(180deg, rgba(8,124,240,.10), rgba(8,124,240,.03));
+            border: 1px solid rgba(8,124,240,.30);
+            box-shadow: 0 24px 60px rgba(0,0,0,.45);
+        }
+        #bid-panel .bidgrid { grid-template-columns: repeat(2, 1fr); gap: 16px; }
+        #bid-panel .bidbtn {
+            font-size: 44px; padding: 30px 14px;
+            border-color: rgba(8,124,240,.35);
+            box-shadow: 0 10px 26px rgba(8,124,240,.18);
+        }
+        #bid-panel .bidbtn:not(:disabled):hover {
+            border-color: var(--accent, #13b5ff);
+            box-shadow: 0 12px 30px rgba(8,124,240,.32);
+            transform: translateY(-1px);
+        }
+        #bid-panel #hint { font-size: 13px; }
+    }
+    @media (min-width: 1300px) {
+        #bid-panel .bidbtn { font-size: 52px; padding: 34px 16px; }
+    }
+</style>
+
+{% if lan_switch_url %}
+<!-- Reached through the internet tunnel. If this phone is actually on the host's
+     wifi, the local address is the shorter road — offer the switch (and take it
+     automatically when the browser lets us verify the LAN answers). -->
+<div id="lan-switch" style="max-width:440px;margin:0 auto 10px;padding:11px 14px;border-radius:12px;
+     border:1px solid var(--accent-line);background:var(--accent-soft);font-size:13px;line-height:1.45">
+    Sei sullo stesso <b>wifi</b> di chi conduce l'asta?
+    <a href="{{ lan_switch_url }}" style="color:var(--accent);font-weight:800;white-space:nowrap">
+        Passa al collegamento locale →</a>
+</div>
+<script>
+    (async () => {
+        const url = "{{ lan_switch_url|escapejs }}";
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 1500);
+        try {
+            // Blocked as mixed content on most browsers (https page → http LAN):
+            // then the banner above stays and the manager taps it. Where it does
+            // go through, the phone is provably on the wifi, so switch for them.
+            await fetch(url, { mode: "no-cors", signal: ctrl.signal, cache: "no-store" });
+            clearTimeout(t);
+            location.replace(url);
+        } catch (e) { clearTimeout(t); }
+    })();
+</script>
+{% endif %}
+
+<div class="p-shell">
+
+    <!-- Header -->
+    <div class="p-header">
+        <div class="p-header-row">
+            <div style="display:flex; align-items:center; gap:10px">
+                {% if participant.logo %}
+                <img src="{{ participant.logo.url }}" alt="{{ participant.display_name }}"
+                     style="width:40px;height:40px;border-radius:8px;object-fit:cover;border:1px solid rgba(255,255,255,.2);flex-shrink:0">
+                {% else %}
+                <div style="width:40px;height:40px;border-radius:8px;background:rgba(8,124,240,.15);
+                            border:1px solid rgba(8,124,240,.3);display:flex;align-items:center;
+                            justify-content:center;font-size:20px;flex-shrink:0"><svg class="ic"><use href="#i-shield"/></svg></div>
+                {% endif %}
+                <div>
+                    <div style="font-family:var(--display);font-weight:900;font-size:16px;text-transform:uppercase;letter-spacing:0.04em;line-height:1">{{ participant.display_name }}</div>
+                    <span class="role-chip" style="margin-top:5px;padding:3px 9px;font-size:10px;letter-spacing:0.16em">
+                        <span class="role-ico"><svg class="ic"><use href="#i-users"/></svg></span> Partecipante
+                    </span>
+                </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <span id="ws-indicator" class="ws-indicator ws-closed">
+                    <span class="ws-dot"></span>
+                    <span id="ws-label">Offline</span>
+                </span>
+                <span id="status-pill" class="status-pill s-{{ auction.status }}" style="font-size:10px;padding:5px 10px">…</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Live announcement banner + floating reactions overlay -->
+    <div id="announce-banner" class="announce-banner"></div>
+    <div id="react-layer" class="react-layer" aria-hidden="true"></div>
+
+    <!-- Body -->
+    <div class="p-body">
+
+        <details class="howto" style="margin-bottom:0">
+            <summary><svg class="ic"><use href="#i-info"/></svg> Come si fa offerta <span class="chev">▼</span></summary>
+            <div class="howto-body">
+                <ol>
+                    <li>Quando un giocatore è <b>sul piatto</b>, tocca un importo (<b>+1 / +2 …</b>) per rilanciare.</li>
+                    <li>La <b>prima offerta avvia il timer</b>: chi è in testa allo scadere si aggiudica il giocatore.</li>
+                    <li>Tieni d'occhio <b>Crediti rimasti</b> e il <b>rilancio minimo</b>: non puoi superare i crediti disponibili.</li>
+                    <li>In <b><svg class="ic"><use href="#i-users"/></svg> La mia rosa</b> vedi i tuoi giocatori e puoi svincolarli per liberare slot e crediti.</li>
+                </ol>
+                <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> L'indicatore in alto mostra se sei <b>Online</b>: le offerte sono vincolanti e gestite dal server.</div>
+            </div>
+        </details>
+
+        <!-- Credits strip -->
+        <div class="p-credits">
+            <span class="p-credits-label">Crediti rimasti</span>
+            <span class="p-credits-value" id="participant-credits">{{ participant.remaining_credits|floatformat:0 }} FM</span>
+        </div>
+
+        <!-- Budget / slot planner -->
+        {% if plan %}
+        <div class="planner">
+            {% for r in plan.roles %}
+            {# No slot limits: show what is owned, with no cap to fill up. #}
+            <div class="pl-role role-{{ r.role }}{% if plan.slot_limits and r.free == 0 %} full{% endif %}">
+                <span class="pl-r">{{ r.label }}</span>
+                <span class="pl-n">{{ r.owned }}{% if plan.slot_limits %}/{{ r.slots }}{% endif %}</span>
+            </div>
+            {% endfor %}
+            <div class="pl-max">
+                <span class="pl-lbl">Max su questo</span>
+                <span class="pl-v">{{ plan.max_bid|floatformat:0 }} <small>FM</small></span>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Player on the block -->
+        <div class="glass" id="block-player-wrap" style="position:relative;padding:14px;display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:12px">
+            <button type="button" id="watch-star" class="watch-star" title="Aggiungi ai tuoi obiettivi"
+                    onclick="toggleWatchCurrent()" style="display:none">☆</button>
+            <div id="block-player" style="display:flex;align-items:center;justify-content:center;gap:12px">
+            {% if auction.player %}
+                <span class="bp-ava role-{{ auction.player.role }}" aria-hidden="true"><svg class="ic"><use href="#i-shirt"/></svg></span>
+                <span style="text-align:left">
+                    {% if auction.league.is_mantra %}{% if auction.player.role_list %}<span class="bp-mroles">{% for r in auction.player.role_list %}<span class="bp-mrole">{{ r }}</span>{% endfor %}</span>{% endif %}{% else %}<span class="role-badge role-{{ auction.player.role }}">{{ auction.player.role }}</span>{% endif %}
+                    <span style="font-family:var(--display);font-weight:800;font-size:20px">{{ auction.player.name }}</span>
+                    <span class="muted" style="font-size:13px;display:block">{{ auction.player.team }}</span>
+                </span>
+            {% else %}
+                <span class="muted" style="font-size:14px">In attesa del prossimo giocatore…</span>
+            {% endif %}
+            </div>
+        </div>
+        <div id="bp-stats" class="bp-stats"></div>
+
+        <!-- Timer + current price -->
+        <div class="p-grid2">
+            <div class="glass" style="padding:14px;text-align:center">
+                <div class="label" style="margin-bottom:8px">Timer</div>
+                <div class="ring-wrap" id="ring-wrap" style="width:110px;height:110px">
+                    <svg viewBox="0 0 168 168" aria-hidden="true">
+                        <circle class="ring-track" cx="84" cy="84" r="76" stroke-width="10"></circle>
+                        <circle class="ring-bar" id="ring-bar" cx="84" cy="84" r="76" stroke-width="10"
+                                data-circ="477.52" stroke-dasharray="477.52" stroke-dashoffset="0"></circle>
+                    </svg>
+                    <div class="ring-label">
+                        <div id="timer" class="timer" style="font-size:26px">--:--</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass" style="padding:14px;text-align:center;display:flex;flex-direction:column;justify-content:center">
+                <div class="label" style="margin-bottom:6px">Offerta attuale</div>
+                <div id="price" class="price" style="font-size:clamp(42px,11vw,60px)">
+                    <span id="price-val">{{ auction.current_price|floatformat:0 }}</span>
+                </div>
+                <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.2em;color:var(--muted);margin-top:4px">FM</div>
+                <div id="target-chip" class="target-chip" style="display:none"></div>
+            </div>
+        </div>
+
+        <!-- Best bidder -->
+        <div class="glass" id="best-card">
+            <div class="p-best">
+                <div id="best-logo-wrap">
+                    <div class="p-best-placeholder" id="best-logo-placeholder"><svg class="ic" style="width:26px;height:26px"><use href="#i-trophy"/></svg></div>
+                    <img id="best-logo" src="" alt="" class="p-best-logo" style="display:none">
+                </div>
+                <div class="p-best-info">
+                    <div class="p-best-label">Miglior offerente</div>
+                    <div class="p-best-name" id="best">—</div>
+                    <div class="p-best-badge" id="best-badge" style="display:none">In vantaggio</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Min increment info -->
+        <div id="min-inc-row" style="text-align:center;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.2em;color:var(--muted)">
+            Rilancio minimo: <span style="color:var(--gold)">{{ auction.min_increment|floatformat:0 }} FM</span>
+        </div>
+
+        <!-- Bid panel: buttons + hint + reactions, kept together so the desktop
+             layout can pin them all in one prominent sidebar. -->
+        <div id="bid-panel">
+            <div id="buttons" class="bidgrid"></div>
+            <p id="hint" class="muted" style="text-align:center;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;font-weight:700;margin:0"></p>
+
+            <!-- Reazioni live -->
+            <div class="react-bar" id="react-bar">
+                <button type="button" onclick="sendReaction('🔥')">🔥</button>
+                <button type="button" onclick="sendReaction('😱')">😱</button>
+                <button type="button" onclick="sendReaction('😂')">😂</button>
+                <button type="button" onclick="sendReaction('💰')">💰</button>
+                <button type="button" onclick="sendReaction('👏')">👏</button>
+                <button type="button" onclick="sendReaction('🤡')">🤡</button>
+            </div>
+        </div>
+
+        <!-- Asta alle buste: prende il posto dei tasti di rilancio finche'
+             lo scrutinio e' aperto. Qui non si grida, si scrive. -->
+        <div id="sealed-panel" class="glass sealed-panel" style="display:none">
+            <div class="sealed-head">
+                <svg class="ic"><use href="#i-shield"/></svg>
+                <span id="sealed-title">Asta alle buste</span>
+            </div>
+            <p class="sealed-sub" id="sealed-sub">
+                Scrivi la tua offerta: si aprono tutte insieme, vince la piu' alta.
+            </p>
+            <div class="sealed-floor">
+                Minimo <b id="sealed-floor">—</b> FM
+                · <span id="sealed-count">0</span> buste consegnate
+            </div>
+            <div class="sealed-form" id="sealed-form">
+                <input id="sealed-amount" inputmode="numeric" autocomplete="off"
+                       placeholder="La tua cifra">
+                <button type="button" class="fm-btn fm-btn-primary" id="sealed-send"
+                        onclick="sendSealed()">Consegna</button>
+            </div>
+            <p class="sealed-mine" id="sealed-mine" style="display:none"></p>
+            <p class="sealed-note" id="sealed-note" style="display:none"></p>
+        </div>
+
+        <!-- Lo spoglio dell'ultimo giro: resta a schermo finche' non sale il
+             giocatore successivo. -->
+        <div id="sealed-reveal" class="glass sealed-panel" style="display:none">
+            <div class="sealed-head">
+                <svg class="ic"><use href="#i-trophy"/></svg> Buste aperte
+            </div>
+            <div id="sealed-reveal-list"></div>
+        </div>
+
+        <!-- Disclaimer -->
+        <div class="p-disclaimer" id="p-disclaimer">
+            <svg class="ic"><use href="#i-shield"/></svg> Le offerte sono vincolanti e gestite dal server.
+        </div>
+
+        <!-- I miei obiettivi (watchlist) -->
+        <details class="glass" id="watch-panel" style="padding:0;overflow:hidden;margin-bottom:12px">
+            <summary style="cursor:pointer;list-style:none;padding:12px 16px;display:flex;
+                            align-items:center;justify-content:space-between;gap:8px;
+                            font-family:var(--display);font-weight:800;font-size:13px;
+                            text-transform:uppercase;letter-spacing:0.12em;color:var(--accent, #13b5ff)">
+                <span><svg class="ic"><use href="#i-target"/></svg> I miei obiettivi · <span id="watch-count">{{ watches|length }}</span></span>
+                <span style="font-size:12px;color:var(--muted)">▼</span>
+            </summary>
+            <div style="padding:4px 12px 12px">
+                <p style="font-size:11px;color:var(--muted);margin:4px 2px 10px;line-height:1.4">
+                    Segna i giocatori che vuoi e un <b>prezzo massimo</b> mentale: nota privata, non influenza le offerte.
+                </p>
+                <div style="display:flex;gap:6px;margin-bottom:8px">
+                    <input id="watch-search" placeholder="Cerca un giocatore da seguire…" autocomplete="off"
+                           oninput="watchSearch()" style="flex:1;min-width:0;padding:9px 11px;font-size:14px;border-radius:10px;
+                           background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:var(--ink)">
+                </div>
+                <div id="watch-results"></div>
+                <div id="watch-list">
+                    {% for w in watches %}
+                    <div class="watch-item" data-wid="{{ w.id }}" data-pid="{{ w.player_id }}">
+                        <span class="role-badge role-{{ w.player.role }}">{{ w.player.role }}</span>
+                        <span class="wi-name">{{ w.player.name }}<small>{{ w.player.team }}{% if w.player.owner_id %} · <b style="color:var(--closed,#f43f5e)">preso</b>{% endif %}</small></span>
+                        <input class="wi-max" type="number" inputmode="numeric" placeholder="max"
+                               value="{{ w.max_price|floatformat:0 }}" onchange="watchSetMax({{ w.id }}, this.value, {{ w.player_id }})">
+                        <button type="button" class="wi-del" title="Rimuovi" onclick="watchToggle({{ w.player_id }})">✕</button>
+                    </div>
+                    {% empty %}
+                    <p id="watch-empty" style="text-align:center;color:var(--muted);font-size:13px;padding:8px 0">
+                        Nessun obiettivo. Usa la <svg class="ic" style="color:#facc15"><use href="#i-star"/></svg> sul giocatore o cerca qui sopra.
+                    </p>
+                    {% endfor %}
+                </div>
+            </div>
+        </details>
+
+        <!-- La mia rosa (svincoli) -->
+        <details class="glass" id="roster-panel" style="padding:0;overflow:hidden">
+            <summary style="cursor:pointer;list-style:none;padding:12px 16px;display:flex;
+                            align-items:center;justify-content:space-between;gap:8px;
+                            font-family:var(--display);font-weight:800;font-size:13px;
+                            text-transform:uppercase;letter-spacing:0.12em;color:var(--gold)">
+                <span><svg class="ic"><use href="#i-users"/></svg> La mia rosa{% if participant.roster.all %} · {{ participant.roster.all|length }}{% endif %}</span>
+                <span style="font-size:12px;color:var(--muted)">▼</span>
+            </summary>
+            <div style="padding:4px 12px 12px">
+                <p style="font-size:11px;color:var(--muted);margin:4px 2px 10px;line-height:1.4">
+                    Svincolando un giocatore liberi lo slot. Rimborso:
+                    <b style="color:var(--gold)">{{ auction.get_release_refund_mode_display }}</b>.
+                </p>
+                {% regroup participant.roster.all by get_role_display as roster_groups %}
+                {% for group in roster_groups %}
+                <div style="font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:var(--muted);
+                            font-weight:800;margin:10px 2px 4px">{{ group.grouper }}</div>
+                {% for pl in group.list %}
+                <div style="display:flex;align-items:center;gap:8px;padding:7px 2px;
+                            border-bottom:1px solid rgba(255,255,255,.05)">
+                    <div style="flex:1;min-width:0">
+                        <div style="font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ pl.name }}</div>
+                        <div style="font-size:11px;color:var(--muted)">
+                            {{ pl.team }} · acq. {{ pl.cost|floatformat:0 }} · quot. {{ pl.initial_price|floatformat:0 }} FM
+                        </div>
+                    </div>
+                    <button type="button" class="btn-bad" style="padding:7px 12px;font-size:12px;white-space:nowrap"
+                            onclick="releaseMyPlayer({{ pl.id }}, '{{ pl.name|escapejs }}')">Svincola</button>
+                </div>
+                {% endfor %}
+                {% empty %}
+                <p style="text-align:center;color:var(--muted);font-size:13px;padding:10px 0">
+                    Nessun giocatore in rosa.
+                </p>
+                {% endfor %}
+            </div>
+        </details>
+
+        <!-- Exit / app links -->
+        <div id="exit-links" style="display:flex;gap:8px;padding-top:4px">
+            {% comment %}
+            "La mia area" (/app/ — rosa, formazione, live, lega, mercato,
+            altro) temporarily unlinked here on request: not needed for now.
+            The pages themselves are untouched, so this is a one-line revert
+            when it's wanted back — just un-comment.
+            <a class="btn btn-ghost" href="{% url 'app_home' %}" style="flex:1;justify-content:center;font-size:13px;padding:11px">
+                <svg class="ic"><use href="#i-home"/></svg> La mia area
+            </a>
+            {% endcomment %}
+            <a class="btn btn-ghost" href="{% url 'join' %}" style="flex:1;justify-content:center;font-size:13px;padding:11px">
+                <svg class="ic"><use href="#i-swap"/></svg> Cambia / esci
+            </a>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+<style>
+    .sealed-panel { padding:14px; margin-bottom:12px; border:1px solid rgba(255,181,38,0.45) }
+    .sealed-head { display:flex; align-items:center; justify-content:center; gap:8px;
+        font-family:var(--display); font-weight:800; font-size:16px; letter-spacing:0.04em;
+        text-transform:uppercase; color:var(--gold) }
+    .sealed-sub { text-align:center; color:var(--muted); font-size:12px; margin:6px 0 10px }
+    .sealed-floor { text-align:center; font-size:12px; font-weight:800; letter-spacing:0.12em;
+        text-transform:uppercase; color:var(--muted); margin-bottom:10px }
+    .sealed-floor b { color:var(--gold) }
+    .sealed-form { display:flex; gap:8px }
+    .sealed-form input { flex:1; min-width:0; text-align:center; font-size:20px;
+        font-weight:800; padding:12px; border-radius:12px }
+    .sealed-form button { flex:0 0 auto; padding:12px 18px }
+    .sealed-mine { text-align:center; font-size:13px; font-weight:800; margin:10px 0 0 }
+    .sealed-note { text-align:center; font-size:12px; color:var(--muted); margin:10px 0 0 }
+    .sealed-row { display:flex; justify-content:space-between; gap:10px; padding:7px 2px;
+        border-bottom:1px solid rgba(255,255,255,0.07); font-size:14px }
+    .sealed-row:last-child { border-bottom:0 }
+    .sealed-row.win { color:var(--gold); font-weight:800 }
+</style>
+{% block scripts %}
+<script>
+    const AUCTION_ID = {{ auction.id }};
+    const WATCHED = new Set({{ watched_ids_json|safe }});
+    // Player id -> your own noted ceiling (string keys: JSON object keys are
+    // always strings, and playerId is used as one below to match that).
+    const WATCH_MAX = {{ watch_max_prices_json|safe }};
+    const SEALED_TOTAL = {{ auction.sealed_seconds }};
+    let curPlayerId = null, _lastObjective = null;
+    let state = {{ state|safe }};
+    let timerBase = { remaining: state.remaining_seconds, at: performance.now() };
+    let lastPrice = null;
+
+    const $priceVal  = document.getElementById("price-val");
+    const $price     = document.getElementById("price");
+    const $timer     = document.getElementById("timer");
+    const $best      = document.getElementById("best");
+    const $bestBadge = document.getElementById("best-badge");
+    const $bestLogo  = document.getElementById("best-logo");
+    const $bestPlaceholder = document.getElementById("best-logo-placeholder");
+    const $pill      = document.getElementById("status-pill");
+    const $buttons   = document.getElementById("buttons");
+    const $hint      = document.getElementById("hint");
+    const $ringBar   = document.getElementById("ring-bar");
+    const $ringWrap  = document.getElementById("ring-wrap");
+
+    const REMAINING_CREDITS = parseFloat("{{ participant.remaining_credits }}");
+
+    // Sourced from services.ERROR_LABELS so every rejection code has Italian
+    // wording — no bare identifiers on screen.
+    const REASON_LABEL = {{ error_labels_json|safe }};
+    const errLabel = (code) => REASON_LABEL[code] || code || "Errore";
+
+    function remainingNow() {
+        if (state.status !== "LIVE") return state.remaining_seconds || 0;
+        if (!state.ends_at) return state.remaining_seconds || 0;
+        return Math.max(0, timerBase.remaining - (performance.now() - timerBase.at) / 1000);
+    }
+
+    // Seconds left before the next player goes up, or null outside the pause.
+    function interludeNow() {
+        if (state.interlude_seconds == null) return null;
+        return Math.max(0, state.interlude_seconds - (performance.now() - timerBase.at) / 1000);
+    }
+
+    // The pause ring: amber, and never the red "urgent" pulse updateRing()
+    // gives the last ten seconds of a lot — nobody has to hurry during a gap.
+    function paintGapRing(gap, total) {
+        if (!$ringBar) return;
+        const C = parseFloat($ringBar.getAttribute("data-circ"));
+        const frac = total > 0 ? Math.max(0, Math.min(1, gap / total)) : 0;
+        $ringBar.style.strokeDashoffset = C * (1 - frac);
+        $ringBar.style.stroke = "#ffb526";
+        if ($ringWrap) $ringWrap.classList.remove("urgent");
+    }
+
+    function renderButtons() {
+        $buttons.innerHTML = "";
+        (state.quick_increments || []).forEach((inc) => {
+            const b = document.createElement("button");
+            b.className = "bidbtn";
+            b.innerHTML = `+${money(inc)}<small>FM</small>`;
+            b.onclick = () => sendBid(inc);
+            $buttons.appendChild(b);
+        });
+        updateEnabled();
+    }
+
+    function updateEnabled() {
+        const waitingBid = state.status === "LIVE" && !state.ends_at;
+        const open = state.status === "LIVE" && (waitingBid || remainingNow() > 0);
+        [...$buttons.querySelectorAll("button")].forEach(b => b.disabled = !open);
+        if (!open && interludeNow() !== null) {
+            // Between two lots: say who is next rather than "Chiusa", which
+            // reads as "the auction is over" on a phone held at arm's length.
+            // In a random running order the server withholds queue_next, so
+            // there is nothing to name — and nothing to spoil.
+            $hint.textContent = state.queue_next
+                ? `Prossimo: ${state.queue_next.name}`
+                : "Prossimo giocatore in arrivo…";
+            return;
+        }
+        $hint.textContent = open
+            ? (waitingBid ? "Prima offerta avvia il timer!" : "Tocca un importo per rilanciare.")
+            : (STATUS_LABEL[state.status] || state.status);
+    }
+
+    // --- Live reactions + announcements ---
+    let _lastReaction = 0;
+    function sendReaction(emoji) {
+        const now = performance.now();
+        if (now - _lastReaction < 400) return;   // client-side throttle
+        _lastReaction = now;
+        if (socket && socket.readyState === WebSocket.OPEN)
+            socket.send(JSON.stringify({ action: "reaction", emoji }));
+        spawnReaction(emoji);  // instant local feedback
+    }
+    function spawnReaction(emoji) {
+        const layer = document.getElementById("react-layer");
+        if (!layer) return;
+        const el = document.createElement("div");
+        el.className = "react-float";
+        el.textContent = emoji;
+        el.style.left = (8 + Math.random() * 84) + "%";
+        layer.appendChild(el);
+        setTimeout(() => el.remove(), 2200);
+    }
+    let _annTimer = null;
+    function showAnnouncement(text, level) {
+        const b = document.getElementById("announce-banner");
+        if (!b) return;
+        b.textContent = text;
+        b.className = "announce-banner" + (level === "call" ? " call" : "");
+        b.style.display = "block";
+        if (navigator.vibrate) navigator.vibrate(level === "call" ? [80, 40, 80] : 40);
+        clearTimeout(_annTimer);
+        _annTimer = setTimeout(() => { b.style.display = "none"; }, 6000);
+    }
+
+    // --- Watchlist / obiettivi ---
+
+    // Your own noted ceiling for the player on the block, compared live
+    // against the current price — see WATCH_MAX above.
+    function updateTargetChip() {
+        const chip = document.getElementById("target-chip");
+        if (!chip) return;
+        const target = curPlayerId != null ? parseFloat(WATCH_MAX[curPlayerId]) : NaN;
+        if (isNaN(target)) { chip.style.display = "none"; return; }
+        const current = parseFloat(state.current_price);
+        const over = current > target;
+        chip.style.display = "inline-flex";
+        chip.className = "target-chip " + (over ? "over" : "ok");
+        chip.textContent = (over ? "Sopra" : "Sotto") + ` il tuo obiettivo (${money(target)} FM)`;
+    }
+
+    function refreshWatchStar() {
+        updateTargetChip();
+        const star = document.getElementById("watch-star");
+        const wrap = document.getElementById("block-player-wrap");
+        if (!star || !wrap) return;
+        if (curPlayerId == null) { star.style.display = "none"; wrap.classList.remove("objective"); return; }
+        const on = WATCHED.has(curPlayerId);
+        star.style.display = "block";
+        star.textContent = on ? "★" : "☆";
+        star.classList.toggle("on", on);
+        wrap.classList.toggle("objective", on);
+        if (on && _lastObjective !== curPlayerId) showToast("🎯 Un tuo obiettivo è sul piatto!", "ok");
+        if (on) _lastObjective = curPlayerId;
+    }
+    function toggleWatchCurrent() { if (curPlayerId != null) watchToggle(curPlayerId); }
+
+    async function watchToggle(playerId) {
+        const body = new URLSearchParams({ player_id: playerId });
+        const r = await fetch(`/watch/${AUCTION_ID}/toggle/`, {
+            method: "POST", body,
+            headers: { "X-CSRFToken": getCookie("csrftoken"), "Content-Type": "application/x-www-form-urlencoded" },
+        });
+        const d = await r.json();
+        if (!d.ok) { showToast("✗ " + errLabel(d.error), "bad"); return d; }
+        if (d.watching) { WATCHED.add(playerId); }
+        else { WATCHED.delete(playerId); delete WATCH_MAX[playerId]; }
+        refreshWatchStar();
+        if (!d.watching) {
+            const row = document.querySelector(`.watch-item[data-pid="${playerId}"]`);
+            if (row) row.remove();
+        }
+        updateWatchCount();
+        if (document.getElementById("watch-search").value.trim().length >= 2) watchSearch();
+        return d;
+    }
+    async function watchSetMax(watchId, value, playerId) {
+        if (playerId != null) {
+            // Update the live "sopra/sotto il tuo obiettivo" chip right away —
+            // don't wait on the round trip for something this local.
+            if (value === "" || isNaN(parseFloat(value))) delete WATCH_MAX[playerId];
+            else WATCH_MAX[playerId] = value;
+            updateTargetChip();
+        }
+        const body = new URLSearchParams({ max_price: value });
+        await fetch(`/watch/item/${watchId}/`, {
+            method: "POST", body,
+            headers: { "X-CSRFToken": getCookie("csrftoken"), "Content-Type": "application/x-www-form-urlencoded" },
+        });
+    }
+    let _watchTimer = null;
+    function watchSearch() {
+        clearTimeout(_watchTimer);
+        _watchTimer = setTimeout(_doWatchSearch, 220);
+    }
+    async function _doWatchSearch() {
+        const q = document.getElementById("watch-search").value.trim();
+        const box = document.getElementById("watch-results");
+        if (q.length < 2) { box.innerHTML = ""; return; }
+        const r = await fetch(`/watch/${AUCTION_ID}/search/?q=` + encodeURIComponent(q));
+        const d = await r.json();
+        if (!d.ok) return;
+        box.innerHTML = d.results.map(p =>
+            `<div class="wr-row">` +
+              `<span class="role-badge role-${p.role}">${p.role}</span>` +
+              `<span class="wr-name">${p.name}<small>${p.team} · quot. ${p.quota} FM</small></span>` +
+              (p.watching
+                ? `<span style="color:var(--accent,#13b5ff);font-size:13px;font-weight:800">seguito ✓</span>`
+                : `<button type="button" class="wr-add" onclick="watchAdd(${p.id}, '${p.name.replace(/'/g,"\\'")}', '${p.role}', '${p.team.replace(/'/g,"\\'")}')">+ Segui</button>`) +
+            `</div>`).join("") || `<p style="color:var(--muted);font-size:13px;padding:6px 2px">Nessun svincolato trovato.</p>`;
+    }
+    async function watchAdd(playerId, name, role, team) {
+        const d = await watchToggle(playerId);   // adds it server-side + updates WATCHED
+        if (!d || !d.watching) return;
+        const empty = document.getElementById("watch-empty");
+        if (empty) empty.remove();
+        const list = document.getElementById("watch-list");
+        const div = document.createElement("div");
+        div.className = "watch-item"; div.dataset.wid = d.watch_id; div.dataset.pid = playerId;
+        div.innerHTML =
+            `<span class="role-badge role-${role}">${role}</span>` +
+            `<span class="wi-name">${name}<small>${team}</small></span>` +
+            `<input class="wi-max" type="number" inputmode="numeric" placeholder="max" onchange="watchSetMax(${d.watch_id}, this.value, ${playerId})">` +
+            `<button type="button" class="wi-del" title="Rimuovi" onclick="watchToggle(${playerId})">✕</button>`;
+        list.appendChild(div);
+        updateWatchCount();
+    }
+    function updateWatchCount() {
+        const c = document.getElementById("watch-count");
+        if (c) c.textContent = document.querySelectorAll(".watch-item").length;
+    }
+
+    // Decision-support stat pills (fantamedia highlighted). Only present values render.
+    function statPills(stats) {
+        if (!stats) return "";
+        const defs = [
+            ["fanta_avg", "Fantamedia", true],
+            ["avg_vote",  "Media voto", false],
+            ["presences", "Presenze",   false],
+            ["goals",     "Gol",        false],
+            ["assists",   "Assist",     false],
+            ["fvm",       "FVM",        false],
+        ];
+        return defs
+            .filter(([k]) => stats[k] !== undefined && stats[k] !== null)
+            .map(([k, label, key]) =>
+                `<span class="stat${key ? " key" : ""}"><b>${stats[k]}</b><span>${label}</span></span>`)
+            .join("");
+    }
+
+    function applyState(s) {
+        const prev = lastPrice;
+        const wasLive = state && state.status === "LIVE";
+        state = s;
+        timerBase = { remaining: s.remaining_seconds, at: performance.now() };
+
+        $priceVal.textContent = money(s.current_price);
+        if (prev !== null && prev !== s.current_price) {
+            $price.classList.remove("pulse"); void $price.offsetWidth; $price.classList.add("pulse");
+        }
+        lastPrice = s.current_price;
+
+        const $bp = document.getElementById("block-player");
+        if ($bp) {
+            if (s.player) {
+                // No photos: the card is name + role + club, with a jersey mark.
+                const ava = `<svg class="ic"><use href="#i-shirt"/></svg>`;
+                const mr = s.player.mantra_roles || [];
+                const roleTag = mr.length
+                    ? `<span class="bp-mroles">` + mr.map(r => `<span class="bp-mrole">${r}</span>`).join("") + `</span>`
+                    : `<span class="role-badge role-${s.player.role}">${s.player.role}</span>`;
+                $bp.innerHTML =
+                    `<span class="bp-ava role-${s.player.role}">${ava}</span>` +
+                    `<span style="text-align:left">` +
+                      roleTag +
+                      `<span style="font-family:var(--display);font-weight:800;font-size:20px">${s.player.name}</span>` +
+                      `<span class="muted" style="font-size:13px;display:block">${s.player.team || ""}</span>` +
+                    `</span>`;
+            } else {
+                $bp.innerHTML = `<span class="muted" style="font-size:14px">In attesa del prossimo giocatore…</span>`;
+            }
+        }
+        const $bpStats = document.getElementById("bp-stats");
+        if ($bpStats) $bpStats.innerHTML = s.player ? statPills(s.player.stats) : "";
+        curPlayerId = s.player ? s.player.id : null;
+        refreshWatchStar();
+
+        if (s.best_bidder) {
+            $best.textContent = s.best_bidder;
+            $bestBadge.style.display = "inline-block";
+            if (s.best_bidder_logo) {
+                $bestLogo.src = s.best_bidder_logo;
+                $bestLogo.style.display = "block";
+                $bestPlaceholder.style.display = "none";
+            } else {
+                $bestLogo.style.display = "none";
+                $bestPlaceholder.style.display = "flex";
+            }
+        } else {
+            $best.textContent = "—";
+            $bestBadge.style.display = "none";
+            $bestLogo.style.display = "none";
+            $bestPlaceholder.style.display = "flex";
+        }
+
+        $pill.textContent = STATUS_LABEL[s.status] || s.status;
+        $pill.className = "status-pill s-" + s.status;
+        renderButtons();
+        // Il conto alla rovescia delle buste ha il suo tempo, che non e' quello
+        // del lotto: mentre si scrive il timer delle grida e' fermo.
+        sealedBase = {
+            left: (s.sealed && s.sealed.active) ? s.sealed.seconds_left : null,
+            at: performance.now(),
+        };
+        renderSealed();
+
+        if (wasLive && s.status === "CLOSED" && s.best_bidder) {
+            showAwardAnimation(s.best_bidder, s.best_amount);
+        }
+    }
+
+    function tick() {
+        const sealedLeft = sealedLeftNow();
+        if (sealedLeft !== null) {
+            // Alle buste il cerchio conta il tempo dello scrutinio: e' quello
+            // che resta per scrivere, l'unico che serve guardare adesso.
+            $timer.textContent = fmtTime(sealedLeft);
+            $timer.classList.remove("ms-mode");
+            updateRing($ringBar, $ringWrap, sealedLeft, SEALED_TOTAL || 45);
+            requestAnimationFrame(tick);
+            return;
+        }
+        const r = remainingNow();
+        const gap = interludeNow();
+        const msMode = r > 0 && r < 3 && !!state.ends_at;
+        if (gap !== null) {
+            $timer.textContent = String(Math.ceil(gap));
+            $timer.classList.remove("ms-mode");
+            paintGapRing(gap, state.cycle_break_seconds || 4);
+        } else if (msMode) {
+            $timer.innerHTML = fmtTimerMs(r);
+            $timer.classList.add("ms-mode");
+            updateRing($ringBar, $ringWrap, r, state.duration_seconds || 60);
+        } else {
+            $timer.textContent = fmtTime(r);
+            $timer.classList.remove("ms-mode");
+            updateRing($ringBar, $ringWrap, r, state.duration_seconds || 60);
+        }
+        updateEnabled();
+        if (gap === null) soundTick(r);   // no countdown beeps over the pause
+        requestAnimationFrame(tick);
+    }
+
+    // --- Asta alle buste ---
+    // ``state.sealed`` e' quello che vede tutta la sala (aperta o no, che giro,
+    // che minimo, quante buste); ``sealedMe`` arriva solo a questa squadra e
+    // porta la propria cifra — le altre buste non escono dal server finche' il
+    // giro non si chiude.
+    let sealedMe = null;
+    let sealedBase = { left: null, at: performance.now() };
+
+    function sealedLeftNow() {
+        if (sealedBase.left == null) return null;
+        return Math.max(0, sealedBase.left - (performance.now() - sealedBase.at) / 1000);
+    }
+
+    function renderSealed() {
+        const sealed = state.sealed || {};
+        const panel = document.getElementById("sealed-panel");
+        const reveal = document.getElementById("sealed-reveal");
+        const bidPanel = document.getElementById("bid-panel");
+        const minRow = document.getElementById("min-inc-row");
+        if (!panel) return;
+
+        if (sealed.active) {
+            panel.style.display = "block";
+            if (bidPanel) bidPanel.style.display = "none";
+            if (minRow) minRow.style.display = "none";
+            document.getElementById("sealed-title").textContent =
+                sealed.round > 1 ? `Spareggio alle buste · giro ${sealed.round}`
+                                 : "Asta alle buste";
+            document.getElementById("sealed-sub").textContent = sealed.round > 1
+                ? "Pari merito: si rifà, solo fra chi ha pareggiato."
+                : "Scrivi la tua offerta: si aprono tutte insieme, vince la più alta.";
+            document.getElementById("sealed-floor").textContent = money(sealed.floor);
+            document.getElementById("sealed-count").textContent = sealed.submitted || 0;
+
+            const canBid = sealedMe ? sealedMe.can_bid : true;
+            const form = document.getElementById("sealed-form");
+            const note = document.getElementById("sealed-note");
+            const mine = document.getElementById("sealed-mine");
+            form.style.display = canBid ? "flex" : "none";
+            note.style.display = canBid ? "none" : "block";
+            note.textContent = "Allo spareggio partecipa solo chi ha pareggiato.";
+            const yours = sealedMe && sealedMe.your_amount;
+            mine.style.display = yours ? "block" : "none";
+            if (yours) mine.innerHTML =
+                `La tua busta: <span style="color:var(--gold)">${money(yours)} FM</span>` +
+                `<br><small class="muted">Puoi riscriverla finché il tempo non scade.</small>`;
+        } else {
+            panel.style.display = "none";
+            if (bidPanel) bidPanel.style.display = "";
+            if (minRow) minRow.style.display = "";
+        }
+
+        const rows = (sealed.reveal || []);
+        if (!sealed.active && rows.length) {
+            reveal.style.display = "block";
+            document.getElementById("sealed-reveal-list").innerHTML = rows.map((r, i) =>
+                `<div class="sealed-row${i === 0 ? " win" : ""}">` +
+                `<span>${r.team}</span><span>${money(r.amount)} FM</span></div>`).join("");
+        } else {
+            reveal.style.display = "none";
+        }
+    }
+
+    function sendSealed() {
+        const input = document.getElementById("sealed-amount");
+        const value = (input.value || "").trim();
+        if (!value) { showToast("Scrivi una cifra", "bad"); return; }
+        if (!socket || socket.readyState !== WebSocket.OPEN) {
+            showToast("Connessione assente, riprovo…", "bad"); return;
+        }
+        socket.send(JSON.stringify({ action: "sealed_bid", amount: value }));
+        showToast("Busta consegnata: " + value + " FM", "good");
+    }
+    window.sendSealed = sendSealed;
+
+    function sendBid(inc) {
+        if (!socket || socket.readyState !== WebSocket.OPEN) {
+            showToast("Connessione assente, riprovo…", "bad"); return;
+        }
+        socket.send(JSON.stringify({ action: "bid", increment: inc }));
+    }
+
+    const $wsIndicator = document.getElementById("ws-indicator");
+    const $wsLabel     = document.getElementById("ws-label");
+
+    function setWsState(state, label) {
+        $wsIndicator.className = "ws-indicator " + state;
+        $wsLabel.textContent   = label;
+    }
+
+    let socket = null;
+    let _pingTimer = null;
+    let _pingSentAt = null;
+
+    function sendPing() {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            _pingSentAt = performance.now();
+            socket.send(JSON.stringify({ action: "sync" }));
+        }
+    }
+
+    function connect() {
+        setWsState("ws-connecting", "Connessione…");
+        socket = new WebSocket(auctionSocketUrl(AUCTION_ID));
+
+        socket.onopen = () => {
+            setWsState("ws-open", "Online");
+            // Misura il ping ogni 4 secondi con un sync
+            clearInterval(_pingTimer);
+            _pingTimer = setInterval(sendPing, 4000);
+            sendPing();
+        };
+
+        socket.onmessage = (e) => {
+            // Calcola ping se era in attesa di risposta sync
+            if (_pingSentAt !== null) {
+                const ping = Math.round(performance.now() - _pingSentAt);
+                _pingSentAt = null;
+                setWsState("ws-open", `Online · ${ping} ms`);
+                // Segnala al server se la latenza è alta
+                if (ping > 300) {
+                    socket.send(JSON.stringify({ action: "latency_warning", ping }));
+                }
+            }
+            const msg = JSON.parse(e.data);
+            if (msg.type === "state") applyState(msg);
+            else if (msg.type === "bid_accepted") { soundBid(); showToast("✓ Offerta accettata!", "ok"); }
+            else if (msg.type === "bid_rejected") { soundRejected(); showToast("✗ " + errLabel(msg.reason), "bad"); }
+            else if (msg.type === "bid_new" && msg.extended) flashExtended();
+            else if (msg.type === "participant_offline")
+                showAlert("📡", `${msg.participant} si è disconnesso`, 7000);
+            else if (msg.type === "participant_warning" && msg.kind === "latency")
+                showAlert("⚠️", `${msg.participant} — latenza alta (${msg.ping} ms)`, 6000);
+            else if (msg.type === "sealed_me") { sealedMe = msg; renderSealed(); }
+            else if (msg.type === "sealed_accepted") {
+                soundBid();
+                showToast(`✓ Busta consegnata: ${money(msg.amount)} FM`, "ok");
+                document.getElementById("sealed-amount").value = "";
+            }
+            else if (msg.type === "sealed_rejected") {
+                soundRejected(); showToast("✗ " + errLabel(msg.reason), "bad");
+            }
+            else if (msg.type === "reaction") spawnReaction(msg.emoji);
+            else if (msg.type === "announcement") showAnnouncement(msg.text, msg.level);
+        };
+
+        socket.onclose = () => {
+            setWsState("ws-closed", "Offline");
+            clearInterval(_pingTimer);
+            _pingTimer = null;
+            _pingSentAt = null;
+            setTimeout(connect, 1500);
+        };
+    }
+
+    applyState(state);
+    connect();
+    requestAnimationFrame(tick);
+
+    // --- Svincolo (release one of my own players) -----------------------------
+    function getCookie(name) {
+        const m = document.cookie.match("(^|;)\\s*" + name + "\\s*=\\s*([^;]+)");
+        return m ? m.pop() : "";
+    }
+    async function releaseMyPlayer(playerId, name) {
+        if (!confirm(`Svincolare ${name}? I crediti verranno rimborsati secondo le regole dell'asta.`)) return;
+        const body = new URLSearchParams({ auction_id: String(AUCTION_ID) });
+        try {
+            const r = await fetch(`/release/${playerId}/`, {
+                method: "POST",
+                headers: { "X-CSRFToken": getCookie("csrftoken"),
+                           "Content-Type": "application/x-www-form-urlencoded" },
+                body,
+            });
+            const data = await r.json();
+            if (data.ok) {
+                showToast(`✓ ${name} svincolato (+${money(data.refund)} FM)`, "ok");
+                setTimeout(() => location.reload(), 800);
+            } else {
+                showToast("✗ " + errLabel(data.error), "bad");
+            }
+        } catch (err) {
+            showToast("✗ Connessione assente", "bad");
+        }
+    }
+    window.releaseMyPlayer = releaseMyPlayer;
+</script>
+{% endblock %}

@@ -1,0 +1,134 @@
+{% comment %}
+Shared console chrome — topbar + section nav, on every regia page.
+
+Context it reads (all optional, so any admin view can include it):
+  console_section  short label under "REGIA D'ASTA" (e.g. "Giocatori")
+  console_active   which nav entry is current: players|teams|import|export|remote
+  leagues / current_league / auctions / selected   for the two pickers
+Keeping this in one file is what makes the pages look like one product.
+{% endcomment %}
+<header class="fm-topbar">
+    <div class="brand">
+        <div class="brand-icon"><svg class="ic" style="width:22px;height:22px"><use href="#i-gavel"/></svg></div>
+        <div class="brand-text">
+            <div class="top">FANTA</div>
+            <div class="bottom">MANAGER</div>
+        </div>
+        <span class="fm-brand-badge">PRO</span>
+        <span class="fm-brand-badge" style="background:rgba(56,189,248,0.12);color:#38bdf8;border:1px solid rgba(56,189,248,0.28);font-size:10.5px">v{{ app_version }}</span>
+    </div>
+    <div class="fm-topbar-title">
+        <div class="t">{% if selected %}Regia d'asta{% else %}Gestionale Sportivo{% endif %}</div>
+        <div class="s">{% if selected %}{{ selected.title }}{% elif current_league %}{{ current_league.name }}{% else %}Hub Leghe{% endif %}</div>
+    </div>
+
+    <!-- Quick Search / Command Palette Trigger -->
+    <button type="button" class="fm-cmd-trigger" onclick="openCmdPalette()" title="Ricerca rapida e comandi (Cmd+K / Ctrl+K)">
+        <svg class="ic"><use href="#i-search"/></svg>
+        <span>Cerca o salta a...</span>
+        <kbd>⌘K</kbd>
+    </button>
+
+    <div class="fm-topbar-spacer"></div>
+
+    <div class="fm-topbar-meta">
+        <!-- Engine Status Indicator -->
+        <div class="fm-engine-pill" title="Motore locale Daphne ASGI attivo su porta 8001">
+            <span class="engine-dot"></span>
+            <span>ASGI 8001</span>
+        </div>
+
+        {% if leagues %}
+        <div class="fm-field">
+            <div class="k">Lega</div>
+            <select name="league_switcher" onchange="if(this.value==='all'){window.location.href='{% url 'dashboard_hub' %}';}else{window.location.href='/dashboard/'+this.value+'/';}" title="Seleziona Lega">
+                <option value="all" {% if not current_league %}selected{% endif %}>⇄ Tutte le Leghe (Hub Multi-Tenant)</option>
+                {% for lg in leagues %}
+                <option value="{{ lg.id }}" {% if current_league and current_league.id == lg.id %}selected{% endif %}>#{{ lg.id }} · {{ lg.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
+
+        {% if console_active == "live" and auctions and selected %}
+        <form method="get" class="fm-field">
+            {% if current_league %}<input type="hidden" name="league" value="{{ current_league.id }}">{% endif %}
+            <div class="k">Asta</div>
+            <select name="auction" onchange="this.form.submit()">
+                <option value="">— seleziona un'asta —</option>
+                {% for a in auctions %}
+                <option value="{{ a.id }}" {% if selected.id == a.id %}selected{% endif %}>{{ a.title }} · {{ a.get_status_display }}</option>
+                {% endfor %}
+            </select>
+        </form>
+        {% endif %}
+
+        {% if selected %}
+        <span id="status-pill" class="status-pill s-{{ selected.status }}">{{ selected.get_status_display }}</span>
+        {% endif %}
+
+        <div class="fm-user">
+            <div class="fm-avatar">{% if request.user.is_authenticated %}{{ request.user.username|slice:":2"|upper }}{% else %}FM{% endif %}</div>
+            <div>
+                <div class="n">{% if request.user.is_authenticated %}{{ request.user.username }}{% else %}FantaManager{% endif %}</div>
+                <div class="r">{% if request.user.is_superuser %}Superadmin{% elif request.user.is_authenticated %}Admin Lega{% else %}Amministratore{% endif %}</div>
+            </div>
+        </div>
+    </div>
+</header>
+
+<nav class="fm-nav">
+    <a class="fm-btn fm-nav-cta" href="{% url 'admin_auction_wizard' %}">
+        <svg class="ic"><use href="#i-plus"/></svg> Nuova asta</a>
+
+    <a class="fm-nav-link" href="{% url 'home' %}" title="Torna al Portale Iniziale (Home / Scelta & Login)">
+        <svg class="ic"><use href="#i-home"/></svg> Home</a>
+    {% if request.user.is_superuser %}
+    <a class="fm-nav-link" href="{% url 'supervisor_dashboard' %}" style="color:#f87171;font-weight:800" title="Apri Cockpit Superadmin Master">
+        <svg class="ic"><use href="#i-shield"/></svg> Supervisor</a>
+    {% endif %}
+    <a class="fm-nav-link {% if not selected and console_active == 'dashboard' %}is-active{% endif %}" href="{% if current_league %}{% url 'dashboard_league' current_league.id %}{% else %}{% url 'dashboard' %}{% endif %}">
+        <svg class="ic"><use href="#i-table"/></svg> Dashboard</a>
+    <a class="fm-nav-link {% if selected and console_active == 'live' %}is-active{% endif %}" href="{% if selected %}{% url 'admin_dashboard' %}?auction={{ selected.id }}{% elif active_auction %}{% url 'admin_dashboard' %}?auction={{ active_auction.id }}{% else %}{% url 'admin_auction_wizard' %}{% endif %}">
+        <svg class="ic"><use href="#i-gavel"/></svg> Asta Live</a>
+    <a class="fm-nav-link {% if console_active == 'players' %}is-active{% endif %}" href="{% url 'admin_players' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
+        <svg class="ic"><use href="#i-users"/></svg> Giocatori</a>
+    <a class="fm-nav-link {% if console_active == 'teams' %}is-active{% endif %}" href="{% url 'admin_participants' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
+        <svg class="ic"><use href="#i-shield"/></svg> Squadre</a>
+    <a class="fm-nav-link {% if console_active == 'market' %}is-active{% endif %}" href="{% url 'admin_market_dashboard' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
+        <svg class="ic"><use href="#i-mail"/></svg> Buste</a>
+    <a class="fm-nav-link {% if console_active == 'import' %}is-active{% endif %}" href="{% url 'admin_fantapazz' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
+        <svg class="ic"><use href="#i-import"/></svg> Importa</a>
+    <a class="fm-nav-link {% if console_active == 'export' %}is-active{% endif %}" href="{% url 'admin_export' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
+        <svg class="ic"><use href="#i-export"/></svg> Export rose</a>
+
+    <span class="fm-nav-spacer"></span>
+
+    {% if request.user.is_authenticated %}
+    <a class="fm-nav-link" href="{% url 'logout' %}" style="color:#ef4444" title="Disconnetti account">
+        Esci
+    </a>
+    {% endif %}
+
+    <details class="fm-nav-more">
+        <summary class="fm-nav-link"><svg class="ic"><use href="#i-dots"/></svg> Altro
+            <svg class="ic" style="width:13px;height:13px"><use href="#i-chev-down"/></svg></summary>
+        <div class="fm-nav-more-body">
+            <a class="fm-nav-link" href="{% url 'admin_setup' %}"><svg class="ic"><use href="#i-trophy"/></svg> Nuova lega</a>
+            <form method="post" action="{% url 'admin_resume_latest' %}" style="display:contents">
+                {% csrf_token %}
+                <button type="submit" class="fm-nav-link"><svg class="ic"><use href="#i-play"/></svg> Riprendi sessione</button>
+            </form>
+            <a class="fm-nav-link" href="{% url 'admin_sessions' %}"><svg class="ic"><use href="#i-folder"/></svg> Carica sessione</a>
+            <a class="fm-nav-link {% if console_active == 'remote' %}is-active{% endif %}" href="{% url 'admin_remote_page' %}"><svg class="ic"><use href="#i-globe"/></svg> Accesso remoto</a>
+            <a class="fm-nav-link {% if console_active == 'config' %}is-active{% endif %}" href="{% url 'admin_config' %}"><svg class="ic"><use href="#i-gear"/></svg> Configurazione</a>
+            {% if selected %}
+            <a class="fm-nav-link" href="{% url 'screen' selected.id %}?t={{ selected.public_token }}" target="_blank"><svg class="ic"><use href="#i-tv"/></svg> Apri maxischermo</a>
+            {% elif active_auction %}
+            <a class="fm-nav-link" href="{% url 'screen' active_auction.id %}?t={{ active_auction.public_token }}" target="_blank"><svg class="ic"><use href="#i-tv"/></svg> Apri maxischermo</a>
+            {% endif %}
+            <a class="fm-nav-link" href="{% url 'app_home' %}" target="_blank" style="color:var(--fm-success)"><svg class="ic"><use href="#i-shirt"/></svg> App Allenatori (/app/)</a>
+            <button type="button" class="fm-nav-link" onclick="if(typeof openSystemLogs==='function')openSystemLogs();else window.open('{% url 'admin_logs_tail' %}','_blank');"><svg class="ic"><use href="#i-info"/></svg> Log di sistema</button>
+        </div>
+    </details>
+</nav>

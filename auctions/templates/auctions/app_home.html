@@ -1,0 +1,58 @@
+{% extends "auctions/app_base.html" %}
+{% block title %}Home — FantaManager{% endblock %}
+{% block app %}
+<div class="tab-head">
+    <h1>Ciao, {{ participant.display_name }}</h1>
+    <p>{% if app_league %}{{ app_league.name }}{% else %}La tua area FantaManager{% endif %}</p>
+</div>
+
+{% if active_auction %}
+<a class="a-cta" href="{% url 'bid' active_auction.id %}">
+    <svg class="ic"><use href="#i-gavel"/></svg>
+    <span class="t">
+        <b>Asta in corso</b>
+        <span>{{ active_auction.title }} · {{ active_auction.get_status_display }}</span>
+    </span>
+    <span class="go">›</span>
+</a>
+{% endif %}
+
+{% if lineup_incomplete %}
+<a class="a-cta" href="{% url 'app_formazione' %}" style="background:rgba(253,224,71,.10);border-color:rgba(253,224,71,.35)">
+    <svg class="ic" style="color:var(--paused)"><use href="#i-table"/></svg>
+    <span class="t">
+        <b>Schiera la formazione</b>
+        <span>{{ lineup_done }}/{{ lineup_target }} titolari — completala</span>
+    </span>
+    <span class="go" style="color:var(--paused)">›</span>
+</a>
+{% endif %}
+
+<div class="a-stats">
+    <div class="a-stat">
+        <div class="v">{{ participant.remaining_credits|floatformat:0 }}<small> FM</small></div>
+        <div class="k">Crediti</div>
+    </div>
+    <div class="a-stat">
+        <div class="v">{{ roster_count }}<small>/{{ slots_total }}</small></div>
+        <div class="k">Rosa</div>
+    </div>
+    <div class="a-stat">
+        <div class="v">{{ watch_count }}</div>
+        <div class="k">Obiettivi</div>
+    </div>
+</div>
+
+<div class="a-card">
+    <div class="a-label"><svg class="ic"><use href="#i-trophy"/></svg> Classifica lampo</div>
+    {% for row in standings %}
+    <div class="a-row">
+        <span class="a-rank {% if forloop.counter <= 3 %}top{% endif %}">{{ forloop.counter }}</span>
+        <span class="nm">{{ row.name }}{% if row.is_me %} <small style="display:inline;color:var(--accent)">· tu</small>{% endif %}</span>
+        <span class="val">{{ row.owned }} <span class="muted" style="font-weight:600;font-size:12px">gioc.</span></span>
+    </div>
+    {% empty %}
+    <p class="muted" style="font-size:13px;text-align:center;padding:6px 0">Nessuna squadra in lega.</p>
+    {% endfor %}
+</div>
+{% endblock %}

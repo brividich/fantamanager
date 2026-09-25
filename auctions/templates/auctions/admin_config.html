@@ -1,0 +1,273 @@
+{% extends "auctions/base.html" %}
+{% block title %}Configurazione — FantaManager{% endblock %}
+{% block bodyclass %}role-admin{% endblock %}
+{% block wrapclass %}wrap-wide{% endblock %}
+
+{% block content %}
+<style>
+    .pg-head { display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap; margin:6px 0 14px; }
+    .pg-head h1 { margin:0; font-size:26px; letter-spacing:.02em; }
+    .pg-head .sub { font-size:12.5px; color:var(--fm-text-secondary); }
+    .pg-head .spacer { flex:1 1 auto; }
+
+    .msg { padding:11px 14px; border-radius:var(--fm-radius-sm); font-size:13px; margin-bottom:10px; }
+    .msg.success { background:rgba(22,217,104,.10); border:1px solid rgba(22,217,104,.35); color:#8df0b6; }
+    .msg.error   { background:rgba(255,61,80,.10); border:1px solid rgba(255,61,80,.40); color:#ffb3bb; }
+
+    .cfg-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; }
+    @media (max-width:1180px) { .cfg-grid { grid-template-columns:minmax(0,1fr); } }
+
+    .lg-row td { vertical-align:middle; }
+    .lg-name { font-weight:700; }
+    .lg-id { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11px; color:var(--fm-text-muted); }
+    .warn-tag {
+        display:inline-flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700;
+        letter-spacing:.08em; text-transform:uppercase; color:var(--fm-warning);
+        border:1px solid rgba(255,181,38,.35); border-radius:4px; padding:2px 7px;
+    }
+    .ok-tag { color:var(--fm-success); border-color:rgba(22,217,104,.30); }
+    .row-btns { display:flex; gap:6px; justify-content:flex-end; }
+    .row-btns .fm-btn { height:28px; padding:0 10px; font-size:11.5px; }
+
+    .edit-form { display:none; background:rgba(255,255,255,.03); }
+    .edit-form.open { display:table-row; }
+    .edit-grid { display:grid; grid-template-columns:1.4fr .8fr .8fr repeat(4,.5fr) auto; gap:8px; align-items:end; padding:10px 4px; }
+    .edit-grid label { margin:0 0 4px; }
+    @media (max-width:1180px) { .edit-grid { grid-template-columns:1fr 1fr; } }
+
+    .danger-zone {
+        margin-top:14px; padding:12px 14px; border-radius:var(--fm-radius-md);
+        border:1px solid rgba(255,61,80,.30); background:rgba(255,61,80,.05);
+        display:flex; align-items:center; gap:12px; flex-wrap:wrap; font-size:12.5px;
+    }
+    .danger-zone .spacer { flex:1 1 auto; }
+</style>
+
+{% include "auctions/_console_head.html" %}
+
+<div class="pg-head">
+    <div>
+        <h1>Configurazione</h1>
+        <div class="sub">Leghe, aste e sessioni salvate: rinomina, ripulisci, elimina.</div>
+    </div>
+    <span class="spacer"></span>
+    <a class="fm-btn fm-btn-secondary" href="{% url 'admin_dashboard' %}">
+        <svg class="ic"><use href="#i-gavel"/></svg> Torna alla regia</a>
+</div>
+
+{% for m in messages %}
+<div class="msg {% if m.tags %}{{ m.tags }}{% endif %}">{{ m }}</div>
+{% endfor %}
+
+<details class="howto">
+    <summary><svg class="ic"><use href="#i-info"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        Il banco di manutenzione dei dati.
+        <ol>
+            <li><b>Leghe</b>: ogni riga dice quante squadre, quanti giocatori nel listone e quante aste ci girano. <b>Modifica</b> cambia nome, budget e composizione della rosa; <b>Elimina</b> porta via la lega <i>con</i> le sue squadre, il suo listone, le sue aste e le sue sessioni.</li>
+            <li><b>Aste</b>: elimina un'asta sbagliata senza toccare la lega — squadre e listone restano al loro posto.</li>
+            <li><b>Sessioni salvate</b>: la colonna <b>Listone</b> dice se il salvataggio se lo porta dietro. Se è 0 è un salvataggio vecchio: alla ripresa il listone viene recuperato dalla lega di origine, se esiste ancora.</li>
+        </ol>
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> <b>Ripulisci leghe vuote</b> rimuove in un colpo le leghe senza listone e senza aste — quelle che restavano dietro alle riprese di sessione fallite.</div>
+    </div>
+</details>
+
+<div class="fm-card">
+    <div class="fm-section-title"><svg class="ic"><use href="#i-trophy"/></svg> Leghe <span class="sep"></span>
+        <span class="muted" style="font-weight:500;letter-spacing:0;text-transform:none">{{ rows|length }}</span>
+    </div>
+    <div class="table-scroll">
+        <table>
+            <thead><tr>
+                <th style="width:44px">ID</th>
+                <th>Lega</th>
+                <th class="num">Squadre</th>
+                <th class="num">Listone</th>
+                <th class="num">Svincolati</th>
+                <th class="num">Aste</th>
+                <th class="num">Sessioni</th>
+                <th>Stato</th>
+                <th></th>
+            </tr></thead>
+            <tbody>
+            {% for r in rows %}
+                <tr class="lg-row">
+                    <td class="lg-id">#{{ r.league.id }}</td>
+                    <td>
+                        <div class="lg-name">{{ r.league.name }}</div>
+                        <div class="muted" style="font-size:11px">
+                            {{ r.league.budget|floatformat:0 }} FM ·
+                            {% if r.league.slot_limits %}slot {{ r.league.slots_label }}{% else %}nessun limite slot{% endif %}
+                        </div>
+                    </td>
+                    <td class="num">{{ r.teams }}</td>
+                    <td class="num">{{ r.pool }}</td>
+                    <td class="num">{{ r.free }}</td>
+                    <td class="num">{{ r.auctions }}</td>
+                    <td class="num">{{ r.sessions }}</td>
+                    <td>
+                        {% if r.playable %}<span class="warn-tag ok-tag">Pronta</span>
+                        {% else %}<span class="warn-tag">Senza listone</span>{% endif %}
+                    </td>
+                    <td>
+                        <div class="row-btns">
+                            <button type="button" class="fm-btn fm-btn-secondary"
+                                    onclick="toggleEdit({{ r.league.id }})">Modifica</button>
+                            <form method="post" action="{% url 'admin_config_action' %}" style="display:contents"
+                                  onsubmit="return confirm('Eliminare la lega «{{ r.league.name|escapejs }}»?\n\nVengono rimosse anche {{ r.auctions }} aste, {{ r.teams }} squadre, {{ r.pool }} giocatori e {{ r.sessions }} sessioni salvate.\n\nL\'azione è irreversibile.')">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="delete_league">
+                                <input type="hidden" name="league_id" value="{{ r.league.id }}">
+                                <button type="submit" class="fm-btn fm-btn-danger">
+                                    <svg class="ic"><use href="#i-trash"/></svg></button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                <tr class="edit-form" id="edit-{{ r.league.id }}">
+                    <td colspan="9">
+                        <form method="post" action="{% url 'admin_config_action' %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="rename_league">
+                            <input type="hidden" name="league_id" value="{{ r.league.id }}">
+                            <div class="edit-grid">
+                                <div><label>Nome lega</label>
+                                    <input name="name" value="{{ r.league.name }}"></div>
+                                <div><label>Budget</label>
+                                    <input name="budget" value="{{ r.league.budget|floatformat:0 }}" inputmode="decimal"></div>
+                                <div><label>Slot</label>
+                                    <select name="slot_limits">
+                                        <option value="1" {% if r.league.slot_limits %}selected{% endif %}>Limite per ruolo</option>
+                                        <option value="0" {% if not r.league.slot_limits %}selected{% endif %}>Nessun limite</option>
+                                    </select></div>
+                                <div><label>P</label><input name="slots_p" value="{{ r.league.slots_p }}" inputmode="numeric"></div>
+                                <div><label>D</label><input name="slots_d" value="{{ r.league.slots_d }}" inputmode="numeric"></div>
+                                <div><label>C</label><input name="slots_c" value="{{ r.league.slots_c }}" inputmode="numeric"></div>
+                                <div><label>A</label><input name="slots_a" value="{{ r.league.slots_a }}" inputmode="numeric"></div>
+                                <div><button type="submit" class="fm-btn fm-btn-primary">Salva</button></div>
+                            </div>
+                        </form>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="9" class="fm-empty">Nessuna lega.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="danger-zone">
+        <span class="muted">
+            {% if empties %}
+            <b style="color:var(--fm-text)">{{ empties|length }} leghe</b> non hanno né listone né aste:
+            sono gli scarti delle riprese di sessione andate a vuoto.
+            {% else %}
+            Nessuna lega vuota: i dati sono in ordine.
+            {% endif %}
+        </span>
+        <span class="spacer"></span>
+        <form method="post" action="{% url 'admin_config_action' %}" style="display:contents"
+              onsubmit="return confirm('Eliminare tutte le leghe senza listone e senza aste?')">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="clean_empty">
+            <button type="submit" class="fm-btn fm-btn-danger" {% if not empties %}disabled{% endif %}>
+                <svg class="ic"><use href="#i-trash"/></svg> Ripulisci leghe vuote</button>
+        </form>
+    </div>
+</div>
+
+<div class="cfg-grid">
+    <div class="fm-card">
+        <div class="fm-section-title"><svg class="ic"><use href="#i-gavel"/></svg> Aste <span class="sep"></span>
+            <span class="muted" style="font-weight:500;letter-spacing:0;text-transform:none">{{ auctions|length }}</span>
+        </div>
+        <div class="table-scroll" style="max-height:340px">
+            <table>
+                <thead><tr>
+                    <th style="width:44px">ID</th><th>Asta</th><th>Lega</th>
+                    <th>Stato</th><th class="num">Offerte</th><th></th>
+                </tr></thead>
+                <tbody>
+                {% for a in auctions %}
+                    <tr>
+                        <td class="lg-id">#{{ a.id }}</td>
+                        <td style="font-weight:600">{{ a.title }}
+                            <div class="muted" style="font-size:11px">{{ a.get_mode_display }} · {{ a.get_flow_mode_display }}</div></td>
+                        <td class="muted">{% if a.league %}{{ a.league.name }}{% else %}—{% endif %}</td>
+                        <td><span class="status-pill s-{{ a.status }}">{{ a.get_status_display }}</span></td>
+                        <td class="num">{{ a.bid_count }}</td>
+                        <td>
+                            <div class="row-btns">
+                                <a class="fm-btn fm-btn-secondary" href="{% url 'admin_dashboard' %}?auction={{ a.id }}">Apri</a>
+                                <form method="post" action="{% url 'admin_config_action' %}" style="display:contents"
+                                      onsubmit="return confirm('Eliminare l\'asta «{{ a.title|escapejs }}» e le sue {{ a.bid_count }} offerte?\n\nLega, squadre e listone restano.')">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="delete_auction">
+                                    <input type="hidden" name="auction_id" value="{{ a.id }}">
+                                    <button type="submit" class="fm-btn fm-btn-danger">
+                                        <svg class="ic"><use href="#i-trash"/></svg></button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="6" class="fm-empty">Nessuna asta.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="fm-card">
+        <div class="fm-section-title"><svg class="ic"><use href="#i-folder"/></svg> Sessioni salvate <span class="sep"></span>
+            <span class="muted" style="font-weight:500;letter-spacing:0;text-transform:none">{{ sessions|length }}</span>
+        </div>
+        <div class="table-scroll" style="max-height:340px">
+            <table>
+                <thead><tr>
+                    <th>Sessione</th><th>Lega</th>
+                    <th class="num">Squadre</th><th class="num">Listone</th><th></th>
+                </tr></thead>
+                <tbody>
+                {% for s in sessions %}
+                    <tr>
+                        <td style="font-weight:600">{{ s.name }}
+                            <div class="muted" style="font-size:11px">{{ s.created_at|date:"d/m/Y H:i" }}</div></td>
+                        <td class="muted">{% if s.league %}{{ s.league.name }}{% else %}—{% endif %}</td>
+                        <td class="num">{{ s.n_teams }}</td>
+                        <td class="num">
+                            {% if s.n_pool %}{{ s.n_pool }}
+                            {% else %}<span class="warn-tag" title="Salvataggio precedente: il listone verrà recuperato dalla lega d'origine">0</span>{% endif %}
+                        </td>
+                        <td>
+                            <div class="row-btns">
+                                <form method="post" action="{% url 'admin_resume_session' s.id %}" style="display:contents">
+                                    {% csrf_token %}
+                                    <button type="submit" class="fm-btn fm-btn-secondary">Riprendi</button>
+                                </form>
+                                <form method="post" action="{% url 'admin_config_action' %}" style="display:contents"
+                                      onsubmit="return confirm('Eliminare la sessione «{{ s.name|escapejs }}»?')">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="delete_session">
+                                    <input type="hidden" name="session_id" value="{{ s.id }}">
+                                    <button type="submit" class="fm-btn fm-btn-danger">
+                                        <svg class="ic"><use href="#i-trash"/></svg></button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="5" class="fm-empty">Nessuna sessione salvata.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    function toggleEdit(id) {
+        document.getElementById("edit-" + id).classList.toggle("open");
+    }
+</script>
+{% endblock %}

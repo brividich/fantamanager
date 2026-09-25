@@ -1,0 +1,130 @@
+{% extends "auctions/app_base.html" %}
+{% block title %}Rosa — FantaManager{% endblock %}
+{% block app %}
+<style>
+    .player-card {
+        padding: 12px 14px; border-bottom: 1px solid var(--line);
+        display: flex; flex-direction: column; gap: 8px;
+        transition: background .12s;
+    }
+    .player-card:last-child { border-bottom: none; }
+    .player-main { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .player-info { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .player-avatar {
+        width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+        background: var(--panel-2); border: 1px solid var(--line);
+        display: flex; align-items: center; justify-content: center;
+        overflow: hidden; font-weight: 800; font-size: 13px; color: var(--muted);
+    }
+    .player-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .player-meta { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .player-name {
+        font-family: var(--sans); font-weight: 800; font-size: 15px; color: var(--ink);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.15;
+    }
+    .player-sub {
+        font-size: 12px; color: var(--muted); font-weight: 600;
+        display: flex; align-items: center; gap: 6px;
+    }
+    .player-stats {
+        display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+        padding-top: 4px; border-top: 1px dashed rgba(255,255,255,.07);
+    }
+    .stat-pill {
+        font-size: 11px; font-weight: 700; color: var(--muted);
+        background: rgba(255,255,255,.04); padding: 3px 8px; border-radius: 6px;
+        display: inline-flex; align-items: center; gap: 4px;
+    }
+    .stat-pill b { color: var(--ink); }
+    .stat-pill.accent b { color: var(--accent); }
+    .player-prices { text-align: right; flex-shrink: 0; }
+    .player-cost { font-family: var(--display); font-weight: 900; font-size: 16px; color: var(--ink); line-height: 1; }
+    .player-quota { font-size: 11px; color: var(--muted); font-weight: 600; margin-top: 2px; }
+    .btn-release {
+        padding: 4px 9px; font-size: 11px; font-weight: 700; border-radius: 6px;
+        background: rgba(239,68,68,.12); color: #f87171; border: 1px solid rgba(239,68,68,.25);
+        cursor: pointer; transition: background .12s;
+    }
+    .btn-release:hover { background: rgba(239,68,68,.22); }
+</style>
+
+<div class="tab-head">
+    <h1>La mia rosa</h1>
+    <p>{{ roster_count }} giocatori · {{ participant.remaining_credits|floatformat:0 }} FM disponibili</p>
+</div>
+
+<div class="a-card">
+    {% for group in roster_groups %}
+    <div class="a-rolehdr">
+        <span class="role-badge role-{{ group.code }}">{{ group.code }}</span>
+        {{ group.label }} · {{ group.list|length }}
+    </div>
+    {% for pl in group.list %}
+    <div class="player-card">
+        <div class="player-main">
+            <div class="player-info">
+                <div class="player-avatar">
+                    {% if pl.photo_url %}
+                    <img src="{{ pl.photo_url }}" alt="{{ pl.name }}" loading="lazy">
+                    {% else %}
+                    <span class="role-badge role-{{ pl.role }}" style="width:24px;height:24px;font-size:11px">{{ pl.role }}</span>
+                    {% endif %}
+                </div>
+                <div class="player-meta">
+                    <span class="player-name">{{ pl.name }}</span>
+                    <span class="player-sub">
+                        <span>{{ pl.team }}</span>
+                        {% if is_mantra and pl.roles_display %}
+                        <span>·</span>
+                        <span style="color:var(--accent);letter-spacing:.04em">{{ pl.roles_display }}</span>
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+            <div class="player-prices">
+                <div class="player-cost">{{ pl.cost|floatformat:0 }} <small style="font-size:11px;font-weight:600;color:var(--muted)">FM</small></div>
+                <div class="player-quota">Qt. {{ pl.initial_price|floatformat:0 }}</div>
+            </div>
+        </div>
+
+        <div class="player-stats">
+            {% if pl.fanta_avg %}
+            <span class="stat-pill accent">Fm: <b>{{ pl.fanta_avg|floatformat:2 }}</b></span>
+            {% endif %}
+            {% if pl.avg_vote %}
+            <span class="stat-pill">Mv: <b>{{ pl.avg_vote|floatformat:2 }}</b></span>
+            {% endif %}
+            {% if pl.presences %}
+            <span class="stat-pill">Pv: <b>{{ pl.presences }}</b></span>
+            {% endif %}
+            {% if pl.goals %}
+            <span class="stat-pill">⚽ <b>{{ pl.goals }}</b></span>
+            {% endif %}
+            {% if pl.assists %}
+            <span class="stat-pill">🎯 <b>{{ pl.assists }}</b></span>
+            {% endif %}
+            <form method="post" action="{% url 'participant_release_player' pl.id %}" style="margin-left:auto" onsubmit="return confirm('Confermi lo svincolo di {{ pl.name }}?');">
+                {% csrf_token %}
+                <button type="submit" class="btn-release">Svincola</button>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+    {% empty %}
+    <div class="soon" style="border:none;background:none;padding:24px 10px">
+        <svg class="ic"><use href="#i-shirt"/></svg>
+        <b>Rosa vuota</b>
+        <span>Quando vinci giocatori all'asta compaiono qui, raggruppati per ruolo.</span>
+    </div>
+    {% endfor %}
+</div>
+
+<a class="a-cta" href="{% url 'app_formazione' %}">
+    <svg class="ic"><use href="#i-table"/></svg>
+    <span class="t">
+        <b>Formazione</b>
+        <span>Schiera l'11 titolare e scegli il modulo</span>
+    </span>
+    <span class="go">›</span>
+</a>
+{% endblock %}

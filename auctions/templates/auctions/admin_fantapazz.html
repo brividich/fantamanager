@@ -1,0 +1,659 @@
+{% extends "auctions/base.html" %}
+{% block title %}Import Fantapazz — FantaManager{% endblock %}
+{% block bodyclass %}role-admin{% endblock %}
+{% block wrapclass %}wrap-wide{% endblock %}
+
+{% block content %}
+<style>
+    code { background:rgba(255,255,255,.07); padding:2px 8px; border-radius:5px; font-size:13px; font-family:monospace; }
+
+    /* Phase blocks */
+    .phase { position:relative; }
+    .phase-num {
+        display:inline-flex; align-items:center; justify-content:center;
+        width:26px; height:26px; border-radius:50%; flex-shrink:0;
+        background:var(--fm-gradient); color:#fff; font-family:var(--fm-display); font-weight:800; font-size:15px;
+    }
+    .phase-head { display:flex; align-items:center; gap:12px; margin-bottom:4px; }
+    .phase-head h2 { margin:0; }
+    .phase-head .sub { font-size:13px; color:var(--muted); }
+
+    /* Phase 2 locked until connected */
+    #phase-import.locked { opacity:.45; pointer-events:none; filter:saturate(.4); }
+    .lock-note {
+        display:none; margin-top:10px; font-size:13px; color:var(--paused);
+        background:rgba(253,224,71,.08); border:1px solid rgba(253,224,71,.25);
+        border-radius:8px; padding:10px 14px;
+    }
+    #phase-import.locked .lock-note { display:block; }
+
+    /* Method cards (compact radio list) */
+    .method-card {
+        display:flex; align-items:center; gap:12px;
+        border:1px solid var(--line); border-radius:12px; padding:14px 16px;
+        margin-bottom:8px; cursor:pointer; transition:border-color .15s, background .15s;
+    }
+    .method-card:hover { border-color:var(--line-strong); }
+    .method-card.selected { border-color:var(--accent); background:var(--accent-soft); }
+    .method-card .radio {
+        width:18px; height:18px; border-radius:50%; border:2px solid var(--muted); flex-shrink:0;
+        position:relative; transition:border-color .15s;
+    }
+    .method-card.selected .radio { border-color:var(--accent); }
+    .method-card.selected .radio::after {
+        content:""; position:absolute; inset:3px; border-radius:50%; background:var(--accent);
+    }
+    .method-title { font-family:var(--fm-display); font-weight:800; font-size:16px; letter-spacing:.02em; }
+    .method-desc  { font-size:12.5px; color:var(--muted); margin-top:2px; line-height:1.45; }
+    .method-badge {
+        display:inline-block; padding:2px 8px; border-radius:5px; margin-left:6px;
+        font-size:10px; font-weight:800; letter-spacing:0.14em; text-transform:uppercase; vertical-align:middle;
+    }
+    .badge-auto   { background:rgba(8,124,240,.16); color:var(--fm-primary-light); }
+    .badge-easy   { background:rgba(22,217,104,.14); color:var(--fm-success); }
+    .badge-manual { background:rgba(255,255,255,.06); color:var(--fm-text-muted); }
+
+    .method-body { margin-top:6px; }
+    .snippet-box {
+        font-family:monospace; font-size:12px; background:rgba(0,0,0,.4);
+        border:1px solid var(--line); border-radius:10px; padding:14px;
+        white-space:pre-wrap; word-break:break-all; color:var(--accent); line-height:1.6;
+    }
+
+    /* Status line */
+    .status-line {
+        display:flex; align-items:center; gap:10px; margin-top:14px; padding:12px 16px;
+        border-radius:10px; border:1px solid var(--line); background:rgba(0,0,0,.25);
+        transition:border-color .3s, background .3s;
+    }
+    .status-line .s-ico { font-size:20px; }
+    .status-line .s-title { font-family:var(--fm-display); font-weight:800; font-size:16px; letter-spacing:.02em; }
+    .status-line .s-sub { font-size:12.5px; color:var(--muted); }
+
+    /* Import type segmented */
+    .seg { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:6px 0 4px; }
+    .seg label {
+        margin:0; padding:14px; border-radius:12px; border:1px solid var(--line);
+        background:rgba(0,0,0,.3); cursor:pointer; text-transform:none; letter-spacing:0;
+        transition:border-color .15s, background .15s; color:var(--ink);
+    }
+    .seg label.sel { border-color:var(--accent); background:var(--accent-soft); }
+    .seg label.disabled { opacity:.4; cursor:not-allowed; }
+    .seg input { position:absolute; opacity:0; pointer-events:none; }
+    .seg .t { font-family:var(--fm-display); font-weight:800; font-size:16px; }
+    .seg .d { font-size:12px; color:var(--muted); margin-top:3px; line-height:1.4; }
+
+    .preview-table { max-height:360px; overflow-y:auto; }
+    .adv-toggle { font-size:12px; color:var(--muted); cursor:pointer; user-select:none; margin-top:10px; display:inline-block; }
+    .adv-toggle:hover { color:var(--ink); }
+    .role-pill {
+        display:inline-block; width:22px; height:22px; border-radius:4px; text-align:center;
+        line-height:22px; font-size:12px; font-weight:800;
+        background:rgba(8,124,240,.16); color:var(--fm-primary-light);
+    }
+
+    /* Page head + step rail */
+    .fp-target {
+        display:flex; align-items:center; gap:10px; margin-top:14px; padding:10px 12px;
+        border-radius:var(--fm-radius-sm); border:1px solid var(--fm-border);
+        background:rgba(8,124,240,.07); font-size:13px;
+    }
+    .fp-target .k { font-size:10px; letter-spacing:.14em; text-transform:uppercase;
+        color:var(--fm-text-muted); font-weight:700; }
+    .fp-target select { height:32px; width:auto; min-width:170px; }
+
+    .pg-head { display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap; margin:6px 0 14px; }
+    .pg-head h1 { margin:0; font-size:26px; letter-spacing:.02em; }
+    .pg-head .sub { font-size:12.5px; color:var(--fm-text-secondary); }
+    .fp-layout { display:grid; grid-template-columns:230px minmax(0,1fr); gap:12px; align-items:start; }
+    .fp-rail { position:sticky; top:14px; }
+    .fp-step {
+        display:flex; gap:11px; align-items:flex-start; padding:11px 12px;
+        border-radius:var(--fm-radius-sm); transition:background .12s;
+    }
+    .fp-step.is-active { background:rgba(8,124,240,.14); }
+    .fp-step .n {
+        display:inline-flex; align-items:center; justify-content:center; flex-shrink:0;
+        width:24px; height:24px; border-radius:50%; font-size:12px; font-weight:800;
+        border:1px solid var(--fm-border); color:var(--fm-text-muted); background:rgba(255,255,255,.03);
+    }
+    .fp-step.is-active .n, .fp-step.is-done .n { background:var(--fm-gradient); color:#fff; border-color:transparent; }
+    .fp-step .t { font-size:13px; font-weight:600; line-height:1.3; }
+    .fp-step .d { font-size:11.5px; color:var(--fm-text-muted); line-height:1.4; margin-top:2px; }
+    .fp-drop {
+        border:1px dashed var(--fm-border-active); border-radius:var(--fm-radius-md);
+        background:rgba(8,124,240,.05); padding:22px; text-align:center;
+    }
+    .fp-drop .ic { width:38px; height:38px; color:var(--fm-primary-light); }
+    .fp-drop .t { font-family:var(--fm-display); font-size:19px; font-weight:800; margin-top:8px; }
+    .fp-drop .d { font-size:12px; color:var(--fm-text-muted); margin-top:4px; }
+    @media (max-width:1080px) { .fp-layout { grid-template-columns:minmax(0,1fr); } .fp-rail { position:static; } }
+</style>
+
+{% include "auctions/_console_head.html" %}
+
+<div class="pg-head">
+    <div>
+        <h1>Importazione Fantapazz</h1>
+        <div class="sub">Porta dentro rose e listone dalla tua lega su Fantapazz</div>
+    </div>
+</div>
+
+<details class="howto">
+    <summary>↓ Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        Qui porti dentro FantaManager <b>rose e listone da Fantapazz</b>, in due passi.
+        <ol>
+            <li><b>Connetti</b> (passo 1): autenticati su Fantapazz. Il metodo <b>Browser automatico</b> è il più semplice — fai la login e cookie e rose vengono catturati da soli. In alternativa lo snippet console o il cookie manuale.</li>
+            <li><b>Importa</b> (passo 2, si sblocca dopo la connessione): scegli <b>Rose complete</b> (squadre + giocatori assegnati) oppure <b>Solo listone</b> (giocatori liberi per l'asta).</li>
+            <li>Premi <b><svg class="ic"><use href="#i-eye"/></svg> Anteprima</b> per controllare i dati, poi <b><svg class="ic"><use href="#i-import"/></svg> Importa</b> per confermare.</li>
+        </ol>
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Lo stato in fondo al passo 1 (🟢/🔴) ti dice se la sessione è attiva. Per le rose complete serve il login browser o un file <code>.xls</code> caricato a mano.</div>
+    </div>
+</details>
+
+<div class="fp-layout">
+<aside class="fm-card fp-rail">
+    <div class="fm-section-title"><svg class="ic"><use href="#i-list"/></svg> Procedura <span class="sep"></span></div>
+    <div class="fp-step is-active" id="rail-1">
+        <span class="n">1</span><div><div class="t">Connetti</div><div class="d">Login o cookie Fantapazz</div></div>
+    </div>
+    <div class="fp-step" id="rail-2">
+        <span class="n">2</span><div><div class="t">Scegli cosa importare</div><div class="d">Rose complete o solo listone</div></div>
+    </div>
+    <div class="fp-step" id="rail-3">
+        <span class="n">3</span><div><div class="t">Anteprima</div><div class="d">Verifica squadre e giocatori</div></div>
+    </div>
+    <div class="fp-step" id="rail-4">
+        <span class="n">4</span><div><div class="t">Importa</div><div class="d">Salva nel database</div></div>
+    </div>
+</aside>
+<div>
+<!-- ① CONNETTI -->
+<div class="panel phase">
+    <div class="phase-head">
+        <span class="phase-num">1</span>
+        <div><h2>Connetti</h2><div class="sub">Scegli un metodo per autenticarti su Fantapazz</div></div>
+    </div>
+
+    <div style="margin-top:14px">
+        <!-- Method A -->
+        <div class="method-card selected" onclick="selectMethod('browser')" id="card-browser">
+            <span class="radio"></span>
+            <div style="flex:1">
+                <div class="method-title"><svg class="ic"><use href="#i-tv"/></svg> Browser automatico <span class="method-badge badge-auto">Consigliato</span></div>
+                <div class="method-desc">Apre un browser reale: fai la login (anche con Facebook), i cookie e le rose vengono catturati da soli.</div>
+            </div>
+        </div>
+        <!-- Method B -->
+        <div class="method-card" onclick="selectMethod('snippet')" id="card-snippet">
+            <span class="radio"></span>
+            <div style="flex:1">
+                <div class="method-title"><svg class="ic"><use href="#i-list"/></svg> Snippet console <span class="method-badge badge-easy">Zero installazioni</span></div>
+                <div class="method-desc">Incolli un codice nella console del browser mentre sei su Fantapazz.</div>
+            </div>
+        </div>
+        <!-- Method C -->
+        <div class="method-card" onclick="selectMethod('cookie')" id="card-cookie">
+            <span class="radio"></span>
+            <div style="flex:1">
+                <div class="method-title"><svg class="ic"><use href="#i-info"/></svg> Cookie manuale <span class="method-badge badge-manual">Fallback</span></div>
+                <div class="method-desc">Copi il cookie SESS dal browser e lo incolli qui.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Method bodies -->
+    <div id="method-browser" class="method-body">
+        <div class="glass" style="padding:16px">
+            <div style="margin-bottom:12px;font-size:12.5px;color:var(--muted);line-height:1.6">
+                Prima installazione (una tantum, nel terminale):
+                <div class="snippet-box" style="margin-top:8px">pip install playwright
+playwright install chromium</div>
+            </div>
+            <button onclick="browserLogin()" class="btn-ok" style="width:100%;padding:15px;font-size:15px">
+                <svg class="ic"><use href="#i-tv"/></svg> Apri browser e fai login
+            </button>
+            <p id="browser-msg" class="muted" style="text-align:center;font-size:13px;margin-top:10px;display:none"></p>
+        </div>
+    </div>
+
+    <div id="method-snippet" class="method-body" style="display:none">
+        <div class="glass" style="padding:16px">
+            <div style="background:rgba(253,224,71,.10);border:1px solid rgba(253,224,71,.3);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:var(--paused);line-height:1.5">
+                ⚠ Il cookie Fantapazz può essere <strong>httpOnly</strong> e non leggibile via JS. Se non funziona, usa Browser automatico o Cookie manuale.
+            </div>
+            <p style="font-size:12.5px;color:var(--muted);margin-bottom:10px;line-height:1.6">
+                1. Apri <strong style="color:var(--ink)">fantapazz.com</strong> loggato in un'altra scheda · 2. <strong style="color:var(--ink)">F12</strong> → Console · 3. incolla e premi Invio:
+            </p>
+            <div class="snippet-box" id="snippet-code"></div>
+            <button onclick="copySnippet()" class="btn-ghost" style="margin-top:10px;width:100%;font-size:13px;padding:10px"><svg class="ic"><use href="#i-list"/></svg> Copia snippet</button>
+            <div id="snippet-status" style="margin-top:12px;text-align:center;font-size:13px;font-weight:700;display:none"></div>
+        </div>
+    </div>
+
+    <div id="method-cookie" class="method-body" style="display:none">
+        <div class="glass" style="padding:16px">
+            <p class="muted" style="font-size:12.5px;margin-bottom:10px">F12 → Application → Cookies → www.fantapazz.com → copia il cookie che inizia con <code>SESS</code></p>
+            <label>Cookie (nome=valore)</label>
+            <input id="fp-cookie" type="password" placeholder="SESS1768b351...=A89SDO..." autocomplete="off">
+        </div>
+    </div>
+
+    <!-- Live status -->
+    <div id="status-line" class="status-line">
+        <span class="s-ico" id="auth-icon">⚪</span>
+        <div style="flex:1">
+            <div class="s-title" id="auth-title">Verifica sessione…</div>
+            <div class="s-sub" id="auth-subtitle">Controllo dello stato di autenticazione</div>
+        </div>
+        <button onclick="checkAuth(true)" class="btn-ghost" style="padding:9px 14px;font-size:12px">↻ Ricontrolla</button>
+    </div>
+</div>
+
+<!-- ② IMPORTA -->
+<div class="panel phase locked" id="phase-import">
+    <div class="phase-head">
+        <span class="phase-num">2</span>
+        <div><h2>Importa</h2><div class="sub">Scegli cosa portare dentro FantaManager</div></div>
+    </div>
+    <div class="lock-note"><svg class="ic"><use href="#i-lock"/></svg> Connettiti prima (passo 1) per sbloccare l'import.</div>
+
+    <!-- Import type -->
+    <div class="fp-target">
+        <span class="k">Destinazione</span>
+        <b>{% if current_league %}{{ current_league.name }}{% else %}— nessuna lega —{% endif %}</b>
+        {% if leagues|length > 1 %}
+        <form method="get" style="margin-left:auto">
+            <select name="league" onchange="this.form.submit()">
+                {% for l in leagues %}
+                <option value="{{ l.id }}" {% if current_league.id == l.id %}selected{% endif %}>{{ l.name }}</option>
+                {% endfor %}
+            </select>
+        </form>
+        {% endif %}
+    </div>
+
+    <div class="seg" id="import-type" style="margin-top:16px">
+        <label id="type-rose" class="sel" onclick="selectType('rose')">
+            <input type="radio" name="import_type" value="rose" checked>
+            <div class="t">Rose complete</div>
+            <div class="d">Squadre + giocatori già assegnati, con crediti residui.</div>
+        </label>
+        <label id="type-listone" onclick="selectType('listone')">
+            <input type="radio" name="import_type" value="listone">
+            <div class="t">Solo listone</div>
+            <div class="d">Lista giocatori (free agent) da mettere all'asta.</div>
+        </label>
+    </div>
+
+    <!-- Rose-specific: file upload (always visible — works without login) -->
+    <div id="opts-rose" style="margin-top:12px">
+        <p id="rose-source" class="muted" style="font-size:12.5px;margin:0 0 8px"></p>
+        <label>File rose Fantapazz (.xls / .xlsx)</label>
+        <div id="rose-upload" style="margin-top:4px">
+            <input type="file" id="rose-file" accept=".xls,.xlsx">
+        </div>
+    </div>
+
+    <!-- Listone-specific: league + team ids -->
+    <div id="opts-listone" style="margin-top:12px;display:none">
+        <label>League ID</label>
+        <input id="fp-league" value="{{ league_id }}" placeholder="332175" inputmode="numeric" style="max-width:240px">
+        <p class="muted" style="font-size:11px;margin-top:4px">Dall'URL: <code>/squadre-lega/<strong>332175</strong>/</code></p>
+        <span class="adv-toggle" onclick="document.getElementById('adv-ids').style.display = document.getElementById('adv-ids').style.display==='none'?'block':'none'">▸ ID squadre manuali (se la discovery fallisce)</span>
+        <div id="adv-ids" style="display:none;margin-top:8px">
+            <input id="fp-team-ids" placeholder="1428321, 1428331, 1428346, …" style="font-family:monospace;font-size:13px">
+        </div>
+    </div>
+
+    <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;margin:16px 0;text-transform:none;letter-spacing:0;color:var(--ink)">
+        <input type="checkbox" id="fp-replace" style="width:auto;margin-top:3px">
+        <span>Sostituisci la lista esistente
+            <span style="display:block;color:var(--muted);font-size:12px">
+                Quotazioni: ricarica da zero il pool. Rose: azzera le assegnazioni
+                ma mantiene gli svincolati nel pool.
+            </span>
+        </span>
+    </label>
+
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button onclick="runPreview()" class="btn-ghost" style="padding:13px 22px"><svg class="ic"><use href="#i-eye"/></svg> Anteprima</button>
+        <button onclick="runImport()" class="btn-ok" style="padding:13px 26px"><svg class="ic"><use href="#i-import"/></svg> Importa</button>
+    </div>
+    <p id="fp-msg" style="margin:12px 0 0;font-size:13px;font-weight:700;display:none"></p>
+</div>
+
+<!-- Preview -->
+<div id="fp-results" class="panel" style="display:none">
+    <h2 style="margin-bottom:14px" id="fp-results-title">Anteprima</h2>
+    <div id="fp-teams" style="margin-bottom:14px"></div>
+    <div class="preview-table table-scroll">
+        <table>
+            <thead><tr><th>Squadra</th><th>Nome</th><th>R</th><th>Club</th><th style="text-align:right">Quota</th><th style="text-align:right">Costo</th></tr></thead>
+            <tbody id="fp-player-rows"></tbody>
+        </table>
+    </div>
+    <p id="fp-total" class="muted" style="font-size:12px;margin-top:8px;text-align:right"></p>
+</div>
+</div><!-- /fp-layout right column -->
+</div><!-- /fp-layout -->
+
+<script>
+    // The rail mirrors the state the page already has — no new plumbing.
+    function fpRail(step) {
+        for (let i = 1; i <= 4; i++) {
+            const el = document.getElementById("rail-" + i);
+            if (!el) continue;
+            el.classList.toggle("is-active", i === step);
+            el.classList.toggle("is-done", i < step);
+        }
+    }
+    document.addEventListener("click", (e) => {
+        if (e.target.closest("#import-type")) fpRail(2);
+    });
+    new MutationObserver(() => {
+        const locked = document.getElementById("phase-import").classList.contains("locked");
+        const results = document.getElementById("fp-results");
+        if (results && results.style.display !== "none") fpRail(3);
+        else fpRail(locked ? 1 : 2);
+    }).observe(document.body, { attributes: true, subtree: true, attributeFilter: ["class", "style"] });
+</script>
+
+<!-- Discreet debug link -->
+<p style="text-align:center;margin-top:18px">
+    <span class="adv-toggle" onclick="doFetch('debug')" style="font-size:11px"><svg class="ic"><use href="#i-search"/></svg> Debug connessione (avanzato)</span>
+</p>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function getCsrfCookie() {
+        const m = document.cookie.match("(^|;)\\s*csrftoken\\s*=\\s*([^;]+)");
+        return m ? m.pop() : "";
+    }
+    const CSRF = getCsrfCookie();
+    const SYNC_TOKEN = "{{ sync_token }}";
+    const SERVER_ORIGIN = window.location.origin;
+
+    let currentMethod = "browser";
+    let importType    = "rose";
+    let _authOk       = false;
+    let _roseReady    = false;
+
+    // ---- ① Connessione -----------------------------------------------------
+    function selectMethod(m) {
+        currentMethod = m;
+        ["browser","snippet","cookie"].forEach(x => {
+            document.getElementById("card-"   + x).classList.toggle("selected", x === m);
+            document.getElementById("method-" + x).style.display = x === m ? "" : "none";
+        });
+        if (m === "snippet") buildSnippet();
+    }
+
+    async function checkAuth(showSpinner) {
+        const icon = document.getElementById("auth-icon");
+        const title = document.getElementById("auth-title");
+        const sub = document.getElementById("auth-subtitle");
+        const line = document.getElementById("status-line");
+
+        if (showSpinner) { icon.textContent = "⏳"; title.textContent = "Verifica in corso…"; sub.textContent = "Controllo del cookie su Fantapazz"; }
+
+        try {
+            const r = await fetch("{% url 'admin_fantapazz_auth_status' %}", { method: "POST", headers: { "X-CSRFToken": CSRF } });
+            const d = await r.json();
+            _roseReady = !!d.rose_ready;
+
+            if (d.authenticated) {
+                _authOk = true;
+                icon.textContent = "🟢";
+                title.textContent = "Sessione attiva";
+                title.style.color = "var(--live)";
+                sub.textContent = (d.username ? `Autenticato come ${d.username}` : "Cookie valido")
+                    + (d.rose_ready ? " — rose scaricate, pronto!" : " — pronto per l'import.");
+                line.style.borderColor = "rgba(8,124,240,.4)";
+                line.style.background = "rgba(8,124,240,.07)";
+            } else if (d.reason === "no_session") {
+                _authOk = false;
+                icon.textContent = "⚪";
+                title.textContent = "Nessuna sessione";
+                title.style.color = "var(--muted)";
+                sub.textContent = "Autenticati con uno dei metodi qui sopra.";
+                line.style.borderColor = "var(--line)";
+                line.style.background = "rgba(0,0,0,.25)";
+            } else {
+                _authOk = false;
+                icon.textContent = "🔴";
+                title.textContent = "Sessione scaduta";
+                title.style.color = "var(--closed)";
+                sub.textContent = "Il cookie non è più valido — rifai il login.";
+                line.style.borderColor = "rgba(248,113,113,.4)";
+                line.style.background = "rgba(248,113,113,.06)";
+            }
+        } catch (e) {
+            _authOk = false;
+            icon.textContent = "🔴"; title.textContent = "Errore di verifica"; sub.textContent = String(e);
+        }
+        refreshImportLock();
+    }
+
+    function buildSnippet() {
+        const league = (document.getElementById("fp-league")?.value || "").trim() || "332175";
+        document.getElementById("snippet-code").textContent =
+`fetch('${SERVER_ORIGIN}{% url "admin_fantapazz_cookie_sync" %}', {
+  method: 'POST', mode: 'cors',
+  headers: {'Content-Type': 'text/plain', 'X-Token': '${SYNC_TOKEN}'},
+  body: document.cookie
+}).then(r=>r.json()).then(d=>alert(d.ok ? '✓ Cookie inviato! Torna su FantaManager.' : '✗ ' + d.error));`;
+    }
+
+    function copySnippet() {
+        navigator.clipboard.writeText(document.getElementById("snippet-code").textContent);
+        const btn = event.target;
+        btn.textContent = "✓ Copiato!";
+        setTimeout(() => btn.textContent = "📋 Copia snippet", 2000);
+        const s = document.getElementById("snippet-status");
+        s.style.display = "block"; s.style.color = "var(--muted)"; s.textContent = "In attesa del cookie…";
+        let attempts = 0;
+        const iv = setInterval(async () => {
+            if (++attempts > 30) { clearInterval(iv); s.textContent = "Timeout — riprova."; return; }
+            const r = await fetch("{% url 'admin_fantapazz_auth_status' %}", { method: "POST", headers: { "X-CSRFToken": CSRF } });
+            const d = await r.json();
+            if (d.authenticated) { clearInterval(iv); s.style.color = "var(--live)"; s.textContent = "✓ Cookie ricevuto!"; checkAuth(); }
+        }, 2000);
+    }
+
+    // FantaManager league the import writes into (never guessed server-side).
+    const TARGET_LEAGUE_ID = "{{ current_league.id|default:'' }}";
+    function withTarget(body) {
+        if (TARGET_LEAGUE_ID) body.append("target_league_id", TARGET_LEAGUE_ID);
+        return body;
+    }
+
+    async function browserLogin() {
+        const msg = document.getElementById("browser-msg");
+        msg.style.display = "block"; msg.style.color = "var(--muted)"; msg.textContent = "Apertura browser…";
+        const body = withTarget(new FormData());
+        body.append("league_id", (document.getElementById("fp-league")?.value || "").trim());
+        const r = await fetch("{% url 'admin_fantapazz_browser_login' %}", { method: "POST", body, headers: { "X-CSRFToken": CSRF } });
+        const data = await r.json();
+        if (!data.ok) { msg.style.color = "var(--closed)"; msg.textContent = "✗ " + data.error; return; }
+        msg.style.color = "var(--accent)"; msg.textContent = data.message + " Rilevamento in corso…";
+        let n = 0;
+        const iv = setInterval(async () => {
+            if (++n > 90) { clearInterval(iv); return; }
+            const rr = await fetch("{% url 'admin_fantapazz_auth_status' %}", { method: "POST", headers: { "X-CSRFToken": CSRF } });
+            const d = await rr.json();
+            if (d.authenticated) { clearInterval(iv); msg.style.color = "var(--live)"; msg.textContent = "✓ Login completato!"; checkAuth(); }
+        }, 2000);
+    }
+
+    // ---- ② Import ----------------------------------------------------------
+    function refreshImportLock() {
+        const hasUpload = !!document.getElementById("rose-file").files.length;
+        // The uploaded-file path needs NO Fantapazz session — you can always
+        // import "Rose complete" by picking a .xls here. The phase stays open
+        // when you're connected OR you've chosen a file; the live "Solo listone"
+        // scrape still needs a session and reports it server-side if missing.
+        document.getElementById("phase-import").classList.toggle("locked", !(_authOk || hasUpload));
+        // Rose is always selectable (you can always upload a file).
+        document.getElementById("type-rose").classList.remove("disabled");
+        const src = document.getElementById("rose-source");
+        src.textContent = _roseReady
+            ? "✓ Useremo le rose scaricate durante il login browser."
+            : (hasUpload ? "✓ Userò il file che hai caricato."
+                         : "Carica qui sotto il file rose (.xls/.xlsx) di Fantapazz — non serve il login.");
+    }
+
+    function selectType(t) {
+        if (document.getElementById("type-" + t).classList.contains("disabled")) return;
+        importType = t;
+        document.getElementById("type-rose").classList.toggle("sel", t === "rose");
+        document.getElementById("type-listone").classList.toggle("sel", t === "listone");
+        document.getElementById("type-" + t).querySelector("input").checked = true;
+        document.getElementById("opts-rose").style.display    = t === "rose" ? "" : "none";
+        document.getElementById("opts-listone").style.display = t === "listone" ? "" : "none";
+    }
+
+    function toggleRoseUpload() {
+        const u = document.getElementById("rose-upload");
+        u.style.display = u.style.display === "none" ? "block" : "none";
+    }
+    document.getElementById("rose-file").addEventListener("change", refreshImportLock);
+
+    function runPreview() { importType === "rose" ? importRose("preview") : doFetch("preview"); }
+    function runImport()  { importType === "rose" ? importRose("import")  : doFetch("import_players"); }
+
+    function getAuthMode() { return currentMethod === "cookie" ? "cookie" : "session"; }
+
+    // Listone: live scrape via the Fantapazz session.
+    async function doFetch(action) {
+        const league  = (document.getElementById("fp-league")?.value || "").trim();
+        const teamIds = (document.getElementById("fp-team-ids")?.value || "").trim();
+        const replace = document.getElementById("fp-replace").checked ? "1" : "0";
+        const msg     = document.getElementById("fp-msg");
+        const auth    = getAuthMode();
+
+        msg.style.display = "block"; msg.style.color = "var(--muted)"; msg.textContent = "Connessione a Fantapazz…";
+
+        const body = withTarget(new FormData());
+        body.append("auth_mode", auth);
+        body.append("league_id", league);
+        body.append("team_ids", teamIds);
+        body.append("action", action);
+        body.append("replace", replace);
+        if (auth === "cookie") {
+            const c = (document.getElementById("fp-cookie")?.value || "").trim();
+            if (!c) { msg.textContent = "✗ Incolla il cookie nel passo 1."; msg.style.color = "var(--closed)"; return; }
+            body.append("cookie", c);
+        }
+
+        const r = await fetch("{% url 'admin_fantapazz' %}", { method: "POST", body, headers: { "X-CSRFToken": CSRF } });
+        const data = await r.json();
+        if (!data.ok) {
+            msg.style.color = "var(--closed)"; msg.textContent = "✗ " + data.error;
+            if (data.html_snippet) console.log("HTML snippet:", data.html_snippet);
+            return;
+        }
+        if (action === "debug") {
+            msg.style.color = "var(--paused)";
+            msg.textContent = `Debug: ${data.teams_found?.length ?? 0} squadre. Vedi Console (F12).`;
+            console.log("=== TEAMS ===", data.teams_found);
+            console.log("=== PARSED ===", data.first_team_parsed);
+            console.log("=== LEAGUE HTML ===\n", data.league_html_snippet);
+            console.log("=== TEAM HTML ===\n", data.first_team_html);
+            return;
+        }
+        if (action === "preview") {
+            msg.style.color = "var(--live)";
+            msg.textContent = `✓ ${data.teams.length} squadre · ${data.total} giocatori totali.`;
+            renderPreview(data);
+        } else {
+            msg.style.color = "var(--live)";
+            msg.textContent = `✓ Importati ${data.created} giocatori da ${data.teams} squadre.`;
+            if (data.errors?.length) msg.textContent += ` (${data.errors.length} errori)`;
+        }
+    }
+
+    // Rose complete: parse the downloaded/uploaded .xls.
+    async function importRose(action) {
+        const replace = document.getElementById("fp-replace").checked ? "1" : "0";
+        const msg = document.getElementById("fp-msg");
+        msg.style.display = "block"; msg.style.color = "var(--muted)";
+        msg.textContent = action === "preview" ? "Lettura rose…" : "Importazione rose…";
+
+        const body = withTarget(new FormData());
+        body.append("action", action);
+        body.append("replace", replace);
+        const file = document.getElementById("rose-file").files[0];
+        if (file) body.append("rose_file", file);
+
+        const r = await fetch("{% url 'admin_fantapazz_import_rose' %}", { method: "POST", body, headers: { "X-CSRFToken": CSRF } });
+        const data = await r.json();
+        if (!data.ok) { msg.style.color = "var(--closed)"; msg.textContent = "✗ " + data.error; return; }
+
+        if (data.warning) {
+            msg.style.color = "var(--paused)";
+            msg.textContent = "⚠ " + data.warning;
+            if (data.download_log) console.log("=== LINK EXPORT FANTAPAZZ TROVATI ===\n" + data.download_log);
+            if (action === "preview") renderRosePreview(data);
+            return;
+        }
+        if (action === "preview") {
+            msg.style.color = "var(--live)";
+            msg.textContent = `✓ ${data.teams.length} squadre · ${data.total_players} giocatori. Controlla e conferma.`;
+            renderRosePreview(data);
+        } else {
+            msg.style.color = "var(--live)";
+            msg.textContent = `✓ Importate ${data.teams} squadre e ${data.players} giocatori con rose complete!`;
+        }
+    }
+
+    // ---- Preview renderers --------------------------------------------------
+    function renderRosePreview(data) {
+        const panel = document.getElementById("fp-results");
+        panel.style.display = "block";
+        document.getElementById("fp-results-title").textContent = "Anteprima rose complete";
+        document.getElementById("fp-teams").innerHTML = data.teams.map(t =>
+            `<span style="display:inline-block;margin:3px;padding:6px 12px;border-radius:8px;
+             background:var(--accent-soft);border:1px solid var(--accent-line);font-size:13px;font-weight:700">
+             ${t.name} <span class="muted">· ${t.n_players} gioc.</span>
+             <span style="color:var(--accent);margin-left:4px">${t.credits} FM res.</span></span>`).join("");
+        const rows = [];
+        data.teams.forEach(t => t.players.forEach(p => rows.push(
+            `<tr><td class="muted" style="font-size:12px">${t.name}</td>
+             <td style="font-weight:600">${p.name}</td>
+             <td><span class="role-pill">${p.role}</span></td>
+             <td class="muted">${p.club}</td>
+             <td style="text-align:right">—</td>
+             <td style="text-align:right;color:var(--accent);font-weight:700">${p.cost}</td></tr>`)));
+        document.getElementById("fp-player-rows").innerHTML = rows.join("");
+        document.getElementById("fp-total").innerHTML =
+            `Anteprima (primi 5 per squadra) · <button onclick="importRose('import')" class="btn-ok" style="padding:8px 18px;font-size:13px;margin-left:8px">Conferma import →</button>`;
+    }
+
+    function renderPreview(data) {
+        document.getElementById("fp-results").style.display = "block";
+        document.getElementById("fp-results-title").textContent = "Anteprima listone";
+        document.getElementById("fp-teams").innerHTML = data.teams.map(t =>
+            `<span style="display:inline-block;margin:3px;padding:4px 10px;border-radius:6px;
+             background:var(--accent-soft);border:1px solid var(--accent-line);font-size:12px;font-weight:700">
+             ${t.name} <span class="muted">#${t.id}</span>
+             ${t.remaining_credits ? `<span style="color:var(--accent);margin-left:6px">${t.remaining_credits} FM</span>` : ""}</span>`).join("");
+        document.getElementById("fp-player-rows").innerHTML = data.players.map(p => `
+            <tr>
+                <td class="muted" style="font-size:12px">${p.fantapazz_team||"—"}</td>
+                <td style="font-weight:600">${p.name}</td>
+                <td><span class="role-pill">${p.role}</span></td>
+                <td class="muted">${p.team||"—"}</td>
+                <td style="text-align:right;font-variant-numeric:tabular-nums">${p.quotazione||"—"}</td>
+                <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--accent);font-weight:700">${p.costo||"—"}</td>
+            </tr>`).join("");
+        document.getElementById("fp-total").textContent = `Primi ${data.players.length} di ${data.total} giocatori`;
+    }
+
+    // ---- Init --------------------------------------------------------------
+    buildSnippet();
+    checkAuth();
+</script>
+{% endblock %}
