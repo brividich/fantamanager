@@ -19,7 +19,7 @@ services:
       start_period: 10s
 
   app:
-    image: ${DOCKER_IMAGE:-ghcr.io/tuo-utente/fantamanager:latest}
+    image: ${DOCKER_IMAGE:-ghcr.io/brividich/fantamanager:latest}
     container_name: fantamanager
     restart: unless-stopped
     depends_on:
