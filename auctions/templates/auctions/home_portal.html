@@ -1,0 +1,719 @@
+{% extends "auctions/base.html" %}
+{% block title %}FantaManager — Home & Portale d'Accesso{% endblock %}
+{% block bodyclass %}role-admin home-portal{% endblock %}
+{% block wrapclass %}wrap-wide{% endblock %}
+
+{% block content %}
+<style>
+    /* ═══════════════════════════════════════════════════════════════════
+       HOME PORTAL (CHOOSER & LOGIN) STYLES
+       ═══════════════════════════════════════════════════════════════════ */
+    .hp-container {
+        max-width: 1280px;
+        margin: 20px auto 50px;
+        display: flex;
+        flex-direction: column;
+        gap: 32px;
+    }
+
+    /* Top App Header */
+    .hp-topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 22px;
+        background: var(--fm-card);
+        border: 1px solid var(--fm-border);
+        border-radius: var(--fm-radius-md);
+        box-shadow: var(--fm-shadow);
+        flex-wrap: wrap;
+        gap: 14px;
+    }
+    .hp-brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .hp-brand .brand-icon {
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        background: var(--fm-gradient);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 0 16px rgba(8,124,240,.4);
+    }
+    .hp-brand .brand-icon .ic { width: 22px; height: 22px; }
+    .hp-brand-text {
+        display: flex;
+        flex-direction: column;
+        line-height: 1.1;
+    }
+    .hp-brand-text .top {
+        font-family: var(--fm-display);
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: .24em;
+        color: var(--fm-primary-light);
+    }
+    .hp-brand-text .bottom {
+        font-family: var(--fm-display);
+        font-size: 21px;
+        font-weight: 900;
+        letter-spacing: .08em;
+        color: #fff;
+    }
+    .hp-pro-tag {
+        font-size: 10px;
+        font-weight: 900;
+        letter-spacing: .1em;
+        padding: 3px 8px;
+        border-radius: 6px;
+        background: linear-gradient(135deg, #087cf0, #00d2ff);
+        color: #fff;
+        box-shadow: 0 0 12px rgba(0,210,255,.45);
+        margin-left: 6px;
+    }
+    .hp-meta {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    .hp-status-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 12px;
+        font-weight: 600;
+        padding: 6px 14px;
+        border-radius: 999px;
+        background: rgba(3,15,32,.7);
+        border: 1px solid var(--fm-border);
+        color: var(--fm-text-secondary);
+    }
+    .hp-pulse-green {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--fm-success);
+        box-shadow: 0 0 8px var(--fm-success);
+    }
+
+    /* Active Auction Live Banner */
+    .hp-live-banner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 16px 24px;
+        background: linear-gradient(90deg, rgba(22,217,104,.18), rgba(8,124,240,.15));
+        border: 1px solid rgba(22,217,104,.55);
+        border-radius: var(--fm-radius-lg);
+        box-shadow: 0 10px 30px rgba(22,217,104,.15);
+        flex-wrap: wrap;
+        animation: hpBannerGlow 3s ease-in-out infinite alternate;
+    }
+    @keyframes hpBannerGlow {
+        0% { border-color: rgba(22,217,104,.4); }
+        100% { border-color: rgba(22,217,104,.75); box-shadow: 0 10px 40px rgba(22,217,104,.25); }
+    }
+    .hp-live-info {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+    .hp-live-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+        color: var(--fm-success);
+        background: rgba(22,217,104,.22);
+        padding: 6px 12px;
+        border-radius: 8px;
+    }
+    .hp-live-pulse {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--fm-success);
+        box-shadow: 0 0 0 0 rgba(22,217,104,.7);
+        animation: livePulseAnim 1.5s infinite;
+    }
+    @keyframes livePulseAnim {
+        0% { box-shadow: 0 0 0 0 rgba(22,217,104,.7); }
+        70% { box-shadow: 0 0 0 10px rgba(22,217,104,0); }
+        100% { box-shadow: 0 0 0 0 rgba(22,217,104,0); }
+    }
+    .hp-live-details strong {
+        display: block;
+        font-size: 17px;
+        color: #fff;
+        font-family: var(--fm-display);
+        letter-spacing: .02em;
+    }
+    .hp-live-details span {
+        font-size: 12px;
+        color: var(--fm-text-secondary);
+    }
+    .hp-live-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    /* Hero Lead Intro */
+    .hp-hero-intro {
+        text-align: center;
+        max-width: 720px;
+        margin: 0 auto;
+    }
+    .hp-hero-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: .18em;
+        text-transform: uppercase;
+        color: var(--fm-cyan);
+        background: rgba(24,213,255,.12);
+        border: 1px solid rgba(24,213,255,.3);
+        padding: 5px 14px;
+        border-radius: 999px;
+        margin-bottom: 14px;
+    }
+    .hp-hero-title {
+        font-family: var(--fm-display);
+        font-weight: 900;
+        font-size: clamp(32px, 4vw, 48px);
+        letter-spacing: .02em;
+        line-height: 1.15;
+        margin: 0 0 12px;
+        color: #fff;
+    }
+    .hp-hero-desc {
+        font-size: 15px;
+        color: var(--fm-text-secondary);
+        line-height: 1.6;
+        margin: 0;
+    }
+
+    /* The Split Doors (Cards Grid) */
+    .hp-doors-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+        gap: 28px;
+    }
+    .hp-door-card {
+        position: relative;
+        background: var(--fm-card);
+        border: 1px solid var(--fm-border);
+        border-radius: var(--fm-radius-lg);
+        padding: 32px 28px;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        box-shadow: 0 20px 50px rgba(0,6,18,.5);
+        transition: transform .18s, border-color .18s, box-shadow .18s;
+        overflow: hidden;
+    }
+    .hp-door-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 24px 60px rgba(0,6,18,.65);
+    }
+    .hp-door-free {
+        border-color: rgba(22,217,104,.35);
+        background: linear-gradient(155deg, rgba(22,217,104,.09) 0%, rgba(7,29,56,.96) 60%, rgba(4,20,41,.98) 100%);
+    }
+    .hp-door-free:hover {
+        border-color: rgba(22,217,104,.6);
+    }
+    .hp-door-admin {
+        border-color: rgba(30,165,255,.35);
+        background: linear-gradient(155deg, rgba(8,124,240,.12) 0%, rgba(7,29,56,.96) 60%, rgba(4,20,41,.98) 100%);
+    }
+    .hp-door-admin:hover {
+        border-color: rgba(30,165,255,.6);
+    }
+
+    .hp-door-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+    }
+    .hp-door-badge {
+        font-size: 10.5px;
+        font-weight: 800;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+        padding: 5px 12px;
+        border-radius: 999px;
+    }
+    .hp-door-free .hp-door-badge {
+        background: rgba(22,217,104,.18);
+        border: 1px solid rgba(22,217,104,.4);
+        color: var(--fm-success);
+    }
+    .hp-door-admin .hp-door-badge {
+        background: rgba(8,124,240,.18);
+        border: 1px solid rgba(30,165,255,.4);
+        color: var(--fm-cyan);
+    }
+    .hp-door-icon {
+        width: 52px;
+        height: 52px;
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    .hp-door-free .hp-door-icon {
+        background: rgba(22,217,104,.18);
+        color: var(--fm-success);
+        box-shadow: 0 0 20px rgba(22,217,104,.3);
+    }
+    .hp-door-admin .hp-door-icon {
+        background: rgba(8,124,240,.2);
+        color: var(--fm-primary-light);
+        box-shadow: 0 0 20px rgba(8,124,240,.35);
+    }
+    .hp-door-icon .ic { width: 28px; height: 28px; }
+
+    .hp-door-title {
+        font-family: var(--fm-display);
+        font-weight: 800;
+        font-size: 26px;
+        color: #fff;
+        margin: 0 0 6px;
+        line-height: 1.2;
+    }
+    .hp-door-sub {
+        font-size: 13.5px;
+        color: var(--fm-text-secondary);
+        line-height: 1.5;
+        margin: 0;
+    }
+
+    .hp-door-features {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        font-size: 13px;
+        color: var(--fm-text-secondary);
+    }
+    .hp-door-features li {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    .hp-door-features li b { color: #fff; }
+    .hp-bullet-check {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        font-weight: 900;
+        flex-shrink: 0;
+        margin-top: 1px;
+    }
+    .hp-door-free .hp-bullet-check {
+        background: rgba(22,217,104,.2);
+        color: var(--fm-success);
+    }
+    .hp-door-admin .hp-bullet-check {
+        background: rgba(8,124,240,.2);
+        color: var(--fm-cyan);
+    }
+
+    .hp-door-actions {
+        margin-top: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding-top: 18px;
+        border-top: 1px solid rgba(255,255,255,.07);
+    }
+    .hp-btn-large {
+        padding: 14px 20px;
+        font-size: 14.5px;
+        font-weight: 800;
+        letter-spacing: .02em;
+        justify-content: center;
+        border-radius: var(--fm-radius-md);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        text-decoration: none;
+    }
+    .hp-btn-emerald {
+        background: linear-gradient(135deg, #16d968, #0ea84d);
+        color: #031226;
+        box-shadow: 0 4px 18px rgba(22,217,104,.4);
+        border: none;
+    }
+    .hp-btn-emerald:hover {
+        background: linear-gradient(135deg, #22e877, #13be58);
+        color: #031226;
+        box-shadow: 0 6px 24px rgba(22,217,104,.55);
+    }
+    .hp-btn-cyan {
+        background: linear-gradient(135deg, #087cf0, #13b5ff);
+        color: #fff;
+        box-shadow: 0 4px 20px rgba(8,124,240,.45);
+        border: none;
+    }
+    .hp-btn-cyan:hover {
+        background: linear-gradient(135deg, #138aff, #2cd0ff);
+        color: #fff;
+        box-shadow: 0 6px 26px rgba(8,124,240,.6);
+    }
+
+    /* Managerial Login Box */
+    .hp-login-box {
+        background: rgba(3,15,32,.75);
+        border: 1px solid var(--fm-border);
+        border-radius: var(--fm-radius-md);
+        padding: 18px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+    .hp-login-label {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+        color: var(--fm-text-muted);
+    }
+    .hp-pin-row {
+        display: flex;
+        gap: 8px;
+    }
+    .hp-pin-input {
+        flex: 1;
+        background: rgba(0,0,0,.35);
+        border: 1px solid var(--fm-border);
+        border-radius: var(--fm-radius-sm);
+        padding: 12px 14px;
+        font-family: var(--fm-display);
+        font-size: 20px;
+        font-weight: 800;
+        letter-spacing: .2em;
+        text-align: center;
+        color: #fff;
+        outline: none;
+        transition: border-color .15s;
+    }
+    .hp-pin-input:focus {
+        border-color: var(--fm-primary-light);
+        box-shadow: 0 0 12px rgba(8,124,240,.3);
+    }
+    .hp-pin-hint {
+        font-size: 11px;
+        color: var(--fm-text-muted);
+        text-align: center;
+    }
+    .hp-pin-hint b { color: var(--fm-text-secondary); }
+    .hp-err-flash {
+        background: rgba(255,61,80,.12);
+        border: 1px solid rgba(255,61,80,.35);
+        color: var(--fm-danger);
+        padding: 8px 12px;
+        border-radius: var(--fm-radius-sm);
+        font-size: 12px;
+        font-weight: 600;
+        text-align: center;
+    }
+    .hp-unlocked-card {
+        background: rgba(22,217,104,.1);
+        border: 1px solid rgba(22,217,104,.35);
+        border-radius: var(--fm-radius-sm);
+        padding: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+    }
+    .hp-unlocked-status {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12.5px;
+        font-weight: 700;
+        color: var(--fm-success);
+    }
+
+    /* Footer Info Bar */
+    .hp-footbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 22px;
+        background: var(--fm-card);
+        border: 1px solid var(--fm-border);
+        border-radius: var(--fm-radius-md);
+        font-size: 12.5px;
+        color: var(--fm-text-muted);
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+    .hp-footbar b { color: var(--fm-text-secondary); }
+    .hp-footbar .foot-right {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+</style>
+
+<div class="hp-container">
+
+    <!-- 1. TOP BRAND & SYSTEM STATUS -->
+    <header class="hp-topbar">
+        <div class="hp-brand">
+            <div class="brand-icon"><svg class="ic"><use href="#i-gavel"/></svg></div>
+            <div class="hp-brand-text">
+                <div class="top">FANTA</div>
+                <div class="bottom">MANAGER</div>
+            </div>
+            <span class="hp-pro-tag">PRO</span>
+            <span class="hp-pro-tag" style="background:rgba(56,189,248,0.12);color:#38bdf8;border:1px solid rgba(56,189,248,0.3);letter-spacing:0.04em">v{{ app_version }}</span>
+        </div>
+
+        <div class="hp-meta">
+            <div class="hp-status-chip">
+                <span class="hp-pulse-green"></span>
+                <span>Server Locale Attivo · Porta 8001</span>
+            </div>
+            {% if current_league %}
+            <div class="hp-status-chip">
+                <svg class="ic" style="width:14px;height:14px"><use href="#i-trophy"/></svg>
+                <span>{{ current_league.name }}</span>
+                <a href="{% url 'home' %}?league=all" style="color:var(--fm-primary-light);margin-left:6px;font-size:11px;text-decoration:underline" title="Azzera selezione lega">Cambia</a>
+            </div>
+            {% elif leagues %}
+            <div class="hp-status-chip">
+                <svg class="ic" style="width:14px;height:14px"><use href="#i-trophy"/></svg>
+                <span>{{ leagues|length }} Leghe Disponibili</span>
+            </div>
+            {% endif %}
+            <a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% url 'admin_config' %}">
+                <svg class="ic"><use href="#i-gear"/></svg> Configurazione
+            </a>
+        </div>
+    </header>
+
+    <!-- 2. LIVE BROADCAST BANNER (if active auction exists for current league) -->
+    {% if active_auction and current_league %}
+    <div class="hp-live-banner">
+        <div class="hp-live-info">
+            <div class="hp-live-badge">
+                <span class="hp-live-pulse"></span>
+                <span>{% if active_auction.status == 'LIVE' or active_auction.status == 'live' %}ASTA LIVE IN CORSO ({{ current_league.name }}){% else %}ASTA IN PAUSA ({{ current_league.name }}){% endif %}</span>
+            </div>
+            <div class="hp-live-details">
+                <strong>{{ active_auction.title }}</strong>
+                <span>{{ active_auction.get_flow_mode_display }} · Timer {{ active_auction.duration_seconds }}s · Prezzo base {{ active_auction.starting_price|floatformat:0 }} FM</span>
+            </div>
+        </div>
+        <div class="hp-live-actions">
+            <a class="fm-btn fm-btn-primary fm-btn-sm" href="{% url 'screen' active_auction.id %}?t={{ active_auction.public_token }}" target="_blank">
+                <svg class="ic"><use href="#i-tv"/></svg> Maxischermo
+            </a>
+            <a class="fm-btn fm-btn-secondary fm-btn-sm" href="{% url 'join' %}">
+                <svg class="ic"><use href="#i-gavel"/></svg> Partecipa da Smartphone
+            </a>
+        </div>
+    </div>
+    {% elif not current_league and leagues|length > 1 %}
+    <!-- LEAGUE SELECTOR STRIP -->
+    <div style="background:var(--fm-card);border:1px solid var(--fm-border);border-radius:var(--fm-radius-md);padding:14px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--fm-text-secondary)">
+            <svg class="ic" style="width:16px;height:16px;color:var(--fm-primary-light)"><use href="#i-trophy"/></svg>
+            <b>Seleziona la tua Lega per visualizzare l'asta e il maxischermo:</b>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+            {% for lg in leagues %}
+            <a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% url 'home' %}?league={{ lg.id }}" style="font-size:12px">
+                #{{ lg.id }} {{ lg.name }}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 3. HERO INTRO -->
+    <div class="hp-hero-intro">
+        <div class="hp-hero-tag">
+            <span>● FantaManager Studio Platform</span>
+        </div>
+        <h1 class="hp-hero-title">Scegli la tua Area di Accesso</h1>
+        <p class="hp-hero-desc">
+            Benvenuto in FantaManager. Seleziona l'accesso libero per partecipare all'asta o proiettare il maxischermo, oppure accedi all'area manageriale per la regia e gestione completa della lega.
+        </p>
+    </div>
+
+    <!-- 4. THE TWO DOORS (CHOOSER & LOGIN) -->
+    <div class="hp-doors-grid">
+
+        <!-- DOOR 1: AREA ASTA LIVE & SALA (ACCESSO LIBERO) -->
+        <div class="hp-door-card hp-door-free">
+            <div class="hp-door-head">
+                <span class="hp-door-badge">Accesso Libero · Nessuna Password</span>
+                <div class="hp-door-icon"><svg class="ic"><use href="#i-gavel"/></svg></div>
+            </div>
+
+            <div>
+                <h2 class="hp-door-title">Asta Live & Maxischermo</h2>
+                <p class="hp-door-sub">
+                    Per fantallenatori, presidenti di lega, partecipanti e per la sala proiezioni.
+                </p>
+            </div>
+
+            <ul class="hp-door-features">
+                <li>
+                    <span class="hp-bullet-check">✓</span>
+                    <div><b>Partecipa all'Asta:</b> Fai offerte e rilanci in tempo reale da smartphone o PC senza credenziali admin.</div>
+                </li>
+                <li>
+                    <span class="hp-bullet-check">✓</span>
+                    <div><b>Maxischermo per la Sala:</b> Vista Full HD a tutto schermo per videoproiettore HDMI con audio e annunci.</div>
+                </li>
+                <li>
+                    <span class="hp-bullet-check">✓</span>
+                    <div><b>App Fantacalcio:</b> Gestione rosa, formazione e mercato a buste per ciascun presidente.</div>
+                </li>
+            </ul>
+
+            <div class="hp-door-actions">
+                <a class="hp-btn-large hp-btn-emerald" href="{% url 'join' %}">
+                    <svg class="ic" style="width:20px;height:20px"><use href="#i-gavel"/></svg>
+                    Partecipa all'Asta Live
+                </a>
+                {% if active_auction %}
+                <a class="fm-btn fm-btn-secondary" href="{% url 'screen' active_auction.id %}?t={{ active_auction.public_token }}" target="_blank">
+                    <svg class="ic"><use href="#i-tv"/></svg> Apri Maxischermo su Proiettore
+                </a>
+                {% else %}
+                <a class="fm-btn fm-btn-secondary" href="{% url 'admin_sessions' %}">
+                    <svg class="ic"><use href="#i-tv"/></svg> Maxischermo (Scegli Sessione)
+                </a>
+                {% endif %}
+                <a class="fm-btn fm-btn-ghost" href="{% url 'app_login' %}">
+                    <svg class="ic"><use href="#i-shield"/></svg> Portale App Allenatori (Rosa & Formazione)
+                </a>
+            </div>
+        </div>
+
+        <!-- DOOR 2: AREA MANAGERIALE & REGIA (LOGIN PROTETTO) -->
+        <div class="hp-door-card hp-door-admin">
+            <div class="hp-door-head">
+                <span class="hp-door-badge">Area Manageriale & Regia</span>
+                <div class="hp-door-icon"><svg class="ic"><use href="#i-shield"/></svg></div>
+            </div>
+
+            <div>
+                <h2 class="hp-door-title">Regia & Command Center</h2>
+                <p class="hp-door-sub">
+                    Riservato al banditore d'asta, regista e all'amministratore di lega.
+                </p>
+            </div>
+
+            <ul class="hp-door-features">
+                <li>
+                    <span class="hp-bullet-check">✓</span>
+                    <div><b>Regia d'Asta Live:</b> Chiamata calciatori, gestione timer, pause, rilanci da banco e annullamento lotti.</div>
+                </li>
+                <li>
+                    <span class="hp-bullet-check">✓</span>
+                    <div><b>Command Center / Dashboard:</b> Monitoraggio crediti, avanzamento rose e telemetria HUD.</div>
+                </li>
+                <li>
+                    <span class="hp-bullet-check">✓</span>
+                    <div><b>Buste & Riparazione:</b> Configurazione e spoglio automatico delle buste cieche con spareggio.</div>
+                </li>
+                <li>
+                    <span class="hp-bullet-check">✓</span>
+                    <div><b>Sincronizzazione Dati:</b> Integrazione Fantapazz, import listoni Excel Serie A e backup SQLite.</div>
+                </li>
+            </ul>
+
+            <!-- Managerial Login Form / Unlocked Status -->
+            <div class="hp-login-box">
+                {% if is_unlocked %}
+                <div class="hp-unlocked-card">
+                    <div class="hp-unlocked-status">
+                        <span class="hp-pulse-green"></span>
+                        <span>Autenticato come Amministratore</span>
+                    </div>
+                    <form method="post" action="{% url 'home' %}" style="display:inline">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="logout">
+                        <button type="submit" class="fm-btn fm-btn-ghost fm-btn-sm" style="padding:4px 8px;font-size:11px">
+                            Blocca Regia
+                        </button>
+                    </form>
+                </div>
+                <a class="hp-btn-large hp-btn-cyan" href="{% if current_league %}{% url 'dashboard_league' current_league.id %}{% else %}{% url 'dashboard' %}{% endif %}">
+                    <svg class="ic" style="width:20px;height:20px"><use href="#i-arrow-right"/></svg>
+                    Entra nel Command Center / Dashboard
+                </a>
+                {% else %}
+                <div class="hp-login-label">Accesso Sicuro Regia (PIN Amministratore)</div>
+                {% if error %}
+                <div class="hp-err-flash">{{ error }}</div>
+                {% endif %}
+                <form method="post" action="{% url 'home' %}">
+                    {% csrf_token %}
+                    <div class="hp-pin-row">
+                        <input class="hp-pin-input" type="password" name="pin" maxlength="12" placeholder="PIN REGIA" autofocus autocomplete="current-password">
+                        <button type="submit" class="fm-btn fm-btn-primary" style="padding:0 18px;font-weight:800">
+                            Accedi &rarr;
+                        </button>
+                    </div>
+                    <div class="hp-pin-hint" style="margin-top:6px">
+                        PIN predefinito: <b>{{ expected_pin }}</b> · Inserisci il PIN per entrare nella Dashboard.
+                    </div>
+                </form>
+                <a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% if current_league %}{% url 'dashboard_league' current_league.id %}{% else %}{% url 'dashboard' %}{% endif %}" style="justify-content:center;margin-top:4px">
+                    Accedi come Host Locale &rarr;
+                </a>
+                {% endif %}
+            </div>
+        </div>
+
+    </div>
+
+    <!-- 5. FOOTBAR -->
+    <footer class="hp-footbar">
+        <div class="foot-left">
+            <span><b>FantaManager Studio Core</b> · Esecuzione Standalone locale</span> · 
+            <span>Rete Locale: <b>http://localhost:8001/</b></span>
+        </div>
+        <div class="foot-right">
+            <a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% url 'admin_remote_page' %}">
+                <svg class="ic"><use href="#i-globe"/></svg> Accesso Remoto
+            </a>
+            <a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% url 'admin_config' %}">
+                <svg class="ic"><use href="#i-gear"/></svg> Configurazione
+            </a>
+        </div>
+    </footer>
+
+</div>
+{% endblock %}

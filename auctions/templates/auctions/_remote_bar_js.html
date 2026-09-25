@@ -1,0 +1,64 @@
+{% comment %}
+Behaviour for the compact remote strip. Kept separate from the console script so
+any page can drop in the bar. Every lookup is null-safe: the detailed page hosts
+the same status endpoint with a different DOM.
+{% endcomment %}
+<script>
+    let fmRemotePoll = null;
+    let fmRemoteUrl = "";
+
+    function fmRemoteBar(r) {
+        const pill = document.getElementById("rb-pill");
+        if (!pill) return;
+        const url  = document.getElementById("rb-url");
+        const copy = document.getElementById("rb-copy");
+        const act  = document.getElementById("rb-activate");
+        const det  = document.getElementById("rb-detail");
+        const on   = r.status === "on";
+        const busy = r.status === "preparing" || r.status === "starting";
+
+        const labels = { off: "Non attivo", preparing: "Preparazione…", starting: "Apertura…", on: "Attivo", error: "Errore" };
+        pill.innerHTML = '<span class="dot"></span>' + (labels[r.status] || r.status);
+        pill.className = "fm-badge " + (on ? "is-ok" : r.status === "error" ? "is-live" : "is-off");
+
+        fmRemoteUrl = r.url || "";
+        if (url)  { url.style.display = on ? "" : "none"; url.textContent = (r.url || "").replace(/^https?:\/\//, ""); url.href = r.url || "#"; }
+        if (copy) copy.style.display = on ? "" : "none";
+        if (act)  { act.style.display = on ? "none" : ""; act.disabled = busy; }
+        if (det)  det.textContent = r.error || r.detail || "";
+        if (det)  det.style.color = r.error ? "var(--fm-danger)" : "var(--fm-text-muted)";
+
+        if (busy && !fmRemotePoll) fmRemotePoll = setInterval(fmRemoteRefresh, 1500);
+        if (!busy && fmRemotePoll) { clearInterval(fmRemotePoll); fmRemotePoll = null; }
+    }
+    async function fmRemoteRefresh() {
+        try {
+            const d = await (await fetch("{% url 'admin_remote_status' %}")).json();
+            if (d.ok) fmRemoteBar(d.remote);
+        } catch (e) { /* transient: the next tick retries */ }
+    }
+    function fmCsrf() {
+        const m = document.cookie.match("(^|;)\\s*csrftoken\\s*=\\s*([^;]+)");
+        return m ? m.pop() : "";
+    }
+    async function fmRemoteStart() {
+        fmRemoteBar({ status: "preparing", detail: "Avvio…" });
+        try {
+            const r = await fetch("{% url 'admin_remote_start' %}", {
+                method: "POST",
+                headers: { "X-CSRFToken": fmCsrf(), "Content-Type": "application/x-www-form-urlencoded" },
+                body: new URLSearchParams({ port: location.port || "80" }),
+            });
+            const d = await r.json();
+            if (d.ok) fmRemoteBar(d.remote);
+            else showToast("✗ Avvio non riuscito", "bad");
+        } catch (e) { showToast("✗ Errore di rete", "bad"); }
+    }
+    function fmRemoteCopy() {
+        if (!fmRemoteUrl) return;
+        navigator.clipboard?.writeText(fmRemoteUrl).then(
+            () => showToast("Indirizzo copiato", "ok"),
+            () => showToast("Copia manualmente l'indirizzo", "bad"));
+    }
+    fmRemoteBar({{ remote_json|safe }});
+</script>

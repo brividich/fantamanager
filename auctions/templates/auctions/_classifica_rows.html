@@ -1,0 +1,35 @@
+{% for p in participants|dictsortreversed:"remaining_credits" %}
+<tr id="rank-{{ p.id }}" data-team="{{ p.display_name }}" {% if forloop.first %}class="leader"{% endif %}>
+    <td class="rank-cell">{{ forloop.counter }}</td>
+    <td>
+        <div class="team-cell">
+            {% if p.logo %}
+            <img class="team-crest" src="{{ p.logo.url }}" alt="">
+            {% else %}
+            <span class="team-crest is-initials">{{ p.display_name|slice:":2"|upper }}</span>
+            {% endif %}
+            <span class="team-cell-txt">
+                <span class="team-nm">{{ p.display_name }}</span>
+                {% if not p.is_active %}<span class="muted" style="font-size:10.5px">inattiva</span>{% endif %}
+            </span>
+        </div>
+    </td>
+    <td style="text-align:right">
+        <span class="cred-cell {% if p.credit_pct < 15 %}is-low{% elif p.credit_pct < 35 %}is-warn{% endif %}">
+            {{ p.remaining_credits|floatformat:0 }}</span>
+        <span class="unit">FM</span>
+        <span class="fm-meter {% if p.credit_pct < 15 %}is-low{% elif p.credit_pct < 35 %}is-warn{% else %}is-ok{% endif %}"
+              style="width:52px;margin-top:4px">
+            <span style="width:{{ p.credit_pct }}%"></span></span>
+    </td>
+    <td style="text-align:right" class="muted">{{ p.spent_credits|floatformat:0 }} <span class="unit">FM</span></td>
+    <td style="white-space:nowrap">
+        <span class="muted" style="font-size:12px">{{ p.roster_n }}{% if p.slots_total %} / {{ p.slots_total }}{% endif %}</span>
+        {% if p.slots_total %}
+        <span class="fm-meter"><span style="width:{{ p.roster_pct }}%"></span></span>
+        {% endif %}
+    </td>
+</tr>
+{% empty %}
+<tr><td colspan="5" class="fm-empty">Nessuna squadra ancora.</td></tr>
+{% endfor %}

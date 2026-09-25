@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Django
+db.sqlite3
+db.sqlite3-journal
+# WAL mode keeps two side files next to the database.
+db.sqlite3-wal
+db.sqlite3-shm
+*.log
+
+# Database backups (kept locally, never versioned)
+db.sqlite3.bak*
+backups/
+*.bak
+
+# Build / packaging artifacts
+build/
+dist/
+*.spec.bak
+*.zip
+logs/
+
+# Fantapazz roster downloads (transient)
+fp_rose_*
+
+# Environment
+.env
+
+# Secondary venvs
+.venv-1/
+.venv-mac/
+
+# Collaudo scratch (throwaway DB copies + probe scripts)
+.collaudo/
+
+# Media uploads (logos, photos)
+media/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

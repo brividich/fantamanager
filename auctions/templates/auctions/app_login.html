@@ -1,0 +1,387 @@
+{% extends "auctions/base.html" %}
+{% block title %}Accedi all'Area Manageriale — FantaManager{% endblock %}
+{% block bodyclass %}role-player app-mode{% endblock %}
+{% block wrapclass %}app-wrap{% endblock %}
+
+{% block content %}
+<style>
+    .login-container {
+        max-width: 440px;
+        margin: 40px auto;
+        padding: 0 16px;
+    }
+
+    .brand-hero {
+        text-align: center;
+        margin-bottom: 28px;
+    }
+    .brand-hero .logo-box {
+        width: 54px; height: 54px; border-radius: 14px;
+        display: inline-flex; align-items: center; justify-content: center;
+        font-family: var(--display); font-weight: 900; font-size: 22px;
+        color: #0a1108; background: var(--accent);
+        box-shadow: 0 0 24px -4px var(--accent-glow);
+        margin-bottom: 12px;
+    }
+    .brand-hero h1 {
+        font-family: var(--display); font-weight: 900; font-size: 24px;
+        letter-spacing: .02em; text-transform: uppercase;
+        margin: 0 0 6px; color: var(--ink);
+    }
+    .brand-hero p {
+        font-size: 13px; color: var(--muted); margin: 0;
+    }
+
+    .login-card {
+        background: var(--card-bg, #181d28);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 24px 20px;
+        box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
+    }
+
+    .tab-switch {
+        display: flex;
+        background: rgba(0, 0, 0, 0.25);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 3px;
+        margin-bottom: 20px;
+        gap: 4px;
+    }
+    .tab-btn {
+        flex: 1;
+        padding: 8px 12px;
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        text-align: center;
+        border-radius: 7px;
+        border: none;
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+        transition: all .15s;
+    }
+    .tab-btn.is-active {
+        background: var(--accent);
+        color: #0a1108;
+        box-shadow: 0 2px 10px -2px var(--accent-glow);
+    }
+
+    .form-group {
+        margin-bottom: 16px;
+    }
+    .form-group label {
+        display: block;
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .05em;
+        color: var(--muted);
+        margin-bottom: 6px;
+    }
+    .form-group input, .form-group select {
+        width: 100%;
+        padding: 12px 14px;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        background: rgba(0, 0, 0, 0.25);
+        color: var(--ink);
+        font-size: 15px;
+        transition: border-color .15s;
+        box-sizing: border-box;
+    }
+    .form-group input:focus, .form-group select:focus {
+        border-color: var(--accent);
+        outline: none;
+    }
+    .code-input {
+        font-size: 20px !important;
+        font-weight: 800;
+        letter-spacing: 0.15em;
+        text-align: center;
+        text-transform: uppercase;
+    }
+
+    .btn-submit {
+        width: 100%;
+        padding: 14px;
+        font-size: 15px;
+        font-weight: 800;
+        border-radius: 10px;
+        border: none;
+        background: var(--accent);
+        color: #0a1108;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        transition: opacity .15s, transform .1s;
+    }
+    .btn-submit:hover { opacity: .95; }
+    .btn-submit:active { transform: scale(0.99); }
+
+    .error-flash {
+        background: rgba(239, 68, 68, 0.12);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        color: #ef4444;
+        padding: 10px 14px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        margin-bottom: 16px;
+    }
+
+    .free-auction-callout {
+        margin-top: 24px;
+        text-align: center;
+        padding: 16px;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+    }
+    .free-auction-callout p {
+        font-size: 12px;
+        color: var(--muted);
+        margin: 0 0 10px;
+    }
+    .free-auction-callout a {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--gold, #ffb526);
+        font-size: 13px;
+        font-weight: 700;
+        text-decoration: none;
+    }
+    .free-auction-callout a:hover {
+        text-decoration: underline;
+    }
+</style>
+
+<div class="login-container">
+    <div class="brand-hero">
+        <div class="logo-box">FM</div>
+        <h1>FantaManager</h1>
+        <p>Area Manageriale &bull; Rosa, Formazione e Buste di Mercato</p>
+    </div>
+
+    <div class="login-card">
+        {% if error %}
+        <div class="error-flash">
+            <svg class="ic" style="width:14px;height:14px;vertical-align:-2px"><use href="#i-x"/></svg>
+            {{ error }}
+        </div>
+        {% endif %}
+
+        <div class="tab-switch">
+            <button type="button" class="tab-btn {% if active_mode == 'account' %}is-active{% endif %}" id="tab-btn-account" onclick="switchLoginMode('account')">
+                <svg class="ic" style="width:13px;height:13px;vertical-align:-1px"><use href="#i-user"/></svg> Account
+            </button>
+            <button type="button" class="tab-btn {% if active_mode == 'code' %}is-active{% endif %}" id="tab-btn-code" onclick="switchLoginMode('code')">
+                <svg class="ic" style="width:13px;height:13px;vertical-align:-1px"><use href="#i-shield"/></svg> Codice Squadra
+            </button>
+            <button type="button" class="tab-btn {% if active_mode == 'select' %}is-active{% endif %}" id="tab-btn-select" onclick="switchLoginMode('select')">
+                <svg class="ic" style="width:13px;height:13px;vertical-align:-1px"><use href="#i-users"/></svg> Seleziona Squadra
+            </button>
+        </div>
+
+        <!-- Opzione 1: Account (Username / Email + Password) -->
+        <form method="post" id="form-account" action="{% url 'app_login' %}" style="{% if active_mode != 'account' %}display:none{% endif %}">
+            {% csrf_token %}
+            <input type="hidden" name="login_mode" value="account">
+            {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+
+            {% if user.is_authenticated %}
+            <div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);border-radius:10px;padding:12px;margin-bottom:14px;text-align:center">
+                <div style="font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:4px">Account Attivo</div>
+                <div style="font-weight:800;font-size:15px;color:#22c55e">{{ user.username }}</div>
+                {% if user_teams %}
+                <div style="font-size:12px;color:var(--muted);margin-top:4px">
+                    Squadra: <b>{{ user_teams.0.display_name }}</b>{% if user_teams.0.league %} ({{ user_teams.0.league.name }}){% endif %}
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <div class="form-group">
+                <label for="acc_identifier">Nome Utente o Email</label>
+                <input type="text" id="acc_identifier" name="identifier"
+                       placeholder="Es. mario o mario@email.it"
+                       value="{% if user.is_authenticated %}{{ user.username }}{% endif %}"
+                       autocomplete="username" required>
+            </div>
+
+            <div class="form-group">
+                <label for="acc_password">Password</label>
+                <input type="password" id="acc_password" name="password"
+                       placeholder="••••••••" autocomplete="current-password" required>
+            </div>
+
+            <button type="submit" class="btn-submit" id="btn-submit-account">
+                Entra con Account &rarr;
+            </button>
+
+            <div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;font-size:12px">
+                <a href="{% url 'register' %}" style="color:var(--accent);text-decoration:none;font-weight:600">
+                    Crea account
+                </a>
+                <a href="{% url 'home' %}" style="color:var(--muted);text-decoration:none">
+                    Portale generale &rarr;
+                </a>
+            </div>
+        </form>
+
+        <!-- Opzione 2: Codice rapido -->
+        <form method="post" id="form-code" action="{% url 'app_login' %}" style="{% if active_mode != 'code' %}display:none{% endif %}">
+            {% csrf_token %}
+            <input type="hidden" name="login_mode" value="code">
+            {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+
+            <div class="form-group">
+                <label for="access_code_quick">Inserisci il codice della tua squadra</label>
+                <input type="text" id="access_code_quick" name="access_code" class="code-input"
+                       placeholder="ES. DRAGO23" maxlength="64" autocomplete="off">
+                <div class="muted" style="font-size:11px;margin-top:5px;text-align:center">
+                    Il codice univoco fornito dall'amministratore della lega.
+                </div>
+            </div>
+
+            <button type="submit" class="btn-submit">
+                Entra con Codice &rarr;
+            </button>
+        </form>
+
+        <!-- Opzione 3: Selezione guidata (Lega -> Squadra) -->
+        <form method="post" id="form-select" action="{% url 'app_login' %}" style="{% if active_mode != 'select' %}display:none{% endif %}">
+            {% csrf_token %}
+            <input type="hidden" name="login_mode" value="select">
+            {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+
+            <div class="form-group">
+                <label for="league_select">Lega</label>
+                <select id="league_select" onchange="onLeagueChanged()">
+                    <option value="">— Seleziona la tua lega —</option>
+                    {% for lg in leagues %}
+                    <option value="{{ lg.id }}">{{ lg.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group" id="group-team" style="display:none">
+                <label for="participant_select">Squadra</label>
+                <select id="participant_select" name="participant_id" onchange="onTeamChanged()">
+                    <option value="">— Seleziona squadra —</option>
+                </select>
+            </div>
+
+            <div class="form-group" id="group-code" style="display:none">
+                <label for="access_code_guided">Codice squadra (se protetta)</label>
+                <input type="password" id="access_code_guided" name="access_code"
+                       placeholder="Codice di sicurezza" maxlength="64" autocomplete="off">
+            </div>
+
+            <button type="submit" class="btn-submit" id="btn-submit-select" style="display:none">
+                Entra con Squadra &rarr;
+            </button>
+        </form>
+    </div>
+
+    <!-- Callout per Asta Live Libera -->
+    <div class="free-auction-callout">
+        <p>Devi partecipare a un'asta dal vivo?</p>
+        <a href="{% url 'join' %}">
+            <svg class="ic" style="width:16px;height:16px"><use href="#i-gavel"/></svg>
+            Entra direttamente nell'Asta Live (Libera) &rarr;
+        </a>
+    </div>
+</div>
+
+<script>
+    const LEAGUE_TEAMS = {
+        {% for lg in leagues %}
+        "{{ lg.id }}": [
+            {% for p in lg.participants.all %}
+            { id: "{{ p.id }}", name: "{{ p.display_name|escapejs }}", has_code: {% if p.access_code %}true{% else %}false{% endif %} },
+            {% endfor %}
+        ],
+        {% endfor %}
+    };
+
+    function switchLoginMode(mode) {
+        const modes = ['account', 'code', 'select'];
+        modes.forEach(m => {
+            const btn = document.getElementById("tab-btn-" + m);
+            const form = document.getElementById("form-" + m);
+            if (btn && form) {
+                if (m === mode) {
+                    btn.classList.add("is-active");
+                    form.style.display = "block";
+                    if (m === 'account') {
+                        const inp = document.getElementById("acc_identifier");
+                        if (inp && !inp.value) inp.focus();
+                    } else if (m === 'code') {
+                        const inp = document.getElementById("access_code_quick");
+                        if (inp) inp.focus();
+                    }
+                } else {
+                    btn.classList.remove("is-active");
+                    form.style.display = "none";
+                }
+            }
+        });
+    }
+
+    function onLeagueChanged() {
+        const leagueId = document.getElementById("league_select").value;
+        const groupTeam = document.getElementById("group-team");
+        const selectTeam = document.getElementById("participant_select");
+        const groupCode = document.getElementById("group-code");
+        const btnSubmit = document.getElementById("btn-submit-select");
+
+        selectTeam.innerHTML = '<option value="">— Seleziona squadra —</option>';
+        groupCode.style.display = "none";
+        btnSubmit.style.display = "none";
+
+        if (!leagueId || !LEAGUE_TEAMS[leagueId]) {
+            groupTeam.style.display = "none";
+            return;
+        }
+
+        const teams = LEAGUE_TEAMS[leagueId];
+        teams.forEach(t => {
+            const opt = document.createElement("option");
+            opt.value = t.id;
+            opt.textContent = t.name;
+            opt.dataset.hasCode = t.has_code ? "1" : "0";
+            selectTeam.appendChild(opt);
+        });
+
+        groupTeam.style.display = "block";
+    }
+
+    function onTeamChanged() {
+        const selectTeam = document.getElementById("participant_select");
+        const groupCode = document.getElementById("group-code");
+        const btnSubmit = document.getElementById("btn-submit-select");
+
+        if (!selectTeam.value) {
+            groupCode.style.display = "none";
+            btnSubmit.style.display = "none";
+            return;
+        }
+
+        const selectedOpt = selectTeam.selectedOptions[0];
+        const hasCode = selectedOpt && selectedOpt.dataset.hasCode === "1";
+
+        groupCode.style.display = hasCode ? "block" : "none";
+        btnSubmit.style.display = "flex";
+        if (hasCode) {
+            document.getElementById("access_code_guided").focus();
+        }
+    }
+</script>
+{% endblock %}

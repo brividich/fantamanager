@@ -1,0 +1,239 @@
+{% extends "auctions/base.html" %}
+{% comment %}
+Product shell — the mobile-first FantaManager app frame.
+
+Extends the shared design system (base.html) and adds the persistent chrome:
+  · top bar   — brand mark + league/team context + notifications
+  · main nav  — bottom-nav on phones, side-rail on desktop (>= 880px)
+Tab templates extend THIS and fill {% block app %}. Each view passes
+`active_tab` (home/rosa/live/lega/mercato/altro) so the nav highlights.
+
+Identity = the session participant (join via league code) — no separate login.
+{% endcomment %}
+{% block bodyclass %}role-player app-mode{% endblock %}
+{% block wrapclass %}app-wrap{% endblock %}
+
+{% block content %}
+<style>
+    /* Neutralise base .wrap constraints — the shell owns the whole viewport */
+    .wrap.app-wrap { max-width: none; margin: 0; padding: 0; }
+
+    /* ---- Top bar ------------------------------------------------------- */
+    .app-top {
+        position: sticky; top: 0; z-index: 70;
+        display: flex; align-items: center; gap: 12px;
+        height: 56px; padding: 0 14px;
+        background: var(--bg-deep); border-bottom: 1px solid var(--line);
+    }
+    .app-top .app-mark {
+        width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0;
+        display: flex; align-items: center; justify-content: center;
+        font-family: var(--display); font-weight: 900; font-size: 15px; letter-spacing: .02em;
+        color: #0a1108; background: var(--accent);
+        box-shadow: 0 0 18px -4px var(--accent-glow);
+    }
+    .app-ctx {
+        flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center;
+        gap: 1px; text-decoration: none; color: inherit;
+    }
+    .app-ctx .ac-league {
+        font-family: var(--display); font-weight: 900; font-size: 15px;
+        text-transform: uppercase; letter-spacing: .03em; color: var(--ink);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.05;
+    }
+    .app-ctx .ac-team {
+        font-size: 11px; color: var(--muted); font-weight: 600;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        display: inline-flex; align-items: center; gap: 5px;
+    }
+    .app-ctx .ac-team .ic { width: 12px; height: 12px; }
+    .app-bell {
+        position: relative; flex-shrink: 0;
+        width: 38px; height: 38px; border-radius: 10px;
+        display: flex; align-items: center; justify-content: center;
+        color: var(--ink); background: var(--panel-2); border: 1px solid var(--line);
+        text-decoration: none;
+    }
+    .app-bell .ic { width: 18px; height: 18px; }
+    .app-bell .dot {
+        position: absolute; top: 7px; right: 8px;
+        width: 8px; height: 8px; border-radius: 50%;
+        background: var(--live, #13b5ff); box-shadow: 0 0 8px var(--accent-glow);
+    }
+
+    /* ---- Main nav — bottom-nav (mobile-first) -------------------------- */
+    .app-nav {
+        position: fixed; left: 0; right: 0; bottom: 0; z-index: 65;
+        display: flex; align-items: stretch;
+        background: var(--bg-deep); border-top: 1px solid var(--line);
+        padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+    }
+    .app-nav a {
+        flex: 1; min-width: 0;
+        display: flex; flex-direction: column; align-items: center; gap: 3px;
+        padding: 6px 2px; border-radius: 11px;
+        color: var(--muted); text-decoration: none;
+        font-family: var(--sans); font-weight: 700; font-size: 9.5px;
+        letter-spacing: .03em; text-transform: uppercase;
+        transition: color .14s, background .14s;
+    }
+    .app-nav a .ic { width: 22px; height: 22px; stroke-width: 2; }
+    .app-nav a:active { background: var(--panel-2); }
+    .app-nav a.active { color: var(--accent); }
+    .app-nav a.active .ic { filter: drop-shadow(0 0 6px var(--accent-glow)); }
+
+    /* ---- Main content region ------------------------------------------ */
+    .app-main {
+        padding: 16px 14px 88px;
+        max-width: 780px; margin: 0 auto;
+    }
+    .app-main > * + * { margin-top: 14px; }
+
+    /* Section heading shared by tabs */
+    .tab-head { margin: 2px 0 2px; }
+    .tab-head h1 {
+        font-family: var(--display); font-weight: 900; font-size: 26px;
+        text-transform: uppercase; letter-spacing: .02em; line-height: 1; color: var(--ink);
+    }
+    .tab-head p { margin-top: 5px; font-size: 12.5px; color: var(--muted); }
+
+    /* "In arrivo" placeholder — honest empty state for not-yet-built areas */
+    .soon {
+        display: flex; flex-direction: column; align-items: center; gap: 10px;
+        text-align: center; padding: 30px 20px;
+        border: 1px dashed var(--line); border-radius: var(--radius);
+        background: var(--panel-2); color: var(--muted);
+    }
+    .soon .ic { width: 30px; height: 30px; color: var(--accent); opacity: .8; }
+    .soon b { color: var(--ink); font-family: var(--display); font-size: 17px;
+              text-transform: uppercase; letter-spacing: .04em; }
+    .soon span { font-size: 12.5px; max-width: 34ch; line-height: 1.5; }
+    .soon-tag {
+        margin-top: 2px; font-size: 9.5px; font-weight: 800; letter-spacing: .16em;
+        text-transform: uppercase; color: var(--accent);
+        padding: 4px 10px; border: 1px solid var(--accent-line);
+        background: var(--accent-soft); border-radius: 999px;
+    }
+
+    /* ---- Shared content helpers (used by every tab) ------------------- */
+    .a-card {
+        background: var(--panel); border: 1px solid var(--line);
+        border-radius: var(--radius); padding: 16px;
+    }
+    .a-card > .a-label { margin-bottom: 12px; }
+    .a-label {
+        display: flex; align-items: center; gap: 8px;
+        font-family: var(--display); font-weight: 800; font-size: 13px;
+        text-transform: uppercase; letter-spacing: .12em; color: var(--accent);
+    }
+    .a-label .ic { width: 16px; height: 16px; }
+
+    /* Stat tiles */
+    .a-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .a-stat {
+        background: var(--panel-2); border: 1px solid var(--line);
+        border-radius: var(--radius-sm); padding: 12px 10px; text-align: center;
+    }
+    .a-stat .v { font-family: var(--display); font-weight: 900; font-size: 26px;
+                 line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
+    .a-stat .v small { font-size: 12px; color: var(--muted); font-weight: 800; }
+    .a-stat .k { margin-top: 5px; font-size: 9.5px; font-weight: 800; letter-spacing: .1em;
+                 text-transform: uppercase; color: var(--muted); }
+
+    /* List rows */
+    .a-row { display: flex; align-items: center; gap: 10px; padding: 10px 2px;
+             border-bottom: 1px solid var(--line); }
+    .a-row:last-child { border-bottom: none; }
+    .a-row .nm { flex: 1; min-width: 0; font-weight: 600; font-size: 14px;
+                 white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .a-row .nm small { display: block; font-size: 11px; color: var(--muted); font-weight: 500; }
+    .a-row .val { font-family: var(--display); font-weight: 800; font-variant-numeric: tabular-nums;
+                  white-space: nowrap; }
+    .a-rank { width: 22px; text-align: center; font-family: var(--display); font-weight: 900;
+              color: var(--muted); font-size: 15px; }
+    .a-rank.top { color: var(--accent); }
+
+    /* Big primary call-to-action card (jump into the live auction, etc.) */
+    .a-cta {
+        display: flex; align-items: center; gap: 14px; padding: 16px;
+        border-radius: var(--radius); text-decoration: none;
+        background: var(--accent-soft); border: 1px solid var(--accent-line);
+        color: var(--ink);
+    }
+    .a-cta .ic { width: 26px; height: 26px; color: var(--accent); flex-shrink: 0; }
+    .a-cta .t { flex: 1; min-width: 0; }
+    .a-cta .t b { display: block; font-family: var(--display); font-weight: 900; font-size: 17px;
+                  text-transform: uppercase; letter-spacing: .02em; color: var(--ink); }
+    .a-cta .t span { font-size: 12px; color: var(--muted); }
+    .a-cta .go { font-family: var(--display); font-weight: 900; color: var(--accent); font-size: 22px; }
+
+    /* Roster role group header */
+    .a-rolehdr {
+        display: flex; align-items: center; gap: 8px; margin: 14px 2px 4px;
+        font-size: 10px; font-weight: 800; letter-spacing: .2em; text-transform: uppercase;
+        color: var(--muted);
+    }
+    .a-rolehdr:first-child { margin-top: 2px; }
+
+    /* ---- Desktop: nav becomes a left side-rail ------------------------- */
+    @media (min-width: 880px) {
+        .app-nav {
+            top: 56px; bottom: 0; right: auto; width: 216px;
+            flex-direction: column; align-items: stretch; justify-content: flex-start;
+            gap: 4px; padding: 16px 12px;
+            border-top: none; border-right: 1px solid var(--line);
+        }
+        .app-nav a {
+            flex: none; flex-direction: row; justify-content: flex-start;
+            gap: 13px; width: 100%; padding: 12px 14px;
+            font-size: 13px; letter-spacing: .07em;
+        }
+        .app-nav a .ic { width: 20px; height: 20px; }
+        .app-nav a.active { background: var(--accent-soft); }
+        .app-main {
+            margin: 0 0 0 216px; max-width: 960px;
+            padding: 26px 32px 48px;
+        }
+    }
+</style>
+
+<header class="app-top">
+    <div class="app-mark">FM</div>
+    <a class="app-ctx" href="{% url 'join' %}" title="Cambia lega / squadra">
+        <span class="ac-league">{% if app_league %}{{ app_league.name }}{% else %}FantaManager{% endif %}</span>
+        <span class="ac-team">
+            <svg class="ic"><use href="#i-shield"/></svg>
+            {% if participant %}{{ participant.display_name }}{% else %}Nessuna squadra{% endif %}
+        </span>
+    </a>
+    {% if request.user.is_authenticated %}
+    <a class="app-bell" href="{% url 'logout' %}" title="Esci ({{ request.user.username }})" style="color:#ef4444">
+        <svg class="ic"><use href="#i-logout"/></svg>
+    </a>
+    {% else %}
+    <a class="app-bell" href="{% url 'app_altro' %}" title="Notifiche / Altro">
+        <svg class="ic"><use href="#i-bell"/></svg>
+        {% if active_auction %}<span class="dot"></span>{% endif %}
+    </a>
+    {% endif %}
+</header>
+
+<main class="app-main">
+    {% block app %}{% endblock %}
+</main>
+
+<nav class="app-nav">
+    <a href="{% url 'app_home' %}"    class="{% if active_tab == 'home' %}active{% endif %}">
+        <svg class="ic"><use href="#i-home"/></svg>Home</a>
+    <a href="{% url 'app_rosa' %}"    class="{% if active_tab == 'rosa' %}active{% endif %}">
+        <svg class="ic"><use href="#i-shirt"/></svg>Rosa</a>
+    <a href="{% url 'app_live' %}"    class="{% if active_tab == 'live' %}active{% endif %}">
+        <svg class="ic"><use href="#i-pulse"/></svg>Live</a>
+    <a href="{% url 'app_lega' %}"    class="{% if active_tab == 'lega' %}active{% endif %}">
+        <svg class="ic"><use href="#i-trophy"/></svg>Lega</a>
+    <a href="{% url 'app_mercato' %}" class="{% if active_tab == 'mercato' %}active{% endif %}">
+        <svg class="ic"><use href="#i-swap"/></svg>Mercato</a>
+    <a href="{% url 'app_altro' %}"   class="{% if active_tab == 'altro' %}active{% endif %}">
+        <svg class="ic"><use href="#i-menu"/></svg>Altro</a>
+</nav>
+{% endblock %}

@@ -1,0 +1,95 @@
+{% extends "auctions/app_base.html" %}
+{% block title %}Live — FantaManager{% endblock %}
+{% block app %}
+<style>
+    .live-score-card {
+        padding: 16px; border-radius: 14px;
+        background: linear-gradient(135deg, rgba(19,181,255,.12), rgba(0,229,153,.06));
+        border: 1px solid rgba(19,181,255,.25);
+        display: flex; align-items: center; justify-content: space-between;
+    }
+    .ls-total { font-family: var(--display); font-weight: 900; font-size: 32px; color: var(--ink); line-height: 1; }
+    .ls-goals { font-size: 18px; color: var(--accent); font-weight: 800; margin-left: 6px; }
+    .perf-row {
+        padding: 10px 14px; border-bottom: 1px solid var(--line);
+        display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    }
+    .perf-row:last-child { border-bottom: none; }
+    .perf-info { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .perf-name { font-weight: 800; font-size: 14px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .perf-bonus { display: flex; gap: 4px; font-size: 12px; }
+    .perf-vote { font-family: var(--display); font-weight: 900; font-size: 16px; color: var(--ink); text-align: right; }
+    .perf-vote.sv { color: var(--muted); font-size: 13px; font-weight: 700; }
+</style>
+
+<div class="tab-head">
+    <h1>Live</h1>
+    <p>Voti e punteggi della giornata in diretta</p>
+</div>
+
+{% if active_auction %}
+<a class="a-cta" href="{% url 'bid' active_auction.id %}">
+    <svg class="ic"><use href="#i-gavel"/></svg>
+    <span class="t">
+        <b>Asta in diretta</b>
+        <span>{{ active_auction.title }} · entra nella sala</span>
+    </span>
+    <span class="go">›</span>
+</a>
+{% endif %}
+
+{% if giornata %}
+<div class="live-score-card">
+    <div>
+        <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">
+            Giornata {{ giornata.number }} · {{ giornata.get_status_display }}
+        </div>
+        <div style="font-size:14px;font-weight:800;color:var(--ink);margin-top:2px">
+            {{ participant.display_name }}
+        </div>
+    </div>
+    {% if my_score %}
+    <div style="text-align:right">
+        <span class="ls-total">{{ my_score.total|floatformat:1 }}</span>
+        <span class="ls-goals">({{ my_score.goals }} gol)</span>
+    </div>
+    {% endif %}
+</div>
+
+{% if lineup_performances %}
+<div class="a-card" style="margin-top:14px">
+    <div class="a-label"><svg class="ic"><use href="#i-shield"/></svg> Titolari schierati</div>
+    {% for item in lineup_performances %}
+    <div class="perf-row">
+        <div class="perf-info">
+            <span class="role-badge role-{{ item.player.role }}">{{ item.player.role }}</span>
+            <div>
+                <div class="perf-name">{{ item.player.name }}</div>
+                <div class="perf-bonus">
+                    {% if item.goals %}<span title="Gol">⚽ {{ item.goals }}</span>{% endif %}
+                    {% if item.assists %}<span title="Assist">🎯 {{ item.assists }}</span>{% endif %}
+                    {% if item.yellow %}<span title="Ammonizione">🟨</span>{% endif %}
+                    {% if item.red %}<span title="Espulsione">🟥</span>{% endif %}
+                </div>
+            </div>
+        </div>
+        <div>
+            {% if item.has_vote %}
+            <span class="perf-vote">{{ item.vote|floatformat:1 }}</span>
+            {% else %}
+            <span class="perf-vote sv">s.v.</span>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% else %}
+<div class="soon">
+    <svg class="ic"><use href="#i-pulse"/></svg>
+    <b>Nessuna giornata in corso</b>
+    <span>Bonus, malus e fantavoti in tempo reale compariranno qui non appena inizieranno le giornate di campionato della tua lega.</span>
+</div>
+{% endif %}
+{% endblock %}

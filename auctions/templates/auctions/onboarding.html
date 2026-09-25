@@ -1,0 +1,249 @@
+{% extends "auctions/base.html" %}
+{% block title %}Benvenuto — Configura la tua Esperienza{% endblock %}
+{% block bodyclass %}role-player{% endblock %}
+{% block wrapclass %}wrap-wide{% endblock %}
+
+{% block content %}
+<style>
+    .onboarding-wrap {
+        max-width: 900px;
+        margin: 32px auto;
+        padding: 0 16px;
+    }
+    .onboarding-hero {
+        text-align: center;
+        margin-bottom: 36px;
+    }
+    .onboarding-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(34, 197, 94, 0.15);
+        border: 1px solid rgba(34, 197, 94, 0.4);
+        padding: 6px 14px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        color: #4ade80;
+        margin-bottom: 12px;
+    }
+    .onboarding-title {
+        font-size: 32px;
+        font-weight: 900;
+        letter-spacing: -0.02em;
+        margin: 0 0 8px;
+    }
+    .onboarding-sub {
+        font-size: 16px;
+        color: var(--muted, #94a3b8);
+        margin: 0;
+    }
+
+    .onboarding-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+        gap: 24px;
+        margin-bottom: 30px;
+    }
+    .onboarding-card {
+        background: var(--panel, #12151c);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 16px;
+        padding: 30px 26px;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35);
+        position: relative;
+        transition: transform .2s ease, border-color .2s ease;
+    }
+    .onboarding-card:hover {
+        transform: translateY(-3px);
+        border-color: rgba(255, 255, 255, 0.2);
+    }
+    .onboarding-card.primary {
+        border-color: rgba(37, 99, 235, 0.45);
+        background: linear-gradient(180deg, rgba(37, 99, 235, 0.08) 0%, rgba(18, 21, 28, 0.95) 100%);
+    }
+    .card-icon {
+        width: 52px;
+        height: 52px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 26px;
+        margin-bottom: 18px;
+    }
+    .card-icon.blue { background: rgba(37, 99, 235, 0.2); color: #60a5fa; border: 1px solid rgba(37, 99, 235, 0.4); }
+    .card-icon.green { background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4); }
+
+    .card-title {
+        font-size: 20px;
+        font-weight: 800;
+        margin: 0 0 8px;
+    }
+    .card-desc {
+        font-size: 14px;
+        color: var(--muted, #94a3b8);
+        line-height: 1.5;
+        margin: 0 0 22px;
+        flex-grow: 1;
+    }
+
+    .form-group {
+        margin-bottom: 16px;
+    }
+    .form-group label {
+        display: block;
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .06em;
+        color: var(--muted, #94a3b8);
+        margin-bottom: 5px;
+    }
+    .form-group input, .form-group select {
+        width: 100%;
+        background: rgba(15, 23, 42, 0.7);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        color: var(--text, #f8fafc);
+        padding: 10px 12px;
+        border-radius: 8px;
+        font-size: 14px;
+        box-sizing: border-box;
+    }
+    .form-group input:focus, .form-group select:focus {
+        outline: none;
+        border-color: var(--accent, #3b82f6);
+    }
+
+    .btn-action {
+        width: 100%;
+        padding: 12px 16px;
+        border-radius: 8px;
+        border: none;
+        font-size: 14px;
+        font-weight: 800;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        transition: opacity .15s;
+    }
+    .btn-action.primary {
+        background: linear-gradient(135deg, #2563eb, #1d4ed8);
+        color: #fff;
+        box-shadow: 0 6px 16px rgba(37, 99, 235, 0.35);
+    }
+    .btn-action.secondary {
+        background: linear-gradient(135deg, #059669, #047857);
+        color: #fff;
+        box-shadow: 0 6px 16px rgba(16, 185, 129, 0.3);
+    }
+    .btn-action:hover {
+        opacity: .92;
+    }
+
+    .auth-alert {
+        background: rgba(239, 68, 68, 0.12);
+        border: 1px solid rgba(239, 68, 68, 0.35);
+        color: #f87171;
+        padding: 12px 14px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        margin-bottom: 24px;
+        text-align: center;
+    }
+</style>
+
+<div class="onboarding-wrap">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <div style="font-size:13px;color:var(--muted)">Autenticato come <b>{{ request.user.username }}</b></div>
+        <a href="{% url 'logout' %}" style="font-size:13px;color:#ef4444;text-decoration:none;font-weight:700">Disconnetti</a>
+    </div>
+
+    <div class="onboarding-hero">
+        <div class="onboarding-badge">
+            <svg class="ic" style="width:14px;height:14px"><use href="#i-wave"/></svg>
+            Benvenuto in FantaManager
+        </div>
+        <h1 class="onboarding-title">Come vuoi iniziare?</h1>
+        <p class="onboarding-sub">Scegli se creare una nuova lega come Presidente o unirti a una già creata come Fantallenatore.</p>
+    </div>
+
+    {% if error %}
+    <div class="auth-alert">
+        <svg class="ic" style="vertical-align:-2px;margin-right:4px"><use href="#i-info"/></svg>
+        {{ error }}
+    </div>
+    {% endif %}
+
+    <div class="onboarding-grid">
+        <!-- 1. CREA LEGA -->
+        <div class="onboarding-card primary">
+            <div class="card-icon blue">👑</div>
+            <h2 class="card-title">Crea una nuova Lega</h2>
+            <p class="card-desc">Diventa il Presidente e organizzatore. Configura le regole, importa il listone, organizza l'asta dal vivo e gestisci le rose.</p>
+
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="create_league">
+
+                <div class="form-group">
+                    <label for="id_name">Nome della Lega</label>
+                    <input id="id_name" type="text" name="name" required placeholder="es. Serie A tra Amici 2026/27">
+                </div>
+
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                    <div class="form-group">
+                        <label for="id_mode">Modalità</label>
+                        <select id="id_mode" name="game_mode">
+                            <option value="CLASSIC" selected>Classic (P-D-C-A)</option>
+                            <option value="MANTRA">Mantra</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="id_budget">Budget Squadre</label>
+                        <input id="id_budget" type="number" name="budget" value="500" min="100" max="2000">
+                    </div>
+                </div>
+
+                <div style="margin-top:18px">
+                    <button type="submit" class="btn-action primary">
+                        Crea Lega e Apri Regia →
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- 2. UNISCITI A LEGA -->
+        <div class="onboarding-card">
+            <div class="card-icon green">⚽</div>
+            <h2 class="card-title">Unisciti a una Lega</h2>
+            <p class="card-desc">Sei un fantallenatore invitato da un presidente? Inserisci il codice squadra che ti è stato fornito per associare la tua rosa.</p>
+
+            <form method="post" style="display:flex;flex-direction:column;flex-grow:1;justify-content:flex-end">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="join_team">
+
+                <div class="form-group">
+                    <label for="id_access_code">Codice Squadra / Token</label>
+                    <input id="id_access_code" type="text" name="access_code" required
+                           placeholder="es. REAL01"
+                           style="font-size:18px;letter-spacing:0.12em;text-transform:uppercase;text-align:center">
+                </div>
+
+                <div style="margin-top:18px">
+                    <button type="submit" class="btn-action secondary">
+                        Associa Squadra ed Entra →
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

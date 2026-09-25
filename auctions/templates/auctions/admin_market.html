@@ -1,0 +1,567 @@
+{% extends "auctions/base.html" %}
+{% block title %}Mercato a Buste — FantaManager{% endblock %}
+{% block bodyclass %}role-admin{% endblock %}
+{% block wrapclass %}wrap-wide{% endblock %}
+
+{% block content %}
+<style>
+    .market-header {
+        display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+        margin-bottom: 18px;
+    }
+    .market-grid {
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        gap: 20px;
+        align-items: start;
+    }
+    @media (max-width: 960px) {
+        .market-grid { grid-template-columns: 1fr; }
+    }
+
+    .sess-card {
+        background: var(--card-bg, #181d28);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 14px 16px;
+        margin-bottom: 10px;
+        cursor: pointer;
+        text-decoration: none;
+        display: block;
+        color: inherit;
+        transition: border-color .15s, transform .15s, background .15s;
+    }
+    .sess-card:hover {
+        border-color: var(--accent);
+        background: var(--card-hover, #1f2533);
+    }
+    .sess-card.is-active {
+        border-color: var(--accent);
+        background: var(--accent-soft, rgba(34, 197, 94, 0.08));
+        box-shadow: 0 0 0 1px var(--accent);
+    }
+    .sess-title {
+        font-weight: 700;
+        font-size: 15px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 6px;
+    }
+    .sess-meta {
+        font-size: 12px;
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .badge-status {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: 3px 8px;
+        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+    .status-open { background: rgba(34, 197, 94, 0.15); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3); }
+    .status-closed { background: rgba(234, 179, 8, 0.15); color: #eab308; border: 1px solid rgba(234, 179, 8, 0.3); }
+    .status-resolved { background: rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3); }
+
+    .role-badge {
+        display: inline-block; width: 22px; height: 22px; line-height: 22px;
+        border-radius: 50%; font-size: 11px; font-weight: 800; text-align: center;
+    }
+    .role-P { background: #fef08a; color: #854d0e; }
+    .role-D { background: #bbf7d0; color: #166534; }
+    .role-C { background: #bfdbfe; color: #1e40af; }
+    .role-A { background: #fecaca; color: #991b1b; }
+
+    .stat-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.05);
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    .btn-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        font-weight: 700;
+        padding: 8px 16px;
+        border-radius: 8px;
+        cursor: pointer;
+        border: none;
+        transition: opacity .15s;
+    }
+    .btn-action:hover { opacity: .9; }
+    .btn-resolve { background: #22c55e; color: #022c11; }
+    .btn-close-sess { background: #eab308; color: #422006; }
+    .btn-reopen { background: #3b82f6; color: #ffffff; }
+    .btn-danger { background: #ef4444; color: #ffffff; }
+
+    .results-hero {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
+        margin-bottom: 18px;
+    }
+    .results-card {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 14px;
+        text-align: center;
+    }
+    .results-num {
+        font-size: 28px;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+        color: var(--ink);
+    }
+    .results-label {
+        font-size: 12px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: .05em;
+        margin-top: 4px;
+    }
+</style>
+
+<!-- Topbar & Nav -->
+{% include "auctions/_console_head.html" %}
+
+<div class="market-header">
+    <div>
+        <h1 style="margin:0;font-size:26px;display:flex;align-items:center;gap:10px;">
+            <svg class="ic" style="width:28px;height:28px"><use href="#i-mail"/></svg>
+            Mercato a Buste Chiuse
+        </h1>
+        <div class="muted" style="margin-top:4px;font-size:13px">
+            Gestisci le finestre di riparazione asincrone, ricevi le buste segrete dei fantallenatori e avvia lo spoglio automatico.
+        </div>
+    </div>
+    <button class="fm-btn fm-nav-cta" onclick="document.getElementById('modal-new-session').showModal()">
+        <svg class="ic"><use href="#i-plus"/></svg> Nuova sessione buste
+    </button>
+</div>
+
+{% if messages %}
+<div style="margin-bottom: 16px;">
+    {% for msg in messages %}
+    <div class="saved-flash" style="background:{% if msg.tags == 'error' %}rgba(239,68,68,0.15);color:#ef4444;border-color:rgba(239,68,68,0.3){% elif msg.tags == 'warning' %}rgba(234,179,8,0.15);color:#eab308;border-color:rgba(234,179,8,0.3){% else %}var(--accent-soft);color:var(--accent-bright);border-color:var(--accent-line){% endif %}">
+        {{ msg }}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<details class="howto" style="margin-bottom: 18px;">
+    <summary><svg class="ic"><use href="#i-info"/></svg> Come funziona il Mercato a Buste <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        <ol>
+            <li><b>Crea una sessione</b> impostando la data/ora di chiusura, l'opzione per il taglio condizionato (svincolo contestuale per fare spazio e recuperare crediti) ed eventuali limiti d'acquisto per ruolo.</li>
+            <li>I partecipanti accedono da <b>App &rarr; Mercato &rarr; Buste di Riparazione</b>, consultano gli svincolati e inviano le loro buste segrete con importo e priorità di scelta.</li>
+            <li>Al termine, premi <b>▶ Scrutina Buste</b>: l'algoritmo valuta tutte le offerte atomicamente, assegna i giocatori all'offerta più alta, esegue i tagli condizionati, deduce i crediti e genera lo storico completo dei movimenti.</li>
+        </ol>
+    </div>
+</details>
+
+<div class="market-grid">
+    <!-- Colonna sinistra: Elenco sessioni -->
+    <div>
+        <div class="section-label"><span class="dot"></span>Sessioni della lega</div>
+        {% if sessions %}
+            {% for s in sessions %}
+            <a href="?league={{ current_league.id }}&session={{ s.id }}" class="sess-card {% if selected_session.id == s.id %}is-active{% endif %}">
+                <div class="sess-title">
+                    <span>{{ s.title }}</span>
+                    {% if s.status == "OPEN" %}
+                        <span class="badge-status status-open"><span style="width:6px;height:6px;border-radius:50%;background:#22c55e"></span>Aperta</span>
+                    {% elif s.status == "CLOSED" %}
+                        <span class="badge-status status-closed">Chiusa</span>
+                    {% else %}
+                        <span class="badge-status status-resolved">Scrutinata</span>
+                    {% endif %}
+                </div>
+                <div class="sess-meta">
+                    <span><svg class="ic" style="width:13px;height:13px"><use href="#i-clock"/></svg> {{ s.created_at|date:"d/m/Y H:i" }}</span>
+                    <span><svg class="ic" style="width:13px;height:13px"><use href="#i-mail"/></svg> {{ s.bids.count }} offerte</span>
+                </div>
+            </a>
+            {% endfor %}
+        {% else %}
+            <div class="panel" style="text-align:center;padding:30px 16px;color:var(--muted)">
+                Nessuna sessione di mercato creata per questa lega.
+                <div style="margin-top:10px">
+                    <button class="btn btn-secondary" onclick="document.getElementById('modal-new-session').showModal()">+ Crea prima sessione</button>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Colonna destra: Dettaglio sessione selezionata -->
+    <div>
+        {% if selected_session %}
+        <div class="panel" style="margin-bottom:20px">
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px">
+                <div>
+                    <div style="display:flex;align-items:center;gap:10px">
+                        <h2 style="margin:0;font-size:20px">{{ selected_session.title }}</h2>
+                        {% if selected_session.status == "OPEN" %}
+                            <span class="badge-status status-open">Aperta alle offerte</span>
+                        {% elif selected_session.status == "CLOSED" %}
+                            <span class="badge-status status-closed">Consegna chiusa</span>
+                        {% else %}
+                            <span class="badge-status status-resolved">Scrutinio completato</span>
+                        {% endif %}
+                    </div>
+                    <div class="muted" style="font-size:12px;margin-top:4px">
+                        Lega: <b>{{ selected_session.league.name }}</b> &bull; Creata il {{ selected_session.created_at|date:"d/m/Y H:i" }}
+                        {% if selected_session.closes_at %}
+                            &bull; Scadenza: <b style="color:var(--ink)">{{ selected_session.closes_at|date:"d/m/Y H:i" }}</b>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Azioni sessione -->
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                    {% if selected_session.status == "OPEN" %}
+                        <form method="post" action="{% url 'admin_market_status' selected_session.id %}" style="display:inline">
+                            {% csrf_token %}
+                            <input type="hidden" name="status" value="CLOSED">
+                            <button type="submit" class="btn-action btn-close-sess" title="Chiudi consegna buste">
+                                <svg class="ic"><use href="#i-lock"/></svg> Chiudi finestra
+                            </button>
+                        </form>
+                        <form method="post" action="{% url 'admin_market_resolve' selected_session.id %}" style="display:inline" onsubmit="return confirm('Vuoi chiudere e scrutinare tutte le buste adesso? L\'operazione assegnerà i giocatori ed effettuerà i tagli.');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn-action btn-resolve">
+                                <svg class="ic"><use href="#i-play"/></svg> Scrutina Buste
+                            </button>
+                        </form>
+                    {% elif selected_session.status == "CLOSED" %}
+                        <form method="post" action="{% url 'admin_market_status' selected_session.id %}" style="display:inline">
+                            {% csrf_token %}
+                            <input type="hidden" name="status" value="OPEN">
+                            <button type="submit" class="btn-action btn-reopen" title="Riapri per permettere modifiche">
+                                <svg class="ic"><use href="#i-refresh"/></svg> Riapri finestra
+                            </button>
+                        </form>
+                        <form method="post" action="{% url 'admin_market_resolve' selected_session.id %}" style="display:inline" onsubmit="return confirm('Confermi lo spoglio delle buste?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn-action btn-resolve">
+                                <svg class="ic"><use href="#i-play"/></svg> Scrutina Buste
+                            </button>
+                        </form>
+                    {% else %}
+                        <div class="stat-pill" style="background:rgba(59,130,246,0.1);color:#3b82f6">
+                            ✓ Spoglio eseguito
+                        </div>
+                    {% endif %}
+
+                    <form method="post" action="{% url 'admin_market_delete' selected_session.id %}" style="display:inline" onsubmit="return confirm('Attenzione: eliminando la sessione cancellerai tutte le offerte associate. Procedere?');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn-action btn-danger" style="padding:8px 10px;" title="Elimina sessione">
+                            <svg class="ic"><use href="#i-trash"/></svg>
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Regole della sessione -->
+            <div style="display:flex;gap:12px;flex-wrap:wrap;padding:10px 14px;background:rgba(255,255,255,0.02);border:1px solid var(--line);border-radius:8px;font-size:12px">
+                <div>Taglio condizionato: <b>{% if selected_session.allow_conditional_release %}Consentito (Rimborso: {{ selected_session.get_release_refund_mode_display }}){% else %}Disattivato{% endif %}</b></div>
+                <div class="muted">&bull;</div>
+                <div>Limiti acquisti per ruolo: <b>P: {{ selected_session.max_acquisitions_p|default:"Libero" }} &bull; D: {{ selected_session.max_acquisitions_d|default:"Libero" }} &bull; C: {{ selected_session.max_acquisitions_c|default:"Libero" }} &bull; A: {{ selected_session.max_acquisitions_a|default:"Libero" }}</b></div>
+            </div>
+        </div>
+
+        {% if selected_session.status == "RESOLVED" and selected_session.results_summary %}
+        <!-- Risultati Spoglio -->
+        <div class="section-label"><span class="dot"></span>Esito dello spoglio</div>
+        <div class="results-hero">
+            <div class="results-card">
+                <div class="results-num" style="color:#22c55e">{{ selected_session.results_summary.total_acquisitions|default:0 }}</div>
+                <div class="results-label">Acquisti assegnati</div>
+            </div>
+            <div class="results-card">
+                <div class="results-num" style="color:{% if selected_session.results_summary.total_ties %}#eab308{% else %}var(--muted){% endif %}">
+                    {{ selected_session.results_summary.total_ties|default:0 }}
+                </div>
+                <div class="results-label">Pareggi / Ballottaggi</div>
+            </div>
+        </div>
+
+        {% if selected_session.results_summary.tied %}
+        <div class="panel" style="margin-bottom:20px;border-color:rgba(234,179,8,0.4)">
+            <h3 style="margin:0 0 10px;font-size:15px;color:#eab308;display:flex;align-items:center;gap:8px">
+                <svg class="ic"><use href="#i-info"/></svg> Pareggi riscontrati (Ballottaggio)
+            </h3>
+            <p class="muted" style="font-size:13px;margin:0 0 10px">
+                I seguenti giocatori hanno ricevuto la medesima offerta massima a parità di priorità da più partecipanti. Il giocatore non è stato assegnato automaticamente.
+            </p>
+            <div class="table-scroll">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Giocatore</th>
+                            <th>Offerta</th>
+                            <th>Partecipanti in parità</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for t in selected_session.results_summary.tied %}
+                        <tr>
+                            <td>
+                                <span class="role-badge role-{{ t.player_role }}">{{ t.player_role }}</span>
+                                <b>{{ t.player_name }}</b> <span class="muted">({{ t.player_team }})</span>
+                            </td>
+                            <td><b style="color:var(--accent-bright)">{{ t.amount }} FM</b></td>
+                            <td>
+                                {% for c in t.contenders %}
+                                    <span class="stat-pill" style="background:rgba(234,179,8,0.15);color:#eab308">{{ c }}</span>
+                                {% endfor %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if selected_session.results_summary.won %}
+        <div class="panel" style="margin-bottom:20px">
+            <h3 style="margin:0 0 10px;font-size:15px">Aggiudicazioni effettuate</h3>
+            <div class="table-scroll">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Giocatore</th>
+                            <th>Acquirente</th>
+                            <th>Costo</th>
+                            <th>Svincolo effettuato</th>
+                            <th>Rimborso</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for w in selected_session.results_summary.won %}
+                        <tr>
+                            <td>
+                                <span class="role-badge role-{{ w.player_role }}">{{ w.player_role }}</span>
+                                <b>{{ w.player_name }}</b> <span class="muted">({{ w.player_team }})</span>
+                            </td>
+                            <td><b>{{ w.winner_name }}</b></td>
+                            <td><b style="color:var(--accent-bright)">{{ w.amount }} FM</b></td>
+                            <td>
+                                {% if w.released_player %}
+                                    <span style="color:#ef4444">✂ {{ w.released_player }}</span>
+                                {% else %}
+                                    <span class="muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if w.refund %}
+                                    <span style="color:#22c55e">+{{ w.refund }} FM</span>
+                                {% else %}
+                                    <span class="muted">0 FM</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        {% else %}
+        <!-- Sessione non ancora scrutinata: Stato consegna partecipanti -->
+        <div class="section-label"><span class="dot"></span>Stato consegna buste fantallenatori</div>
+        <div class="panel" style="margin-bottom:20px">
+            <div class="table-scroll">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Squadra / Fantallenatore</th>
+                            <th>Crediti residui</th>
+                            <th style="text-align:center">Buste consegnate</th>
+                            <th>Stato</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in participants_stats %}
+                        <tr>
+                            <td><b>{{ item.participant.display_name }}</b></td>
+                            <td><span style="font-variant-numeric:tabular-nums">{{ item.participant.remaining_credits|floatformat:0 }} FM</span></td>
+                            <td style="text-align:center">
+                                <span class="stat-pill" style="{% if item.has_submitted %}background:rgba(34,197,94,0.15);color:#22c55e{% else %}color:var(--muted){% endif %}">
+                                    {{ item.bids_count }} {% if item.bids_count == 1 %}offerta{% else %}offerte{% endif %}
+                                </span>
+                            </td>
+                            <td>
+                                {% if item.has_submitted %}
+                                    <span style="color:#22c55e;font-weight:700;font-size:12px">✓ Consegnate</span>
+                                {% else %}
+                                    <span style="color:var(--muted);font-size:12px">In attesa</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="4" class="muted" style="text-align:center">Nessuna squadra nella lega.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {% if not bids_list %}
+        <div style="text-align:right;margin-bottom:14px">
+            <a href="?league={{ current_league.id }}&session={{ selected_session.id }}&reveal=1" class="btn btn-secondary" style="font-size:12px">
+                <svg class="ic"><use href="#i-eye"/></svg> Mostra buste in anteprima (Admin)
+            </a>
+        </div>
+        {% endif %}
+
+        {% endif %}
+
+        <!-- Dettaglio offerte/buste pervenute -->
+        {% if bids_list %}
+        <div class="section-label"><span class="dot"></span>Tutte le buste ricevute ({{ bids_list.count }})</div>
+        <div class="panel">
+            <div class="table-scroll">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Giocatore</th>
+                            <th>Squadra offerente</th>
+                            <th>Offerta</th>
+                            <th>Priorità</th>
+                            <th>Taglio condizionato</th>
+                            <th>Esito</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for b in bids_list %}
+                        <tr>
+                            <td>
+                                <span class="role-badge role-{{ b.player.role }}">{{ b.player.role }}</span>
+                                <b>{{ b.player.name }}</b> <span class="muted">({{ b.player.team }})</span>
+                            </td>
+                            <td><b>{{ b.participant.display_name }}</b></td>
+                            <td><b style="color:var(--accent-bright)">{{ b.amount|floatformat:0 }} FM</b></td>
+                            <td><span class="stat-pill">Scelta {{ b.priority }}ª</span></td>
+                            <td>
+                                {% if b.release_player %}
+                                    <span style="color:#ef4444">✂ {{ b.release_player.name }}</span>
+                                {% else %}
+                                    <span class="muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if b.status == "WON" %}
+                                    <span class="badge-status status-open">Vinta</span>
+                                {% elif b.status == "TIED" %}
+                                    <span class="badge-status status-closed">Parità</span>
+                                {% elif b.status == "LOST" %}
+                                    <span style="color:#ef4444;font-size:12px;font-weight:600">Superata</span>
+                                {% else %}
+                                    <span class="muted" style="font-size:12px">In attesa spoglio</span>
+                                {% endif %}
+                                {% if b.note %}<div class="muted" style="font-size:11px">{{ b.note }}</div>{% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal Creazione Nuova Sessione -->
+<dialog id="modal-new-session" style="border:1px solid var(--line);border-radius:14px;background:var(--card-bg,#181d28);color:var(--ink);padding:24px;max-width:540px;width:90%">
+    <form method="post" action="{% url 'admin_market_create' %}">
+        {% csrf_token %}
+        <input type="hidden" name="league_id" value="{{ current_league.id }}">
+
+        <h2 style="margin:0 0 16px;font-size:20px;display:flex;align-items:center;gap:10px">
+            <svg class="ic"><use href="#i-mail"/></svg> Nuova sessione mercato a buste
+        </h2>
+
+        <div style="display:flex;flex-direction:column;gap:14px">
+            <div>
+                <label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Titolo sessione</label>
+                <input type="text" name="title" value="Mercato di Riparazione" required class="input" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);background:rgba(0,0,0,0.2);color:inherit">
+            </div>
+
+            <div>
+                <label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Data e ora di chiusura (opzionale)</label>
+                <input type="datetime-local" name="closes_at" class="input" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);background:rgba(0,0,0,0.2);color:inherit">
+                <div class="muted" style="font-size:11px;margin-top:4px">Oltre questo orario i partecipanti non potranno più inviare o modificare offerte.</div>
+            </div>
+
+            <div style="padding:12px;background:rgba(255,255,255,0.03);border:1px solid var(--line);border-radius:8px">
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;cursor:pointer">
+                    <input type="checkbox" name="allow_conditional_release" value="1" checked style="width:16px;height:16px">
+                    Consenti svincolo condizionato (taglio per slot e crediti)
+                </label>
+                <div class="muted" style="font-size:11px;margin-top:6px;padding-left:24px">
+                    Permette al fantallenatore di indicare un giocatore da svincolare qualora vinca l'offerta, recuperando crediti.
+                </div>
+            </div>
+
+            <div>
+                <label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Modalità di rimborso crediti per lo svincolo</label>
+                <select name="refund_mode" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);background:rgba(0,0,0,0.2);color:inherit">
+                    <option value="PURCHASE" selected>Prezzo d'acquisto (100% dei crediti pagati)</option>
+                    <option value="HALF_PURCHASE">Metà prezzo d'acquisto (50%)</option>
+                    <option value="QUOTAZIONE">Quotazione attuale di listone</option>
+                    <option value="NONE">Nessun rimborso (0 crediti)</option>
+                </select>
+            </div>
+
+            <div>
+                <label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Limiti massimi acquisti per ruolo (0 = illimitati)</label>
+                <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:10px">
+                    <div>
+                        <span class="role-badge role-P">P</span>
+                        <input type="number" name="max_acquisitions_p" value="0" min="0" class="input" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--line);background:rgba(0,0,0,0.2);color:inherit;margin-top:4px">
+                    </div>
+                    <div>
+                        <span class="role-badge role-D">D</span>
+                        <input type="number" name="max_acquisitions_d" value="0" min="0" class="input" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--line);background:rgba(0,0,0,0.2);color:inherit;margin-top:4px">
+                    </div>
+                    <div>
+                        <span class="role-badge role-C">C</span>
+                        <input type="number" name="max_acquisitions_c" value="0" min="0" class="input" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--line);background:rgba(0,0,0,0.2);color:inherit;margin-top:4px">
+                    </div>
+                    <div>
+                        <span class="role-badge role-A">A</span>
+                        <input type="number" name="max_acquisitions_a" value="0" min="0" class="input" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--line);background:rgba(0,0,0,0.2);color:inherit;margin-top:4px">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px">
+            <button type="button" class="btn btn-secondary" onclick="document.getElementById('modal-new-session').close()">Annulla</button>
+            <button type="submit" class="fm-btn fm-nav-cta">Crea e apri sessione</button>
+        </div>
+    </form>
+</dialog>
+{% endblock %}

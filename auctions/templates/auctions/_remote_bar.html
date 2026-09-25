@@ -1,0 +1,18 @@
+{% comment %}
+Compact "accesso remoto" strip. The full tunnel configuration lives on its own
+page (GESTISCI) — the console must not be dominated by it.
+Driven by fmRemoteBar() in _remote_bar_js.html.
+{% endcomment %}
+<div class="fm-remote-bar">
+    <span class="rb-title"><svg class="ic"><use href="#i-globe"/></svg> Accesso remoto</span>
+    <span id="rb-pill" class="fm-badge is-off"><span class="dot"></span>Non attivo</span>
+    <a id="rb-url" class="rb-url" href="#" target="_blank" rel="noopener" style="display:none"></a>
+    <button type="button" id="rb-copy" class="fm-btn fm-btn-secondary fm-btn-sm" style="display:none" onclick="fmRemoteCopy()">
+        <svg class="ic"><use href="#i-copy"/></svg> Copia link</button>
+    <span id="rb-detail" class="muted" style="font-size:12px"></span>
+    <span class="rb-spacer"></span>
+    <button type="button" id="rb-activate" class="fm-btn fm-btn-secondary fm-btn-sm" onclick="fmRemoteStart()">
+        <svg class="ic"><use href="#i-play"/></svg> Attiva</button>
+    <a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% url 'admin_remote_page' %}">
+        <svg class="ic"><use href="#i-gear"/></svg> Gestisci</a>
+</div>

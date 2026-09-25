@@ -1,0 +1,826 @@
+{% extends "auctions/base.html" %}
+{% block title %}Supervisor Cockpit — FantaManager Platform{% endblock %}
+{% block bodyclass %}role-admin{% endblock %}
+{% block wrapclass %}wrap-wide{% endblock %}
+
+{% block content %}
+<style>
+    .super-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 16px;
+        background: var(--panel, #12151c);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 14px;
+        padding: 18px 24px;
+        margin-bottom: 24px;
+    }
+    .super-brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+    .super-badge {
+        background: linear-gradient(135deg, #dc2626, #b91c1c);
+        color: #fff;
+        padding: 5px 12px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .super-title {
+        margin: 0;
+        font-size: 22px;
+        font-weight: 900;
+    }
+    .super-subtitle {
+        margin: 2px 0 0;
+        font-size: 13px;
+        color: var(--muted, #94a3b8);
+    }
+    .super-nav-actions {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+    .btn-super-nav {
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: var(--text, #f8fafc);
+        padding: 8px 14px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 700;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: background .15s;
+    }
+    .btn-super-nav:hover {
+        background: rgba(255, 255, 255, 0.12);
+    }
+
+    /* Tabs Bar */
+    .super-tabs {
+        display: flex;
+        gap: 6px;
+        background: rgba(0, 0, 0, 0.25);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 10px;
+        padding: 5px;
+        margin-bottom: 24px;
+        overflow-x: auto;
+    }
+    .super-tab-link {
+        padding: 10px 18px;
+        border-radius: 7px;
+        color: var(--muted, #94a3b8);
+        text-decoration: none;
+        font-size: 14px;
+        font-weight: 800;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        white-space: nowrap;
+        transition: all .2s ease;
+    }
+    .super-tab-link:hover {
+        color: var(--text, #f8fafc);
+        background: rgba(255, 255, 255, 0.04);
+    }
+    .super-tab-link.active {
+        background: var(--accent, #2563eb);
+        color: #ffffff;
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+    }
+
+    /* Cards Grid */
+    .metric-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+    .metric-card {
+        background: var(--panel, #12151c);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        padding: 18px 20px;
+    }
+    .metric-label {
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        color: var(--muted, #94a3b8);
+        margin-bottom: 6px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .metric-value {
+        font-size: 24px;
+        font-weight: 900;
+        letter-spacing: -0.02em;
+    }
+    .metric-sub {
+        font-size: 12px;
+        color: var(--muted, #94a3b8);
+        margin-top: 4px;
+    }
+
+    /* Progress bar */
+    .storage-bar-wrap {
+        height: 6px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 999px;
+        margin-top: 8px;
+        overflow: hidden;
+    }
+    .storage-bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #3b82f6, #60a5fa);
+        border-radius: 999px;
+    }
+
+    /* Tables */
+    .super-table-wrap {
+        background: var(--panel, #12151c);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 14px;
+        overflow: hidden;
+        margin-bottom: 24px;
+    }
+    .super-table-head {
+        padding: 16px 20px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+    .super-table-title {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 800;
+    }
+    table.super-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+        text-align: left;
+    }
+    table.super-table th, table.super-table td {
+        padding: 12px 18px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    table.super-table th {
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        color: var(--muted, #94a3b8);
+        background: rgba(0, 0, 0, 0.15);
+    }
+    table.super-table tr:hover td {
+        background: rgba(255, 255, 255, 0.02);
+    }
+
+    /* Terminal logs */
+    .log-terminal {
+        background: #090b10;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        padding: 16px 20px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 12px;
+        line-height: 1.6;
+        color: #94a3b8;
+        max-height: 520px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        word-break: break-all;
+    }
+    .log-line.error { color: #f87171; font-weight: 700; }
+    .log-line.warn { color: #fbbf24; }
+    .log-line.info { color: #38bdf8; }
+
+    /* Action buttons */
+    .btn-super-action {
+        background: transparent;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        color: var(--text, #f8fafc);
+        padding: 5px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all .15s;
+    }
+    .btn-super-action:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(255, 255, 255, 0.3);
+    }
+    .btn-super-danger {
+        border-color: rgba(239, 68, 68, 0.35);
+        color: #f87171;
+    }
+    .btn-super-danger:hover {
+        background: rgba(239, 68, 68, 0.15);
+    }
+</style>
+
+<!-- Messages alert -->
+{% if messages %}
+    {% for message in messages %}
+    <div style="background:{% if message.tags == 'error' %}rgba(239,68,68,0.15){% else %}rgba(34,197,94,0.15){% endif %};
+                border:1px solid {% if message.tags == 'error' %}rgba(239,68,68,0.35){% else %}rgba(34,197,94,0.35){% endif %};
+                color:{% if message.tags == 'error' %}#f87171{% else %}#4ade80{% endif %};
+                padding:12px 18px; border-radius:10px; margin-bottom:20px; font-weight:700">
+        {{ message }}
+    </div>
+    {% endfor %}
+{% endif %}
+
+<!-- Header -->
+<div class="super-header">
+    <div class="super-brand">
+        <div>
+            <div class="super-badge">
+                <svg class="ic" style="width:12px;height:12px"><use href="#i-shield"/></svg>
+                Master Supervisor
+            </div>
+            <h1 class="super-title">Cockpit di Piattaforma</h1>
+            <div class="super-subtitle">Server Monitor, Multi-Tenant Governance, Log Stream & Reportistica</div>
+        </div>
+    </div>
+    <div class="super-nav-actions">
+        <a href="{% url 'dashboard_hub' %}" class="btn-super-nav">
+            <svg class="ic" style="width:14px;height:14px"><use href="#i-table"/></svg>
+            Console Leghe &rarr;
+        </a>
+        <a href="{% url 'logout' %}" class="btn-super-nav" style="border-color:rgba(239,68,68,0.3);color:#f87171">
+            Esci
+        </a>
+    </div>
+</div>
+
+<!-- Tabs Navigation -->
+<div class="super-tabs">
+    <a href="?tab=health" class="super-tab-link {% if tab == 'health' %}active{% endif %}">
+        📊 Info Server & Health
+    </a>
+    <a href="?tab=users" class="super-tab-link {% if tab == 'users' %}active{% endif %}">
+        👥 Gestione Utenti ({{ users|length }})
+    </a>
+    <a href="?tab=leagues" class="super-tab-link {% if tab == 'leagues' %}active{% endif %}">
+        🏆 Gestione Leghe ({{ leagues|length }})
+    </a>
+    <a href="?tab=logs" class="super-tab-link {% if tab == 'logs' %}active{% endif %}">
+        📜 Log di Sistema & Lega
+    </a>
+    <a href="?tab=reports" class="super-tab-link {% if tab == 'reports' %}active{% endif %}">
+        ⚙️ Setup & Reportistica
+    </a>
+</div>
+
+<!-- 1. TAB: SERVER HEALTH -->
+{% if tab == 'health' %}
+<div class="metric-grid">
+    <div class="metric-card">
+        <div class="metric-label">
+            <span>Stato ASGI / Daphne</span>
+            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#22c55e"></span>
+        </div>
+        <div class="metric-value" style="color:#4ade80">{{ metrics.channels_status }}</div>
+        <div class="metric-sub">{{ metrics.active_rooms }} stanze asta attive in memoria</div>
+    </div>
+
+    <div class="metric-card">
+        <div class="metric-label">Uptime Processo</div>
+        <div class="metric-value">{{ metrics.uptime }}</div>
+        <div class="metric-sub">Load avg: {{ metrics.load_avg }}</div>
+    </div>
+
+    <div class="metric-card">
+        <div class="metric-label">Memoria Processo (RSS)</div>
+        <div class="metric-value">{{ metrics.rss_mb }} <span style="font-size:14px;color:var(--muted)">MB</span></div>
+        <div class="metric-sub">Python {{ metrics.python_version }}</div>
+    </div>
+
+    <div class="metric-card">
+        <div class="metric-label">Database SQLite</div>
+        <div class="metric-value">{{ metrics.db_size_mb }} <span style="font-size:14px;color:var(--muted)">MB</span></div>
+        <div class="metric-sub">File: db.sqlite3</div>
+    </div>
+
+    <div class="metric-card">
+        <div class="metric-label">
+            <span>Spazio Disco</span>
+            <span>{{ metrics.disk_percent }}%</span>
+        </div>
+        <div class="metric-value">{{ metrics.disk_used_gb }} <span style="font-size:14px;color:var(--muted)">/ {{ metrics.disk_total_gb }} GB</span></div>
+        <div class="storage-bar-wrap">
+            <div class="storage-bar-fill" style="width:{{ metrics.disk_percent }}%"></div>
+        </div>
+        <div class="metric-sub">{{ metrics.disk_free_gb }} GB liberi</div>
+    </div>
+
+    <div class="metric-card">
+        <div class="metric-label">Ambiente & Sistema</div>
+        <div class="metric-value" style="font-size:18px">{{ metrics.django_version }} <span style="font-size:12px;color:var(--muted)">Django</span></div>
+        <div class="metric-sub" style="font-size:11px;overflow:hidden;text-overflow:ellipsis">{{ metrics.os_name }}</div>
+    </div>
+</div>
+{% endif %}
+
+<!-- 2. TAB: USERS MANAGEMENT -->
+{% if tab == 'users' %}
+<div class="super-table-wrap">
+    <div class="super-table-head">
+        <h2 class="super-table-title">Utenti Registrati sulla Piattaforma</h2>
+        <button onclick="document.getElementById('modal-create-user').style.display='block'" class="btn-super-action" style="background:#2563eb;color:#fff;border:none;padding:8px 14px">
+            + Crea Nuovo Utente
+        </button>
+    </div>
+
+    <table class="super-table">
+        <thead>
+            <tr>
+                <th>Username</th>
+                <th>Email</th>
+                <th>Ruolo</th>
+                <th>Leghe Possedute</th>
+                <th>Squadre</th>
+                <th>Stato</th>
+                <th>Data Iscrizione</th>
+                <th style="text-align:right">Azioni</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for u in users %}
+            <tr>
+                <td><b>{{ u.username }}</b></td>
+                <td style="color:var(--muted)">{{ u.email|default:"—" }}</td>
+                <td>
+                    {% if u.is_superuser %}
+                        <span style="background:rgba(239,68,68,0.2);color:#f87171;padding:3px 8px;border-radius:4px;font-weight:800;font-size:11px">SUPERADMIN</span>
+                    {% elif u.owned_leagues_count > 0 %}
+                        <span style="background:rgba(37,99,235,0.2);color:#60a5fa;padding:3px 8px;border-radius:4px;font-weight:800;font-size:11px">ADMIN LEGA</span>
+                    {% else %}
+                        <span style="background:rgba(255,255,255,0.06);color:var(--muted);padding:3px 8px;border-radius:4px;font-weight:700;font-size:11px">MANAGER</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if u.leagues.all %}
+                        <div style="display:flex;flex-direction:column;gap:3px">
+                        {% for lg in u.leagues.all %}
+                            <a href="{% url 'dashboard_league' lg.id %}" style="text-decoration:none;display:inline-block">
+                                <span style="background:rgba(59,130,246,0.18);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:600">
+                                    🏆 {{ lg.name }}
+                                </span>
+                            </a>
+                        {% endfor %}
+                        </div>
+                    {% else %}
+                        <span style="color:var(--muted);font-size:12px">—</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if u.teams.all %}
+                        <div style="display:flex;flex-direction:column;gap:3px">
+                        {% for t in u.teams.all %}
+                            <span style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);color:#6ee7b7;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:600;display:inline-block">
+                                ⚽ {{ t.display_name }}{% if t.league %} <span style="opacity:0.75;font-weight:400">({{ t.league.name }})</span>{% endif %}
+                            </span>
+                        {% endfor %}
+                        </div>
+                    {% else %}
+                        <span style="color:var(--muted);font-size:12px">—</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if u.is_active %}
+                        <span style="color:#4ade80;font-weight:700">Attivo</span>
+                    {% else %}
+                        <span style="color:#f87171;font-weight:700">Disattivato</span>
+                    {% endif %}
+                </td>
+                <td style="color:var(--muted);font-size:12px">{{ u.date_joined|date:"d/m/Y H:i" }}</td>
+                <td style="text-align:right">
+                    {% if u != request.user %}
+                    <form method="post" style="display:inline">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="toggle_user_active">
+                        <input type="hidden" name="user_id" value="{{ u.id }}">
+                        <button type="submit" class="btn-super-action" title="Attiva/Disattiva">
+                            {% if u.is_active %}Disattiva{% else %}Attiva{% endif %}
+                        </button>
+                    </form>
+                    <form method="post" style="display:inline;margin-left:4px">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="toggle_user_admin">
+                        <input type="hidden" name="user_id" value="{{ u.id }}">
+                        <button type="submit" class="btn-super-action" title="Promuovi/Revoca Superadmin">
+                            {% if u.is_superuser %}Revoca Admin{% else %}Fai Superadmin{% endif %}
+                        </button>
+                    </form>
+                    {% else %}
+                    <span style="font-size:11px;color:var(--muted);font-weight:700">Il tuo account</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Modal Create User -->
+<div id="modal-create-user" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.75);z-index:999;align-items:center;justify-content:center;overflow-y:auto;padding:20px">
+    <div style="background:var(--panel,#12151c);border:1px solid rgba(255,255,255,0.15);border-radius:14px;padding:24px;width:100%;max-width:520px;margin:40px auto;box-shadow:0 20px 45px rgba(0,0,0,0.6)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <h3 style="margin:0;font-size:18px;display:flex;align-items:center;gap:8px">
+                <span>👤</span> Crea Nuovo Utente
+            </h3>
+            <button type="button" onclick="document.getElementById('modal-create-user').style.display='none'" style="background:transparent;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1">&times;</button>
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create_user">
+
+            <!-- Sezione 1: Credenziali Utente -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+                <div>
+                    <label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">Username *</label>
+                    <input type="text" name="username" id="create-user-username" required style="width:100%;padding:8px 12px;background:#1e2430;border:1px solid rgba(255,255,255,0.12);color:#fff;border-radius:6px;font-size:13px" placeholder="es. mario_rossi" oninput="onUsernameInput(this.value)">
+                </div>
+                <div>
+                    <label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">Email</label>
+                    <input type="email" name="email" style="width:100%;padding:8px 12px;background:#1e2430;border:1px solid rgba(255,255,255,0.12);color:#fff;border-radius:6px;font-size:13px" placeholder="mario@example.com">
+                </div>
+            </div>
+
+            <div style="margin-bottom:12px">
+                <label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">Password *</label>
+                <input type="password" name="password" required style="width:100%;padding:8px 12px;background:#1e2430;border:1px solid rgba(255,255,255,0.12);color:#fff;border-radius:6px;font-size:13px" placeholder="••••••••••••">
+            </div>
+
+            <div style="margin-bottom:16px;background:rgba(255,255,255,0.02);padding:8px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.06)">
+                <label style="font-size:12px;font-weight:700;display:flex;align-items:center;gap:8px;cursor:pointer">
+                    <input type="checkbox" name="is_superuser"> Ruolo Superadmin Master (Accesso completo Cockpit)
+                </label>
+            </div>
+
+            <!-- Sezione 2: Assegnazione Lega (SaaS Multi-tenant) -->
+            <div style="padding-top:14px;border-top:1px solid rgba(255,255,255,0.1);margin-bottom:14px">
+                <label style="font-size:13px;font-weight:700;display:block;margin-bottom:6px;color:#93c5fd">
+                    🏆 Inserisci in una Lega (Opzionale)
+                </label>
+                <select name="league_id" id="create-user-league" onchange="onLeagueChange(this.value)" style="width:100%;padding:9px 12px;background:#1e2430;border:1px solid rgba(255,255,255,0.15);color:#fff;border-radius:6px;font-size:13px">
+                    <option value="">-- Nessuna Lega (Onboarding autonomo) --</option>
+                    {% for lg in leagues %}
+                        <option value="{{ lg.id }}" data-budget="{{ lg.budget }}" data-owner="{% if lg.owner %}{{ lg.owner.username }}{% endif %}">
+                            {{ lg.name }} (Budget: {{ lg.budget }} FM{% if lg.owner %} • Owner: {{ lg.owner.username }}{% else %} • Senza Owner{% endif %})
+                        </option>
+                    {% endfor %}
+                </select>
+                <div style="font-size:11px;color:var(--muted);margin-top:4px">
+                    Se selezioni una lega, potrai assegnare all'utente il ruolo di Presidente/Admin e/o una Squadra da gestire.
+                </div>
+            </div>
+
+            <!-- Sezione 3: Configurazione Ruoli & Squadra nella Lega -->
+            <div id="league-options-container" style="display:none;background:rgba(30,36,48,0.5);border:1px solid rgba(59,130,246,0.25);border-radius:8px;padding:14px;margin-bottom:18px">
+                <!-- Ruolo Amministratore / Owner -->
+                <div style="margin-bottom:12px">
+                    <label style="font-size:13px;font-weight:700;display:flex;align-items:center;gap:8px;cursor:pointer">
+                        <input type="checkbox" name="is_league_owner" id="chk-league-owner">
+                        👑 Imposta come Amministratore / Owner della Lega
+                    </label>
+                    <div style="font-size:11px;color:var(--muted);padding-left:24px;margin-top:2px">
+                        Consente all'utente di gestire impostazioni, liste e aste per questa lega nella regia.
+                    </div>
+                    <div id="owner-warning-msg" style="display:none;margin-top:6px;font-size:11px;color:#facc15;padding:6px 10px;background:rgba(234,179,8,0.12);border-radius:4px;border:1px solid rgba(234,179,8,0.25)">
+                        ⚠️ Nota: Questa lega ha già un proprietario (<b id="current-owner-name"></b>). Selezionando questa opzione, la proprietà passerà a questo nuovo utente.
+                    </div>
+                </div>
+
+                <!-- Ruolo Manager di Squadra -->
+                <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:12px">
+                    <label style="font-size:13px;font-weight:700;display:flex;align-items:center;gap:8px;cursor:pointer">
+                        <input type="checkbox" name="assign_team" id="chk-assign-team" checked onchange="toggleTeamSection(this.checked)">
+                        ⚽ Inserisci come Manager di Squadra
+                    </label>
+
+                    <div id="team-assignment-box" style="margin-top:10px;padding-left:24px">
+                        <div style="display:flex;gap:16px;margin-bottom:10px">
+                            <label style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;cursor:pointer">
+                                <input type="radio" name="team_mode" value="new" checked onchange="onTeamModeChange('new')">
+                                Crea Nuova Squadra
+                            </label>
+                            <label style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;cursor:pointer">
+                                <input type="radio" name="team_mode" value="existing" onchange="onTeamModeChange('existing')">
+                                Collega a Squadra Esistente
+                            </label>
+                        </div>
+
+                        <!-- Panel Crea Nuova Squadra -->
+                        <div id="panel-new-team">
+                            <div style="display:grid;grid-template-columns:1fr 110px;gap:8px">
+                                <div>
+                                    <label style="font-size:11px;font-weight:600;color:var(--muted);display:block;margin-bottom:3px">Nome Squadra</label>
+                                    <input type="text" name="team_name" id="new-team-name-input" placeholder="Es. FC Squadra" style="width:100%;padding:7px 10px;background:#1e2430;border:1px solid rgba(255,255,255,0.12);color:#fff;border-radius:6px;font-size:12px">
+                                </div>
+                                <div>
+                                    <label style="font-size:11px;font-weight:600;color:var(--muted);display:block;margin-bottom:3px">Budget (FM)</label>
+                                    <input type="number" name="team_credits" id="new-team-credits-input" value="500" style="width:100%;padding:7px 10px;background:#1e2430;border:1px solid rgba(255,255,255,0.12);color:#fff;border-radius:6px;font-size:12px">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Panel Collega a Squadra Esistente -->
+                        <div id="panel-existing-team" style="display:none">
+                            <label style="font-size:11px;font-weight:600;color:var(--muted);display:block;margin-bottom:3px">Seleziona Squadra della Lega</label>
+                            <select name="existing_team_id" id="select-existing-team" style="width:100%;padding:7px 10px;background:#1e2430;border:1px solid rgba(255,255,255,0.12);color:#fff;border-radius:6px;font-size:12px">
+                                <option value="">-- Seleziona una squadra --</option>
+                            </select>
+                            <div style="font-size:11px;color:var(--muted);margin-top:4px">
+                                Verrà impostato questo utente come proprietario della squadra selezionata.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Azioni Modal -->
+            <div style="display:flex;justify-content:flex-end;gap:10px;border-top:1px solid rgba(255,255,255,0.08);padding-top:14px">
+                <button type="button" onclick="document.getElementById('modal-create-user').style.display='none'" class="btn-super-action" style="padding:8px 14px">
+                    Annulla
+                </button>
+                <button type="submit" class="btn-super-action" style="background:#2563eb;color:#fff;border:none;padding:8px 18px;font-weight:700">
+                    Crea Utente
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    const LEAGUE_TEAMS_DATA = {{ league_teams_json|safe }};
+    let teamNameManuallyTouched = false;
+
+    const teamNameInputElem = document.getElementById('new-team-name-input');
+    if (teamNameInputElem) {
+        teamNameInputElem.addEventListener('input', function() {
+            teamNameManuallyTouched = this.value.trim().length > 0;
+        });
+    }
+
+    function onUsernameInput(val) {
+        if (!teamNameManuallyTouched && teamNameInputElem) {
+            if (val.trim()) {
+                teamNameInputElem.value = val.trim() + " FC";
+            } else {
+                teamNameInputElem.value = "";
+            }
+        }
+    }
+
+    function onLeagueChange(leagueId) {
+        const box = document.getElementById('league-options-container');
+        if (!leagueId) {
+            box.style.display = 'none';
+            return;
+        }
+        box.style.display = 'block';
+
+        const selectElem = document.getElementById('create-user-league');
+        const opt = selectElem.options[selectElem.selectedIndex];
+        const budget = opt.getAttribute('data-budget') || '500';
+        const owner = opt.getAttribute('data-owner') || '';
+
+        const creditsInput = document.getElementById('new-team-credits-input');
+        if (creditsInput) {
+            creditsInput.value = parseInt(budget, 10) || 500;
+        }
+
+        const ownerWarn = document.getElementById('owner-warning-msg');
+        const ownerNameSpan = document.getElementById('current-owner-name');
+        if (owner) {
+            ownerNameSpan.textContent = owner;
+            ownerWarn.style.display = 'block';
+        } else {
+            ownerWarn.style.display = 'none';
+        }
+
+        populateExistingTeams(leagueId);
+    }
+
+    function populateExistingTeams(leagueId) {
+        const selectTeam = document.getElementById('select-existing-team');
+        if (!selectTeam) return;
+        selectTeam.innerHTML = '<option value="">-- Seleziona una squadra --</option>';
+
+        const teams = LEAGUE_TEAMS_DATA[String(leagueId)] || [];
+        if (teams.length === 0) {
+            const opt = document.createElement('option');
+            opt.value = "";
+            opt.textContent = "Nessuna squadra presente in questa lega";
+            opt.disabled = true;
+            selectTeam.appendChild(opt);
+            return;
+        }
+
+        teams.forEach(t => {
+            const opt = document.createElement('option');
+            opt.value = t.id;
+            const status = t.has_user ? `(Occupata: ${t.username})` : `(Libera)`;
+            opt.textContent = `${t.display_name} ${status}`;
+            selectTeam.appendChild(opt);
+        });
+    }
+
+    function toggleTeamSection(checked) {
+        const box = document.getElementById('team-assignment-box');
+        if (box) box.style.display = checked ? 'block' : 'none';
+    }
+
+    function onTeamModeChange(mode) {
+        const panelNew = document.getElementById('panel-new-team');
+        const panelExisting = document.getElementById('panel-existing-team');
+        if (mode === 'new') {
+            if (panelNew) panelNew.style.display = 'block';
+            if (panelExisting) panelExisting.style.display = 'none';
+        } else {
+            if (panelNew) panelNew.style.display = 'none';
+            if (panelExisting) panelExisting.style.display = 'block';
+        }
+    }
+</script>
+{% endif %}
+
+<!-- 3. TAB: LEAGUES MANAGEMENT -->
+{% if tab == 'leagues' %}
+<div class="super-table-wrap">
+    <div class="super-table-head">
+        <h2 class="super-table-title">Tutte le Leghe della Piattaforma</h2>
+        <a href="{% url 'admin_create_league' %}" class="btn-super-action" style="background:#2563eb;color:#fff;border:none;padding:8px 14px;text-decoration:none">
+            + Nuova Lega
+        </a>
+    </div>
+
+    <table class="super-table">
+        <thead>
+            <tr>
+                <th>Lega</th>
+                <th>Amministratore / Owner</th>
+                <th>Modalità</th>
+                <th>Squadre</th>
+                <th>Calciatori</th>
+                <th>Aste</th>
+                <th>Stato Asta</th>
+                <th style="text-align:right">Azioni</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for lg in leagues %}
+            <tr>
+                <td><b>{{ lg.name }}</b></td>
+                <td>
+                    {% if lg.owner %}
+                        <span style="color:#60a5fa;font-weight:700">{{ lg.owner.username }}</span>
+                    {% else %}
+                        <span style="color:var(--muted)">Nessun owner (Globale)</span>
+                    {% endif %}
+                </td>
+                <td>{{ lg.get_game_mode_display }} ({{ lg.budget }} FM)</td>
+                <td>{{ lg.teams_count }}</td>
+                <td>{{ lg.players_count }}</td>
+                <td>{{ lg.auctions_count }}</td>
+                <td>
+                    {% if lg.active_auction %}
+                        <span style="color:#22c55e;font-weight:800">🟢 LIVE: {{ lg.active_auction.title }}</span>
+                    {% else %}
+                        <span style="color:var(--muted)">Inattiva</span>
+                    {% endif %}
+                </td>
+                <td style="text-align:right">
+                    <a href="{% url 'dashboard_league' lg.id %}" class="btn-super-action" style="text-decoration:none">
+                        Gestisci &rarr;
+                    </a>
+                    <form method="post" style="display:inline;margin-left:4px" onsubmit="return confirm('Sei sicuro di voler eliminare la lega {{ lg.name }}? Tutti i dati associati andranno persi.');">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="delete_league">
+                        <input type="hidden" name="league_id" value="{{ lg.id }}">
+                        <button type="submit" class="btn-super-action btn-super-danger">
+                            Elimina
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="8" style="text-align:center;padding:24px;color:var(--muted)">Nessuna lega presente nel database.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<!-- 4. TAB: LOGS STREAM -->
+{% if tab == 'logs' %}
+<div class="super-table-wrap">
+    <div class="super-table-head">
+        <h2 class="super-table-title">Log in Tempo Reale (server.log)</h2>
+        <form method="get" style="display:flex;gap:8px;align-items:center">
+            <input type="hidden" name="tab" value="logs">
+            <select name="level" style="background:#1e2430;border:1px solid rgba(255,255,255,0.1);color:#fff;padding:6px 10px;border-radius:6px;font-size:12px">
+                <option value="ALL" {% if level_filter == 'ALL' %}selected{% endif %}>Tutti i Livelli</option>
+                <option value="ERROR" {% if level_filter == 'ERROR' %}selected{% endif %}>Solo ERROR</option>
+                <option value="WARNING" {% if level_filter == 'WARNING' %}selected{% endif %}>Solo WARNING</option>
+                <option value="INFO" {% if level_filter == 'INFO' %}selected{% endif %}>Solo INFO</option>
+            </select>
+            <input type="text" name="q" value="{{ query_filter }}" placeholder="Cerca keyword o lega..." style="background:#1e2430;border:1px solid rgba(255,255,255,0.1);color:#fff;padding:6px 10px;border-radius:6px;font-size:12px">
+            <button type="submit" class="btn-super-action">Filtra</button>
+            <a href="?tab=logs" class="btn-super-action" title="Ricarica">↻</a>
+        </form>
+    </div>
+
+    <div class="log-terminal">
+        {% for line in recent_logs %}
+            <div class="log-line {% if '[ERROR]' in line %}error{% elif '[WARNING]' in line %}warn{% elif '[INFO]' in line %}info{% endif %}">{{ line }}</div>
+        {% empty %}
+            <div style="color:var(--muted);text-align:center">Nessun log trovato con i filtri correnti.</div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- 5. TAB: REPORTS & MAINTENANCE -->
+{% if tab == 'reports' %}
+<div class="metric-grid">
+    <div class="metric-card">
+        <div class="metric-label">Utenti Registrati</div>
+        <div class="metric-value">{{ kpis.total_users }}</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">Leghe Totali</div>
+        <div class="metric-value">{{ kpis.total_leagues }}</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">Squadre (Partecipanti)</div>
+        <div class="metric-value">{{ kpis.total_teams }}</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">Calciatori in Anagrafica</div>
+        <div class="metric-value">{{ kpis.total_players }}</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">Aste Totali</div>
+        <div class="metric-value">{{ kpis.total_auctions }}</div>
+        <div class="metric-sub">{{ kpis.live_auctions_count }} aste in corso ORA</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">Rilanci Registrati</div>
+        <div class="metric-value">{{ kpis.total_bids }}</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">Crediti Totali Spesi</div>
+        <div class="metric-value">{{ kpis.total_credits_spent }} <span style="font-size:14px;color:var(--muted)">FM</span></div>
+    </div>
+</div>
+
+<div class="super-table-wrap" style="padding:24px">
+    <h3 style="margin:0 0 14px">Manutenzione & Operazioni di Sistema</h3>
+    <div style="display:flex;gap:14px;flex-wrap:wrap">
+        <form method="post" style="display:inline">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="vacuum_db">
+            <button type="submit" class="btn-super-action" style="padding:10px 16px;background:rgba(59,130,246,0.15);border-color:#3b82f6;color:#60a5fa">
+                🧹 Ottimizza Database (VACUUM SQLite)
+            </button>
+        </form>
+
+        <form method="post" style="display:inline">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="clear_sessions">
+            <button type="submit" class="btn-super-action" style="padding:10px 16px;background:rgba(234,179,8,0.15);border-color:#eab308;color:#facc15">
+                🗑️ Pulisci Sessioni Scadute
+            </button>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}

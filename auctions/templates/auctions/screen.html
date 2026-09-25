@@ -1,0 +1,882 @@
+{% extends "auctions/base.html" %}
+{% block title %}{{ auction.title }} — Maxischermo{% endblock %}
+{% block bodyclass %}role-tv{% endblock %}
+{% block wrapclass %}wrap-wide{% endblock %}
+
+{% block content %}
+<style>
+    /* ═══ TV BROADCAST — Sky-blue live overlay ═══════════════════════════
+       Scoped to this template. Deep royal-blue ground (not black), cyan/white
+       accents, angular lower-third, broadcast clock + ticker. All live-data
+       element IDs are preserved so the WebSocket JS keeps driving it. */
+    .tv-shell, .join-overlay, .qr-zoom {
+        --sky:#46c2ff; --sky-b:#8ad8ff; --royal:#2f7dff;
+        --tv-ink:#eef4ff; --tv-mut:#9fb4d6; --tv-red:#ff4d5a; --tv-warn:#ffb526;
+    }
+    /* The maxischermo is a kiosk display, not a page in a card: go edge-to-edge
+       by default (no wrap padding, no rounded card) so it fills the projector
+       / TV. The "Schermo intero" button additionally requests real browser
+       Fullscreen (hides tab/address bar too). */
+    body.role-tv .wrap-wide { padding: 0; max-width: none; }
+    .tv-shell {
+        --ink:#eef4ff; --muted:#9fb4d6; --live:#46c2ff;   /* ring uses --live */
+        position: relative; min-height: 100vh; overflow: hidden;
+        border-radius: 0; border: none;
+        background:
+            radial-gradient(130% 90% at 50% -16%, rgba(70,194,255,.22), transparent 55%),
+            radial-gradient(80% 85% at 94% 118%, rgba(47,125,255,.24), transparent 60%),
+            linear-gradient(160deg, #0c3370 0%, #0a2352 46%, #08183b 100%);
+        display: flex; flex-direction: column;
+        color: var(--tv-ink);
+    }
+    /* faint broadcast texture + top sheen */
+    .tv-bg {
+        position: absolute; inset: 0; pointer-events: none;
+        background:
+            linear-gradient(180deg, rgba(255,255,255,.05), transparent 18%),
+            repeating-linear-gradient(0deg, rgba(255,255,255,.015) 0 2px, transparent 2px 5px);
+        mix-blend-mode: soft-light;
+    }
+    .tv-content { position: relative; z-index: 1; flex: 1; display: grid;
+        grid-template-rows: auto 1fr auto; min-height: 0; }
+
+    /* ── BUG BAR ─────────────────────────────────────────────────────── */
+    .tv-bug {
+        display: flex; align-items: center; gap: 16px; padding: 16px 26px;
+        border-bottom: 1px solid rgba(120,190,255,.16);
+        background: linear-gradient(180deg, rgba(4,14,38,.5), transparent);
+    }
+    .tv-bug .bug-mark {
+        width: 40px; height: 40px; display: grid; place-items: center; flex-shrink: 0;
+        font-family: var(--display); font-weight: 900; font-size: 18px; color: #04122e;
+        background: linear-gradient(135deg, var(--sky-b), var(--royal));
+        clip-path: polygon(14% 0, 100% 0, 86% 100%, 0 100%);
+    }
+    .tv-bug .bug-name { font-family: var(--display); font-weight: 900; font-size: 22px;
+        letter-spacing: .05em; text-transform: uppercase; line-height: 1; }
+    .tv-bug .bug-name span { color: var(--sky); }
+    .tv-bug .bug-comp { padding-left: 15px; border-left: 1px solid rgba(120,190,255,.2);
+        font-family: var(--display); font-weight: 700; letter-spacing: .16em;
+        text-transform: uppercase; font-size: 14px; color: var(--tv-mut); }
+    .tv-bug .bug-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+    .tv-bug .status-pill, .tv-bug .status-badge { font-family: var(--display); }
+
+    /* ── STAGE (hero | live) ─────────────────────────────────────────── */
+    .tv-stage { display: grid; grid-template-columns: 1.5fr 1fr; min-height: 0; }
+    @media (max-width: 900px){ .tv-stage { grid-template-columns: 1fr; } }
+
+    /* HERO */
+    .tv-hero { position: relative; overflow: hidden; padding: 26px 30px;
+        display: flex; flex-direction: column; justify-content: flex-end; min-height: 0; }
+    .tv-hero::before {  /* spotlight */
+        content: ""; position: absolute; inset: 0; z-index: 0;
+        background: radial-gradient(52% 60% at 34% 32%, rgba(70,194,255,.18), transparent 62%);
+    }
+    .hero-ghost { position: absolute; left: 3.5%; top: 3%; z-index: 0;
+        font-family: var(--display); font-weight: 900; font-size: min(27vw, 300px);
+        line-height: .8; letter-spacing: -.02em; text-transform: uppercase;
+        color: rgba(255,255,255,.05); white-space: nowrap; pointer-events: none; }
+
+    /* Lower-third name bar */
+    #tv-player.tv-player { position: relative; z-index: 2; display: flex; align-items: stretch;
+        gap: 0; margin: 0 0 16px; max-width: 88%; font-family: var(--display); }
+    #tv-player .role-badge {
+        display: grid; place-items: center; width: 74px; flex-shrink: 0;
+        /* console.css sizes the small table pill 22x22 with a border: undo both,
+           or the lower-third badge collapses to a sliver and eats its letter. */
+        height: auto; align-self: stretch; border: none;
+        font-weight: 900; font-size: 42px; color: #04122e; border-radius: 0;
+        background: linear-gradient(160deg, var(--sky-b), var(--royal));
+        clip-path: polygon(0 0, 100% 0, 84% 100%, 0 100%);
+    }
+    #tv-player .role-badge.role-P{background:linear-gradient(160deg,#ffcf7a,#ff9e12);}
+    #tv-player .role-badge.role-C{background:linear-gradient(160deg,#bff08a,#5bbf1f);}
+    #tv-player .role-badge.role-A{background:linear-gradient(160deg,#ffb0c2,#ff4d76);}
+    #tv-player .tv-name-wrap { background: linear-gradient(90deg, rgba(5,17,44,.94), rgba(5,17,44,.55));
+        border: 1px solid rgba(120,190,255,.2); border-left: none;
+        padding: 8px 30px 10px 20px; min-width: 0; display: flex; flex-direction: column;
+        justify-content: center; clip-path: polygon(0 0, 100% 0, 100% 100%, 3% 100%); }
+    /* Mantra: i ruoli veri, sotto il nome. Il badge grande resta il ruolo
+       classico - da lontano un colore si legge, "B;Dd;E" no - e questi
+       chip aggiungono il dettaglio a chi e' abbastanza vicino da volerlo. */
+    .tv-mroles { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+    .tv-mrole { font-family: var(--display); font-weight: 900; font-size: 22px;
+        letter-spacing: .06em; text-transform: uppercase; color: #04122e;
+        background: var(--sky); border-radius: 6px; padding: 4px 12px; line-height: 1.35; }
+    #tv-player.nsize-s .tv-mrole { font-size: 18px; padding: 3px 10px; }
+    #tv-player.nsize-l .tv-mrole { font-size: 28px; padding: 5px 14px; }
+
+    /* Name + role badge scale together in three sizes (screen_name_size). */
+    #tv-player.nsize-s .role-badge { width: 58px; font-size: 32px; }
+    #tv-player.nsize-l .role-badge { width: 96px; font-size: 56px; }
+    #tv-player.nsize-s .tv-player-name { font-size: clamp(30px, 4vw, 56px); }
+    #tv-player.nsize-l .tv-player-name { font-size: clamp(48px, 7.4vw, 112px); }
+    #tv-player .tv-player-name { font-weight: 900; font-size: clamp(38px, 5.6vw, 80px);
+        line-height: .88; text-transform: uppercase; letter-spacing: .004em;
+        white-space: normal; overflow: hidden; word-break: break-word;
+        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    #tv-player .tv-player-team { font-weight: 700; font-size: clamp(15px, 1.5vw, 22px);
+        letter-spacing: .16em; text-transform: uppercase; color: var(--sky); order: -1; }
+    #tv-player .stars { color: var(--sky-b); font-size: clamp(28px,5vw,64px); letter-spacing: .3em;
+        font-weight: 900; }
+
+    /* Stat chips */
+    .tv-sealed { position: relative; z-index: 2; margin-top: 14px; padding: 14px 18px;
+        border-radius: 16px; border: 2px solid var(--tv-warn);
+        background: rgba(255,181,38,.10); max-width: 760px; }
+    .tv-sealed .sealed-kick { font-family: var(--display); font-weight: 900;
+        font-size: clamp(20px,2.2vw,32px); letter-spacing: .04em; text-transform: uppercase;
+        color: var(--tv-warn); }
+    .tv-sealed .sealed-line { font-size: clamp(14px,1.4vw,20px); font-weight: 800;
+        color: var(--tv-mut); margin-top: 4px; letter-spacing: .08em; text-transform: uppercase; }
+    .tv-sealed .sealed-rows { margin-top: 10px; display: flex; flex-direction: column; gap: 4px; }
+    .tv-sealed .sealed-row { display: flex; justify-content: space-between; gap: 24px;
+        font-size: clamp(16px,1.6vw,24px); font-weight: 800; }
+    .tv-sealed .sealed-row.win { color: var(--tv-warn); }
+    .tv-stats { position: relative; z-index: 2; display: flex; flex-wrap: wrap; gap: 9px;
+        justify-content: flex-start; margin-top: 2px; min-height: 4px; }
+    .tv-stats .stat { display: flex; flex-direction: column; gap: 0; padding: 8px 15px 7px;
+        min-width: 68px; border-radius: 3px;
+        background: rgba(255,255,255,.05); border: 1px solid rgba(120,190,255,.16);
+        border-top: 2px solid var(--royal); }
+    .tv-stats .stat b { font-family: var(--display); font-weight: 900; font-size: clamp(20px,2vw,28px); line-height: 1; }
+    .tv-stats .stat span { color: var(--tv-mut); font-size: 10px; font-weight: 800;
+        text-transform: uppercase; letter-spacing: .1em; }
+    .tv-stats .stat.key { background: rgba(70,194,255,.12); border-color: rgba(70,194,255,.3);
+        border-top-color: var(--sky); padding-right: 20px; }
+    /* Fantamedia leads at half again the size: from the back of the room it is
+       the one number people read off the wall before raising a hand. */
+    .tv-stats .stat.key b { color: var(--sky); font-size: clamp(30px,3vw,42px); }
+    .tv-stats .stat.key span { color: var(--sky); opacity: .8; }
+    /* The chips ride on screen_name_size, the same dial as the name: the stats
+       belong to the player block, and a projector that needs a bigger name needs
+       bigger figures under it. (The timer has its own setting.) */
+    .tv-stats.nsize-s .stat { padding: 6px 11px 5px; min-width: 58px; }
+    .tv-stats.nsize-s .stat b { font-size: clamp(15px,1.4vw,20px); }
+    .tv-stats.nsize-s .stat.key b { font-size: clamp(21px,2vw,29px); }
+    .tv-stats.nsize-s .stat span { font-size: 9px; }
+    .tv-stats.nsize-l .stat { padding: 11px 20px 9px; min-width: 96px; }
+    .tv-stats.nsize-l .stat b { font-size: clamp(26px,2.6vw,38px); }
+    .tv-stats.nsize-l .stat.key b { font-size: clamp(40px,4.2vw,58px); }
+    .tv-stats.nsize-l .stat span { font-size: 13px; }
+
+    /* LIVE panel */
+    .tv-live { position: relative; z-index: 2; border-left: 1px solid rgba(120,190,255,.16);
+        background: linear-gradient(180deg, rgba(4,14,38,.42), rgba(4,14,38,.14));
+        padding: 24px 28px; display: flex; flex-direction: column; gap: 18px; justify-content: center; }
+    .tv-kick { font-family: var(--display); font-weight: 800; letter-spacing: .22em;
+        text-transform: uppercase; font-size: 13px; color: var(--tv-mut); }
+    .tv-kick::before { content: ""; display: inline-block; width: 16px; height: 3px;
+        background: var(--sky); margin-right: 9px; vertical-align: middle; border-radius: 2px; }
+
+    .tv-price-value { font-family: var(--display); font-weight: 900; font-variant-numeric: tabular-nums;
+        line-height: .82; font-size: clamp(78px, 12vw, 150px); letter-spacing: -.01em;
+        background: linear-gradient(180deg, #ffffff, #bfe4ff); -webkit-background-clip: text;
+        background-clip: text; color: transparent; }
+    .tv-price-sub { font-family: var(--display); font-size: clamp(15px, 1.6vw, 22px); font-weight: 800;
+        text-transform: uppercase; color: var(--tv-mut); letter-spacing: .18em; margin-top: 4px; }
+
+    .tv-clock { display: flex; align-items: center; gap: 18px; padding-top: 16px;
+        border-top: 1px solid rgba(120,190,255,.16); }
+    .tv-clock .ring-wrap { margin: 0; flex-shrink: 0; }
+    .tv-clock .timer { color: var(--sky); }
+    /* Dial + digits scale together in three sizes (Auction.screen_timer_size),
+       and both are scoped to the ring so the digits always stay inside it: the
+       console's .ring-wrap.lg rules (up to 104px, !important in ms-mode) are
+       meant for the regia's own dial and would overflow this one. */
+    .tv-clock.size-s .ring-wrap { width: clamp(112px, 7.5vw, 146px); height: clamp(112px, 7.5vw, 146px); }
+    .tv-clock.size-m .ring-wrap { width: clamp(150px, 10.5vw, 200px); height: clamp(150px, 10.5vw, 200px); }
+    .tv-clock.size-l .ring-wrap { width: clamp(196px, 14.5vw, 278px); height: clamp(196px, 14.5vw, 278px); }
+    .tv-clock.size-s .ring-wrap.lg .timer, .tv-clock.size-s .ring-wrap.lg .timer.ms-mode { font-size: clamp(26px, 2.1vw, 38px) !important; }
+    .tv-clock.size-m .ring-wrap.lg .timer, .tv-clock.size-m .ring-wrap.lg .timer.ms-mode { font-size: clamp(34px, 2.9vw, 52px) !important; }
+    .tv-clock.size-l .ring-wrap.lg .timer, .tv-clock.size-l .ring-wrap.lg .timer.ms-mode { font-size: clamp(44px, 4vw, 72px) !important; }
+    .tv-clock .clock-lbl { font-family: var(--display); font-weight: 800; letter-spacing: .14em;
+        text-transform: uppercase; font-size: 14px; color: var(--tv-mut); line-height: 1.5; }
+    .tv-clock .clock-lbl b { display: block; color: var(--tv-ink); font-size: 18px; }
+    /* Interlude: the dial is counting to the next player, not to a deadline —
+       amber, so nobody in the room mistakes it for time left to raise. */
+    .tv-clock.is-gap .ring-bar { stroke: var(--tv-warn, #ffb526); opacity: 1; }
+    .tv-clock.is-gap .timer { color: var(--tv-warn, #ffb526); }
+    .tv-clock.is-gap .clock-lbl b { color: var(--tv-warn, #ffb526); }
+    /* Idle: no clock is running, so the dial must not read as a countdown. */
+    .tv-clock.is-idle .ring-bar { opacity: 0; }
+    .tv-clock.is-idle .timer { color: var(--tv-mut); opacity: .55; }
+    .tv-clock.is-idle .clock-lbl b { color: var(--sky); }
+
+    .tv-leader { padding-top: 16px; border-top: 1px solid rgba(120,190,255,.16); }
+    .tv-leader-row { display: flex; align-items: center; gap: 14px; margin-top: 9px; }
+    .tv-leader-logo { font-size: 46px; line-height: 1; flex-shrink: 0; }
+    .tv-leader-logo img { width: 60px; height: 60px; border-radius: 12px; object-fit: cover;
+        border: 2px solid rgba(120,190,255,.3); }
+    .tv-bidder-name { font-family: var(--display); font-weight: 900; font-size: clamp(26px, 3.2vw, 44px);
+        text-transform: uppercase; letter-spacing: .01em; line-height: .95; color: #fff; word-break: break-word; }
+    .tv-bidder-badge { display: inline-block; margin-top: 8px; background: rgba(70,194,255,.16);
+        color: var(--sky); border: 1px solid rgba(70,194,255,.35); border-radius: 6px;
+        padding: 4px 14px; font-family: var(--display); font-size: 13px; font-weight: 900;
+        text-transform: uppercase; letter-spacing: .14em; }
+
+    /* ── TICKER ──────────────────────────────────────────────────────── */
+    .tv-ticker { display: flex; align-items: stretch; border-top: 1px solid rgba(120,190,255,.18);
+        background: rgba(4,14,38,.5); overflow: hidden; }
+    .tv-ticker .tk-lbl { display: flex; align-items: center; gap: 8px; padding: 0 26px 0 18px;
+        flex-shrink: 0; font-family: var(--display); font-weight: 900; letter-spacing: .14em;
+        text-transform: uppercase; font-size: 14px; color: #04122e;
+        background: linear-gradient(160deg, var(--sky-b), var(--royal));
+        clip-path: polygon(0 0, 100% 0, 90% 100%, 0 100%); }
+    .tv-ticker .tk-track { display: flex; align-items: center; gap: 26px; padding: 12px 22px;
+        overflow: hidden; white-space: nowrap; min-width: 0; }
+    .tk-item { display: inline-flex; align-items: center; gap: 9px; flex-shrink: 0;
+        font-family: var(--display); font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+        font-size: 16px; color: var(--tv-mut); }
+    .tk-item .tk-logo { width: 22px; height: 22px; border-radius: 5px; object-fit: cover; }
+    .tk-item b { color: var(--tv-ink); font-weight: 800; }
+    .tk-item .amt { color: var(--sky); font-weight: 900; }
+    .tk-item.flash-in { animation: tkflash .6s ease; }
+    @keyframes tkflash { from { color: var(--sky-b); } }
+
+    /* Live reactions + announcement (cyan) */
+    .react-layer { position:absolute; inset:0; pointer-events:none; overflow:hidden; z-index:40; }
+    .react-float { position:absolute; bottom:10%; will-change:transform,opacity;
+        animation:reactUp 2.6s ease-out forwards; filter:drop-shadow(0 4px 10px rgba(0,0,0,.5)); }
+    @keyframes reactUp {
+        0% { opacity:0; transform:translateY(0) scale(.5); }
+        12% { opacity:1; transform:translateY(-30px) scale(1.15); }
+        100% { opacity:0; transform:translateY(-46vh) scale(1); }
+    }
+    .tv-announce { position:absolute; top:0; left:0; right:0; z-index:50; display:none;
+        padding:24px 32px; text-align:center; font-family:var(--display); font-weight:900;
+        font-size:clamp(28px,3.6vw,54px); color:#04122e;
+        background:linear-gradient(160deg, var(--sky-b), var(--royal));
+        box-shadow:0 12px 44px rgba(3,12,34,.6); animation:annDrop .35s cubic-bezier(.2,1.2,.4,1);
+        letter-spacing:.01em; text-transform:uppercase; }
+    .tv-announce.call { background:linear-gradient(160deg,#ff8088,var(--tv-red)); color:#fff; }
+    @keyframes annDrop { from { transform:translateY(-100%); } to { transform:translateY(0); } }
+
+    @media (prefers-reduced-motion: reduce){ .react-float{animation-duration:.01s;} }
+
+    /* ── Iscrizioni (QR) overlay — recoloured to Sky ─────────────────── */
+    .join-btn { display: inline-flex; align-items: center; gap: 7px;
+        background: rgba(70,194,255,.16); color: var(--sky);
+        border: 1px solid rgba(70,194,255,.4); border-radius: 8px; padding: 8px 15px;
+        font-family: var(--display); font-weight: 800; font-size: 14px; text-transform: uppercase;
+        letter-spacing: .08em; cursor: pointer; }
+    .join-btn:hover { background: rgba(70,194,255,.28); }
+    #audio-unlock-btn.audio-on { background: rgba(91,191,31,.22); color: #9cf089; border-color: rgba(91,191,31,.5); }
+    #audio-unlock-btn.audio-on:hover { background: rgba(91,191,31,.34); }
+    .join-overlay { position: fixed; inset: 0; z-index: 200; background: rgba(6,18,44,.97);
+        display: none; flex-direction: column; padding: 32px 36px; overflow-y: auto; }
+    .join-overlay.open { display: flex; }
+    .join-ov-head { display: flex; align-items: center; justify-content: space-between;
+        margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+    .join-ov-head h2 { font-family: var(--display); font-weight: 900; font-size: clamp(30px, 6vw, 54px);
+        margin: 0; text-transform: uppercase; letter-spacing: .01em; }
+    .join-ov-head h2 .accent { color: var(--sky); }
+    .join-ov-head p { margin: 4px 0 0; color: var(--tv-mut); font-size: 15px; }
+    .join-close { background: rgba(255,255,255,.08); color: #fff; border: 1px solid rgba(255,255,255,.18);
+        border-radius: 10px; padding: 12px 20px; font-size: 20px; cursor: pointer; }
+    .join-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 20px; align-content: start; }
+    .join-card { background: rgba(255,255,255,.05); border: 1px solid rgba(120,190,255,.14);
+        border-radius: 14px; padding: 18px 16px; text-align: center; cursor: pointer;
+        transition: transform .15s, border-color .15s; }
+    .join-card:hover { transform: translateY(-5px); border-color: var(--sky); }
+    .join-card .jc-logo { width: 60px; height: 60px; border-radius: 12px; object-fit: cover;
+        margin: 0 auto 10px; display: flex; align-items: center; justify-content: center;
+        background: rgba(255,255,255,.06); border: 1px solid rgba(120,190,255,.16); font-size: 30px; }
+    .join-card .jc-name { font-family: var(--display); font-weight: 800; text-transform: uppercase;
+        font-size: 16px; letter-spacing: .04em; margin-bottom: 12px; word-break: break-word; }
+    .join-card .jc-qr { background: #fff; border-radius: 12px; padding: 10px; display: inline-block; line-height: 0; }
+    .join-card .jc-qr img { width: 150px; height: 150px; display: block; }
+    .join-card .jc-hint { margin-top: 10px; font-size: 11px; color: var(--tv-mut); text-transform: uppercase; letter-spacing: .14em; }
+    .qr-zoom { position: fixed; inset: 0; z-index: 210; background: rgba(3,10,28,.95);
+        display: none; align-items: center; justify-content: center; flex-direction: column;
+        gap: 22px; padding: 28px; cursor: zoom-out; }
+    .qr-zoom.open { display: flex; }
+    .qr-zoom .qz-name { font-family: var(--display); font-weight: 900; font-size: clamp(28px, 6vw, 54px);
+        text-align: center; text-transform: uppercase; }
+    .qr-zoom .qz-box { background: #fff; border-radius: 24px; padding: 28px; line-height: 0; }
+    .qr-zoom .qz-box img { width: min(72vw, 72vh); height: min(72vw, 72vh); display: block; }
+    .qr-zoom .qz-hint { color: var(--tv-mut); font-size: 16px; }
+
+    /* ── Mobile fallback ─────────────────────────────────────────────────
+       This screen is designed as a projector/TV kiosk (see .tv-stage above,
+       already stacked below 900px). Below this it can also end up open on a
+       phone — someone checking the "secondo schermo" without a TV handy — so
+       it needs to stay usable there too, not just non-broken. */
+    @media (max-width: 640px) {
+        .tv-bug { flex-wrap: wrap; gap: 10px; padding: 12px 14px; }
+        .tv-bug .bug-comp { padding-left: 0; border-left: none; font-size: 11px;
+            flex-basis: 100%; order: 3; }
+        .tv-bug .bug-right { margin-left: 0; flex-wrap: wrap; gap: 8px; order: 4; flex-basis: 100%; }
+        .join-btn { padding: 7px 11px; font-size: 12px; }
+
+        .tv-hero { padding: 18px 16px; }
+        .hero-ghost { display: none; }  /* giant watermark name: pure clutter at phone width */
+        #tv-player.tv-player { max-width: 100%; }
+        #tv-player .tv-player-name { font-size: clamp(26px, 8vw, 44px) !important; }
+        .tv-stats { gap: 6px; }
+        .tv-stats .stat { min-width: 56px; padding: 6px 10px 5px; }
+
+        .tv-live { border-left: none; border-top: 1px solid rgba(120,190,255,.16);
+            padding: 18px 16px; gap: 14px; }
+        .tv-clock { gap: 12px; }
+        .tv-clock .ring-wrap { width: 96px !important; height: 96px !important; }
+
+        .tv-ticker { flex-wrap: wrap; }
+        .tv-ticker .tk-lbl { padding: 8px 14px; font-size: 12px; }
+        .tk-item { font-size: 13px; }
+
+        .join-ov-head { flex-direction: column; align-items: flex-start; }
+        .join-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+        .join-card .jc-qr img { width: 110px; height: 110px; }
+    }
+</style>
+
+<div class="tv-shell">
+    <div class="tv-bg"></div>
+    <div id="tv-announce" class="tv-announce"></div>
+    <div id="react-layer" class="react-layer" aria-hidden="true"></div>
+
+    <div class="tv-content">
+
+        <!-- BUG BAR -->
+        <header class="tv-bug">
+            <div class="bug-mark">FM</div>
+            <div class="bug-name">ASTA <span>LIVE</span></div>
+            <div class="bug-comp">{{ auction.title }}</div>
+            <div class="bug-right">
+                {% if participants %}
+                <button type="button" class="join-btn" onclick="openJoinOverlay()"><svg class="ic"><use href="#i-scan"/></svg> Iscrizioni</button>
+                {% endif %}
+                <button type="button" class="join-btn" onclick="toggleFullscreen()" title="Schermo intero"><svg class="ic"><use href="#i-expand"/></svg> Schermo intero</button>
+                <button type="button" id="audio-unlock-btn" class="join-btn" onclick="toggleAnnouncerAudio()" title="Attiva/disattiva l'annuncio vocale dei giocatori"><svg class="ic"><use href="#i-wave"/></svg> <span class="audio-btn-label">Attiva audio</span></button>
+                <span id="status-pill" class="status-pill s-{{ auction.status }}">…</span>
+                <div class="status-badge"><span class="dot"></span><span id="status-text">Asta live</span></div>
+            </div>
+        </header>
+
+        <!-- STAGE -->
+        <div class="tv-stage">
+
+            <!-- HERO: player -->
+            <section class="tv-hero">
+                <div id="hero-ghost" class="hero-ghost">{% if auction.player %}{{ auction.player.name }}{% endif %}</div>
+
+                <div id="tv-player" class="tv-player nsize-{{ auction.screen_name_size }}">{% if auction.player %}{% if not auction.league.is_mantra %}<span class="role-badge role-{{ auction.player.role }}">{{ auction.player.role }}</span>{% endif %}<span class="tv-name-wrap"><span class="tv-player-team">{{ auction.player.team }}</span><span class="tv-player-name">{{ auction.player.name }}</span>{% if auction.league.is_mantra and auction.player.role_list %}<span class="tv-mroles">{% for r in auction.player.role_list %}<span class="tv-mrole">{{ r }}</span>{% endfor %}</span>{% endif %}</span>{% else %}<span class="stars">★ ★ ★</span>{% endif %}</div>
+
+                <div id="tv-stats" class="tv-stats nsize-{{ auction.screen_name_size }}"></div>
+
+                <!-- Asta alle buste: mentre il giro e' aperto la sala vede solo
+                     il minimo e quante buste sono arrivate; allo spoglio, tutte. -->
+                <div id="tv-sealed" class="tv-sealed" style="display:none"></div>
+            </section>
+
+            <!-- LIVE panel -->
+            <aside class="tv-live">
+                <div>
+                    <div class="tv-kick">Offerta attuale</div>
+                    <div id="price" style="line-height:1"><div id="price-val" class="tv-price-value">{{ auction.current_price|floatformat:0 }}</div></div>
+                    <div class="tv-price-sub">crediti FM</div>
+                </div>
+
+                <div class="tv-clock size-{{ auction.screen_timer_size }}" id="tv-clock">
+                    <div class="ring-wrap lg" id="ring-wrap">
+                        <svg viewBox="0 0 168 168" aria-hidden="true">
+                            <circle class="ring-track" cx="84" cy="84" r="76" stroke-width="10"></circle>
+                            <circle class="ring-bar" id="ring-bar" cx="84" cy="84" r="76" stroke-width="10"
+                                    data-circ="477.52" stroke-dasharray="477.52" stroke-dashoffset="0"></circle>
+                        </svg>
+                        <div class="ring-label">
+                            <div id="timer" class="timer">--:--</div>
+                        </div>
+                    </div>
+                    <div class="clock-lbl"><span id="clock-kick">Tempo</span><b id="clock-state">In attesa</b></div>
+                </div>
+
+                <div class="tv-leader">
+                    <div class="tv-kick">In testa</div>
+                    <div class="tv-leader-row">
+                        <div class="tv-leader-logo" id="best-logo-wrap">
+                            <img id="best-logo" src="" alt="" style="display:none">
+                            <span id="best-logo-placeholder"><svg class="ic" style="width:34px;height:34px;stroke:var(--sky)"><use href="#i-trophy"/></svg></span>
+                        </div>
+                        <div>
+                            <div id="best" class="tv-bidder-name">—</div>
+                            <div id="best-badge" class="tv-bidder-badge" style="display:none">In vantaggio</div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+        </div>
+
+        <!-- TICKER -->
+        <footer class="tv-ticker">
+            <span class="tk-lbl">◂ Ultime offerte</span>
+            <div id="log" class="tk-track">
+            {% for b in recent %}
+                <span class="tk-item">{% if b.participant.logo %}<img class="tk-logo" src="{{ b.participant.logo.url }}" alt="">{% else %}<svg class="ic" style="width:19px;height:19px;stroke:var(--tv-mut)"><use href="#i-ball"/></svg>{% endif %}<b>{{ b.participant.display_name }}</b><span class="amt">{{ b.amount|floatformat:0 }}</span></span>
+            {% endfor %}
+            </div>
+        </footer>
+
+    </div>
+</div>
+
+<!-- ═══ Iscrizioni squadre (QR) overlay ══════════════════════════════════ -->
+<div id="join-overlay" class="join-overlay">
+    <div class="join-ov-head">
+        <div>
+            <h2>ISCRIZIONE <span class="accent">SQUADRE</span></h2>
+            <p>Inquadra il QR della tua squadra per entrare nell'asta. Tocca un QR per ingrandirlo.</p>
+        </div>
+        <button type="button" class="join-close" onclick="closeJoinOverlay()"><svg class="ic"><use href="#i-x"/></svg> Chiudi</button>
+    </div>
+    <div class="join-grid">
+        {% for p in participants %}
+        <div class="join-card" onclick="zoomQr('{{ p.display_name|escapejs }}', '{% url 'participant_qr' p.id %}?a={{ auction.id }}')">
+            {% if p.logo %}
+            <img class="jc-logo" src="{{ p.logo.url }}" alt="{{ p.display_name }}" style="border:none">
+            {% else %}
+            <div class="jc-logo"><svg class="ic" style="width:26px;height:26px"><use href="#i-shirt"/></svg></div>
+            {% endif %}
+            <div class="jc-name">{{ p.display_name }}</div>
+            <div class="jc-qr"><img src="{% url 'participant_qr' p.id %}?a={{ auction.id }}" alt="QR {{ p.display_name }}" loading="lazy"></div>
+            <div class="jc-hint"><svg class="ic" style="width:13px;height:13px"><use href="#i-search"/></svg> Tocca per ingrandire</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- ═══ QR zoom ══════════════════════════════════════════════════════════ -->
+<div id="qr-zoom" class="qr-zoom" onclick="closeZoom()">
+    <div id="qz-name" class="qz-name"></div>
+    <div class="qz-box"><img id="qz-img" src="" alt="QR"></div>
+    <div class="qz-hint">Tocca per chiudere</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const AUCTION_ID = {{ auction.id }};
+    // Durata piena di uno scrutinio, per disegnare il cerchio in proporzione.
+    const SEALED_TOTAL = {{ auction.sealed_seconds }};
+    let state = {{ state|safe }};
+    let timerBase = { remaining: state.remaining_seconds, at: performance.now() };
+    let lastPrice = null;
+
+    /* ---- Annuncio vocale del giocatore (XTTS pre-generato) --------------- */
+    const $announcer = new Audio();
+    $announcer.preload = "auto";
+    let announcerUnlocked = false;  // true dopo il primo gesto utente (autoplay sbloccato)
+    let announcerEnabled  = false;  // true/false = audio attivo/disattivato dall'utente
+    let lastAnnouncedPlayerId = null;
+
+    function updateAudioBtn() {
+        const $btn = document.getElementById("audio-unlock-btn");
+        if (!$btn) return;
+        $btn.classList.toggle("audio-on", announcerEnabled);
+        $btn.querySelector(".audio-btn-label").textContent =
+            announcerEnabled ? "Audio attivo" : "Attiva audio";
+    }
+
+    function toggleAnnouncerAudio() {
+        announcerEnabled = !announcerEnabled;
+        if (announcerEnabled && !announcerUnlocked) {
+            // Un browser blocca l'autoplay finché non c'è un gesto utente: questo
+            // click "sblocca" il tag <audio> per tutta la sessione della pagina.
+            $announcer.src = "";
+            $announcer.play().catch(() => {});
+            announcerUnlocked = true;
+        }
+        if (!announcerEnabled) {
+            $announcer.pause();
+        }
+        updateAudioBtn();
+    }
+
+    function announcePlayer(player) {
+        if (!announcerEnabled || !announcerUnlocked || !player || !player.audio_url) return;
+        $announcer.src = player.audio_url;
+        $announcer.currentTime = 0;
+        $announcer.play().catch(() => {});
+    }
+
+    const $priceVal  = document.getElementById("price-val");
+    const $price     = document.getElementById("price");
+    const $timer     = document.getElementById("timer");
+    const $best      = document.getElementById("best");
+    const $bestBadge = document.getElementById("best-badge");
+    const $bestLogo  = document.getElementById("best-logo");
+    const $bestLogoP = document.getElementById("best-logo-placeholder");
+    const $pill      = document.getElementById("status-pill");
+    const $statusTxt = document.getElementById("status-text");
+    const $clockState= document.getElementById("clock-state");
+    const $clock     = document.getElementById("tv-clock");
+    const $clockKick = document.getElementById("clock-kick");
+    const $log       = document.getElementById("log");
+    const $ringBar   = document.getElementById("ring-bar");
+    const $ringWrap  = document.getElementById("ring-wrap");
+
+    function remainingNow() {
+        if (state.status !== "LIVE") return state.remaining_seconds || 0;
+        if (!state.ends_at) return state.remaining_seconds || 0;
+        return Math.max(0, timerBase.remaining - (performance.now() - timerBase.at) / 1000);
+    }
+
+    // Seconds left in the gap between two lots, or null when we are not in one.
+    // Same local-clock trick as the auction timer: the server sends the figure
+    // once, the screen counts it down itself so it stays smooth between ticks.
+    function interludeNow() {
+        if (state.interlude_seconds == null) return null;
+        return Math.max(0, state.interlude_seconds - (performance.now() - timerBase.at) / 1000);
+    }
+
+    function statPills(stats) {
+        if (!stats) return "";
+        const defs = [
+            ["fanta_avg", "Fantamedia", true],
+            ["avg_vote",  "Media voto", false],
+            ["presences", "Presenze",   false],
+            ["goals",     "Gol",        false],
+            ["assists",   "Assist",     false],
+            ["fvm",       "FVM",        false],
+        ];
+        return defs
+            .filter(([k]) => stats[k] !== undefined && stats[k] !== null)
+            .map(([k, label, key]) =>
+                `<span class="stat${key ? " key" : ""}"><b>${stats[k]}</b><span>${label}</span></span>`)
+            .join("");
+    }
+
+    // Shrink-to-fit: the name is whatever length the listone gives it, so instead
+    // of letting long ones spill off the lower-third or get clipped by the
+    // 2-line clamp, step the font-size down until it actually fits.
+    function fitClamp(el, { min = 24, maxLines = 2, step = 3 } = {}) {
+        if (!el) return;
+        el.style.fontSize = "";
+        let guard = 40;
+        while (guard-- > 0) {
+            const size = parseFloat(getComputedStyle(el).fontSize);
+            const maxH = size * 0.88 * maxLines; // matches the CSS line-height (.88)
+            if (size <= min || el.scrollHeight <= maxH + 2) break;
+            el.style.fontSize = (size - step) + "px";
+        }
+    }
+    function fitLine(el, { min = 40, step = 6 } = {}) {
+        if (!el || !el.parentElement) return;
+        el.style.fontSize = "";
+        let guard = 60;
+        while (guard-- > 0) {
+            const size = parseFloat(getComputedStyle(el).fontSize);
+            if (size <= min || el.scrollWidth <= el.parentElement.clientWidth) break;
+            el.style.fontSize = (size - step) + "px";
+        }
+    }
+    function fitHero() {
+        fitClamp(document.querySelector("#tv-player .tv-player-name"), { min: 24 });
+        fitLine(document.getElementById("hero-ghost"), { min: 40 });
+    }
+    let fitTimer = null;
+    window.addEventListener("resize", () => {
+        clearTimeout(fitTimer);
+        fitTimer = setTimeout(fitHero, 150);
+    });
+
+    function toggleFullscreen() {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(() => {});
+        } else {
+            document.exitFullscreen().catch(() => {});
+        }
+    }
+
+    function applyState(s) {
+        const prev = lastPrice;
+        const wasLive = state && state.status === "LIVE";
+        state = s;
+        timerBase = { remaining: s.remaining_seconds, at: performance.now() };
+
+        $priceVal.textContent = money(s.current_price);
+        if (prev !== null && prev !== s.current_price) {
+            $price.classList.remove("pulse"); void $price.offsetWidth; $price.classList.add("pulse");
+        }
+        lastPrice = s.current_price;
+
+        const $tvPlayer = document.getElementById("tv-player");
+        const $ghost = document.getElementById("hero-ghost");
+        if ($tvPlayer && s.screen_name_size) {
+            $tvPlayer.classList.remove("nsize-s", "nsize-m", "nsize-l");
+            $tvPlayer.classList.add("nsize-" + s.screen_name_size);
+            const $st = document.getElementById("tv-stats");
+            if ($st) {
+                $st.classList.remove("nsize-s", "nsize-m", "nsize-l");
+                $st.classList.add("nsize-" + s.screen_name_size);
+            }
+        }
+        if ($tvPlayer) {
+            const mr = (s.player && s.player.mantra_roles) || [];
+            const mrHtml = mr.length
+                ? `<span class="tv-mroles">` +
+                  mr.map(r => `<span class="tv-mrole">${r}</span>`).join("") + `</span>`
+                : "";
+            const roleBadge = mr.length ? "" : (s.player ? `<span class="role-badge role-${s.player.role}">${s.player.role}</span>` : "");
+            $tvPlayer.innerHTML = s.player
+                ? roleBadge +
+                  `<span class="tv-name-wrap"><span class="tv-player-team">${s.player.team || ""}</span>` +
+                  `<span class="tv-player-name">${s.player.name}</span>${mrHtml}</span>`
+                : `<span class="stars">★ ★ ★</span>`;
+        }
+        if ($ghost) $ghost.textContent = s.player ? s.player.name : "";
+        fitHero();
+
+        // Annuncia il nuovo giocatore appena sale sul blocco (solo quando
+        // cambia rispetto all'ultimo annunciato, non ad ogni tick di stato).
+        const currentPlayerId = s.player ? s.player.id : null;
+        if (currentPlayerId !== null && currentPlayerId !== lastAnnouncedPlayerId) {
+            announcePlayer(s.player);
+        }
+        lastAnnouncedPlayerId = currentPlayerId;
+
+        const $tvStats = document.getElementById("tv-stats");
+        if ($tvStats) $tvStats.innerHTML = s.player ? statPills(s.player.stats) : "";
+
+        if (s.best_bidder) {
+            $best.textContent = s.best_bidder;
+            $bestBadge.style.display = "inline-block";
+            if (s.best_bidder_logo) {
+                $bestLogo.src = s.best_bidder_logo;
+                $bestLogo.style.display = "block";
+                $bestLogoP.style.display = "none";
+            } else {
+                $bestLogo.style.display = "none";
+                $bestLogoP.style.display = "inline";
+            }
+        } else {
+            $best.textContent = "—";
+            $bestBadge.style.display = "none";
+            $bestLogo.style.display = "none";
+            $bestLogoP.style.display = "inline";
+        }
+
+        $pill.textContent = STATUS_LABEL[s.status] || s.status;
+        $pill.className = "status-pill s-" + s.status;
+        $statusTxt.textContent = STATUS_LABEL[s.status] || s.status;
+        // The clock label is repainted every frame by paintClock(); the dial
+        // size follows the setting live, so the regia can resize the TV without
+        // anyone touching the screen it is plugged into.
+        if ($clock && s.screen_timer_size) {
+            $clock.classList.remove("size-s", "size-m", "size-l");
+            $clock.classList.add("size-" + s.screen_timer_size);
+        }
+
+        sealedBase = {
+            left: (s.sealed && s.sealed.active) ? s.sealed.seconds_left : null,
+            at: performance.now(),
+        };
+        renderSealed(s);
+
+        if (wasLive && s.status === "CLOSED" && s.best_bidder) {
+            showAwardAnimation(s.best_bidder, s.best_amount);
+        }
+    }
+
+    // --- Asta alle buste --------------------------------------------------
+    let sealedBase = { left: null, at: performance.now() };
+
+    function sealedLeftNow() {
+        if (sealedBase.left == null) return null;
+        return Math.max(0, sealedBase.left - (performance.now() - sealedBase.at) / 1000);
+    }
+
+    function renderSealed(s) {
+        const box = document.getElementById("tv-sealed");
+        if (!box) return;
+        const sealed = s.sealed || {};
+        const rows = sealed.reveal || [];
+        if (sealed.active) {
+            box.style.display = "block";
+            box.innerHTML =
+                `<div class="sealed-kick">${sealed.round > 1
+                    ? "Spareggio alle buste · giro " + sealed.round
+                    : "Asta alle buste"}</div>` +
+                `<div class="sealed-line">Minimo ${money(sealed.floor)} FM · ` +
+                `${sealed.submitted || 0} buste consegnate</div>`;
+        } else if (rows.length) {
+            box.style.display = "block";
+            box.innerHTML =
+                `<div class="sealed-kick">Buste aperte</div>` +
+                `<div class="sealed-rows">` + rows.map((r, i) =>
+                    `<div class="sealed-row${i === 0 ? " win" : ""}">` +
+                    `<span>${r.team}</span><span>${money(r.amount)} FM</span></div>`).join("") +
+                `</div>`;
+        } else {
+            box.style.display = "none";
+            box.innerHTML = "";
+        }
+    }
+
+    // Three different things share this dial and the room has to tell them
+    // apart at a glance: a countdown that is actually running, a lot sitting on
+    // the block whose clock has not started yet, and the gap between two lots.
+    function paintClock(r, gap) {
+        const live    = state.status === "LIVE";
+        const running = live && !!state.ends_at;
+        let kick = "Tempo", label;
+        if (sealedLeftNow() !== null) {
+            // Il tempo che conta adesso e' quello per scrivere la busta.
+            kick = "Buste";
+            label = (state.sealed && state.sealed.round > 1) ? "Spareggio" : "Scrutinio segreto";
+        } else if (gap !== null && gap !== undefined) {
+            // The pause after a knock-down: name who is coming up so the room
+            // can get ready, unless the running order is a draw (call_order
+            // "random" withholds queue_next on purpose — keep the surprise).
+            kick = "Prossimo giocatore";
+            label = state.queue_next ? state.queue_next.name : "Fra un istante";
+        } else if (!live && state.awaiting_confirm) {
+            // Sold, and the flow parks here until the regia gives the ok
+            // (see awaiting_confirm in services.serialize_state) — say so
+            // instead of the generic "Chiusa" status label.
+            kick = "Aggiudicato";
+            label = "In attesa della regia";
+        } else if (!live) {
+            label = STATUS_LABEL[state.status] || state.status;
+        } else if (running) {
+            label = (r > 0 && r <= 10) ? "Ultima chiamata" : "In corso";
+        } else if (state.player) {
+            kick = "Durata asta";                 // the number is the round length…
+            label = "Al primo rilancio";          // …not a countdown, so say so
+        } else {
+            kick = "Prossimo lotto";
+            label = "Attesa prossima asta";
+        }
+        const gapping = gap !== null && gap !== undefined;
+        if ($clock) {
+            $clock.classList.toggle("is-idle", !running && !gapping);
+            $clock.classList.toggle("is-gap", gapping);
+        }
+        if ($clockKick) $clockKick.textContent = kick;
+        if ($clockState) $clockState.textContent = label;
+    }
+
+    // The interlude ring: amber and never "urgent". updateRing() colours by
+    // absolute seconds left (<=10s red) and pulses — correct for a lot about to
+    // close, alarming for a 3-second gap between two players.
+    function paintGapRing(gap, total) {
+        if (!$ringBar) return;
+        const C = parseFloat($ringBar.getAttribute("data-circ"));
+        const frac = total > 0 ? Math.max(0, Math.min(1, gap / total)) : 0;
+        $ringBar.style.strokeDashoffset = C * (1 - frac);
+        $ringBar.style.stroke = "var(--tv-warn)";
+        if ($ringWrap) $ringWrap.classList.remove("urgent");
+    }
+
+    function tick() {
+        const sealedLeft = sealedLeftNow();
+        if (sealedLeft !== null) {
+            $timer.textContent = fmtTime(sealedLeft);
+            $timer.classList.remove("ms-mode");
+            paintClock(sealedLeft, null);
+            updateRing($ringBar, $ringWrap, sealedLeft, SEALED_TOTAL || 45);
+            requestAnimationFrame(tick);
+            return;
+        }
+        const r = remainingNow();
+        const gap = interludeNow();
+        const waiting = state.status === "LIVE" && !state.ends_at;
+        const msMode  = r > 0 && r < 3 && !!state.ends_at;
+        if (gap !== null) {
+            // Whole seconds, rounded up: the room reads "3 · 2 · 1", never "0"
+            // sitting there while the next lot is still being set up.
+            $timer.textContent = String(Math.ceil(gap));
+            $timer.classList.remove("ms-mode");
+        } else if (waiting && !state.player) {
+            // Nothing on the block: a full dial would read as "a minute to go".
+            $timer.textContent = "--:--";
+            $timer.classList.remove("ms-mode");
+        } else if (msMode) {
+            $timer.innerHTML = fmtTimerMs(r);
+            $timer.classList.add("ms-mode");
+        } else {
+            $timer.textContent = fmtTime(r);
+            $timer.classList.remove("ms-mode");
+        }
+        paintClock(r, gap);
+        if (gap !== null) {
+            paintGapRing(gap, state.cycle_break_seconds || 4);
+        } else {
+            updateRing($ringBar, $ringWrap, r, state.duration_seconds || 60);
+            soundTick(r);   // no last-seconds beeping over the interlude
+        }
+        requestAnimationFrame(tick);
+    }
+
+    function addLogRow(bid) {
+        const span = document.createElement("span");
+        span.className = "tk-item flash-in";
+        const logo = bid.participant_logo
+            ? `<img class="tk-logo" src="${bid.participant_logo}" alt="">`
+            : `<svg class="ic" style="width:19px;height:19px;stroke:var(--tv-mut)"><use href="#i-ball"/></svg>`;
+        span.innerHTML = `${logo}<b>${bid.participant}</b><span class="amt">${money(bid.amount)}</span>`;
+        $log.prepend(span);
+        while ($log.children.length > 12) $log.removeChild($log.lastChild);
+    }
+
+    function connect() {
+        const socket = new WebSocket(auctionSocketUrl(AUCTION_ID));
+        socket.onmessage = (e) => {
+            const msg = JSON.parse(e.data);
+            if (msg.type === "state") applyState(msg);
+            else if (msg.type === "bid_new") { soundBid(); addLogRow(msg.bid); if (msg.extended) flashExtended(); }
+            else if (msg.type === "participant_offline")
+                showAlert("📡", `${msg.participant} si è disconnesso`, 7000);
+            else if (msg.type === "participant_warning" && msg.kind === "latency")
+                showAlert("⚠️", `${msg.participant} — latenza alta (${msg.ping} ms)`, 6000);
+            else if (msg.type === "reaction") spawnReaction(msg.emoji);
+            else if (msg.type === "announcement") showAnnouncement(msg.text, msg.level);
+        };
+        socket.onclose = () => setTimeout(connect, 1500);
+    }
+
+    function spawnReaction(emoji) {
+        const layer = document.getElementById("react-layer");
+        if (!layer) return;
+        const el = document.createElement("div");
+        el.className = "react-float";
+        el.textContent = emoji;
+        el.style.left = (5 + Math.random() * 90) + "%";
+        el.style.fontSize = (44 + Math.random() * 34) + "px";
+        layer.appendChild(el);
+        setTimeout(() => el.remove(), 2600);
+    }
+    let _annTimer = null;
+    function showAnnouncement(text, level) {
+        const b = document.getElementById("tv-announce");
+        if (!b) return;
+        b.textContent = text;
+        b.className = "tv-announce" + (level === "call" ? " call" : "");
+        b.style.display = "block";
+        clearTimeout(_annTimer);
+        _annTimer = setTimeout(() => { b.style.display = "none"; }, 7000);
+    }
+
+    applyState(state);
+    connect();
+    requestAnimationFrame(tick);
+
+    // --- Iscrizioni (QR) overlay -------------------------------------------
+    function openJoinOverlay()  { document.getElementById("join-overlay").classList.add("open"); }
+    function closeJoinOverlay() { document.getElementById("join-overlay").classList.remove("open"); }
+    function zoomQr(name, src) {
+        document.getElementById("qz-name").textContent = name;
+        document.getElementById("qz-img").src = src;
+        document.getElementById("qr-zoom").classList.add("open");
+    }
+    function closeZoom() { document.getElementById("qr-zoom").classList.remove("open"); }
+    document.addEventListener("keydown", (e) => {
+        if (e.key !== "Escape") return;
+        closeZoom();
+        closeJoinOverlay();
+    });
+</script>
+{% endblock %}

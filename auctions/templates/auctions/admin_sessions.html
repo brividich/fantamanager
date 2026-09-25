@@ -1,0 +1,120 @@
+{% extends "auctions/base.html" %}
+{% block title %}Sessioni salvate — FantaManager{% endblock %}
+{% block bodyclass %}role-admin{% endblock %}
+{% block wrapclass %}wrap-wide{% endblock %}
+
+{% block content %}
+<style>
+    .adm-header {
+        display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+        margin-bottom: 14px;
+    }
+    .adm-header .brand { flex: 1 1 auto; }
+
+    .section-label {
+        font-family: var(--display); font-weight: 800; font-size: 13px;
+        text-transform: uppercase; letter-spacing: 0.18em; color: var(--muted);
+        margin: 0 0 12px; display: flex; align-items: center; gap: 10px;
+    }
+    .section-label::after { content: ""; flex: 1 1 auto; height: 1px; background: var(--line); }
+    .section-label .dot {
+        width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+        box-shadow: 0 0 10px var(--accent-glow);
+    }
+
+    .saved-flash {
+        display: flex; align-items: center; gap: 8px; margin-bottom: 14px;
+        padding: 11px 16px; border-radius: 10px; font-size: 13px; font-weight: 700;
+        color: var(--accent-bright);
+        background: var(--accent-soft); border: 1px solid var(--accent-line);
+    }
+
+    .sess-team { font-variant-numeric: tabular-nums; }
+    .sess-note { font-size: 12px; margin-top: 2px; }
+    .sess-meta { font-size: 12px; }
+    table td .btn-ok { margin: 0; padding: 9px 16px; font-size: 13px; }
+
+    .empty-state {
+        text-align: center; padding: 40px 20px; color: var(--muted);
+    }
+    .empty-state .ico { font-size: 40px; opacity: .5; display: block; margin-bottom: 10px; }
+</style>
+
+<!-- Header -->
+{% include "auctions/_console_head.html" %}
+
+<div class="adm-header">
+    <h1 style="margin:0;font-size:26px">Sessioni salvate</h1>
+</div>
+
+{% if request.GET.saved %}
+<div class="saved-flash">✓ Sessione salvata (#{{ request.GET.saved }}).</div>
+{% endif %}
+
+<details class="howto">
+    <summary><svg class="ic"><use href="#i-folder"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        Qui trovi le <b>sessioni salvate</b>: istantanee della classifica (squadre, budget, crediti spesi, rose).
+        <ol>
+            <li>Scorri l'elenco e individua la sessione da recuperare (nome, lega, ciclo e data ti aiutano).</li>
+            <li>Premi <b>▶ Riprendi</b>: viene creata una <b>nuova asta</b> con squadre e rose ricostruite, senza toccare i dati originali.</li>
+        </ol>
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Le sessioni si creano dalla regia con <b><svg class="ic"><use href="#i-save"/></svg> Salva sessione</b>. Lista vuota? Salvane una da un'asta in corso.</div>
+    </div>
+</details>
+
+<div class="section-label"><span class="dot"></span>Istantanee classifica</div>
+<div class="panel">
+    <p class="muted" style="margin:0 0 6px;line-height:1.6">
+        Una sessione è un'istantanea della classifica (squadre, budget, crediti spesi, rose).
+        Riprendendola crei una <strong style="color:var(--ink)">nuova asta</strong> in modalità “Ripresa sessione salvata”
+        con squadre e rose ricostruite — i dati originali non vengono toccati.
+    </p>
+
+    {% if sessions %}
+    <div class="table-scroll">
+        <table style="margin-top:14px">
+            <thead>
+                <tr>
+                    <th>Nome</th>
+                    <th>Lega</th>
+                    <th style="text-align:center">Squadre</th>
+                    <th style="text-align:center">Ciclo</th>
+                    <th>Salvata</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for s in sessions %}
+                <tr>
+                    <td>
+                        <strong>{{ s.name }}</strong>
+                        {% if s.notes %}<div class="muted sess-note">{{ s.notes }}</div>{% endif %}
+                    </td>
+                    <td class="muted">{{ s.league.name|default:"—" }}</td>
+                    <td class="sess-team" style="text-align:center">{{ s.participant_count }}</td>
+                    <td class="sess-team" style="text-align:center">{{ s.current_cycle }}</td>
+                    <td class="muted">
+                        {{ s.created_at|date:"d/m/Y H:i" }}
+                        {% if s.created_by %}<div class="sess-meta">{{ s.created_by }}</div>{% endif %}
+                    </td>
+                    <td style="text-align:right">
+                        <form method="post" action="{% url 'admin_resume_session' s.id %}" style="margin:0"
+                              onsubmit="return confirm('Riprendere questa sessione? Verrà creata una nuova asta con le squadre ricostruite.');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn-ok">▶ Riprendi</button>
+                        </form>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <span class="ico"><svg class="ic" style="width:34px;height:34px"><use href="#i-save"/></svg></span>
+        Nessuna sessione salvata.<br>Salvane una dalla dashboard di un'asta.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,30 @@
+Django>=4.2,<5.3
+channels>=4.0,<5.0
+daphne>=4.0,<5.0
+python-dotenv>=1.0,<2.0
+Pillow>=10.0,<13.0
+openpyxl>=3.1,<4.0
+xlrd>=2.0,<3.0
+requests>=2.28,<3.0
+beautifulsoup4>=4.12,<5.0
+qrcode[pil]>=7.4,<9.0
+# Icona vicino all'orologio: senza finestra nera e' il modo per chiudere l'app.
+pystray>=0.19,<1.0
+
+# Optional — abilita il "Browser automatico" per l'import Fantapazz (login Facebook).
+# Installa con:  pip install playwright  &&  playwright install chromium
+# playwright>=1.40,<2.0
+
+# Build-only — per creare gli installer .exe/.dmg (vedi packaging/BUILD.md).
+# Non serve a runtime. Installa con:  pip install pyinstaller
+# pyinstaller>=6.0,<7.0
+
+# --- Optional production extras ---------------------------------------------
+# Abilitati automaticamente dai settings solo se installati + relativa env var.
+# WhiteNoise: serve gli static in produzione (attivo se installato).
+whitenoise>=6.0,<7.0
+# channels-redis: channel layer multi-processo (attivo se REDIS_URL è impostato).
+# channels-redis>=4.0,<5.0
+# psycopg: driver PostgreSQL (attivo se POSTGRES_DB è impostato).
+psycopg[binary]>=3.1,<4.0
+psycopg2-binary>=2.9,<3.0
