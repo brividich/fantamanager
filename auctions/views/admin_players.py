@@ -12,8 +12,11 @@ from .common import (
     broadcast_state,
     current_auction,
     current_league,
+    league_scope_or_403,
+    manageable_leagues,
     staff_member_required,
     target_league,
+    user_can_manage_scope,
 )
 
 
@@ -26,10 +29,17 @@ def admin_players(request):
     page of rows is sent; every filter travels in the querystring so pagination
     links keep them — the league included.
     """
-    leagues = list(League.objects.all())
+    leagues = list(manageable_leagues(request.user))
     league = current_league(request)
+    # No league picked: the global pool, which belongs to nobody but superusers.
+    in_scope = user_can_manage_scope(request.user, league)
 
-    all_players = Player.objects.filter(league=league) if league else Player.objects.filter(league__isnull=True)
+    if league is not None:
+        all_players = Player.objects.filter(league=league)
+    elif in_scope:
+        all_players = Player.objects.filter(league__isnull=True)
+    else:
+        all_players = Player.objects.none()
     counts  = {r: all_players.filter(role=r).count() for r in ["P", "D", "C", "A"]}
     free_count = all_players.filter(owner__isnull=True).count()
     total_count = all_players.count()
@@ -76,7 +86,10 @@ def admin_players(request):
 
     # Teams available as assignment targets (scoped to the current league).
     participants = Participant.objects.filter(is_active=True)
-    participants = participants.filter(league=league) if league else participants
+    if league is not None:
+        participants = participants.filter(league=league)
+    elif not in_scope:
+        participants = participants.none()
     return render(request, "auctions/admin_players.html", {
         "players": page.object_list, "page_obj": page, "paginator": paginator,
         "counts": counts, "free_count": free_count, "total_count": total_count,
@@ -109,7 +122,9 @@ def admin_apply_photos(request):
     Optional ``listone_file`` first backfills missing ``ext_id`` by name match
     (so a pool imported before ids were captured still gets photos). ``template``
     overrides the default pattern; ``only_missing=0`` re-applies to everyone."""
-    league = League.objects.filter(pk=request.POST.get("league_id")).first()
+    league, denied = league_scope_or_403(request, request.POST.get("league_id"))
+    if denied:
+        return denied
     template = (request.POST.get("template") or "").strip() or importers.FANTACALCIO_PHOTO_TEMPLATE
     only_missing = request.POST.get("only_missing", "1") == "1"
 
@@ -139,7 +154,9 @@ def admin_import_stats(request):
     same one an import seeds automatically. That is the button a league presses
     after fixing up the listone by hand; uploading a newer export overrides it.
     """
-    league = League.objects.filter(pk=request.POST.get("league_id")).first()
+    league, denied = league_scope_or_403(request, request.POST.get("league_id"))
+    if denied:
+        return denied
     f = request.FILES.get("stats_file")
     if f:
         rows, errors = importers.parse_stats_file(f, f.name)
@@ -160,6 +177,10 @@ def admin_import_stats(request):
 @staff_member_required
 @require_POST
 def admin_import_players(request):
+    # Import into a specific league's pool (None = legacy/global pool).
+    league, denied = league_scope_or_403(request, request.POST.get("league_id"))
+    if denied:
+        return denied
     f = request.FILES.get("csv_file")
     if not f:
         return JsonResponse({"ok": False, "error": "Nessun file"}, status=400)
@@ -168,8 +189,6 @@ def admin_import_players(request):
     # When syncing (not replacing) the listone, drop free agents who are no
     # longer listed (left Serie A). Defaults on; owned players are never pruned.
     prune = request.POST.get("prune", "1") == "1"
-    # Import into a specific league's pool (None = legacy/global pool).
-    league = League.objects.filter(pk=request.POST.get("league_id")).first()
 
     parsed, errors = importers.parse_listone_file(f, f.name)
 
@@ -195,14 +214,18 @@ _ROSE_SOURCE_LABELS = {
 
 
 def _resolve_rose_league(request):
-    """League an import writes into. The rose/players UI posts a FantaManager pk
-    in ``league_id`` (unlike the Fantapazz flow, which posts an external id), so
-    resolve by pk first and fall back to the only league when there is exactly one."""
-    league = League.objects.filter(pk=request.POST.get("league_id")).first()
-    if league is not None:
-        return league
-    leagues = League.objects.all()[:2]
-    return leagues[0] if len(leagues) == 1 else None
+    """League an import writes into, as ``(league, None)`` or ``(None, 403/404)``.
+
+    The rose/players UI posts a FantaManager pk in ``league_id`` (unlike the
+    Fantapazz flow, which posts an external id), so resolve by pk first and fall
+    back to the only league when there is exactly one. Either way the user must
+    manage the league it lands on."""
+    raw = request.POST.get("league_id")
+    fallback = None
+    if not (raw or "").strip():
+        leagues = League.objects.all()[:2]
+        fallback = leagues[0] if len(leagues) == 1 else None
+    return league_scope_or_403(request, raw, fallback)
 
 
 @staff_member_required
@@ -215,11 +238,13 @@ def admin_import_rose(request):
     When the file also carries a full listone (the Fantacalcio.it flat export
     has a ``QUOT.`` column) it is synced first — non-destructively — so the free
     agents (svincolati) still appear at the auction."""
+    league, denied = _resolve_rose_league(request)
+    if denied:
+        return denied
     f = request.FILES.get("rose_file")
     if not f:
         return JsonResponse({"ok": False, "error": "Nessun file"}, status=400)
 
-    league = _resolve_rose_league(request)
     try:
         teams, listone, meta = importers.parse_rose_file(f, f.name, league=league)
     except Exception as e:
@@ -286,12 +311,15 @@ def admin_delete_player(request, player_id):
 @staff_member_required
 @require_POST
 def admin_clear_players(request):
-    """Wipe a league's pool (or the global pool when no league is given)."""
-    if request.POST.get("league_id"):
-        league = League.objects.filter(pk=request.POST.get("league_id")).first()
-        Player.objects.filter(league=league).delete()
-    else:
-        Player.objects.all().delete()
+    """Wipe a league's pool, or the global pool (no league: superusers only).
+
+    Never every league's players at once: with no league the console shows the
+    global pool, so that is what "Svuota" empties.
+    """
+    league, denied = league_scope_or_403(request, request.POST.get("league_id"))
+    if denied:
+        return denied
+    Player.objects.filter(league=league).delete()
     return JsonResponse({"ok": True})
 
 
@@ -345,6 +373,8 @@ def admin_player_search(request):
         return JsonResponse({"ok": True, "results": [], "total": 0})
 
     league = target_league(request)
+    if not user_can_manage_scope(request.user, league):
+        return JsonResponse({"ok": True, "results": [], "total": 0})
     qs = Player.objects.filter(owner__isnull=True)
     qs = qs.filter(league=league) if league is not None else qs.filter(league__isnull=True)
 

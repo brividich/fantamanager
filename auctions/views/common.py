@@ -226,6 +226,41 @@ def manageable_leagues(user):
     return qs.order_by("name")
 
 
+FORBIDDEN_LEAGUE_MSG = "Non hai i permessi per gestire questa lega."
+
+
+def user_can_manage_scope(user, league):
+    """``user_can_manage_league``, where ``league`` None means the global pool.
+
+    Players and teams without a league (legacy single-league data, or left
+    behind by a deleted league) have no owner to delegate them to, so only
+    superusers may read or write them.
+    """
+    if league is None:
+        return bool(user is not None and user.is_authenticated and user.is_superuser)
+    return user_can_manage_league(user, league)
+
+
+def league_scope_or_403(request, raw_id, fallback=None):
+    """The league a form writes into, checked: ``(league, None)`` or
+    ``(None, error response)``.
+
+    ``raw_id`` is the posted league pk. A blank one means ``fallback`` — the
+    global pool when that is None, which only a superuser may touch. A pk that
+    names no league is a 404, never a silent fall back to the global pool.
+    """
+    raw_id = str(raw_id or "").strip()
+    if raw_id:
+        league = League.objects.filter(pk=int(raw_id)).first() if raw_id.isdigit() else None
+        if league is None:
+            return None, JsonResponse({"ok": False, "error": "Lega non trovata."}, status=404)
+    else:
+        league = fallback
+    if not user_can_manage_scope(request.user, league):
+        return None, JsonResponse({"ok": False, "error": FORBIDDEN_LEAGUE_MSG}, status=403)
+    return league, None
+
+
 def current_league(request):
     """The league the console is showing. In a multi-tenant setup with >1 league
     and no selection made, returns None so callers can display the tenant hub/picker."""
