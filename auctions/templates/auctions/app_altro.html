@@ -3,7 +3,7 @@
 {% block app %}
 <div class="tab-head">
     <h1>Altro</h1>
-    <p>Profilo, sicurezza e accessi</p>
+    <p>{% if participant %}Profilo, sicurezza e accessi{% else %}Account e accessi{% endif %}</p>
 </div>
 
 <style>
@@ -13,6 +13,7 @@
 </style>
 <div class="altro-grid">
 <div class="altro-col">
+{% if participant %}
 <div class="a-card">
     <div class="a-label"><svg class="ic"><use href="#i-shield"/></svg> Profilo squadra</div>
     <div class="a-row">
@@ -30,7 +31,9 @@
     <div class="a-row">
         <span class="nm">Accesso</span>
         <span class="val">
-            {% if request.user.is_authenticated %}
+            {% if viewing_as %}
+                <span style="color:var(--paused);font-weight:700">Vista admin ({{ request.user.username }})</span>
+            {% elif request.user.is_authenticated %}
                 <span style="color:#22c55e;font-weight:700">Account: {{ request.user.username }}</span>
             {% else %}
                 <span style="color:var(--muted)">Codice Squadra / PIN</span>
@@ -48,7 +51,7 @@
         </div>
         <div style="display:flex;gap:8px">
             <input type="text" name="access_code" value="{{ participant.access_code }}" maxlength="20"
-                   placeholder="Es. DRAGO23" required autocomplete="off"
+                   placeholder="Es. DRAGO23" required autocomplete="off" aria-label="Codice di accesso"
                    style="flex:1;padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:rgba(0,0,0,0.25);color:var(--ink);font-weight:800;letter-spacing:0.1em;text-transform:uppercase">
             <button type="submit" class="btn btn-primary" style="padding:10px 16px;font-size:13px;font-weight:700">
                 Salva
@@ -56,20 +59,51 @@
         </div>
     </form>
 </div>
+{% else %}
+<div class="a-card">
+    <div class="a-label"><svg class="ic"><use href="#i-user"/></svg> Account</div>
+    <div class="a-row">
+        <span class="nm">Utente</span>
+        <span class="val">{{ request.user.username }}</span>
+    </div>
+    <div class="a-row">
+        <span class="nm">Ruolo</span>
+        <span class="val">{% if request.user.is_superuser %}Superadmin{% else %}Admin di lega{% endif %}</span>
+    </div>
+    <div class="a-row">
+        <span class="nm">Leghe gestite</span>
+        <span class="val">{{ admin_leagues|length }}</span>
+    </div>
+    <p class="muted" style="font-size:12.5px;line-height:1.5;margin-top:10px">
+        Non hai una squadra tua: dalla <a href="{% url 'app_regia' %}">Regia</a> puoi aprire l'app come
+        qualunque squadra delle tue leghe con «Vedi come», oppure collegarne una con il suo codice.</p>
+</div>
+{% endif %}
 </div>
 
 <div class="altro-col">
+{% if is_app_admin %}
+<a class="btn" href="{% url 'app_regia' %}" style="width:100%;justify-content:center">
+    <svg class="ic"><use href="#i-gavel"/></svg> Regia della lega</a>
+{% if manages_app_league %}
+<a class="btn btn-ghost" href="{% url 'dashboard_league' app_league.id %}" style="width:100%;justify-content:center">
+    <svg class="ic"><use href="#i-table"/></svg> Console completa</a>
+{% endif %}
+{% endif %}
+
 <a class="btn btn-ghost" href="{% url 'app_login' %}?switch=1" style="width:100%;justify-content:center">
-    <svg class="ic"><use href="#i-swap"/></svg> Cambia squadra / Account
+    <svg class="ic"><use href="#i-swap"/></svg> {% if participant %}Cambia squadra / Account{% else %}Collega una squadra{% endif %}
 </a>
 
 <a class="btn btn-ghost" href="{% url 'app_logout' %}" style="width:100%;justify-content:center;color:#ef4444;border-color:rgba(239,68,68,0.3)">
     <svg class="ic"><use href="#i-lock"/></svg> Disconnetti (Logout)
 </a>
 
+{% if not is_app_admin %}
 <a class="btn btn-ghost" href="{% url 'admin_dashboard' %}" style="width:100%;justify-content:center">
     <svg class="ic"><use href="#i-gear"/></svg> Accesso Regia (organizzatore)
 </a>
+{% endif %}
 
 <div class="soon">
     <svg class="ic"><use href="#i-gear"/></svg>
