@@ -47,3 +47,6 @@ media/
 Thumbs.db
 .idea/
 .vscode/
+
+# collectstatic output
+staticfiles/
