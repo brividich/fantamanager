@@ -145,13 +145,27 @@
     </section>
     {% endfor %}
 </div>
+{% endif %}
 
 <div class="panel" style="margin-top:16px">
     <h3 style="margin:0 0 4px;font-size:15px">Usciti dalla Serie A (5.05 – 5.09)</h3>
-    <div class="muted" style="font-size:12px;margin-bottom:10px">
-        Si segnalano da soli all'import del listone. «Rileva» cerca il club con API-Football{% if not apifootball %} (non configurata: imposta <code>APIFOOTBALL_KEY</code> sul server){% endif %}
-        e la posizione nel ranking UEFA ({{ uefa_count }} club salvati). Compensi secondo la tabella coefficienti introiti.
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 8px">
+        {% if apifootball %}<span class="ct-pill" style="background:rgba(34,197,94,0.15);color:#22c55e">API-Football attiva</span>
+        {% else %}<span class="ct-pill bad">API-Football non configurata: imposta APIFOOTBALL_KEY sul server e riavvia</span>{% endif %}
+        <span class="ct-pill{% if not uefa_count %} warn{% endif %}">Ranking UEFA: {{ uefa_count }} club salvati</span>
     </div>
+    <div class="muted" style="font-size:12px;margin-bottom:10px">
+        I giocatori si segnalano da soli quando importi un listone in cui non ci sono più, oppure a mano qui sotto.
+        Per ogni segnalato: «Rileva» cerca il club di destinazione, «Conferma» chiude il caso con il compenso della tabella coefficienti introiti.
+    </div>
+    <form method="post" action="{% url 'admin_contracts_action' %}" style="display:flex;gap:6px;align-items:center;margin-bottom:10px;font-size:12px">
+        {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="left_flag">
+        Segnala a mano:
+        <select name="player_id" style="padding:4px 6px;border-radius:6px;border:1px solid var(--line);background:rgba(0,0,0,0.2);color:inherit;max-width:320px">
+            {% for p in flaggable %}<option value="{{ p.id }}">{{ p.owner.display_name }} · {{ p.role }} {{ p.name }}</option>{% endfor %}
+        </select>
+        <button type="submit" class="ct-btn">Segnala uscita</button>
+    </form>
     {% for p in left %}
     <div class="ct-row" style="grid-template-columns:18px minmax(0,1fr) auto">
         <span class="role-badge role-{{ p.role }}" style="width:18px;height:18px;font-size:10px">{{ p.role }}</span>
@@ -225,6 +239,5 @@
         {% endfor %}
     </ul>
 </div>
-{% endif %}
 {% endif %}
 {% endblock %}
