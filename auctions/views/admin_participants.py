@@ -18,8 +18,10 @@ from .common import (
     FORBIDDEN_LEAGUE_MSG,
     current_auction,
     manageable_leagues,
+    managed_or_403,
     participant_join_url,
     participant_lan_join_url,
+    safe_next,
     staff_member_required,
     target_league,
     user_can_manage_league,
@@ -109,7 +111,7 @@ def admin_create_participant(request):
     fallback = f"/dashboard/{league.id}/#rose" if league else "/dashboard/"
     if league is None and League.objects.exists():
         messages.error(request, "Scegli prima la lega in cui creare la squadra.")
-        return redirect(request.POST.get("next", fallback))
+        return redirect(safe_next(request, fallback))
 
     p = Participant(
         league=league,
@@ -129,13 +131,15 @@ def admin_create_participant(request):
     p.save()
     if league is not None:
         messages.success(request, f"Squadra «{p.display_name}» aggiunta a {league.name}.")
-    return redirect(request.POST.get("next", fallback))
+    return redirect(safe_next(request, fallback))
 
 
 @staff_member_required
 @require_POST
 def admin_edit_participant(request, participant_id):
-    p = get_object_or_404(Participant, pk=participant_id)
+    p, denied = managed_or_403(request, Participant, participant_id)
+    if denied:
+        return denied
 
     def dec(name, default):
         try:
@@ -164,26 +168,30 @@ def admin_edit_participant(request, participant_id):
     p.save()
     messages.success(request, f"Squadra «{p.display_name}» aggiornata con successo.")
     fallback = f"/dashboard/{p.league_id}/#rose" if p.league_id else "/dashboard/"
-    return redirect(request.POST.get("next", fallback))
+    return redirect(safe_next(request, fallback))
 
 
 @staff_member_required
 @require_POST
 def admin_delete_participant(request, participant_id):
-    p = get_object_or_404(Participant, pk=participant_id)
+    p, denied = managed_or_403(request, Participant, participant_id)
+    if denied:
+        return denied
     league_id = p.league_id
     team_name = p.display_name
     p.delete()
     messages.success(request, f"Squadra «{team_name}» eliminata.")
     fallback = f"/dashboard/{league_id}/#rose" if league_id else "/dashboard/"
-    return redirect(request.POST.get("next", fallback))
+    return redirect(safe_next(request, fallback))
 
 
 @staff_member_required
 @require_POST
 def admin_adjust_team_credits(request, participant_id):
     """Adjust credits for a team: add bonus, subtract malus, or set absolute budget."""
-    p = get_object_or_404(Participant, pk=participant_id)
+    p, denied = managed_or_403(request, Participant, participant_id)
+    if denied:
+        return denied
     mode = request.POST.get("mode", "add")  # "add", "sub", "set"
     raw_amount = request.POST.get("amount", "0")
     try:
@@ -212,14 +220,16 @@ def admin_adjust_team_credits(request, participant_id):
             "message": msg,
         })
     fallback = f"/dashboard/{p.league_id}/#rose" if p.league_id else "/dashboard/"
-    return redirect(request.POST.get("next", fallback))
+    return redirect(safe_next(request, fallback))
 
 
 @staff_member_required
 @require_POST
 def admin_reset_team_pin(request, participant_id):
     """Set custom PIN or generate a new random PIN, and optionally regenerate public token."""
-    p = get_object_or_404(Participant, pk=participant_id)
+    p, denied = managed_or_403(request, Participant, participant_id)
+    if denied:
+        return denied
     pin = request.POST.get("pin", "").strip()
     if not pin:
         import random
@@ -241,7 +251,7 @@ def admin_reset_team_pin(request, participant_id):
             "message": msg,
         })
     fallback = f"/dashboard/{p.league_id}/#rose" if p.league_id else "/dashboard/"
-    return redirect(request.POST.get("next", fallback))
+    return redirect(safe_next(request, fallback))
 
 
 @staff_member_required
@@ -254,7 +264,12 @@ def admin_quick_assign_player(request):
     price = request.POST.get("price")
     if not participant_id or not player_id:
         return JsonResponse({"ok": False, "error": "Squadra e calciatore obbligatori"}, status=400)
-    p = get_object_or_404(Participant, pk=participant_id)
+    p, denied = managed_or_403(request, Participant, participant_id)
+    if denied:
+        return denied
+    _player, denied = managed_or_403(request, Player, player_id)
+    if denied:
+        return denied
     res = services.assign_player(player_id, participant_id, price=price, by_admin=True)
     if res.get("ok"):
         messages.success(request, f"Calciatore assegnato a «{p.display_name}».")
@@ -264,7 +279,7 @@ def admin_quick_assign_player(request):
     if request.headers.get("x-requested-with") == "XMLHttpRequest":
         return JsonResponse(res)
     fallback = f"/dashboard/{p.league_id}/#rose" if p.league_id else "/dashboard/"
-    return redirect(request.POST.get("next", fallback))
+    return redirect(safe_next(request, fallback))
 
 
 def _qr_console_ok(request, participant):
@@ -330,7 +345,9 @@ def admin_participant_roster(request, participant_id):
     Rendering every team's roster into the page cost thousands of DOM nodes on
     a 10-team league, for panels that are opened one at a time (if at all).
     """
-    p = get_object_or_404(Participant, pk=participant_id)
+    p, denied = managed_or_403(request, Participant, participant_id)
+    if denied:
+        return denied
     roster = [
         {"id": pl.id, "name": pl.name, "role": pl.role, "team": pl.team,
          "cost": float(pl.cost or 0), "quotation": float(pl.initial_price or 0)}
