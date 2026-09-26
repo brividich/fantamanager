@@ -72,6 +72,33 @@
         border:1px solid rgba(255,181,38,.35); font-size:12.5px; color:var(--fm-text-secondary); }
     .acc-lock .ic { width:16px; height:16px; color:var(--fm-warning); flex:0 0 auto; margin-top:1px; }
 
+    /* Phone: one card per team instead of an eight-column table. Top line:
+       name and what is left to spend (the figure that matters mid-auction);
+       then the roster, the account, and the join link beside its QR code.
+       Budget and spent are one tap away in the team's own page. */
+    @media screen and (max-width: 760px) {
+        .pt-table { min-width: 0 !important; }
+        .pt-table thead { display: none; }
+        .pt-table, .pt-table tbody { display: block; }
+        .pt-table tr {
+            display: grid; grid-template-columns: 26px minmax(0, 1fr) auto;
+            grid-template-areas: "rank team res" ".    rosa rosa" "acc  acc  acc" "link link qr";
+            gap: 8px 10px; align-items: start; padding: 14px 2px;
+            border-bottom: 1px solid var(--fm-border);
+        }
+        .pt-table td { display: block; padding: 0; border: 0; }
+        .pt-table .rank-cell { grid-area: rank; padding-top: 2px; }
+        .pt-table .c-team { grid-area: team; }
+        .pt-table .c-res { grid-area: res; font-size: 18px; }
+        .pt-table .c-res::after { content: " FM"; font-size: 11px; color: var(--fm-text-muted); font-weight: 700; }
+        .pt-table .c-cred, .pt-table .c-spent { display: none; }
+        .pt-table .c-rosa { grid-area: rosa; }
+        .pt-table .acccell { grid-area: acc; }
+        .pt-table .linkcell { grid-area: link; max-width: none; min-width: 0; }
+        .pt-table .c-qr { grid-area: qr; display: flex; gap: 6px; }
+        .pt-table .qr { width: 72px; height: 72px; }
+    }
+
     /* Print: paper is white and QR codes need contrast — the dark theme stays
        on screen only. */
     @media print {
@@ -168,7 +195,7 @@
 <div class="fm-card">
     {% if rows %}
     <div class="table-scroll">
-        <table>
+        <table class="pt-table">
             <thead>
                 <tr>
                     <th style="width:36px">Pos</th>
@@ -186,15 +213,15 @@
             {% for r in rows %}
                 <tr>
                     <td class="rank-cell">{{ forloop.counter }}</td>
-                    <td>
+                    <td class="c-team">
                         <div class="team-name">{{ r.p.display_name }}</div>
                         {% if not r.p.is_active %}<div class="muted" style="font-size:12px">disattivata</div>{% endif %}
                         {% if r.p.access_code %}<div style="margin-top:4px"><span class="code">{{ r.p.access_code }}</span></div>{% endif %}
                     </td>
-                    <td class="num">{{ r.p.credits|floatformat:0 }}</td>
-                    <td class="num">{{ r.p.spent_credits|floatformat:0 }}</td>
-                    <td class="num"><strong>{{ r.p.remaining_credits|floatformat:0 }}</strong></td>
-                    <td>
+                    <td class="num c-cred">{{ r.p.credits|floatformat:0 }}</td>
+                    <td class="num c-spent">{{ r.p.spent_credits|floatformat:0 }}</td>
+                    <td class="num c-res"><strong>{{ r.p.remaining_credits|floatformat:0 }}</strong></td>
+                    <td class="c-rosa">
                         <div style="display:flex;align-items:center;gap:8px">
                             <b>{{ r.roster }}</b>
                             <span class="fm-meter"><span style="width:{{ r.roster_pct }}%"></span></span>
@@ -231,7 +258,7 @@
                         {% endif %}
                         <input type="text" readonly value="{{ r.join_url }}" onclick="this.select()">
                     </td>
-                    <td style="text-align:right">
+                    <td class="c-qr" style="text-align:right">
                         {% if r.lan_join_url %}
                         <div>
                             <img class="qr" src="{% url 'participant_qr' r.p.id %}?net=lan{% if target_auction %}&a={{ target_auction.id }}{% endif %}"

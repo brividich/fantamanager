@@ -13,7 +13,8 @@
 {% if selected %}
 {% include "auctions/_remote_bar.html" %}
 
-<details class="howto">
+{# Written for the desk layout ("sotto la card"...): on a phone the sections say it. #}
+<details class="howto" data-msec="guida">
     <summary><svg class="ic">
             <use href="#i-info" />
         </svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
@@ -36,6 +37,25 @@
         </div>
     </div>
 </details>
+
+{% comment %}
+Phone only: the regia in sections, one at a time, like an app. The bar picks
+the section (``html[data-msec]``); every block above/below carries the
+``data-msec`` it belongs to. Away from "Asta", the mini-player keeps the lot,
+the price and the clock in sight — tap it to go back.
+{% endcomment %}
+<button type="button" class="fm-msec-mini" data-msec-go="asta" aria-label="Torna all'asta">
+    <span class="mm-live"></span>
+    <span class="mm-player" id="mm-player">—</span>
+    <span class="mm-price"><b id="mm-price">—</b> FM</span>
+    <span class="mm-timer" id="mm-timer">--:--</span>
+</button>
+<nav class="fm-msec-bar" aria-label="Sezioni della regia">
+    <button type="button" data-msec-go="asta"><svg class="ic"><use href="#i-gavel"/></svg><span>Asta</span></button>
+    <button type="button" data-msec-go="chiama"><svg class="ic"><use href="#i-target"/></svg><span>Chiama</span></button>
+    <button type="button" data-msec-go="squadre"><svg class="ic"><use href="#i-users"/></svg><span>Squadre</span></button>
+    <button type="button" data-msec-go="log"><svg class="ic"><use href="#i-list"/></svg><span>Log</span></button>
+</nav>
 {% endif %}
 
 {% if not selected %}
@@ -62,6 +82,41 @@
 
 {% block scripts %}
 {% if selected %}
+<script>
+(function () {
+    var KEY = "fm-regia-section", root = document.documentElement;
+    function show(sec) {
+        root.setAttribute("data-msec", sec);
+        document.querySelectorAll("[data-msec-go]").forEach(function (b) {
+            if (b.closest(".fm-msec-bar")) b.classList.toggle("is-on", b.dataset.msecGo === sec);
+        });
+        try { sessionStorage.setItem(KEY, sec); } catch (e) {}
+    }
+    var start = "asta";
+    try { start = sessionStorage.getItem(KEY) || "asta"; } catch (e) {}
+    show(start);
+    document.addEventListener("click", function (e) {
+        var b = e.target.closest("[data-msec-go]");
+        if (!b) return;
+        show(b.dataset.msecGo);
+        window.scrollTo(0, 0);
+    });
+
+    // Mini-player: mirror what applyState() writes into the live card.
+    function text(sel) { var n = document.querySelector(sel); return n ? n.textContent.trim() : ""; }
+    function sync() {
+        document.getElementById("mm-player").textContent = text("#block-player .pl-name") || "—";
+        document.getElementById("mm-price").textContent = text("#price-val") || "—";
+        document.getElementById("mm-timer").textContent = text("#timer") || "--:--";
+    }
+    sync();
+    var mo = new MutationObserver(sync);
+    ["#block-player", "#price-val", "#timer"].forEach(function (sel) {
+        var n = document.querySelector(sel);
+        if (n) mo.observe(n, { childList: true, subtree: true, characterData: true });
+    });
+})();
+</script>
 {% include "auctions/_remote_bar_js.html" %}
 {% include "auctions/dashboard/_live_js.html" %}
 {% endif %}

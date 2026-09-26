@@ -815,3 +815,175 @@ tr.flash-in { animation: flashIn .5s ease; }
     .howto { margin-bottom: 8px; }
     .howto > summary { padding: 7px 12px; font-size: 12px; }
 }
+
+/* ═══════════════ Phone: one sticky row + a full-screen menu ════════
+   The desktop chrome is two full-width cards (topbar + section nav); on a
+   390px screen they stacked into a whole screen of logo, pickers and twelve
+   links before any content. Below 760px they collapse into one row — icon,
+   where you are, menu button — and the rest opens as a sheet.
+   ``.fm-chrome`` wraps both bars and is ``display: contents`` elsewhere. */
+.fm-chrome { display: contents; }
+.fm-menu-btn { display: none; }
+
+@media (max-width: 760px) {
+    .wrap-wide { padding: 0 10px 32px; }
+
+    .fm-chrome {
+        display: block; position: sticky; top: 0; z-index: 60;
+        margin: 0 -10px 12px;
+        background: rgba(3, 12, 28, .94);
+        -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+        border-bottom: 1px solid var(--fm-border);
+    }
+    .fm-topbar {
+        flex-wrap: nowrap; gap: 10px; margin: 0; padding: 8px 10px;
+        background: transparent; border: 0; border-radius: 0;
+    }
+    .fm-topbar .brand-text, .fm-topbar .fm-brand-badge,
+    .fm-cmd-trigger, .fm-engine-pill, .fm-topbar-spacer { display: none !important; }
+    .fm-topbar .brand-icon { width: 36px; height: 36px; border-radius: 10px; }
+    .fm-topbar-title { flex: 1 1 auto; min-width: 0; padding-left: 0; border-left: 0; }
+    .fm-topbar-title .t, .fm-topbar-title .s {
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .fm-topbar-title .t { font-size: 14px; letter-spacing: .04em; }
+    .fm-topbar-title .s {
+        font-size: 12.5px; letter-spacing: 0; text-transform: none;
+        color: var(--fm-text-secondary); font-weight: 600;
+    }
+    .fm-topbar-meta, .fm-nav { display: none; }
+
+    .fm-menu-btn {
+        display: inline-flex; align-items: center; justify-content: center;
+        flex: 0 0 auto; width: 44px; height: 44px; padding: 0;
+        border-radius: 12px; border: 1px solid var(--fm-border);
+        background: rgba(255, 255, 255, .04); color: var(--fm-text);
+    }
+    .fm-menu-btn .ic { width: 22px; height: 22px; }
+    .fm-menu-btn .ic-close { display: none; }
+
+    /* Open: the chrome becomes a full-screen sheet over the page. */
+    html.fm-menu-open, html.fm-menu-open body { overflow: hidden; }
+    .fm-chrome.is-open {
+        position: fixed; inset: 0; margin: 0; z-index: 90;
+        overflow-y: auto; overscroll-behavior: contain;
+        background: var(--fm-bg); padding-bottom: 28px;
+    }
+    .fm-chrome.is-open .fm-topbar { flex-wrap: wrap; row-gap: 14px; padding: 8px 14px 14px; }
+    .fm-chrome.is-open .ic-open { display: none; }
+    .fm-chrome.is-open .ic-close { display: block; }
+
+    .fm-chrome.is-open .fm-topbar-meta {
+        display: flex; flex-direction: column; align-items: stretch; gap: 12px;
+        flex: 1 1 100%;
+    }
+    .fm-chrome.is-open .fm-field { min-width: 0; width: 100%; }
+    .fm-chrome.is-open .fm-field > .k { font-size: 11px; }
+    .fm-chrome.is-open .fm-field select {
+        width: 100%; height: 46px; font-size: 16px;   /* 16px: no iOS zoom on focus */
+        background-position: calc(100% - 18px) 20px, calc(100% - 13px) 20px;
+    }
+    .fm-chrome.is-open .fm-view-switch { display: flex; }
+    .fm-chrome.is-open .fm-view-switch > * { flex: 1 1 0; justify-content: center; height: 40px; font-size: 14px; }
+    .fm-chrome.is-open .fm-view-switch .on .l { display: inline; }
+    .fm-chrome.is-open .status-pill { align-self: flex-start; }
+    .fm-chrome.is-open .fm-user { padding: 10px 0 0; border-left: 0; border-top: 1px solid var(--fm-border); }
+
+    .fm-chrome.is-open .fm-nav {
+        display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;
+        margin: 0; padding: 14px; border: 0; border-top: 1px solid var(--fm-border);
+        border-radius: 0; background: transparent;
+    }
+    .fm-chrome.is-open .fm-nav-spacer { display: none; }
+    .fm-chrome.is-open .fm-nav-cta {
+        grid-column: 1 / -1; margin: 0; height: 48px; font-size: 15px; justify-content: center;
+    }
+    .fm-chrome.is-open .fm-nav-link {
+        width: 100%; min-width: 0; height: auto; min-height: 48px; padding: 6px 12px;
+        font-size: 14.5px; line-height: 1.2; text-align: left; white-space: normal;
+        justify-content: flex-start;
+        background: rgba(255, 255, 255, .03); border: 1px solid var(--fm-border);
+    }
+    .fm-chrome.is-open .fm-nav-link .ic { width: 18px; height: 18px; }
+    .fm-chrome.is-open .fm-nav-link.is-active { border-color: rgba(56, 189, 248, .45); }
+    .fm-chrome.is-open .fm-nav-more { grid-column: 1 / -1; }
+    .fm-chrome.is-open .fm-nav-more > summary {
+        background: transparent; border: 0; height: 36px; padding: 0 2px;
+        font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+        color: var(--fm-text-muted);
+    }
+    .fm-chrome.is-open .fm-nav-more-body {
+        position: static; min-width: 0; padding: 0; margin-top: 4px;
+        display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;
+        background: transparent; border: 0; box-shadow: none;
+    }
+
+    /* The build label floats over the content at this width. */
+    .app-version-badge { display: none !important; }
+
+    /* The remote-access strip: one compact line. */
+    .fm-remote-bar { gap: 8px; padding: 8px 10px; }
+    .fm-remote-bar .rb-url { max-width: 100%; }
+}
+
+/* ═══════════════ Phone: the regia in sections, like an app ══════════
+   One section at a time (html[data-msec], set by the bar), a tab bar under
+   the thumb, and a mini-player above it that keeps the lot in sight while
+   you are on another section. Desktop never sees any of it. */
+.fm-msec-bar, .fm-msec-mini { display: none; }
+
+@media (max-width: 760px) {
+    html[data-msec="asta"] [data-msec]:not([data-msec="asta"]),
+    html[data-msec="chiama"] [data-msec]:not([data-msec="chiama"]),
+    html[data-msec="squadre"] [data-msec]:not([data-msec="squadre"]),
+    html[data-msec="log"] [data-msec]:not([data-msec="log"]) { display: none !important; }
+
+    html[data-msec] body { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
+    html[data-msec]:not([data-msec="asta"]) body { padding-bottom: calc(136px + env(safe-area-inset-bottom)); }
+    /* Confirmations must not hide behind the bars. */
+    html[data-msec] .toast { z-index: 58; bottom: calc(88px + env(safe-area-inset-bottom)); }
+    html[data-msec]:not([data-msec="asta"]) .toast { bottom: calc(144px + env(safe-area-inset-bottom)); }
+
+    .fm-msec-bar {
+        display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px;
+        position: fixed; left: 0; right: 0; bottom: 0; z-index: 55;
+        padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+        background: rgba(3, 12, 28, .96);
+        -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+        border-top: 1px solid var(--fm-border);
+    }
+    .fm-msec-bar button {
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+        height: 56px; padding: 0; border: 0; border-radius: 14px; background: transparent;
+        color: var(--fm-text-muted); font-size: 11.5px; font-weight: 700; letter-spacing: .02em;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .fm-msec-bar .ic { width: 23px; height: 23px; }
+    .fm-msec-bar button.is-on { color: var(--fm-primary-light); background: rgba(8, 124, 240, .16); }
+
+    html[data-msec]:not([data-msec="asta"]) .fm-msec-mini {
+        display: flex; align-items: center; gap: 10px;
+        position: fixed; left: 8px; right: 8px; z-index: 54;
+        bottom: calc(76px + env(safe-area-inset-bottom));
+        height: 52px; padding: 0 14px; border-radius: 16px;
+        background: linear-gradient(135deg, rgba(8, 124, 240, .42), rgba(7, 29, 56, .96));
+        border: 1px solid rgba(56, 189, 248, .35);
+        box-shadow: 0 12px 30px rgba(0, 6, 18, .6);
+        color: #fff; text-align: left;
+    }
+    .fm-msec-mini .mm-live {
+        flex: 0 0 auto; width: 9px; height: 9px; border-radius: 50%;
+        background: #f43f5e; box-shadow: 0 0 0 4px rgba(244, 63, 94, .22);
+    }
+    .fm-msec-mini .mm-player {
+        flex: 1 1 auto; min-width: 0; font-size: 14.5px; font-weight: 700;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .fm-msec-mini .mm-price { flex: 0 0 auto; font-size: 12px; color: var(--fm-text-secondary); }
+    .fm-msec-mini .mm-price b { font-size: 18px; color: #fff; }
+    .fm-msec-mini .mm-timer {
+        flex: 0 0 auto; min-width: 54px; text-align: right;
+        font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums;
+        color: var(--fm-primary-light);
+    }
+}
