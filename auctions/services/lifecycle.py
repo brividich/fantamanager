@@ -686,13 +686,14 @@ def _contracts_after_sale(player_id, winner, amount, auction):
     if former is None:
         return
     if former.id != winner.id:
-        Participant.objects.filter(pk=former.id).update(credits=F("credits") + amount)
-        RosterLog.objects.create(
-            participant=former, participant_name=former.display_name,
-            player_name=player.name, player_role=player.role,
-            action=RosterLog.Action.EDIT, credits_delta=-amount, by_admin=False,
-            note=f"Incasso asta di {player.name} (rescisso al rinnovo) · asta #{auction.id}",
-        )
+        from .contracts import contract_rules
+        from .salary import add_credits
+
+        league = former.league
+        cap = (contract_rules(league)["rescind_proceeds_cap"].get(player.role) if league else None)
+        proceeds = min(amount, Decimal(cap)) if cap else amount
+        add_credits(former, proceeds,
+                    f"Incasso asta di {player.name} (rescisso al rinnovo) · asta #{auction.id}")
     Player.objects.filter(pk=player_id).update(rescinded_from=None)
 
 

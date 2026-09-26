@@ -96,6 +96,9 @@ from .queue import (
 )
 from .contracts import (
     close_renewals,
+    contract_faces,
+    contract_rules,
+    declare_u21,
     declare_renewals,
     expiring as expiring_contracts,
     min_years as contract_min_years,
@@ -187,6 +190,9 @@ __all__ = [
     "sealed_status",
     # contracts
     "roll_contract",
+    "contract_faces",
+    "contract_rules",
+    "declare_u21",
     "set_contract",
     "new_season",
     "declare_renewals",

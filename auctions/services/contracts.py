@@ -1,10 +1,13 @@
-"""Contratti di permanenza (regolamento 4).
+"""Contratti di permanenza (regolamento, comma 4).
 
 * All'acquisto il giocatore ha il contratto "da tirare" (``contract_years`` None):
-  il manager tira il DADO CONTRATTI (facce 1, 2, 2, 3, 3, 4 anni) dall'app;
-  l'admin può anche registrare il risultato di un dado vero.
-* Soglie clausola (4.3): chi è stato pagato almeno ``contract_min2_price``
-  (``contract_min3_price``) ha almeno 2 (3) anni: se il dado dà di più, vale il dado.
+  il manager tira il DADO CONTRATTI dall'app (facce configurabili, default
+  1-1-2-2-3-3 anni); l'admin può anche registrare il risultato di un dado vero.
+* Clausola (4.03): oltre una soglia di prezzo, diversa per ruolo, il contratto
+  parte da 2 o 3 anni; se il dado dà di più, vale il dado.
+* Portieri (2.02): i portieri della stessa squadra di Serie A condividono il
+  contratto ("blocco squadra"), quello del più quotato.
+* Under 21 (5.10): la scommessa dichiarata dopo l'acquisto dà 3 anni.
 * Nuova stagione: ogni contratto scala di un anno; chi arriva a 0 è scaduto e
   si apre la finestra dei rinnovi.
 * Rinnovi (4.1): ogni squadra dichiara prima chi vuole rinnovare; chi non viene
@@ -22,21 +25,56 @@ from ..models import ContractEvent, League, Participant, Player, RosterLog
 
 logger = logging.getLogger("auctions.contracts")
 
-CONTRACT_FACES = (1, 2, 2, 3, 3, 4)
 RENEWAL_FACES = (True, True, True, False, False, False)  # verde / rossa
+
+DEFAULT_CONTRACT_RULES = {
+    "faces": [1, 1, 2, 2, 3, 3],
+    # ruolo: [prezzo per almeno 2 anni, prezzo per almeno 3 anni]
+    "thresholds": {"P": [100, 150], "D": [100, 150], "C": [300, 500], "A": [600, 1000]},
+    # Incasso massimo, per ruolo, dall'asta di un giocatore rescisso (4.02).
+    "rescind_proceeds_cap": {"P": 150, "D": 150, "C": 400, "A": 600},
+    "u21_years": 3,
+}
+
+
+def contract_rules(league):
+    merged = dict(DEFAULT_CONTRACT_RULES)
+    merged.update({k: v for k, v in (league.contract_rules or {}).items() if k in DEFAULT_CONTRACT_RULES})
+    return merged
+
+
+def contract_faces(league):
+    return tuple(int(f) for f in contract_rules(league)["faces"])
 
 
 def _err(message):
     return {"ok": False, "message": message}
 
 
-def min_years(league, cost):
+def min_years(league, cost, role="A"):
     cost = cost or Decimal("0")
-    if league.contract_min3_price and cost >= league.contract_min3_price:
+    pair = list(contract_rules(league)["thresholds"].get(role) or []) + [0, 0]
+    t2, t3 = pair[0], pair[1]
+    if t3 and cost >= t3:
         return 3
-    if league.contract_min2_price and cost >= league.contract_min2_price:
+    if t2 and cost >= t2:
         return 2
     return 1
+
+
+def gk_block(player):
+    """Gli altri portieri della stessa squadra di Serie A nella stessa rosa."""
+    if player.role != "P" or not player.team or player.owner_id is None:
+        return []
+    return list(Player.objects.filter(owner_id=player.owner_id, role="P", team=player.team).exclude(pk=player.pk))
+
+
+def _block_reference(player):
+    """Contratto di riferimento del blocco portieri: quello del più quotato."""
+    mates = [p for p in gk_block(player) if p.contract_years is not None]
+    if not mates:
+        return None
+    return max(mates, key=lambda p: (p.price_for(p.league) or 0, p.contract_years))
 
 
 def _log(league, player, kind, *, participant=None, roll=None, years=None, manual=False,
@@ -70,6 +108,16 @@ def roll_contract(player_id, *, participant_id=None, by_admin=False, manual_face
     if player.contract_years is not None:
         return _err(f"{player.name} ha già un contratto ({player.contract_years} anni).")
     league = player.owner.league
+    faces = contract_faces(league)
+    ref = _block_reference(player)
+    if ref is not None:
+        # Blocco portieri: nessun dado, si allinea al contratto del compagno.
+        player.contract_years = ref.contract_years
+        player.save(update_fields=["contract_years"])
+        _log(league, player, ContractEvent.Kind.SET, participant=player.owner, years=ref.contract_years,
+             by_admin=by_admin, note=f"Blocco portieri {player.team}: contratto di {ref.name}")
+        return {"ok": True, "face": None, "years": ref.contract_years, "floor": ref.contract_years,
+                "player_name": player.name, "block": ref.name}
     if manual_face is not None:
         if not by_admin:
             return _err("Solo l'admin può inserire il risultato di un dado vero.")
@@ -77,14 +125,15 @@ def roll_contract(player_id, *, participant_id=None, by_admin=False, manual_face
             face = int(manual_face)
         except (TypeError, ValueError):
             return _err("Risultato del dado non valido.")
-        if face not in set(CONTRACT_FACES):
-            return _err("Il dado contratti dà 1, 2, 3 o 4 anni.")
+        if face not in set(faces):
+            return _err(f"Il dado contratti dà {', '.join(map(str, sorted(set(faces))))} anni.")
     else:
-        face = (rng or random.SystemRandom()).choice(CONTRACT_FACES)
-    floor = min_years(league, player.cost)
+        face = (rng or random.SystemRandom()).choice(faces)
+    floor = min_years(league, player.cost, player.role)
     years = max(face, floor)
     player.contract_years = years
     player.save(update_fields=["contract_years"])
+    _sync_block(player)
     note = f"minimo {floor} anni per la clausola ({player.cost:.0f} FM)" if floor > face else ""
     _log(league, player, ContractEvent.Kind.CONTRACT, participant=player.owner, roll=face, years=years,
          manual=manual_face is not None, by_admin=by_admin, note=note)
@@ -101,13 +150,50 @@ def set_contract(player_id, years, *, note=""):
         years = int(years)
     except (TypeError, ValueError):
         return _err("Durata non valida.")
-    if not 0 <= years <= 4:
-        return _err("La durata va da 0 (scaduto) a 4 anni.")
+    top = max(contract_faces(player.owner.league)) + 1
+    if not 0 <= years <= top:
+        return _err(f"La durata va da 0 (scaduto) a {top} anni.")
     player.contract_years = years
     player.save(update_fields=["contract_years"])
+    _sync_block(player)
     _log(player.owner.league, player, ContractEvent.Kind.SET, participant=player.owner, years=years,
          by_admin=True, note=note)
     return {"ok": True, "years": years}
+
+
+def _sync_block(player):
+    """Porta i portieri dello stesso blocco allo stesso contratto."""
+    for mate in gk_block(player):
+        if mate.contract_years != player.contract_years:
+            mate.contract_years = player.contract_years
+            mate.save(update_fields=["contract_years"])
+
+
+@transaction.atomic
+def declare_u21(player_id, *, participant_id=None, by_admin=False):
+    """Scommessa Under 21 (5.10): dopo l'acquisto all'asta estiva, 3 anni fissi."""
+    player, error = _owned_player(player_id, participant_id, by_admin)
+    if error:
+        return error
+    league = player.owner.league
+    if player.contract_years is not None:
+        return _err("La scommessa Under 21 si dichiara subito dopo l'acquisto, prima del dado contratti.")
+    from ..models import CapPhase
+
+    phase = CapPhase.objects.filter(league=league, season=league.season_number).order_by("-started_at").first()
+    if phase is not None and phase.kind != CapPhase.Kind.SUMMER:
+        return _err("La scommessa Under 21 vale solo nel mercato estivo.")
+    already = ContractEvent.objects.filter(
+        league=league, participant=player.owner, season=league.season_number, note__startswith="Scommessa Under 21",
+    ).exists()
+    if already:
+        return _err("Hai già dichiarato la scommessa Under 21 in questa stagione.")
+    years = int(contract_rules(league)["u21_years"])
+    player.contract_years = years
+    player.save(update_fields=["contract_years"])
+    _log(league, player, ContractEvent.Kind.SET, participant=player.owner, years=years, by_admin=by_admin,
+         note="Scommessa Under 21")
+    return {"ok": True, "years": years, "player_name": player.name}
 
 
 def _release(player, note):
@@ -211,10 +297,10 @@ def roll_renewal(player_id, *, participant_id=None, by_admin=False, manual_green
         if not by_admin:
             return _err("Solo l'admin può inserire il risultato di un dado vero.")
         face = int(manual_face)
-        if face not in set(CONTRACT_FACES):
-            return _err("Il dado contratti dà 1, 2, 3 o 4 anni.")
+        if face not in set(contract_faces(league)):
+            return _err("Risultato del dado contratti non valido.")
     else:
-        face = r.choice(CONTRACT_FACES)
+        face = r.choice(contract_faces(league))
     player.contract_years = face
     player.renewal_declared = None
     player.save(update_fields=["contract_years", "renewal_declared"])

@@ -1,4 +1,4 @@
-{% if plan.slot_limits %}
+{% if plan.slot_limits or cap %}
 <div class="slot-strip" aria-label="Slot della rosa">
     {% for r in plan.roles %}
     <div class="slot-cell{% if r.free == 0 %} full{% endif %}">
@@ -6,19 +6,26 @@
         <b>{{ r.owned }}<small>/{{ r.slots }}</small></b>
     </div>
     {% endfor %}
+    {% if cap %}
+    <div class="slot-cell wide{% if cap.left < 200 %} full{% endif %}" title="Tetto salariale: spesi {{ cap.spent|floatformat:0 }} su {{ cap.cap|floatformat:0 }} FM">
+        <span class="slot-lbl">Tetto</span>
+        <b>{{ cap.left|floatformat:0 }}<small>/{{ cap.cap|floatformat:0 }}</small></b>
+    </div>
+    {% endif %}
     {% if not hide_credits %}
-    <div class="slot-cell">
+    <div class="slot-cell wide">
         <span class="slot-lbl">Crediti</span>
         <b>{{ plan.remaining_credits|floatformat:0 }}<small> FM</small></b>
     </div>
     {% endif %}
 </div>
 <style>
-    .slot-strip { display: flex; gap: 6px; margin-bottom: 14px; overflow-x: auto; }
-    .slot-cell { flex: 1; min-width: 58px; padding: 8px 10px; border-radius: 10px; background: var(--panel-2);
+    .slot-strip { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+    .slot-cell { flex: 1 1 58px; min-width: 58px; padding: 8px 10px; border-radius: 10px; background: var(--panel-2);
                  border: 1px solid var(--line); text-align: center; }
     .slot-cell b { display: block; font-family: var(--display); font-size: 16px; color: var(--ink); }
     .slot-cell small { font-size: 11px; color: var(--muted); font-weight: 600; }
+    .slot-cell.wide { flex: 2 1 100px; }
     .slot-cell.full { border-color: rgba(234,179,8,.45); }
     .slot-cell.full b { color: #eab308; }
     .slot-lbl { font-size: 10px; font-weight: 800; letter-spacing: .12em; color: var(--muted); text-transform: uppercase; }

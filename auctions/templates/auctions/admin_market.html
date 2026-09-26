@@ -384,6 +384,13 @@
                                 <form method="post" action="{% url 'admin_market_settle_tie' selected_session.id %}" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap" onsubmit="return confirm('Confermi lo spareggio? Il calciatore verrà assegnato subito.');">
                                     {% csrf_token %}
                                     <input type="hidden" name="player_id" value="{{ t.player_id }}">
+                                    {% if selected_session.tie_break == "rebid" %}
+                                    {% for c in t.contender_list %}
+                                    <label style="font-size:11px">{{ c.name }}
+                                        <input type="number" name="rebid_{{ c.id }}" min="{{ t.amount }}" placeholder="{{ t.amount }}" style="width:70px;padding:5px;border-radius:6px;border:1px solid var(--line);background:rgba(0,0,0,0.2);color:inherit"></label>
+                                    {% endfor %}
+                                    <span class="muted" style="font-size:11px">Secondo sfoglio: inserisci le nuove offerte (oppure scegli sotto un accordo).</span>
+                                    {% endif %}
                                     <select name="winner_id" style="padding:6px;border-radius:6px;border:1px solid var(--line);background:rgba(0,0,0,0.2);color:inherit;font-size:12px">
                                         <option value="draw">🎲 Sorteggio</option>
                                         {% for c in t.contender_list %}<option value="{{ c.id }}">Assegna a {{ c.name }}</option>{% endfor %}

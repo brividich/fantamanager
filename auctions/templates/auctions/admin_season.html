@@ -1,0 +1,171 @@
+{% extends "auctions/base.html" %}
+{% block title %}Stagione — FantaManager{% endblock %}
+{% block bodyclass %}role-admin{% endblock %}
+{% block wrapclass %}wrap-wide{% endblock %}
+
+{% block content %}
+<style>
+    .ss-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .ss-step { padding: 14px 16px; }
+    .ss-step h3 { margin: 0 0 4px; font-size: 15px; display: flex; gap: 8px; align-items: center; }
+    .ss-step p { margin: 0 0 10px; font-size: 12px; color: var(--muted); line-height: 1.45; }
+    .ss-num { width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+              background: var(--accent); color: #0a1108; font-size: 12px; font-weight: 900; }
+    .ss-btn { height: 32px; padding: 0 14px; border-radius: 8px; font-weight: 800; font-size: 12.5px; cursor: pointer;
+              border: 1px solid var(--accent); background: var(--accent); color: #0a1108; }
+    .ss-btn.ghost { background: transparent; color: inherit; border-color: var(--line); }
+    .ss-btn:disabled { opacity: .45; cursor: not-allowed; }
+    .ss-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 14px; }
+    .ss-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .ss-table th { text-align: left; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); padding: 6px; }
+    .ss-table td { padding: 5px 6px; border-top: 1px solid var(--line); }
+    .ss-in { width: 54px; height: 28px; padding: 2px 6px; border-radius: 6px; border: 1px solid var(--line); background: rgba(0,0,0,0.2); color: inherit; box-sizing: border-box; }
+    .ss-wide { width: 100%; height: 30px; }
+    .ss-num-col { text-align: right; font-variant-numeric: tabular-nums; }
+    .ss-bar { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.08); overflow: hidden; margin-top: 3px; }
+    .ss-bar i { display: block; height: 100%; background: var(--accent); }
+    .ss-bar i.hot { background: #eab308; }
+    .ss-set { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 8px 12px; align-items: center; font-size: 12.5px; }
+    @media (max-width: 1100px) { .ss-steps, .ss-grid { grid-template-columns: 1fr; } }
+</style>
+
+{% include "auctions/_console_head.html" %}
+
+<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+    <div>
+        <h1 style="margin:0;font-size:26px">Stagione{% if current_league %} {{ current_league.season_number }}{% endif %}</h1>
+        <div class="muted" style="font-size:13px;margin-top:4px">Classifiche, tetto salariale, Decreto Salvacalcio e passaggi di stagione (regolamento comma 3 e 4).</div>
+    </div>
+</div>
+
+{% if messages %}
+<div style="margin-bottom:14px">
+    {% for msg in messages %}
+    <div class="saved-flash" style="{% if msg.tags == 'error' %}background:rgba(239,68,68,0.15);color:#ef4444;border-color:rgba(239,68,68,0.3){% elif msg.tags == 'warning' %}background:rgba(234,179,8,0.15);color:#eab308;border-color:rgba(234,179,8,0.3){% else %}background:var(--accent-soft);color:var(--accent-bright);border-color:var(--accent-line){% endif %}">{{ msg }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if not current_league %}
+<div class="panel muted" style="padding:24px;text-align:center">Seleziona una lega dal menu in alto.</div>
+{% else %}
+
+<form id="f-new" method="post" action="{% url 'admin_season_action' %}" onsubmit="return confirm('Chiudere la stagione {{ current_league.season_number }} e iniziare la successiva? Verranno assegnati il Decreto di fine stagione, scalati i contratti e aperti i rinnovi.');">
+    {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="new_season">
+</form>
+<form id="f-mid" method="post" action="{% url 'admin_season_action' %}" onsubmit="return confirm('Applicare il passaggio di metà stagione? Decreto di metà stagione e fondi invernali del tetto.');">
+    {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="midseason">
+</form>
+<form id="f-prev" method="post" action="{% url 'admin_season_action' %}">
+    {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="previous_ranking">
+</form>
+
+<div class="ss-steps">
+    <section class="panel ss-step">
+        <h3><span class="ss-num">1</span> Nuova stagione</h3>
+        <p>A fine campionato: salva la classifica finale, assegna il Decreto di fine stagione, scala i contratti e apre i rinnovi (se non ce ne sono apre subito la fase estiva).
+            La classifica la prendo {% if current_league.standings_url %}dal sito di lega{% elif app_ranking_available %}dalla classifica interna{% else %}dalla colonna «Fine stagione» qui sotto{% endif %}.</p>
+        <button type="submit" form="f-new" class="ss-btn">Nuova stagione</button>
+    </section>
+    <section class="panel ss-step">
+        <h3><span class="ss-num">2</span> Chiudi rinnovi</h3>
+        <p>Quando le squadre hanno dichiarato i rinnovi e tirato i dadi: apre la fase estiva e calcola i tetti (base per classifica + giocatori persi + rinnovi mancati).</p>
+        <form method="post" action="{% url 'admin_season_action' %}">
+            {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="close_renewals">
+            <button type="submit" class="ss-btn"{% if not current_league.renewals_open %} disabled title="I rinnovi non sono aperti"{% endif %}>Chiudi rinnovi</button>
+        </form>
+    </section>
+    <section class="panel ss-step">
+        <h3><span class="ss-num">3</span> Metà stagione</h3>
+        <p>A fine girone d'andata: salva la classifica, assegna il Decreto di metà stagione e aggiunge i fondi invernali del tetto con i nuovi bonus.</p>
+        <button type="submit" form="f-mid" class="ss-btn"{% if has_winter %} disabled title="Fase invernale già aperta"{% endif %}>Metà stagione</button>
+    </section>
+</div>
+
+<div class="ss-grid">
+    <section class="panel">
+        <h3 style="margin:0 0 8px;font-size:15px">Squadre, classifiche e tetto salariale</h3>
+        <table class="ss-table">
+            <thead><tr>
+                <th>Squadra</th>
+                <th title="Classifica finale della stagione precedente (base del tetto estivo)">Anno prec.</th>
+                <th title="Metà stagione (fondi invernali e Decreto)">Metà</th>
+                <th title="Fine stagione (Decreto e base del prossimo anno)">Fine</th>
+                <th class="ss-num-col">Tetto</th><th class="ss-num-col">Spesi</th><th class="ss-num-col">Margine</th>
+            </tr></thead>
+            <tbody>
+            {% for c in caps %}
+            <tr>
+                <td><b>{{ c.team.display_name }}</b><div class="muted" style="font-size:11px">{{ c.team.remaining_credits|floatformat:0 }} FM di budget</div></td>
+                <td>{% if c.final_pos %}{{ c.final_pos }}°{% else %}<input class="ss-in" form="f-prev" name="prev_{{ c.team.id }}" inputmode="numeric" placeholder="—">{% endif %}</td>
+                <td>{% if c.mid_pos %}{{ c.mid_pos }}°{% else %}<input class="ss-in" form="f-mid" name="mid_{{ c.team.id }}" inputmode="numeric" placeholder="—">{% endif %}</td>
+                <td><input class="ss-in" form="f-new" name="final_{{ c.team.id }}" inputmode="numeric" placeholder="{% if c.end_pos %}{{ c.end_pos }}{% else %}—{% endif %}"></td>
+                {% if c.status %}
+                <td class="ss-num-col" title="{% for e in c.status.entries %}{{ e.get_kind_display }}: {{ e.amount|floatformat:0 }} ({{ e.note }})&#10;{% endfor %}{% if c.status.cap_before_max > c.status.cap %}Limite annuale {{ c.status.max_per_year|floatformat:0 }}{% endif %}">{{ c.status.cap|floatformat:0 }}</td>
+                <td class="ss-num-col">{{ c.status.spent|floatformat:0 }}</td>
+                <td class="ss-num-col"><b>{{ c.status.left|floatformat:0 }}</b>
+                    <div class="ss-bar"><i class="{% if c.status.left < 200 %}hot{% endif %}" style="width:{% widthratio c.status.spent c.status.cap 100 %}%"></i></div></td>
+                {% else %}
+                <td colspan="3" class="muted" style="font-size:11.5px">{% if current_league.salary_cap_enabled %}fase non ancora aperta{% else %}tetto non attivo{% endif %}</td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        <div style="display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap;font-size:12px">
+            <button type="submit" form="f-prev" class="ss-btn ghost">Salva classifica anno precedente</button>
+            <span class="muted">Serve solo alla prima stagione gestita qui. Le posizioni «Fine» e «Metà» si usano solo se non c'è una fonte automatica.</span>
+            {% if not phases and current_league.salary_cap_enabled %}
+            <form method="post" action="{% url 'admin_season_action' %}" style="margin-left:auto">
+                {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="open_summer">
+                <button type="submit" class="ss-btn ghost">Apri ora la fase estiva</button>
+            </form>
+            {% endif %}
+        </div>
+        {% if phases %}
+        <form method="post" action="{% url 'admin_season_action' %}" style="display:flex;gap:6px;align-items:center;margin-top:12px;font-size:12px;flex-wrap:wrap">
+            {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="adjust">
+            Rettifica tetto (es. multa modulo asta −200):
+            <select name="participant_id" class="ss-in" style="width:auto">{% for t in teams %}<option value="{{ t.id }}">{{ t.display_name }}</option>{% endfor %}</select>
+            <input class="ss-in" name="amount" placeholder="±FM" style="width:70px">
+            <input class="ss-in" name="note" placeholder="Motivo" style="width:180px">
+            <button type="submit" class="ss-btn ghost">Applica</button>
+        </form>
+        {% endif %}
+    </section>
+
+    <section class="panel">
+        <h3 style="margin:0 0 8px;font-size:15px">Decreto Salvacalcio</h3>
+        {% for d in decrees %}
+        <div style="font-size:12.5px;padding:6px 0;border-bottom:1px solid var(--line)">
+            <b>Stagione {{ d.season }} · {{ d.get_kind_display }}</b>
+            <div class="muted">{% for row in d.details %}{{ row.position }}° {{ row.name }} +{{ row.credited|default:row.credits }}{% if row.euro %} (+{{ row.euro }}€){% endif %}{% if not forloop.last %} · {% endif %}{% endfor %}</div>
+        </div>
+        {% empty %}
+        <div class="muted" style="font-size:12.5px">Nessun decreto assegnato: parte da solo con «Nuova stagione» e «Metà stagione».</div>
+        {% endfor %}
+
+        <details style="margin-top:14px"{% if not current_league.salary_cap_enabled %} open{% endif %}>
+            <summary style="cursor:pointer;font-weight:800;font-size:13px">Impostazioni economia (comma 3)</summary>
+            <form method="post" action="{% url 'admin_season_action' %}" class="ss-set" style="margin-top:10px">
+                {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="settings">
+                <span>Tetto salariale e Decreto</span><label><input type="checkbox" name="salary_cap_enabled" value="1"{% if current_league.salary_cap_enabled %} checked{% endif %}> attivi</label>
+                <span>Spesa conteggiata</span><select name="salary_cap_spend" class="ss-in ss-wide">{% for v, l in spend_modes %}<option value="{{ v }}"{% if current_league.salary_cap_spend == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+                <span>Pagina classifica di lega</span><input class="ss-in ss-wide" name="standings_url" value="{{ current_league.standings_url }}" placeholder="https://… (Fantapazz / Fantacalcio)">
+                {% for key, value in rule_tables %}
+                <span>{% if key == "base_by_rank" %}Tetto base per posizione{% elif key == "winter_by_rank" %}Fondi girone di ritorno{% elif key == "decree_mid" %}Decreto metà stagione{% else %}Decreto fine stagione{% endif %}</span>
+                <input class="ss-in ss-wide" name="{{ key }}" value="{{ value }}">
+                {% endfor %}
+                <span>Punti giocatori persi per ruolo</span><input class="ss-in ss-wide" name="lost_points" value="{{ lost_points }}">
+                <span>Estensioni (punti:FM;…)</span><input class="ss-in ss-wide" name="lost_bonus" value="{{ lost_bonus }}">
+                {% for key, value in rule_numbers %}
+                <span>{% if key == "max_per_year" %}Spesa massima annua{% elif key == "budget_max" %}Budget massimo (oltre si brucia){% elif key == "renewal_lost_bonus" %}Bonus per rinnovo mancato{% elif key == "extra_cap_cost" %}Extra cap: FM di budget…{% else %}…per FM di tetto{% endif %}</span>
+                <input class="ss-in ss-wide" name="{{ key }}" value="{{ value }}">
+                {% endfor %}
+                <span></span><button type="submit" class="ss-btn" style="justify-self:start">Salva</button>
+            </form>
+        </details>
+    </section>
+</div>
+{% endif %}
+{% endblock %}

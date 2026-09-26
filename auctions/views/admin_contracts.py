@@ -30,7 +30,7 @@ def admin_contracts(request):
         )
         by_team = {}
         for p in players:
-            p.min_years = services.contract_min_years(league, p.cost)
+            p.min_years = services.contract_min_years(league, p.cost, p.role)
             by_team.setdefault(p.owner_id, []).append(p)
         for team in Participant.objects.filter(league=league).order_by("display_name"):
             roster = by_team.get(team.id, [])
@@ -47,7 +47,9 @@ def admin_contracts(request):
         "current_league": league,
         "teams": teams,
         "events": events,
-        "contract_faces": [1, 2, 3, 4],
+        "contract_faces": sorted(set(services.contract_faces(league))) if league else [1, 2, 3],
+        "crules": services.contract_rules(league) if league else None,
+        "roles": [("P", "Portieri"), ("D", "Difensori"), ("C", "Centrocampisti"), ("A", "Attaccanti")],
         "console_section": "Contratti",
         "console_active": "contracts",
     })
@@ -66,21 +68,44 @@ def admin_contracts_action(request):
 
     if action == "settings":
         league.contracts_enabled = request.POST.get("contracts_enabled") == "1"
-        for field in ("contract_min2_price", "contract_min3_price"):
-            try:
-                setattr(league, field, max(0, int(request.POST.get(field) or 0)))
-            except ValueError:
-                pass
-        league.save(update_fields=["contracts_enabled", "contract_min2_price", "contract_min3_price", "updated_at"])
+        rules = dict(league.contract_rules or {})
+
+        def ints(raw):
+            return [int(x) for x in str(raw or "").replace(";", ",").split(",") if x.strip().isdigit()]
+
+        faces = ints(request.POST.get("faces"))
+        if faces:
+            rules["faces"] = faces
+        thresholds, caps = {}, {}
+        for role in "PDCA":
+            pair = ints(request.POST.get(f"thr_{role}"))
+            if len(pair) == 2:
+                thresholds[role] = pair
+            cap = ints(request.POST.get(f"cap_{role}"))
+            if cap:
+                caps[role] = cap[0]
+        if thresholds:
+            rules["thresholds"] = {**services.contract_rules(league)["thresholds"], **thresholds}
+        if caps:
+            rules["rescind_proceeds_cap"] = {**services.contract_rules(league)["rescind_proceeds_cap"], **caps}
+        league.contract_rules = rules
+        try:
+            league.gk_max_clubs = max(0, int(request.POST.get("gk_max_clubs") or 0))
+        except ValueError:
+            pass
+        league.save(update_fields=["contracts_enabled", "contract_rules", "gk_max_clubs", "updated_at"])
         messages.success(request, "Impostazioni contratti salvate.")
         return redirect(_url(league))
 
-    if action == "new_season":
-        res = services.new_season(league.id)
-        ok = f"Stagione {res.get('season')} iniziata: {res.get('expired')} contratti scaduti, rinnovi aperti."
-    elif action == "close_renewals":
-        res = services.close_renewals(league.id)
-        ok = "Finestra dei rinnovi chiusa."
+    if action in ("new_season", "close_renewals"):
+        # Passano dall'orchestratore di stagione (Decreto, tetto salariale…).
+        from ..services import season
+        report = season.start_new_season(league.id) if action == "new_season" else season.close_renewals(league.id)
+        for step in report.get("steps", []):
+            messages.success(request, step)
+        for warning in report.get("warnings", []):
+            messages.warning(request, warning)
+        return redirect(_url(league))
     elif action == "set":
         res = services.set_contract(player_id, request.POST.get("years"), note="Impostato dall'admin")
         ok = f"Contratto impostato a {res.get('years')} anni."

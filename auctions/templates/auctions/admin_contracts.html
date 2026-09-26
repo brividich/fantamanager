@@ -38,7 +38,7 @@
     <div>
         <h1 style="margin:0;font-size:26px">Contratti di permanenza</h1>
         <div class="muted" style="margin-top:4px;font-size:13px">
-            Dado contratti (1-2-2-3-3-4 anni) all'acquisto, rinnovi col dado verde/rosso a fine contratto. Regolamento §4.
+            Dado contratti all'acquisto (clausola per ruolo, blocco portieri, scommessa Under 21), rinnovi col dado verde/rosso a fine contratto. Regolamento comma 4.
         </div>
     </div>
     {% if current_league and current_league.contracts_enabled %}
@@ -77,8 +77,17 @@
         {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}">
         <input type="hidden" name="action" value="settings">
         <label><input type="checkbox" name="contracts_enabled" value="1"{% if current_league.contracts_enabled %} checked{% endif %}> Contratti attivi in questa lega</label>
-        <label>Almeno 2 anni da <input class="ct-in" type="number" min="0" name="contract_min2_price" value="{{ current_league.contract_min2_price }}"> FM</label>
-        <label>Almeno 3 anni da <input class="ct-in" type="number" min="0" name="contract_min3_price" value="{{ current_league.contract_min3_price }}"> FM</label>
+        <label>Facce dado contratti <input class="ct-in" style="width:120px" name="faces" value="{{ crules.faces|join:',' }}" title="Anni di ogni faccia, separati da virgola"></label>
+        <label>Max squadre Serie A tra i portieri <input class="ct-in" style="width:60px" type="number" min="0" name="gk_max_clubs" value="{{ current_league.gk_max_clubs }}"></label>
+        <div style="display:grid;grid-template-columns:repeat(4,auto);gap:6px 14px;align-items:center;width:100%">
+            <span class="muted" style="font-size:11px">Ruolo</span><span class="muted" style="font-size:11px">Clausola: FM per 2 / 3 anni</span><span class="muted" style="font-size:11px">Incasso max da rescissione</span><span></span>
+            {% for code, label in roles %}
+            <span><span class="role-badge role-{{ code }}">{{ code }}</span> {{ label }}</span>
+            <input class="ct-in" style="width:110px" name="thr_{{ code }}" value="{% for role, pair in crules.thresholds.items %}{% if role == code %}{{ pair|join:',' }}{% endif %}{% endfor %}">
+            <input class="ct-in" name="cap_{{ code }}" value="{% for role, cap in crules.rescind_proceeds_cap.items %}{% if role == code %}{{ cap }}{% endif %}{% endfor %}">
+            <span></span>
+            {% endfor %}
+        </div>
         <button type="submit" class="ct-btn">Salva</button>
     </form>
 </div>

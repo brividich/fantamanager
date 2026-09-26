@@ -37,6 +37,35 @@ from .common import (
 )
 
 
+def _cap_ctx(participant):
+    """Tetto salariale della squadra per le pagine dell'app (None se non attivo)."""
+    from ..services import salary
+
+    status = salary.cap_status(participant)
+    if status is None:
+        return None
+    r = salary.rules(participant.league)
+    status["extra_open"] = not salary.extra_cap_locked(participant.league)
+    status["extra_cost"] = r["extra_cap_cost"]
+    status["extra_gain"] = r["extra_cap_gain"]
+    return status
+
+
+@require_POST
+def app_extra_cap(request):
+    participant, _ = _app_ctx(request, "mercato")
+    if participant is None:
+        return _redirect_login(request)
+    from ..services import salary
+
+    res = salary.convert_budget(participant.id, request.POST.get("blocks"))
+    if res.get("ok"):
+        messages.success(request, f"Convertiti {res['cost']} FM di budget in {res['gain']} FM di tetto salariale.")
+    else:
+        messages.error(request, res.get("message"))
+    return redirect("app_mercato")
+
+
 def _redirect_login(request):
     return redirect(f"{reverse('app_login')}?next={request.path}")
 
@@ -66,6 +95,7 @@ def app_home(request):
         "open_market": open_market if open_market and open_market.is_open else None,
         "my_open_bids": MarketBid.objects.filter(session=open_market, participant=participant).count() if open_market else 0,
         "incoming_trades": Trade.objects.filter(receiver=participant, status=Trade.Status.PENDING).count(),
+        "cap": _cap_ctx(participant),
     })
     return render(request, "auctions/app_home.html", ctx)
 
@@ -95,6 +125,7 @@ def app_rosa(request):
         "roster_value": sum(p.cost for p in roster),
         "roster_fm": (sum(fms) / len(fms)) if fms else None,
         "plan": services.roster_plan(participant),
+        "cap": _cap_ctx(participant),
         "is_mantra": is_mantra,
         "contracts_on": bool(league and league.contracts_enabled),
         "renewals_open": bool(league and league.contracts_enabled and league.renewals_open),
@@ -240,6 +271,7 @@ def app_mercato(request):
         "in_budget": in_budget,
         "role_filters": [("", "Tutti"), ("P", "Portieri"), ("D", "Difensori"), ("C", "Centrocampisti"), ("A", "Attaccanti")],
         "plan": services.roster_plan(participant),
+        "cap": _cap_ctx(participant),
         "my_roster": my_roster,
         "market_session": market_session,
         "market_open": market_open,
@@ -447,6 +479,16 @@ def app_contract_roll(request, player_id):
         f"🎲 Dado contratti per {r['player_name']}: {r['face']} "
         + (f"→ {r['years']} anni (minimo {r['floor']} per la clausola)" if r["years"] != r["face"] else
            f"ann{'o' if r['years'] == 1 else 'i'} di contratto")))
+
+
+@require_POST
+def app_contract_u21(request, player_id):
+    participant, _ = _app_ctx(request, "rosa")
+    if participant is None:
+        return _redirect_login(request)
+    res = services.declare_u21(player_id, participant_id=participant.id)
+    return _contract_feedback(request, res, lambda r: (
+        f"Scommessa Under 21 dichiarata: {r['player_name']} ha {r['years']} anni di contratto."))
 
 
 @require_POST

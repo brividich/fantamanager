@@ -293,9 +293,15 @@ def admin_market_settle_tie(request, session_id):
     raw_winner = (request.POST.get("winner_id") or "draw").strip()
     winner_id = int(raw_winner) if raw_winner.isdigit() else None
 
-    res = settle_market_tie(session.id, player_id, winner_id=winner_id)
+    rebids = {}
+    for key, value in request.POST.items():
+        if key.startswith("rebid_") and key[6:].isdigit() and value.strip():
+            rebids[int(key[6:])] = value.strip()
+    if rebids:
+        winner_id = None
+    res = settle_market_tie(session.id, player_id, winner_id=winner_id, rebids=rebids or None)
     if res["ok"]:
-        how = "per sorteggio" if res["method"] == "draw" else "per scelta dell'admin"
+        how = {"draw": "per sorteggio", "rebid": "al secondo sfoglio"}.get(res["method"], "per scelta dell'admin")
         messages.success(request, f"Pareggio risolto {how}: vince {res['winner_name']}.")
     else:
         messages.error(request, res["message"])

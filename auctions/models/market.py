@@ -54,6 +54,7 @@ class MarketSession(models.Model):
     class TieBreak(models.TextChoices):
         MANUAL = "manual", "Decide l'admin (scelta o sorteggio)"
         FIRST  = "first",  "Vince chi ha inserito l'offerta per primo"
+        REBID  = "rebid",  "Secondo sfoglio speciale tra le squadre in parità"
 
     # Offerte massime per squadra (0 = nessun limite).
     max_bids = models.PositiveIntegerField(default=0)
