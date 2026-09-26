@@ -645,3 +645,54 @@ class RosterCheckTests(TestCase):
         cache.set(abroad.ROSTER_CHECK_KEY.format(self.league.id),
                   {"status": "running", "started_at": timezone.now() - timedelta(hours=1), "done": 3, "total": 20})
         self.assertEqual(abroad.roster_check_state(self.league)["status"], "interrupted")
+
+
+class BulkConfirmAndLayoutTests(TestCase):
+    """«Conferma tutte con compenso» e squadre comprimibili nella pagina Contratti."""
+
+    def setUp(self):
+        self.admin = User.objects.create_user("adm", password="pw")
+        self.league = League.objects.create(name="L", owner=self.admin, contracts_enabled=True)
+        self.a = Participant.objects.create(display_name="Alfa", league=self.league, credits=Decimal("100"))
+        self.b = Participant.objects.create(display_name="Beta", league=self.league, credits=Decimal("100"))
+        mk = lambda name, role, owner: Player.objects.create(name=name, role=role, team="JUV", league=self.league,
+                                                            owner=owner, contract_years=2)
+        self.gone = mk("Vlahovic", "A", self.a)       # Galatasaray, 25° → 150
+        self.gk = mk("Szczesny", "P", self.b)         # Barcellona, 3° → 100
+        self.unknown = mk("Kostic", "C", self.b)      # club ignoto: niente compenso
+        abroad.store_uefa_ranking([("Barcelona", 3, "ESP"), ("Galatasaray", 25, "TUR")])
+        for player, club in ((self.gone, "Galatasaray"), (self.gk, "Barcelona")):
+            abroad.flag_player(player.id)
+            abroad.detect(player.id, finder=lambda n, t, club=club: {"club": club})
+        abroad.flag_player(self.unknown.id)
+        self.client.force_login(self.admin)
+        self.url = reverse("admin_contracts") + f"?league={self.league.id}"
+
+    def test_confirms_only_the_priced_ones(self):
+        res = abroad.resolve_priced(self.league)
+        self.assertEqual(res["total"], 250)
+        self.assertEqual({r["player_name"] for r in res["done"]}, {"Vlahovic", "Szczesny"})
+        self.a.refresh_from_db()
+        self.b.refresh_from_db()
+        self.assertEqual((self.a.credits, self.b.credits), (250, 200))
+        self.unknown.refresh_from_db()
+        self.assertEqual(self.unknown.owner, self.b)
+        self.assertIsNotNone(self.unknown.left_serie_a_at)
+        self.assertEqual(ContractEvent.objects.filter(kind="left").count(), 2)
+
+    def test_page_button_and_action(self):
+        page = self.client.get(self.url)
+        self.assertContains(page, "Conferma tutte con compenso (2 · 250 FM)")
+        resp = self.client.post(reverse("admin_contracts_action"),
+                                {"league_id": self.league.id, "action": "left_resolve_priced"}, follow=True)
+        self.assertContains(resp, "Confermate 2 uscite: +250 FM in totale")
+        self.assertNotContains(resp, "Conferma tutte con compenso")
+        resp = self.client.post(reverse("admin_contracts_action"),
+                                {"league_id": self.league.id, "action": "left_resolve_priced"}, follow=True)
+        self.assertContains(resp, "Nessuna uscita con il compenso calcolato")
+
+    def test_teams_start_collapsed(self):
+        page = self.client.get(self.url).content.decode()
+        self.assertIn(f'<details class="panel ct-team" id="team-{self.a.id}">', page)
+        self.assertNotIn('class="panel ct-team" id="team-{}" open'.format(self.a.id), page)
+        self.assertIn("Espandi tutte", page)
