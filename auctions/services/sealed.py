@@ -80,7 +80,7 @@ def place_sealed_bid(auction_id, participant_id, amount):
     """
     now = timezone.now()
     try:
-        auction = Auction.objects.select_for_update().select_related("player").get(pk=auction_id)
+        auction = Auction.objects.select_for_update(of=("self",)).select_related("player").get(pk=auction_id)
     except Auction.DoesNotExist:
         return SealedResult(False, Reject.AUCTION_NOT_FOUND)
     try:
@@ -134,7 +134,7 @@ def resolve_sealed(auction_id, *, force=False):
     """
     now = timezone.now()
     try:
-        auction = Auction.objects.select_for_update().select_related(
+        auction = Auction.objects.select_for_update(of=("self",)).select_related(
             "player", "best_bid", "best_bid__participant").get(pk=auction_id)
     except Auction.DoesNotExist:
         return None
@@ -208,7 +208,7 @@ def open_sealed_now(auction_id):
     vivo o se lo scrutinio e' gia' aperto: ``sealed_error`` dice quale dei due.
     """
     with transaction.atomic():
-        auction = Auction.objects.select_for_update().select_related("player").get(pk=auction_id)
+        auction = Auction.objects.select_for_update(of=("self",)).select_related("player").get(pk=auction_id)
         auction.sealed_error = None
         if auction.status != Auction.Status.LIVE or auction.player_id is None:
             auction.sealed_error = "timer_not_running"

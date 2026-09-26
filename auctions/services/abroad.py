@@ -3,9 +3,9 @@
 Flusso:
 1. All'import del listone ufficiale, chi è in una rosa ma non c'è più viene
    segnalato (``Player.left_serie_a_at``).
-2. "Rileva" prova a trovare da solo il club di destinazione (API-Football) e la
-   sua posizione nel ranking UEFA (scaricato da internet); l'admin conferma o
-   corregge.
+2. Subito dopo l'import (e con "Rileva" / "Rileva tutti") si cerca da soli il
+   club di destinazione (API-Football) e la sua posizione nel ranking UEFA,
+   che se manca si scarica da uefa.com; l'admin conferma o corregge.
 3. L'admin chiude il caso:
    * ceduto a un club UEFA / a un campionato extra-UEFA (ranking FIFA della
      nazione) → la squadra incassa il compenso della tabella 5.06 e perde il
@@ -46,6 +46,10 @@ FIFA_TABLE = [
     [None, {"P": 10, "D": 10, "C": 15, "A": 20}],
 ]
 LIST_SLOTS = 3
+# Giocatori rilevati da soli dopo l'import del listone e con «Rileva tutti»
+# (2-5 richieste API l'uno: il piano gratuito ne concede 100 al giorno).
+AUTO_DETECT_LIMIT = 6
+DETECT_ALL_LIMIT = 15
 
 
 def _norm(s):
@@ -111,20 +115,100 @@ def flag_player(player_id):
     return {"ok": True, "player_name": player.name}
 
 
-def detect(player_id, *, finder=None):
-    """Prova a riempire club di destinazione e posizione ranking (API-Football + UEFA)."""
-    from ..providers.apifootball import find_destination
+def ensure_uefa_ranking(*, fetcher=None):
+    """Scarica il ranking UEFA se non ce n'è uno salvato: "" o il motivo per cui manca."""
+    if UefaClubRank.objects.exists():
+        return ""
+    from ..providers import uefa
+
+    rows, reason = (fetcher or uefa.fetch)()
+    if not rows:
+        return reason or "ranking UEFA non disponibile"
+    store_uefa_ranking(rows)
+    return ""
+
+
+def detect(player_id, *, finder=None, fetch_ranking=True):
+    """Prova a riempire club di destinazione e posizione ranking (API-Football + UEFA).
+
+    ``fatal`` nella risposta dice che l'API è ferma per tutti (chiave, limite,
+    rete): chi rileva in blocco si ferma lì.
+    """
+    from ..providers.apifootball import ApiFootballError, lookup
 
     player = Player.objects.get(pk=player_id)
-    found = (finder or find_destination)(player.name, player.team)
+    try:
+        if finder is not None:
+            found, reason = finder(player.name, player.team), ""
+        else:
+            found, reason = lookup(player.name, player.team, player.role)
+    except ApiFootballError as exc:
+        return {"ok": False, "fatal": True, "player_name": player.name, "message": str(exc)}
     if not found:
-        return {"ok": False, "message": "Destinazione non trovata automaticamente: indicala a mano."}
+        return {"ok": False, "player_name": player.name,
+                "message": f"{player.name}: {reason or 'destinazione non trovata'}. Indicala a mano."}
+    ranking_problem = ensure_uefa_ranking() if fetch_ranking else ""
     player.left_club = found["club"][:120]
     pos = uefa_position(found["club"])
     if pos:
         player.left_rank_kind, player.left_rank_pos = "uefa", pos
     player.save(update_fields=["left_club", "left_rank_kind", "left_rank_pos"])
-    return {"ok": True, "club": player.left_club, "position": pos}
+    return {"ok": True, "player_name": player.name, "club": player.left_club, "position": pos,
+            "ranking_problem": ranking_problem}
+
+
+def pending_detection(league):
+    """Segnalati di cui non si conosce ancora il club di destinazione."""
+    return Player.objects.filter(owner__league=league, left_serie_a_at__isnull=False, left_club="")
+
+
+def detect_all(league, *, limit=None, finder=None, fetcher=None):
+    """Rileva club e ranking UEFA per tutti i segnalati ancora senza destinazione.
+
+    ``limit`` tiene basso il numero di richieste (il piano gratuito di
+    API-Football ne ha 100 al giorno); chi resta si rileva col pulsante.
+    """
+    from ..providers.apifootball import is_configured
+
+    todo = list(pending_detection(league).order_by("left_serie_a_at", "name"))
+    report = {"found": [], "missing": [], "left": 0, "error": "", "ranking_problem": ""}
+    if not todo:
+        return report
+    if finder is None and not is_configured():
+        report["error"] = "API-Football non configurata: imposta APIFOOTBALL_KEY sul server e riavvia"
+        report["left"] = len(todo)
+        return report
+    report["ranking_problem"] = ensure_uefa_ranking(fetcher=fetcher)
+    for i, player in enumerate(todo):
+        if limit and i >= limit:
+            report["left"] = len(todo) - i
+            break
+        res = detect(player.id, finder=finder, fetch_ranking=False)
+        if res.get("fatal"):
+            report["error"] = res["message"]
+            report["left"] = len(todo) - i
+            break
+        report["found" if res["ok"] else "missing"].append(res)
+    logger.info("Rilevamento usciti dalla Serie A, lega %s: %s trovati, %s no, %s in attesa (%s)",
+                league.id, len(report["found"]), len(report["missing"]), report["left"], report["error"])
+    return report
+
+
+def detect_summary(report):
+    """Il resoconto di :func:`detect_all` in una riga per l'admin."""
+    parts = []
+    for res in report["found"]:
+        where = f"ranking UEFA {res['position']}°" if res.get("position") else "posizione nel ranking da indicare"
+        parts.append(f"{res['player_name']} → {res['club']} ({where})")
+    if report["missing"]:
+        parts.append("non trovati: " + ", ".join(r["player_name"] for r in report["missing"]))
+    if report["left"]:
+        parts.append(f"{report['left']} ancora da rilevare")
+    if report["error"]:
+        parts.append(report["error"])
+    if report["ranking_problem"]:
+        parts.append(f"ranking UEFA da caricare a mano ({report['ranking_problem']})")
+    return " · ".join(parts)
 
 
 def _lose(player, amount, note):
@@ -153,7 +237,7 @@ def _lose(player, amount, note):
 @transaction.atomic
 def resolve(player_id, outcome, *, club="", position=None):
     """Chiude una segnalazione. ``outcome``: uefa / fifa / free / list / dismiss."""
-    player = Player.objects.select_for_update().select_related("owner", "owner__league").get(pk=player_id)
+    player = Player.objects.select_for_update(of=("self",)).select_related("owner", "owner__league").get(pk=player_id)
     if player.owner_id is None:
         return {"ok": False, "message": "Il giocatore non è in nessuna rosa."}
     if outcome == "dismiss":
@@ -194,7 +278,7 @@ def resolve(player_id, outcome, *, club="", position=None):
 @transaction.atomic
 def release_from_list(player_id, *, participant_id=None):
     """5.09: svincolo dalla lista ceduti in sede d'asta → incassa il compenso."""
-    player = Player.objects.select_for_update().select_related("owner", "owner__league").get(pk=player_id)
+    player = Player.objects.select_for_update(of=("self",)).select_related("owner", "owner__league").get(pk=player_id)
     if not player.abroad_list or player.owner_id is None:
         return {"ok": False, "message": "Il giocatore non è nella lista ceduti."}
     if participant_id is not None and int(participant_id) != player.owner_id:

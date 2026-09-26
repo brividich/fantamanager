@@ -155,9 +155,17 @@
         <span class="ct-pill{% if not uefa_count %} warn{% endif %}">Ranking UEFA: {{ uefa_count }} club salvati</span>
     </div>
     <div class="muted" style="font-size:12px;margin-bottom:10px">
-        I giocatori si segnalano da soli quando importi un listone in cui non ci sono più, oppure a mano qui sotto.
-        Per ogni segnalato: «Rileva» cerca il club di destinazione, «Conferma» chiude il caso con il compenso della tabella coefficienti introiti.
+        Quando importi il listone ufficiale, chi è in una rosa ma non c'è più viene segnalato da solo e
+        {% if apifootball %}API-Football cerca subito il club di destinazione, con la sua posizione nel ranking UEFA (che se manca si scarica da uefa.com){% else %}con API-Football attiva il club di destinazione e il ranking UEFA si cercherebbero da soli{% endif %}.
+        Si può anche segnalare a mano qui sotto. «Conferma» chiude il caso con il compenso della tabella coefficienti introiti.
     </div>
+    {% if to_detect %}
+    <form method="post" action="{% url 'admin_contracts_action' %}" style="margin-bottom:10px">
+        {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="left_detect_all">
+        <button type="submit" class="ct-btn go"{% if not apifootball %} disabled{% endif %}>Rileva tutti ({{ to_detect }})</button>
+        <span class="muted" style="font-size:11.5px">club di destinazione e ranking UEFA dei segnalati senza destinazione</span>
+    </form>
+    {% endif %}
     <form method="post" action="{% url 'admin_contracts_action' %}" style="display:flex;gap:6px;align-items:center;margin-bottom:10px;font-size:12px">
         {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="left_flag">
         Segnala a mano:
