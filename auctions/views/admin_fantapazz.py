@@ -18,7 +18,15 @@ from ..models import League
 from ..providers import ProviderError, get_provider
 from ..providers import fantapazz as fp
 from ..providers import importers
-from .common import current_auction, current_league, staff_member_required, target_league
+from .common import (
+    FORBIDDEN_LEAGUE_MSG,
+    current_auction,
+    current_league,
+    manageable_leagues,
+    staff_member_required,
+    target_league,
+    user_can_manage_scope,
+)
 
 _FP_BASE = fp.BASE
 _FP_COOKIE_TTL = fp.COOKIE_TTL
@@ -36,13 +44,24 @@ def _resolve_import_league(request):
         if league is not None:
             return league
 
+    # Several FantaManager leagues may mirror the same Fantapazz league: only
+    # look among the ones this user runs.
     fp_league_id = (request.POST.get("league_id") or "").strip()
     if fp_league_id:
-        league = League.objects.filter(external_id=fp_league_id).first()
+        league = manageable_leagues(request.user).filter(external_id=fp_league_id).first()
         if league is not None:
             return league
 
     return target_league(request)
+
+
+def _import_league_or_403(request):
+    """``(league, None)`` when the user may write into the resolved league — no
+    league means the global pool, superusers only — else ``(None, 403)``."""
+    league = _resolve_import_league(request)
+    if not user_can_manage_scope(request.user, league):
+        return None, JsonResponse({"ok": False, "error": FORBIDDEN_LEAGUE_MSG}, status=403)
+    return league, None
 
 
 @staff_member_required
@@ -55,7 +74,7 @@ def admin_fantapazz(request):
             "league_id":  (league.external_id if league else "") or "332175",
             "sync_token": token,
             "has_cookie": bool(request.session.get("fp_cookie")),
-            "leagues": list(League.objects.all()),
+            "leagues": list(manageable_leagues(request.user)),
             "current_league": league,
             "console_section": "Importa",
             "console_active": "import",
@@ -66,6 +85,13 @@ def admin_fantapazz(request):
     action      = request.POST.get("action", "preview")
     replace     = request.POST.get("replace") == "1"
     auth_mode   = request.POST.get("auth_mode", "cookie")
+
+    # Check where an import would land before logging in to Fantapazz at all.
+    league = None
+    if action not in ("preview", "debug"):
+        league, denied = _import_league_or_403(request)
+        if denied:
+            return denied
 
     provider = _fp_provider()
 
@@ -137,7 +163,6 @@ def admin_fantapazz(request):
                 "errors": errors,
             })
 
-        league = _resolve_import_league(request)
         created = importers.import_players_simple(all_players, replace=replace, league=league)
 
         return JsonResponse({
@@ -358,6 +383,8 @@ def admin_fantapazz_import_rose(request):
             "download_log": download_log if warning else "",
         })
 
-    league = _resolve_import_league(request)
+    league, denied = _import_league_or_403(request)
+    if denied:
+        return denied
     result = importers.import_rose_data(teams, replace=replace, league=league)
     return JsonResponse({"ok": True, **result, "warning": warning})

@@ -266,12 +266,15 @@ def snapshot_participants(participants, *, name="", created_by="", notes="",
 
 
 @transaction.atomic
-def resume_session(session_id, *, created_by=""):
+def resume_session(session_id, *, created_by="", owner=None):
     """Rebuild a playable auction from a saved session (non-destructive).
 
     Creates a fresh League, fresh Participants (with their saved budget/spent),
     re-creates owned Players linked to those participants, and a new Auction in
     ``RESUME_SAVED`` mode pointing back at the session. Returns the new Auction.
+
+    ``owner`` becomes the new league's owner. Left None the league is ownerless,
+    which every logged-in user may administer.
     """
     session = AuctionSession.objects.get(pk=session_id)
     data = session.data or {}
@@ -286,6 +289,7 @@ def resume_session(session_id, *, created_by=""):
 
     league = League.objects.create(
         name=(lg.get("name") or session.name or "Lega ripresa")[:120],
+        owner=owner,
         source_site=lg.get("source_site", ""),
         external_id=lg.get("external_id", ""),
         budget=_dec(lg.get("budget"), "500"),

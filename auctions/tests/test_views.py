@@ -1494,7 +1494,9 @@ class ScanToJoinTests(TestCase):
             url, f"https://{host}/join/?t={self.alfa.public_token}&a={self.auction.id}")
 
     def test_qr_image_is_served_for_a_team(self):
-        r = self.client.get(f"/participants/{self.alfa.id}/qr.png?a={self.auction.id}")
+        # The big screen's link: the auction plus its screen token.
+        r = self.client.get(f"/participants/{self.alfa.id}/qr.png"
+                            f"?a={self.auction.id}&t={self.auction.public_token}")
         if r.status_code == 503:
             self.skipTest("qrcode non installato")
         self.assertEqual(r.status_code, 200)
