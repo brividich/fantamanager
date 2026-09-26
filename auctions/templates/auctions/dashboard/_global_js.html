@@ -1,0 +1,356 @@
+<!-- Global scripts (available on both Home and Live Console) -->
+<script>
+    // --- System logs modal ---------------------------------------------------
+    let systemLogsTimer = null;
+    function escapeHtml(str) {
+        const div = document.createElement("div");
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    async function fetchSystemLogs() {
+        const el = document.getElementById("system-logs-content");
+        if (!el) return;
+        try {
+            const r = await fetch("/admin-auction/logs/");
+            const data = await r.json();
+            if (data.ok && Array.isArray(data.lines)) {
+                if (data.lines.length === 0) {
+                    el.innerHTML = '<div style="color:var(--fm-text-muted);text-align:center;padding:20px">Nessun log presente nel file.</div>';
+                } else {
+                    el.innerHTML = data.lines.map(line => {
+                        let color = "#c0caf5";
+                        if (line.includes("ERROR") || line.includes("CRITICAL")) color = "#f7768e";
+                        else if (line.includes("WARNING")) color = "#e0af68";
+                        else if (line.includes("accepted") || line.includes("won") || line.includes("aggiudicato") || line.includes("Aggiudicato")) color = "#9ece6a";
+                        else if (line.includes("rejected") || line.includes("pari merito") || line.includes("tie")) color = "#ff9e64";
+                        return `<div style="color:${color};white-space:pre-wrap;word-break:break-word;margin-bottom:2px">${escapeHtml(line)}</div>`;
+                    }).join("");
+                    el.scrollTop = el.scrollHeight;
+                }
+            } else {
+                el.innerHTML = '<div style="color:#f7768e">Impossibile caricare i log.</div>';
+            }
+        } catch (e) {
+            el.innerHTML = `<div style="color:#f7768e">Errore di rete: ${e.message}</div>`;
+        }
+    }
+
+    function openSystemLogs() {
+        const modal = document.getElementById("system-logs-modal");
+        if (modal) {
+            modal.style.display = "flex";
+            fetchSystemLogs();
+            if (systemLogsTimer) clearInterval(systemLogsTimer);
+            systemLogsTimer = setInterval(fetchSystemLogs, 3000);
+        }
+    }
+
+    function closeSystemLogs() {
+        const modal = document.getElementById("system-logs-modal");
+        if (modal) {
+            modal.style.display = "none";
+            if (systemLogsTimer) {
+                clearInterval(systemLogsTimer);
+                systemLogsTimer = null;
+            }
+        }
+    }
+
+    const globalLogsModal = document.getElementById("system-logs-modal");
+    if (globalLogsModal) {
+        globalLogsModal.addEventListener("click", (e) => {
+            if (e.target === e.currentTarget) closeSystemLogs();
+        });
+    }
+
+    // --- Roster modal (available everywhere) ---------------------------------
+    const SELECTED_AUCTION_ID = {% if selected %}{{ selected.id }}{% else %}null{% endif %};
+    function _csrf() {
+        const m = document.cookie.match("(^|;)\\s*csrftoken\\s*=\\s*([^;]+)");
+        return m ? m.pop() : "";
+    }
+    let rosterEscape = null;
+    async function openRoster(id, name) {
+        const modal = document.getElementById("roster-modal");
+        const body = document.getElementById("roster-body");
+        if (!modal || !body) return;
+        document.getElementById("roster-title").textContent = "Rosa" + (name ? " · " + name : "");
+        body.innerHTML = `<tr><td colspan="5" class="fm-empty">Caricamento…</td></tr>`;
+        modal.style.display = "flex";
+        rosterEscape = (e) => { if (e.key === "Escape") closeRoster(); };
+        document.addEventListener("keydown", rosterEscape);
+        try {
+            const d = await (await fetch(`/admin-auction/participants/${id}/roster/`)).json();
+            if (!d.ok) throw new Error();
+            body.innerHTML = d.roster.length ? d.roster.map(pl => `
+                <tr id="rosterrow-${pl.id}">
+                    <td style="font-weight:600"></td>
+                    <td><span class="role-badge role-${pl.role}">${pl.role}</span></td>
+                    <td style="text-align:right">${Math.round(pl.cost)}</td>
+                    <td style="text-align:right">${Math.round(pl.quotation)}</td>
+                    <td style="text-align:right">
+                        <button class="fm-btn fm-btn-danger fm-btn-sm">Svincola</button>
+                    </td>
+                </tr>`).join("")
+                : `<tr><td colspan="5" class="fm-empty">Rosa vuota.</td></tr>`;
+            d.roster.forEach(pl => {
+                const row = document.getElementById("rosterrow-" + pl.id);
+                if (!row) return;
+                row.children[0].innerHTML = `<span></span><br><span class="muted" style="font-size:11px"></span>`;
+                row.children[0].children[0].textContent = pl.name;
+                row.children[0].children[2].textContent = pl.team || "";
+                row.querySelector("button").addEventListener("click", () => releasePlayer(pl.id, pl.name));
+            });
+        } catch (e) {
+            body.innerHTML = `<tr><td colspan="5" class="fm-empty">Rosa non disponibile.</td></tr>`;
+        }
+    }
+    function closeRoster() {
+        const modal = document.getElementById("roster-modal");
+        if (modal) modal.style.display = "none";
+        if (rosterEscape) { document.removeEventListener("keydown", rosterEscape); rosterEscape = null; }
+    }
+    async function releasePlayer(playerId, name) {
+        if (!confirm(`Svincolare ${name}? I crediti verranno rimborsati secondo la regola dell'asta selezionata.`)) return;
+        const body = new URLSearchParams();
+        if (SELECTED_AUCTION_ID) body.set("auction_id", String(SELECTED_AUCTION_ID));
+        try {
+            const r = await fetch(`/admin-auction/players/${playerId}/release/`, {
+                method: "POST",
+                headers: { "X-CSRFToken": _csrf(), "Content-Type": "application/x-www-form-urlencoded" },
+                body,
+            });
+            const data = await r.json();
+            if (data.ok) {
+                if (typeof showToast === "function") showToast(`✓ ${name} svincolato (+${data.refund} FM)`, "ok");
+                setTimeout(() => location.reload(), 700);
+            } else {
+                if (typeof showToast === "function") showToast("✗ " + (data.error || "Errore"), "bad");
+            }
+        } catch (err) {
+            if (typeof showToast === "function") showToast("✗ Errore di rete", "bad");
+        }
+    }
+    const globalRosterModal = document.getElementById("roster-modal");
+    if (globalRosterModal) {
+        globalRosterModal.addEventListener("click", (e) => { if (e.target === e.currentTarget) closeRoster(); });
+    }
+
+    /* ═══════════════════════════════════════════════════════ HYBRID FANTACALCIO INTERACTION SCRIPT */
+    function switchLeagueTab(tabId) {
+        document.querySelectorAll('.fm-league-tab-btn').forEach(btn => btn.classList.remove('is-active'));
+        document.querySelectorAll('.fm-league-tab-pane').forEach(pane => pane.classList.remove('is-active'));
+
+        const targetBtn = document.getElementById('tabbtn-' + tabId);
+        const targetPane = document.getElementById('pane-' + tabId);
+        if (targetBtn && targetPane) {
+            targetBtn.classList.add('is-active');
+            targetPane.classList.add('is-active');
+            if (history.replaceState) {
+                history.replaceState(null, null, '#' + tabId);
+            }
+        }
+    }
+
+    function selectTeamRosa(participantId) {
+        document.querySelectorAll('.fm-team-chip').forEach(chip => chip.classList.remove('is-selected'));
+        document.querySelectorAll('.team-roster-view-container').forEach(c => c.style.display = 'none');
+
+        const activeChip = document.getElementById('team-chip-' + participantId);
+        const activePane = document.getElementById('team-roster-pane-' + participantId);
+        if (activeChip) activeChip.classList.add('is-selected');
+        if (activePane) activePane.style.display = 'block';
+    }
+
+    function openTeamRosterTab(participantId) {
+        switchLeagueTab('rose');
+        toggleRoseViewMode('single');
+        selectTeamRosa(participantId);
+        const chip = document.getElementById('team-chip-' + participantId);
+        if (chip) chip.scrollIntoView({ behavior: 'smooth', inline: 'center' });
+    }
+
+    function toggleRoseViewMode(mode) {
+        const btnSingle = document.getElementById('btn-view-single');
+        const btnAll = document.getElementById('btn-view-all');
+        const viewSingle = document.getElementById('view-mode-single');
+        const viewAll = document.getElementById('view-mode-all');
+
+        if (mode === 'single') {
+            if (btnSingle) { btnSingle.className = 'fm-btn fm-btn-secondary fm-btn-sm'; }
+            if (btnAll) { btnAll.className = 'fm-btn fm-btn-ghost fm-btn-sm'; }
+            if (viewSingle) viewSingle.style.display = 'block';
+            if (viewAll) viewAll.style.display = 'none';
+        } else {
+            if (btnSingle) { btnSingle.className = 'fm-btn fm-btn-ghost fm-btn-sm'; }
+            if (btnAll) { btnAll.className = 'fm-btn fm-btn-secondary fm-btn-sm'; }
+            if (viewSingle) viewSingle.style.display = 'none';
+            if (viewAll) viewAll.style.display = 'block';
+        }
+    }
+
+    function closeModal(modalId) {
+        const m = document.getElementById(modalId);
+        if (m) m.style.display = 'none';
+    }
+
+    function openAddTeamModal() {
+        const m = document.getElementById('modal-add-team');
+        if (m) m.style.display = 'flex';
+    }
+
+    function openEditTeamModal(id, name, userId) {
+        const m = document.getElementById('modal-edit-team');
+        const form = document.getElementById('form-edit-team');
+        const nameInput = document.getElementById('edit-team-name');
+        const userInput = document.getElementById('edit-team-user');
+        if (form) form.action = `/admin-auction/participants/${id}/edit/`;
+        if (nameInput) nameInput.value = name;
+        if (userInput) userInput.value = userId || 'none';
+        if (m) m.style.display = 'flex';
+    }
+
+    function openCreditsModal(id, name, totalCredits, remainingCredits) {
+        const m = document.getElementById('modal-credits');
+        const form = document.getElementById('form-adjust-credits');
+        const title = document.getElementById('credits-modal-title');
+        const summary = document.getElementById('credits-summary-box');
+        if (form) form.action = `/dashboard/team/${id}/credits/`;
+        if (title) title.textContent = `Regola Crediti · ${name}`;
+        if (summary) summary.innerHTML = `Club: <b>${name}</b> · Budget Totale: <b>${totalCredits} FM</b> · Residui: <b style="color:var(--fm-success)">${remainingCredits} FM</b>`;
+        if (m) m.style.display = 'flex';
+    }
+
+    function openPinModal(id, name, pin, joinUrl) {
+        const m = document.getElementById('modal-pin');
+        const title = document.getElementById('pin-modal-title');
+        const code = document.getElementById('pin-modal-code');
+        const link = document.getElementById('pin-modal-link');
+        const qrImg = document.getElementById('pin-modal-qr-img');
+        const form = document.getElementById('form-reset-pin');
+        if (title) title.textContent = `PIN & Credenziali · ${name}`;
+        if (code) code.textContent = pin || '----';
+        if (link) link.value = joinUrl || window.location.origin + '/join/';
+        if (qrImg) qrImg.src = `/participants/${id}/qr.png?v=${Date.now()}`;
+        if (form) form.action = `/dashboard/team/${id}/pin/`;
+        if (m) m.style.display = 'flex';
+    }
+
+    function openQuickAssignModal(participantId, teamName, preselectedRole) {
+        const m = document.getElementById('modal-quick-assign');
+        const title = document.getElementById('assign-modal-title');
+        const partIdInput = document.getElementById('assign-participant-id');
+        const searchInput = document.getElementById('assign-search-input');
+        if (title) title.textContent = `Assegna Calciatore a «${teamName}»`;
+        if (partIdInput) partIdInput.value = participantId;
+        if (searchInput) searchInput.value = '';
+        if (m) m.style.display = 'flex';
+
+        const select = document.getElementById('assign-player-select');
+        if (select) {
+            select.onchange = function () {
+                const opt = this.options[this.selectedIndex];
+                const pr = opt.getAttribute('data-price');
+                const priceInput = document.getElementById('assign-player-price');
+                if (priceInput && pr) priceInput.value = pr;
+            };
+        }
+    }
+
+    function openQrModal(teamName, qrUrl) {
+        const m = document.getElementById('modal-qr');
+        const title = document.getElementById('qr-modal-team-title');
+        const img = document.getElementById('qr-modal-image');
+        if (title) title.textContent = `QR Code · ${teamName}`;
+        if (img) img.src = qrUrl;
+        if (m) m.style.display = 'flex';
+    }
+
+    async function quickReleasePlayer(playerId, playerName) {
+        if (!confirm(`Svincolare ${playerName}? I crediti verranno rimborsati secondo il regolamento di lega.`)) return;
+        try {
+            const body = new URLSearchParams();
+            const r = await fetch(`/admin-auction/players/${playerId}/release/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': _csrf(), 'Content-Type': 'application/x-www-form-urlencoded' },
+                body
+            });
+            const data = await r.json();
+            if (data.ok) {
+                if (typeof showToast === 'function') showToast(`✓ ${playerName} svincolato (+${data.refund} FM)`, 'ok');
+                setTimeout(() => location.reload(), 600);
+            } else {
+                if (typeof showToast === 'function') showToast('✗ ' + (data.error || 'Errore'), 'bad');
+            }
+        } catch (err) {
+            if (typeof showToast === 'function') showToast('✗ Errore di rete', 'bad');
+        }
+    }
+
+    async function searchListoneFreePlayers(query) {
+        const select = document.getElementById('assign-player-select');
+        if (!select) return;
+        if (query.trim().length < 2) return;
+        try {
+            const res = await (await fetch(`/admin-auction/players/search/?q=${encodeURIComponent(query)}`)).json();
+            if (res.ok && res.results) {
+                select.innerHTML = '';
+                if (res.results.length === 0) {
+                    select.innerHTML = '<option disabled>Nessun calciatore trovato con questo nome.</option>';
+                    return;
+                }
+                res.results.forEach(pl => {
+                    const opt = document.createElement('option');
+                    opt.value = pl.id;
+                    opt.setAttribute('data-price', Math.round(pl.price || 1));
+                    opt.textContent = `[${pl.role}] ${pl.name} (${pl.team || ''}) · FVM: ${Math.round(pl.price || 1)} FM`;
+                    select.appendChild(opt);
+                });
+                if (select.options.length > 0) {
+                    select.selectedIndex = 0;
+                    select.onchange();
+                }
+            }
+        } catch (e) { }
+    }
+
+    function copyToClipboard(text, msg) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(() => {
+                if (typeof showToast === 'function') showToast(msg || 'Copiato negli appunti!', 'ok');
+                else alert(msg || 'Copiato!');
+            });
+        } else {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            if (typeof showToast === 'function') showToast(msg || 'Copiato negli appunti!', 'ok');
+            else alert(msg || 'Copiato!');
+        }
+    }
+
+    function copyLeaguePublicInvite() {
+        const url = window.location.origin + '/join/';
+        copyToClipboard(url, 'Link invito lega copiato!');
+    }
+
+    // Restore tab from URL query param or hash on page load
+    document.addEventListener('DOMContentLoaded', () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const queryTab = urlParams.get('tab');
+        const hash = window.location.hash.replace('#', '');
+        const target = queryTab || hash;
+        if (['panoramica', 'rose', 'iscritti', 'aste', 'regole'].includes(target)) {
+            switchLeagueTab(target);
+        }
+        {% if current_league %}
+        if (window.location.pathname.startsWith('/admin-auction')) {
+            history.replaceState(null, '', '/dashboard/{{ current_league.id }}/' + (window.location.hash || ''));
+        }
+        {% endif %}
+    });
+</script>

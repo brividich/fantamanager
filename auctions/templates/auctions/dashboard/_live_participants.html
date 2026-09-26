@@ -1,0 +1,139 @@
+<!-- ══════════════════════════════ 6. PARTECIPANTI ALL'ASTA ─────────────── -->
+<div class="fm-card" style="margin-bottom:14px">
+    <div class="fm-section-title"><svg class="ic">
+            <use href="#i-users" />
+        </svg> Partecipanti all'asta
+        <span class="muted" style="font-weight:500;letter-spacing:0;text-transform:none">· {{ participants|length }}
+            squadre</span>
+        <span class="sep"></span>
+    </div>
+
+    <div class="team-grid">
+        {% for p in participants %}
+        <article class="team-card{% if not p.is_active %} is-off{% endif %}" id="prow-{{ p.id }}">
+            <div class="team-card-head">
+                {% if p.logo %}
+                <img class="team-crest lg" src="{{ p.logo.url }}" alt="{{ p.display_name }}">
+                {% else %}
+                <span class="team-crest is-initials lg">{{ p.display_name|slice:":2"|upper }}</span>
+                {% endif %}
+                <div style="min-width:0;flex:1 1 auto">
+                    <div class="team-nm" style="font-size:14px">{{ p.display_name }}</div>
+                    <code class="team-code">{{ p.access_code }}</code>
+                    {% if not p.is_active %}<span class="muted" style="font-size:10.5px"> · inattiva</span>{% endif %}
+                </div>
+            </div>
+
+            <div class="team-figs">
+                <div><span class="k">Rimasti</span>
+                    <b class="cred-cell {% if p.credit_pct < 15 %}is-low{% elif p.credit_pct < 35 %}is-warn{% endif %}">{{ p.remaining_credits|floatformat:0 }}</b>
+                    <span class="unit">FM</span>
+                </div>
+                <div><span class="k">Spesi</span><b>{{ p.spent_credits|floatformat:0 }}</b><span class="unit">FM</span>
+                </div>
+                <div><span class="k">Rosa</span><b>{{ p.roster_n }}{% if p.slots_total %}<span class="unit">/{{ p.slots_total }}</span>{% endif %}</b></div>
+            </div>
+            <span
+                class="fm-meter {% if p.credit_pct < 15 %}is-low{% elif p.credit_pct < 35 %}is-warn{% else %}is-ok{% endif %}"
+                style="width:100%;height:5px"><span style="width:{{ p.credit_pct }}%"></span></span>
+
+            <div class="team-actions">
+                <button class="fm-btn fm-btn-secondary fm-btn-sm" title="Gestisci rosa / svincoli"
+                    onclick="openRoster({{ p.id }}, '{{ p.display_name|escapejs }}')">
+                    <svg class="ic">
+                        <use href="#i-users" />
+                    </svg> Rosa</button>
+                <button class="fm-btn fm-btn-secondary fm-btn-sm" title="Invita squadra (QR)"
+                    onclick="openInvite({{ p.id }}, '{{ p.display_name|escapejs }}', '{{ p.join_url|escapejs }}', '{{ p.lan_join_url|escapejs }}')">
+                    <svg class="ic">
+                        <use href="#i-scan" />
+                    </svg> Invita</button>
+                <button class="fm-btn fm-btn-ghost fm-btn-sm"
+                    onclick="openEditParticipant({{ p.id }}, '{{ p.display_name|escapejs }}', '{{ p.access_code|escapejs }}', {{ p.credits }}, {{ p.is_active|yesno:'1,0' }})">
+                    Modifica</button>
+                <button class="fm-btn fm-btn-danger fm-btn-sm" title="Elimina squadra"
+                    aria-label="Elimina la squadra {{ p.display_name }}"
+                    onclick="deleteParticipant({{ p.id }}, '{{ p.display_name|escapejs }}')">
+                    <svg class="ic" aria-hidden="true">
+                        <use href="#i-trash" />
+                    </svg></button>
+            </div>
+        </article>
+        {% empty %}
+        <div class="fm-empty">Nessuna squadra ancora.</div>
+        {% endfor %}
+    </div>
+
+    <!-- Importa rose squadre -->
+    <details class="tools" style="margin-top:12px">
+        <summary><svg class="ic">
+                <use href="#i-import" />
+            </svg> Importa rose delle squadre
+            <span class="chev">▼</span>
+        </summary>
+        <div style="margin:12px 0 18px">
+            <p class="muted" style="font-size:12px;margin:0 0 12px;line-height:1.6">
+                Carica l'export delle rose: il sistema riconosce <b>automaticamente</b> il formato
+                (Fantapazz <code>.xls</code>, Fantacalcio.it <code>.xlsx</code> o file generico) e
+                assegna i giocatori alle squadre sul listone esistente.
+            </p>
+            <div class="row">
+                <div><label>File rose (.xls / .xlsx / .csv)</label>
+                    <input type="file" id="dash-rose-file" accept=".xlsx,.xls,.csv,.txt"
+                        style="padding:10px;font-size:14px"
+                        onchange="document.getElementById('dash-rose-msg').style.display='none'">
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px;justify-content:flex-end">
+                    <label class="opt-row" style="display:flex;align-items:center;gap:8px;font-size:13px">
+                        <input type="checkbox" id="dash-rose-listone" checked style="width:auto"> Importa anche il
+                        listone dal file</label>
+                    <label class="opt-row" style="display:flex;align-items:center;gap:8px;font-size:13px">
+                        <input type="checkbox" id="dash-rose-replace" style="width:auto"> Sostituisci tutto (azzera le
+                        rose)</label>
+                </div>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:12px">
+                <button type="button" class="btn-ghost" onclick="dashImportRose(true)">Anteprima</button>
+                <button type="button" class="btn-ok" onclick="dashImportRose(false)">Importa rose</button>
+            </div>
+            <p id="dash-rose-msg" style="margin:12px 0 0;font-size:13px;font-weight:700;display:none"></p>
+            <div id="dash-rose-preview" style="display:none;margin-top:12px"></div>
+        </div>
+    </details>
+
+    <!-- Aggiungi squadra -->
+    <details class="tools" style="margin-top:8px">
+        <summary><svg class="ic">
+                <use href="#i-plus" />
+            </svg> Aggiungi una squadra
+            <span class="chev">▼</span>
+        </summary>
+        <form method="post" action="{% url 'admin_create_participant' %}" enctype="multipart/form-data"
+            style="margin-top:12px">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <!-- The league the console is on: without it the team would be
+                 created outside every league and vanish from this page. -->
+            <input type="hidden" name="league_id" value="{{ current_league.id }}">
+            <div class="row">
+                <div><label>Nome squadra</label>
+                    <input name="display_name" required placeholder="Es. FC Drago">
+                </div>
+                <div><label>Codice accesso</label>
+                    <input name="access_code" required placeholder="Es. DRAGO23" style="text-transform:uppercase">
+                </div>
+            </div>
+            <div class="row">
+                <div><label>Crediti FM</label>
+                    <input name="credits" value="{{ current_league.budget|floatformat:0 }}" inputmode="decimal">
+                </div>
+                <div><label>Logo (opzionale)</label>
+                    <input type="file" name="logo" accept="image/*" style="padding:10px;font-size:14px">
+                </div>
+            </div>
+            <div style="margin-top:14px">
+                <button type="submit" class="btn-ok" style="width:100%">Aggiungi squadra</button>
+            </div>
+        </form>
+    </details>
+</div>

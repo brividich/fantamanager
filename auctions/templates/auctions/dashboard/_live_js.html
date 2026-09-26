@@ -1,0 +1,950 @@
+<script>
+    const AUCTION_ID = {{ selected.id }};
+    let state = {{ state_json|safe }};
+    let timerBase = { remaining: state ? state.remaining_seconds : 0, at: performance.now() };
+    let lastPrice = state ? state.current_price : null;
+    // The live websocket state never carries per-team credit/roster figures
+    // (broadcasting the whole league's standings to every phone in the room
+    // on every tick would be wasteful and pointless for players/screen), so
+    // the classifica table is fetched fresh only when a round actually
+    // concludes — cheap, and the only moment the numbers can have changed.
+    let lastClassificaCycle = state ? state.current_cycle : null;
+
+    function getCookie(name) {
+        const m = document.cookie.match("(^|;)\\s*" + name + "\\s*=\\s*([^;]+)");
+        return m ? m.pop() : "";
+    }
+    const CSRF = getCookie("csrftoken");
+    const ROLE_LABEL = { P: "Portiere", D: "Difensore", C: "Centrocampista", A: "Attaccante" };
+    const DASH_LEAGUE_ID = "{{ current_league.id|default:'' }}";
+
+    const $priceVal = document.getElementById("price-val");
+    const $timer = document.getElementById("timer");
+    const $best = document.getElementById("best");
+    const $pill = document.getElementById("status-pill");
+    const $ringBar = document.getElementById("ring-bar");
+    const $ringWrap = document.getElementById("ring-wrap");
+
+    function remainingNow() {
+        if (!state || state.status !== "LIVE") return state ? state.remaining_seconds : 0;
+        if (!state.ends_at) return state ? state.remaining_seconds : 0;
+        return Math.max(0, timerBase.remaining - (performance.now() - timerBase.at) / 1000);
+    }
+    // Season stats → tiles, in the order a bid is actually reasoned about.
+    // Fantamedia carries `key` (the hero tile); a value that was never imported
+    // is simply absent from `stats`, so its tile is skipped.
+    const STAT_TILES = [
+        ["fanta_avg", "Fantamedia", true],
+        ["avg_vote", "Media voto", false],
+        ["presences", "Presenze", false],
+        ["goals", "Gol", false],
+        ["assists", "Assist", false],
+        ["fvm", "FVM", false],
+    ];
+    function statTiles(stats) {
+        if (!stats) return "";
+        return STAT_TILES
+            .filter(([k]) => stats[k] !== undefined && stats[k] !== null)
+            .map(([k, label, key]) =>
+                `<span class="pl-stat${key ? " is-key" : ""}"><b>${stats[k]}</b><i>${label}</i></span>`)
+            .join("");
+    }
+
+    function applyState(s) {
+        const prev = lastPrice;
+        const wasStatus = state ? state.status : null;
+        if (wasStatus === "CLOSED" && s.status === "LIVE") soundReset();
+        if (wasStatus === "LIVE" && s.status === "CLOSED" && s.best_bidder) soundSold();
+        state = s;
+        timerBase = { remaining: s.remaining_seconds, at: performance.now() };
+        $priceVal.textContent = money(s.current_price);
+        if (prev !== null && prev !== s.current_price) {
+            $priceVal.classList.remove("pulse"); void $priceVal.offsetWidth; $priceVal.classList.add("pulse");
+        }
+        lastPrice = s.current_price;
+        syncBidForLabel();
+        const prevBest = $best.textContent;
+        $best.textContent = s.best_bidder ? s.best_bidder : "—";
+        if (s.best_bidder && prevBest !== $best.textContent) {
+            $best.classList.remove("is-new"); void $best.offsetWidth; $best.classList.add("is-new");
+        }
+        // Highlight the team currently holding the lot in the standings.
+        document.querySelectorAll(".classifica tr.is-bidding").forEach(t => t.classList.remove("is-bidding"));
+        if (s.best_bidder) {
+            document.querySelectorAll(".classifica tbody tr").forEach(tr => {
+                const cell = tr.children[1];
+                if (cell && cell.textContent.trim().startsWith(s.best_bidder)) tr.classList.add("is-bidding");
+            });
+        }
+        const $round = document.getElementById("live-round");
+        if ($round && s.current_cycle != null) $round.textContent = String(s.current_cycle).padStart(2, "0");
+        // A round just concluded (charged or invenduto) — the classifica's
+        // credits/spesi/rosa numbers may have moved, and nothing else here
+        // ever refetches them.
+        if (s.current_cycle != null && s.current_cycle !== lastClassificaCycle) {
+            lastClassificaCycle = s.current_cycle;
+            refreshClassifica();
+            refreshStorico();
+        }
+        if ($pill) {
+            $pill.textContent = STATUS_LABEL[s.status] || s.status;
+            $pill.className = "status-pill s-" + s.status;
+        }
+        const $statStatus = document.getElementById("stat-status");
+        if ($statStatus) $statStatus.textContent = STATUS_LABEL[s.status] || s.status;
+        renderSealedRegia(s);
+
+        // Only the action that actually applies to the current status stays
+        // clickable — all four used to sit enabled side by side regardless
+        // of state, so it was never obvious that a paused/expired lot needed
+        // "Riprendi" specifically rather than "Avvia asta" again.
+        const ctrlEnabled = {
+            DRAFT: ["start"], READY: ["start"],
+            LIVE: ["pause", "close"], PAUSED: ["resume", "close"],
+            CLOSED: [],  // finished for good ("Termina asta") — nothing left to do here
+        }[s.status] || ["start", "pause", "resume", "close"];
+        ["start", "pause", "resume", "close"].forEach((action) => {
+            const $btn = document.getElementById("btn-" + action);
+            if ($btn) $btn.disabled = !ctrlEnabled.includes(action);
+        });
+
+        const $tickerWarn = document.getElementById("ticker-warning");
+        if ($tickerWarn) {
+            if (s.ticker_warning) {
+                $tickerWarn.style.display = "inline-flex";
+                $tickerWarn.title = s.ticker_warning;
+                const $txt = document.getElementById("ticker-warning-text");
+                if ($txt) $txt.textContent = "Verifica asta";
+            } else {
+                $tickerWarn.style.display = "none";
+            }
+        }
+
+        // Player card — no photos anywhere: name, role, club, base price, stats.
+        const $bp = document.getElementById("block-player");
+        if ($bp) {
+            const prevName = $bp.dataset.player || "";
+            if (s.player) {
+                const base = (s.player.initial_price != null)
+                    ? `Base d'asta ${Math.round(s.player.initial_price)} FM` : "";
+                const mr = s.player.mantra_roles || [];
+                const meta = mr.length
+                    ? `<span class="mrole-chips">${mr.map(r => `<span class="mrole-chip">${r}</span>`).join("")}</span>`
+                    : `<span class="role-badge role-${s.player.role}">${s.player.role}</span>${ROLE_LABEL[s.player.role] || s.player.role}`;
+                $bp.innerHTML =
+                    `<div class="pl-name">${s.player.name}</div>` +
+                    `<div class="pl-meta">${meta} · ${s.player.team || ""}</div>` +
+                    `<div class="pl-note">${base}</div>` +
+                    `<div class="pl-stats">${statTiles(s.player.stats)}</div>`;
+                $bp.dataset.player = s.player.name;
+            } else {
+                $bp.innerHTML =
+                    `<div class="pl-name is-empty">Nessun giocatore sul piatto</div>` +
+                    `<div class="pl-note">Seleziona o chiama il prossimo giocatore per iniziare l'asta.</div>`;
+                $bp.dataset.player = "";
+            }
+            // Re-run the fade/translate only when the lot actually changed.
+            if (($bp.dataset.player || "") !== prevName) {
+                $bp.style.animation = "none"; void $bp.offsetWidth; $bp.style.animation = "";
+            }
+        }
+        const $qp = document.getElementById("queue-pending");
+        if ($qp && typeof s.queue_pending === "number") {
+            const oldP = parseInt($qp.textContent || "0", 10);
+            $qp.textContent = s.queue_pending;
+            if (oldP !== s.queue_pending) refreshQueue();
+        }
+        const $pr = document.getElementById("players-remaining");
+        if ($pr && typeof s.players_remaining === "number") $pr.textContent = s.players_remaining;
+        // Keep the manual self-advance switch in step with the server (another
+        // console, or ⚙ Impostazioni, may have flipped it).
+        if (typeof s.manual_auto_advance === "boolean") syncAutoAdvance(s.manual_auto_advance);
+        const $hd = document.getElementById("hdr-duration");
+        if ($hd && s.duration_seconds != null) $hd.textContent = s.duration_seconds;
+
+        // Auto-advancing flows park here after a knock-down until this is
+        // clicked (see awaiting_confirm in services.serialize_state).
+        const $awaitBanner = document.getElementById("awaiting-confirm-banner");
+        if ($awaitBanner) $awaitBanner.style.display = s.awaiting_confirm ? "flex" : "none";
+
+        // One-shot popup when continuous mode crosses into a new role (saturation).
+        if (s.notice && s.notice.from && s.notice.to) {
+            const key = s.notice.from + ">" + s.notice.to + "@" + (s.current_cycle || 0);
+            if (key !== lastNoticeKey) {
+                lastNoticeKey = key;
+                showToast(`Ruolo ${s.notice.from} completato per tutti → si passa a ${s.notice.to}`, "ok");
+                if (window.alert) setTimeout(() => alert(`Tutti gli slot del ruolo ${s.notice.from} sono pieni.\nSi prosegue con il ruolo ${s.notice.to}.`), 50);
+            }
+        }
+    }
+    let lastNoticeKey = null;
+    function tick() {
+        if (state) {
+            const r = remainingNow();
+            const fmt = fmtTime(r);
+            // Update all timer elements
+            document.querySelectorAll("#timer").forEach(el => el.textContent = fmt);
+            // Also update ring label timer (inside ring-wrap)
+            const ringTimerEls = document.querySelectorAll(".ring-wrap .timer");
+            ringTimerEls.forEach(el => el.textContent = fmt);
+            updateRing($ringBar, $ringWrap, r, state.duration_seconds || 60);
+            soundTick(r);
+        }
+        requestAnimationFrame(tick);
+    }
+
+    // Accesso da internet: the compact strip renders itself (see
+    // _remote_bar_js.html); only the app-quit action stays here.
+    async function quitApp() {
+        if (!confirm("Chiudere FantaManager?\n\nL'asta si interrompe e nessuno potrà più " +
+            "collegarsi finché non riavvii l'app. I dati restano salvati.")) return;
+        try {
+            await fetch("{% url 'admin_quit' %}", { method: "POST", headers: { "X-CSRFToken": CSRF } });
+        } catch (e) { /* la connessione cade proprio perché si è chiuso: atteso */ }
+        document.body.innerHTML =
+            "<div style='font:16px/1.7 system-ui,sans-serif;max-width:30em;margin:14vh auto;" +
+            "padding:0 1.5em;text-align:center'><h1 style='font-size:1.3em'>FantaManager è chiuso</h1>" +
+            "<p style='color:#70849e'>Puoi chiudere questa scheda. Per riprendere, riavvia l'app: " +
+            "i dati e le sessioni salvate sono al loro posto.</p></div>";
+    }
+
+    // Italian wording for every rejection / error code (services.ERROR_LABELS).
+    const ERROR_LABEL = {{ error_labels_json|safe }};
+    const errLabel = (code) => ERROR_LABEL[code] || code || "Errore";
+
+    async function control(action) {
+        const r = await fetch(`/admin-auction/${AUCTION_ID}/${action}/`, {
+            method: "POST", headers: { "X-CSRFToken": CSRF },
+        });
+        const data = await r.json();
+        if (data.ok) { applyState(data.state); showToast("✓ " + action, "ok"); }
+        else showToast("✗ " + errLabel(data.error), "bad");
+    }
+    async function announce(text, level) {
+        const input = document.getElementById("announce-text");
+        const msg = (text != null ? text : (input ? input.value : "")).trim();
+        if (!msg) { if (input) input.focus(); return; }
+        const body = new URLSearchParams({ text: msg, level: level || "info" });
+        const r = await fetch(`/admin-auction/${AUCTION_ID}/announce/`, {
+            method: "POST", body,
+            headers: { "X-CSRFToken": CSRF, "Content-Type": "application/x-www-form-urlencoded" },
+        });
+        const data = await r.json();
+        if (data.ok) { if (text == null && input) input.value = ""; showToast("📢 Annuncio inviato", "ok"); }
+        else showToast(data.error || "Errore", "bad");
+    }
+    function spawnReaction(emoji) {
+        const layer = document.getElementById("react-layer");
+        if (!layer) return;
+        const el = document.createElement("div");
+        el.className = "react-float";
+        el.textContent = emoji;
+        el.style.left = (8 + Math.random() * 84) + "%";
+        layer.appendChild(el);
+        setTimeout(() => el.remove(), 2200);
+    }
+    async function adjustTimer(delta) {
+        const body = new URLSearchParams({ delta });
+        const r = await fetch(`/admin-auction/${AUCTION_ID}/timer/`, {
+            method: "POST", body,
+            headers: { "X-CSRFToken": CSRF, "Content-Type": "application/x-www-form-urlencoded" },
+        });
+        const d = await r.json();
+        if (d.ok) { applyState(d.state); showToast(`⏱ ${delta > 0 ? "+" : ""}${delta}s`, "ok"); }
+        else showToast("✗ " + errLabel(d.error), "bad");
+    }
+    // --- Asta alle buste ---
+    function renderSealedRegia(s) {
+        const sealed = s.sealed || {};
+        const banner = document.getElementById("sealed-banner");
+        const result = document.getElementById("sealed-result");
+        const openBtn = document.getElementById("open-sealed-btn");
+        if (openBtn) {
+            // Ha senso solo con l'opzione accesa, un giocatore sul blocco e
+            // nessuno scrutinio gia' in corso.
+            openBtn.style.display = (sealed.enabled && !sealed.active
+                && s.status === "LIVE" && s.player) ? "" : "none";
+        }
+        if (!banner || !result) return;
+        if (sealed.active) {
+            banner.style.display = "flex";
+            document.getElementById("sealed-banner-title").textContent =
+                sealed.round > 1 ? `Spareggio alle buste · giro ${sealed.round}`
+                    : "Asta alle buste";
+            document.getElementById("sealed-banner-sub").textContent =
+                `Minimo ${money(sealed.floor)} FM · ${sealed.submitted || 0} buste consegnate` +
+                (sealed.seconds_left != null ? ` · ${Math.ceil(sealed.seconds_left)}s` : "");
+        } else {
+            banner.style.display = "none";
+        }
+        const rows = sealed.reveal || [];
+        if (!sealed.active && rows.length) {
+            result.style.display = "block";
+            document.getElementById("sealed-result-rows").innerHTML = rows.map((r, i) =>
+                `<div style="display:flex;justify-content:space-between;gap:16px;` +
+                `font-weight:${i === 0 ? 800 : 600}${i === 0 ? ";color:#ffb526" : ""}">` +
+                `<span>${r.team}</span><span>${money(r.amount)} FM</span></div>`).join("");
+        } else {
+            result.style.display = "none";
+        }
+    }
+
+    async function openSealed() {
+        const r = await fetch(`/admin-auction/${AUCTION_ID}/open-sealed/`, {
+            method: "POST", headers: { "X-CSRFToken": CSRF },
+        });
+        const d = await r.json();
+        if (d.ok) { applyState(d.state); showToast("✉ Si va alle buste", "ok"); }
+        else showToast("✗ " + errLabel(d.error), "bad");
+    }
+
+    async function resolveSealed() {
+        if (!confirm("Aprire subito le buste consegnate finora?")) return;
+        const r = await fetch(`/admin-auction/${AUCTION_ID}/resolve-sealed/`, {
+            method: "POST", headers: { "X-CSRFToken": CSRF },
+        });
+        const d = await r.json();
+        if (d.ok) {
+            applyState(d.state);
+            showToast(d.event === "tie" ? "✉ Pari merito: si rifà" : "✉ Buste aperte", "ok");
+        } else showToast("✗ " + errLabel(d.error), "bad");
+    }
+
+    async function forceCloseLot() {
+        if (!confirm("Saltare questo giocatore (invenduto) e passare al prossimo?")) return;
+        const r = await fetch(`/admin-auction/${AUCTION_ID}/force-close/`, {
+            method: "POST", headers: { "X-CSRFToken": CSRF },
+        });
+        const d = await r.json();
+        if (d.ok) {
+            applyState(d.state);
+            // The actual invenduto + advance lands within one ticker tick
+            // (see force_close_lot's docstring), not in this response.
+            showToast("⏱ Salto in corso…", "ok");
+        } else {
+            showToast("✗ " + errLabel(d.error), "bad");
+        }
+    }
+    function syncBidForLabel() {
+        const el = document.getElementById("bidfor-label");
+        const inc = document.getElementById("bidfor-inc");
+        if (!el || !inc) return;
+        const n = Math.max(1, parseInt(inc.value, 10) || 1);
+        const base = state ? parseFloat(state.current_price) || 0 : 0;
+        el.textContent = `Rilancia a ${Math.round(base + n)} FM`;
+    }
+    function bidForStep(delta) {
+        const inc = document.getElementById("bidfor-inc");
+        if (!inc) return;
+        inc.value = Math.max(1, (parseInt(inc.value, 10) || 1) + delta);
+        syncBidForLabel();
+    }
+    async function bidFor() {
+        const pid = document.getElementById("bidfor-part").value;
+        const inc = document.getElementById("bidfor-inc").value || "1";
+        if (!pid) return;
+        const body = new URLSearchParams({ participant_id: pid, increment: inc });
+        const r = await fetch(`/admin-auction/${AUCTION_ID}/bid-for/`, {
+            method: "POST", body,
+            headers: { "X-CSRFToken": CSRF, "Content-Type": "application/x-www-form-urlencoded" },
+        });
+        const d = await r.json();
+        if (d.ok) showToast(`🔨 Rilancio per conto: ${d.bid.participant} → ${d.bid.amount}`, "ok");
+        else showToast("✗ " + errLabel(d.error), "bad");
+    }
+    async function callPlayer(playerId, btn) {
+        if (btn) { btn.disabled = true; btn.textContent = "…"; }
+        const body = new URLSearchParams({ player_id: playerId });
+        const r = await fetch(`/admin-auction/${AUCTION_ID}/call-player/`, {
+            method: "POST", body,
+            headers: { "X-CSRFToken": CSRF, "Content-Type": "application/x-www-form-urlencoded" },
+        });
+        const data = await r.json();
+        if (data.ok) {
+            applyState(data.state);
+            showToast("🔨 In asta: " + (data.state.player ? data.state.player.name : ""), "ok");
+            if (btn) btn.closest(".call-row, tr")?.remove();
+        } else {
+            showToast("Giocatore non disponibile", "bad");
+            if (btn) { btn.disabled = false; btn.innerHTML = '<svg class="ic"><use href="#i-gavel"/></svg> Chiama'; }
+        }
+    }
+    // Accent-blind so "montipo" finds "Montipò" — mid-auction nobody reaches
+    // for the accented key.
+    const deaccent = (s) => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+    // ── Prossimo giocatore: ricerca server-side ────────────────────────────
+    // Only the typed query travels; the listone stays on the server.
+    const $callInput = document.getElementById("call-search");
+    const $callResults = document.getElementById("call-results");
+    let callTimer = null, callSeq = 0, callActive = -1;
+
+    function callEsc(v) {
+        const d = document.createElement("div"); d.textContent = v == null ? "" : v;
+        return d.innerHTML;
+    }
+    function callRender(rows, total, q) {
+        if (!$callResults) return;
+        if (!rows.length) {
+            $callResults.innerHTML = `<div class="fm-empty">Nessuno svincolato per “${callEsc(q)}”.</div>`;
+        } else {
+            $callResults.innerHTML = rows.map((p, i) => `
+                <div class="call-row" role="option" id="call-opt-${i}" tabindex="-1"
+                     aria-selected="false" data-id="${p.id}">
+                    <span class="role-badge role-${p.role}">${p.role}</span>
+                    <span class="call-nm">${callEsc(p.name)}<small>${callEsc(p.team)}</small></span>
+                    <span class="call-q">${Math.round(p.quotation)} FM</span>
+                    <button type="button" class="fm-btn fm-btn-primary fm-btn-sm"
+                            aria-label="Chiama ${callEsc(p.name)}">
+                        <svg class="ic"><use href="#i-gavel"/></svg> Chiama</button>
+                </div>`).join("") +
+                (total > rows.length
+                    ? `<div class="fm-empty" style="padding:8px">…e altri ${total - rows.length}: affina la ricerca.</div>`
+                    : "");
+            $callResults.querySelectorAll(".call-row").forEach(row => {
+                row.querySelector("button").addEventListener(
+                    "click", () => callPlayer(row.dataset.id, row.querySelector("button")));
+            });
+        }
+        callActive = -1;
+        if ($callInput) $callInput.setAttribute("aria-expanded", rows.length ? "true" : "false");
+    }
+    async function callSearch() {
+        const q = ($callInput.value || "").trim();
+        if (q.length < 2) {
+            $callResults.innerHTML =
+                `<div class="fm-empty" id="call-hint">Scrivi almeno 2 lettere per cercare.</div>`;
+            $callInput.setAttribute("aria-expanded", "false");
+            return;
+        }
+        const seq = ++callSeq;
+        try {
+            const url = "{% url 'admin_player_search' %}?q=" + encodeURIComponent(q) +
+                (DASH_LEAGUE_ID ? "&league=" + DASH_LEAGUE_ID : "");
+            const d = await (await fetch(url)).json();
+            if (seq !== callSeq) return;           // a newer keystroke already won
+            callRender(d.results || [], d.total || 0, q);
+        } catch (e) { /* transient: the next keystroke retries */ }
+    }
+    function callMove(delta) {
+        const rows = [...$callResults.querySelectorAll(".call-row")];
+        if (!rows.length) return;
+        rows.forEach(r => { r.classList.remove("is-active"); r.setAttribute("aria-selected", "false"); });
+        callActive = (callActive + delta + rows.length) % rows.length;
+        const row = rows[callActive];
+        row.classList.add("is-active");
+        row.setAttribute("aria-selected", "true");
+        row.scrollIntoView({ block: "nearest" });
+    }
+    if ($callInput) {
+        $callInput.addEventListener("input", () => {
+            clearTimeout(callTimer);
+            callTimer = setTimeout(callSearch, 250);      // debounce
+        });
+        $callInput.addEventListener("keydown", (e) => {
+            if (e.key === "ArrowDown") { e.preventDefault(); callMove(1); }
+            else if (e.key === "ArrowUp") { e.preventDefault(); callMove(-1); }
+            else if (e.key === "Enter") {
+                const row = $callResults.querySelector(".call-row.is-active")
+                    || $callResults.querySelector(".call-row");
+                if (row) { e.preventDefault(); row.querySelector("button").click(); }
+            } else if (e.key === "Escape") {
+                $callInput.value = "";
+                callRender([], 0, "");
+                $callResults.innerHTML =
+                    `<div class="fm-empty">Scrivi almeno 2 lettere per cercare.</div>`;
+            }
+        });
+    }
+    // Client-side filter over the already-rendered Storico rows (up to 300):
+    // a round trip to the server buys nothing here that a DOM pass doesn't
+    // already give for free. Matches on both the player and the winner's
+    // team name, so "chi ha preso X" works as well as "cerca X".
+    function filterStorico(query) {
+        const q = deaccent(query.trim());
+        const rows = document.querySelectorAll("#storico-tbody .storico-row");
+        let visible = 0;
+        rows.forEach((row) => {
+            const match = !q || deaccent(row.dataset.name || "").includes(q);
+            row.style.display = match ? "" : "none";
+            if (match) visible++;
+        });
+        const noMatch = document.getElementById("storico-no-match");
+        if (noMatch) noMatch.style.display = (q && visible === 0) ? "" : "none";
+        const $count = document.getElementById("storico-count");
+        if ($count) $count.textContent = q ? `${visible}/${rows.length}` : rows.length;
+    }
+
+    // CALL mode: review-only navigation over the Storico panel (no server state).
+    // Rows are most-recent-first, so "prev" (← Indietro) walks toward older lots
+    // (down the list) and "next" walks toward newer ones (up). The role buttons
+    // jump to the first row of the adjacent role group in that direction.
+    let storicoCursor = -1;
+    function storicoStep(direction) {
+        const rows = Array.from(document.querySelectorAll("#storico-tbody .storico-row"));
+        if (!rows.length) { showToast("Storico vuoto", "bad"); return; }
+        const older = (direction === "prev" || direction === "prev_role");  // down the list
+        let i = storicoCursor;
+        if (i < 0) i = older ? -1 : rows.length;  // first step lands on an end
+        if (direction === "prev" || direction === "next") {
+            i += older ? 1 : -1;
+        } else {  // role jump: skip to the first row of the next/prev role group
+            const curRole = (i >= 0 && i < rows.length) ? rows[i].dataset.role : null;
+            i += older ? 1 : -1;
+            while (i >= 0 && i < rows.length && rows[i].dataset.role === curRole) i += older ? 1 : -1;
+        }
+        i = Math.max(0, Math.min(rows.length - 1, i));
+        storicoCursor = i;
+        rows.forEach(r => r.classList.remove("sel"));
+        const row = rows[i];
+        row.classList.add("sel");
+        row.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        document.getElementById("storico-panel")
+            .scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+    async function buildQueue() {
+        const r = await fetch(`/admin-auction/${AUCTION_ID}/build-queue/`, {
+            method: "POST", headers: { "X-CSRFToken": CSRF },
+        });
+        const data = await r.json();
+        if (data.ok) {
+            showToast(`↻ Coda: ${data.pending} giocatori`, "ok");
+            if (data.items) renderQueueTable(data.items);
+            else refreshQueue();
+        } else showToast("Errore", "bad");
+    }
+
+    function renderQueueTable(items) {
+        const tbody = document.getElementById("queue-tbody");
+        if (!tbody) return;
+        if (!items || items.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" class="fm-empty">Coda vuota. Premi “Ricostruisci coda”.</td></tr>';
+            return;
+        }
+        function esc(s) { const d = document.createElement("div"); d.textContent = s == null ? "" : s; return d.innerHTML; }
+        tbody.innerHTML = items.map((it, idx) => {
+            const rec = it.is_recovery
+                ? '<span class="role-badge" style="background:#f59e0b;color:#fff;margin-left:4px;font-size:10px" title="Giro di recupero">REC</span>'
+                : '';
+            return `<tr data-player-id="${it.player_id}">
+                <td class="muted" style="width:26px">${idx + 1}</td>
+                <td style="width:30px">
+                    <span class="role-badge role-${it.role}">${it.role}</span>${rec}
+                </td>
+                <td style="font-weight:600">${esc(it.name)}<div class="muted" style="font-size:11px">${esc(it.team || "")}</div></td>
+                <td style="text-align:right;font-weight:700;white-space:nowrap">
+                    <span>${it.price} FM</span>
+                    <span class="q-actions">
+                        <button type="button" class="fm-btn-icon" title="Metti come prossimo" onclick="prioritizeQueuePlayer(${it.player_id})">⚡</button>
+                        <button type="button" class="fm-btn-icon" title="Rimanda a fine reparto" onclick="postponeQueuePlayer(${it.player_id})">⏭</button>
+                        <button type="button" class="fm-btn-icon text-danger" title="Escludi dalla coda" onclick="excludeQueuePlayer(${it.player_id})">✕</button>
+                    </span>
+                </td>
+            </tr>`;
+        }).join("");
+    }
+
+    async function refreshQueue() {
+        try {
+            const r = await fetch(`/admin-auction/${AUCTION_ID}/queue/`);
+            const data = await r.json();
+            if (data.ok) {
+                renderQueueTable(data.items);
+                const qp = document.getElementById("queue-pending");
+                if (qp && typeof data.pending === "number") qp.textContent = data.pending;
+            }
+        } catch (e) {
+            console.error("refreshQueue error:", e);
+        }
+    }
+
+    async function prioritizeQueuePlayer(playerId) {
+        const body = new URLSearchParams({ player_id: playerId });
+        const r = await fetch(`/admin-auction/${AUCTION_ID}/queue/prioritize/`, {
+            method: "POST", body,
+            headers: { "X-CSRFToken": CSRF, "Content-Type": "application/x-www-form-urlencoded" },
+        });
+        const data = await r.json();
+        if (data.ok) {
+            if (data.items) renderQueueTable(data.items);
+            if (data.state) applyState(data.state);
+            showToast("⚡ Giocatore impostato come prossimo", "ok");
+        } else showToast("Errore prioritizzazione", "bad");
+    }
+
+    async function postponeQueuePlayer(playerId) {
+        const body = new URLSearchParams({ player_id: playerId });
+        const r = await fetch(`/admin-auction/${AUCTION_ID}/queue/postpone/`, {
+            method: "POST", body,
+            headers: { "X-CSRFToken": CSRF, "Content-Type": "application/x-www-form-urlencoded" },
+        });
+        const data = await r.json();
+        if (data.ok) {
+            if (data.items) renderQueueTable(data.items);
+            if (data.state) applyState(data.state);
+            showToast("⏭ Giocatore rimandato a fine reparto", "ok");
+        } else showToast("Errore posticipazione", "bad");
+    }
+
+    async function excludeQueuePlayer(playerId) {
+        if (!confirm("Vuoi davvero escludere questo giocatore dalla coda?")) return;
+        const body = new URLSearchParams({ player_id: playerId });
+        const r = await fetch(`/admin-auction/${AUCTION_ID}/queue/exclude/`, {
+            method: "POST", body,
+            headers: { "X-CSRFToken": CSRF, "Content-Type": "application/x-www-form-urlencoded" },
+        });
+        const data = await r.json();
+        if (data.ok) {
+            if (data.items) renderQueueTable(data.items);
+            if (data.state) applyState(data.state);
+            showToast("✕ Giocatore escluso dalla coda", "ok");
+        } else showToast("Errore esclusione", "bad");
+    }
+    // Mirror the flag into the switch, its highlight and the card hint.
+    function syncAutoAdvance(on) {
+        const chk = document.getElementById("auto-advance-chk");
+        if (!chk) return;                       // not manual flow: nothing to sync
+        chk.checked = on;
+        chk.closest(".fm-auto-adv").classList.toggle("is-on", on);
+        const hint = document.getElementById("auto-adv-hint");
+        if (hint) hint.textContent = on
+            ? "Con lo scorrimento attivo ogni giocatore parte col timer avviato: senza " +
+            "rilanci va invenduto e si passa avanti da solo."
+            : "Il timer parte alla prima offerta.";
+    }
+
+    async function setAutoAdvance(on) {
+        const r = await fetch(`/admin-auction/${AUCTION_ID}/auto-advance/`, {
+            method: "POST", body: new URLSearchParams({ on: on ? "1" : "0" }),
+            headers: { "X-CSRFToken": CSRF, "Content-Type": "application/x-www-form-urlencoded" },
+        });
+        const data = await r.json();
+        if (data.ok) {
+            applyState(data.state);
+            showToast(on ? "Scorrimento automatico attivo" : "Scorrimento automatico spento", "ok");
+        } else {
+            syncAutoAdvance(!on);               // refused: put the switch back
+            showToast("✗ " + errLabel(data.error), "bad");
+        }
+    }
+
+    async function confirmAdvance() {
+        const r = await fetch(`/admin-auction/${AUCTION_ID}/confirm-advance/`, {
+            method: "POST",
+            headers: { "X-CSRFToken": CSRF, "Content-Type": "application/x-www-form-urlencoded" },
+        });
+        const data = await r.json();
+        if (data.ok) {
+            applyState(data.state);
+            showToast("Prossimo giocatore →", "ok");
+        } else {
+            showToast("✗ " + errLabel(data.error), "bad");
+        }
+    }
+
+    async function manualStep(direction, undoSale) {
+        const body = new URLSearchParams({ direction });
+        if (undoSale) body.append("undo_sale", "1");
+        const r = await fetch(`/admin-auction/${AUCTION_ID}/step/`, {
+            method: "POST", body,
+            headers: { "X-CSRFToken": CSRF, "Content-Type": "application/x-www-form-urlencoded" },
+        });
+        const data = await r.json();
+        if (data.ok) {
+            applyState(data.state);
+            const labels = {
+                next: "Successivo →", prev: "← Indietro",
+                next_role: "Ruolo succ. ⏭", prev_role: "⏮ Ruolo prec.",
+            };
+            showToast(undoSale ? "↩ Lotto annullato: giocatore rimesso all'asta" : (labels[direction] || "OK"), "ok");
+            refreshQueue();
+        } else if (data.error === "needs_undo_confirm" && data.undo) {
+            // Going back onto a lot already knocked down: the sale has to be
+            // reversed first, so spell out exactly what gets undone.
+            const u = data.undo;
+            const ok = confirm(
+                `${u.player_name} è già stato aggiudicato a ${u.winner_name} per ${u.amount} FM.\n\n` +
+                `Tornare indietro annulla l'aggiudicazione: il giocatore torna all'asta ` +
+                `e i ${u.amount} FM tornano a ${u.winner_name}.\n\nProcedo?`);
+            if (ok) manualStep(direction, true);
+        } else {
+            showToast("✗ " + errLabel(data.error), "bad");
+        }
+    }
+    async function refreshClassifica() {
+        try {
+            const r = await fetch(`/admin-auction/${AUCTION_ID}/classifica/`);
+            const d = await r.json();
+            if (!d.ok) return;
+            const tbody = document.getElementById("classifica-tbody");
+            if (tbody) tbody.innerHTML = d.html;
+        } catch (e) { /* next round's tick will retry */ }
+    }
+
+    async function refreshStorico() {
+        try {
+            const r = await fetch(`/admin-auction/${AUCTION_ID}/storico/`);
+            const d = await r.json();
+            if (!d.ok) return;
+            const tbody = document.getElementById("storico-tbody");
+            if (tbody) tbody.innerHTML = d.html;
+            storicoCursor = -1;
+            const $count = document.getElementById("storico-count");
+            if ($count) $count.textContent = String(tbody.querySelectorAll(".storico-row").length);
+            const $search = document.getElementById("storico-search");
+            if ($search && $search.value) filterStorico($search.value);
+        } catch (e) { /* next round's tick will retry */ }
+    }
+
+    async function retryFromStorico(playerId, btn) {
+        if (btn) { btn.disabled = true; btn.textContent = "…"; }
+        const body = new URLSearchParams({ player_id: playerId });
+        const r = await fetch(`/admin-auction/${AUCTION_ID}/call-player/`, {
+            method: "POST", body,
+            headers: { "X-CSRFToken": CSRF, "Content-Type": "application/x-www-form-urlencoded" },
+        });
+        const data = await r.json();
+        if (data.ok) {
+            applyState(data.state);
+            showToast("🔨 Di nuovo in asta: " + (data.state.player ? data.state.player.name : ""), "ok");
+            if (btn) { btn.textContent = "In asta"; }
+        } else {
+            showToast("✗ " + errLabel(data.error), "bad");
+            if (btn) { btn.disabled = false; btn.textContent = "Rifai asta"; }
+        }
+    }
+
+    async function releaseFromStorico(playerId, btn) {
+        if (!confirm("Svincolare il giocatore? L'aggiudicazione viene annullata e il costo riaccreditato alla squadra.")) return;
+        if (btn) { btn.disabled = true; btn.textContent = "…"; }
+        const body = new URLSearchParams({ auction_id: AUCTION_ID });
+        const r = await fetch(`/admin-auction/players/${playerId}/release/`, {
+            method: "POST", body,
+            headers: { "X-CSRFToken": CSRF, "Content-Type": "application/x-www-form-urlencoded" },
+        });
+        const data = await r.json();
+        if (data.ok) {
+            showToast("Giocatore svincolato", "ok");
+            refreshStorico();
+            refreshClassifica();
+        } else {
+            showToast("✗ " + errLabel(data.error), "bad");
+            if (btn) { btn.disabled = false; btn.textContent = "Svincola"; }
+        }
+    }
+
+    async function cancelBid(bidId) {
+        if (!confirm(
+            "Annullare questa offerta?\n\nSe il round è già concluso, il giocatore " +
+            "verrà svincolato e i crediti rimborsati alla squadra."
+        )) return;
+        const r = await fetch(`/admin-auction/bid/${bidId}/cancel/`, {
+            method: "POST", headers: { "X-CSRFToken": CSRF },
+        });
+        const data = await r.json();
+        if (data.ok) { applyState(data.state); location.reload(); }
+        else showToast("✗ " + errLabel(data.error), "bad");
+    }
+    function addActivityRow(bid) {
+        const list = document.getElementById("live-activity");
+        if (!list) return;
+        const empty = document.getElementById("activity-empty");
+        if (empty) empty.remove();
+        const d = new Date(bid.server_received_at);
+        const row = document.createElement("div");
+        row.className = "act-row is-new";
+        row.innerHTML =
+            `<span class="act-t">${d.toLocaleTimeString("it-IT")}</span>` +
+            `<span class="team-crest is-initials sm"></span>` +
+            `<span class="act-w"></span>` +
+            `<span class="act-a">rilancia a</span>` +
+            `<span class="act-amt">${money(bid.amount)} FM</span>`;
+        row.querySelector(".act-w").textContent = bid.participant;
+        row.querySelector(".team-crest").textContent = (bid.participant || "").slice(0, 2).toUpperCase();
+        list.prepend(row);
+        while (list.children.length > 30) list.lastElementChild.remove();
+        // Short highlight on the bid box — a new rilancio has to be felt.
+        const card = document.getElementById("bidfor-card");
+        if (card) { card.classList.remove("is-hit"); void card.offsetWidth; card.classList.add("is-hit"); }
+    }
+    function addBidRow(bid) {
+        addActivityRow(bid);
+        const panel = document.getElementById("bidlog-panel");
+        const cycle = state ? state.current_cycle || 1 : 1;
+
+        let group = panel.querySelector(`.cycle-group[data-cycle="${cycle}"]`);
+        if (!group) {
+            group = document.createElement("div");
+            group.className = "cycle-group flash-in";
+            group.dataset.cycle = cycle;
+            group.innerHTML =
+                `<details open><summary>` +
+                `<span class="cycle-label">Round ${cycle}</span>` +
+                `<span class="cycle-toggle">▼</span>` +
+                `</summary>` +
+                `<div class="table-scroll"><table>` +
+                `<thead><tr><th>Ora</th><th>T rimasto</th><th>Partecipante</th>` +
+                `<th style="text-align:right">Importo</th><th class="col-ua">Stato</th><th></th></tr></thead>` +
+                `<tbody></tbody></table></div></details>`;
+            const firstGroup = panel.querySelector(".cycle-group");
+            const noMsg = panel.querySelector(".muted");
+            if (noMsg) noMsg.remove();
+            firstGroup ? panel.insertBefore(group, firstGroup) : panel.appendChild(group);
+        }
+
+        const tbody = group.querySelector("tbody");
+        const tr = document.createElement("tr");
+        tr.className = "flash-in";
+        const d = new Date(bid.server_received_at);
+        const ms = String(d.getMilliseconds()).padStart(3, "0");
+        const t = d.toLocaleTimeString() + `<span style="opacity:.55">.${ms}</span>`;
+        const rem = bid.remaining_at_bid != null ? `${bid.remaining_at_bid.toFixed(1)}s` : "—";
+        tr.innerHTML =
+            `<td class="muted" style="white-space:nowrap">${t}</td>` +
+            `<td class="muted" style="white-space:nowrap;font-variant-numeric:tabular-nums">${rem}</td>` +
+            `<td>${bid.participant}</td>` +
+            `<td style="text-align:right"><span class="amt">${money(bid.amount)} FM</span></td>` +
+            `<td class="col-ua"><span style="color:var(--live)">accettata</span></td><td></td>`;
+        tbody.prepend(tr);
+    }
+    function connect() {
+        const socket = new WebSocket(auctionSocketUrl(AUCTION_ID));
+        socket.onmessage = (e) => {
+            const msg = JSON.parse(e.data);
+            if (msg.type === "state") applyState(msg);
+            else if (msg.type === "bid_new") { addBidRow(msg.bid); if (msg.extended) flashExtended(); }
+            else if (msg.type === "participant_offline")
+                showAlert("📡", `${msg.participant} si è disconnesso`, 7000);
+            else if (msg.type === "participant_warning" && msg.kind === "latency")
+                showAlert("⚠️", `${msg.participant} — latenza alta (${msg.ping} ms)`, 6000);
+            else if (msg.type === "reaction") spawnReaction(msg.emoji);
+        };
+        socket.onclose = () => setTimeout(connect, 1500);
+    }
+    if (state) applyState(state);
+    connect();
+    requestAnimationFrame(tick);
+
+    // Auction settings modal
+    function eaToggleOrder() {
+        const flow = (document.getElementById("ea-flow-mode") || {}).value;
+        const wrap = document.getElementById("ea-order-wrap");
+        if (wrap) wrap.style.display = (flow === "call") ? "none" : "";
+        const auto = document.getElementById("ea-auto-advance-wrap");
+        if (auto) auto.style.display = (flow === "manual") ? "" : "none";
+        eaToggleWithin();
+    }
+    function eaToggleWithin() {
+        const order = (document.getElementById("ea-call-order") || {}).value;
+        const wrap = document.getElementById("ea-within-wrap");
+        if (wrap) wrap.style.display = (order === "pdca" || order === "acdp") ? "" : "none";
+    }
+    // Le soglie hanno senso solo se l'asta alle buste e' accesa.
+    function eaToggleSealed() {
+        const on = (document.getElementById("ea-sealed") || {}).checked;
+        const wrap = document.getElementById("ea-sealed-wrap");
+        if (wrap) wrap.style.display = on ? "" : "none";
+    }
+    function openEditAuction() {
+        document.getElementById("edit-auction-modal").style.display = "flex";
+        eaToggleOrder();
+        eaToggleSealed();
+    }
+    function closeEditAuction() {
+        document.getElementById("edit-auction-modal").style.display = "none";
+    }
+    document.getElementById("edit-auction-modal")
+        .addEventListener("click", (e) => { if (e.target === e.currentTarget) closeEditAuction(); });
+
+    // System logs modal
+    let systemLogsTimer = null;
+    function escapeHtml(str) {
+        const div = document.createElement("div");
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    async function fetchSystemLogs() {
+        const el = document.getElementById("system-logs-content");
+        if (!el) return;
+        try {
+            const r = await fetch("/admin-auction/logs/");
+            const data = await r.json();
+            if (data.ok && Array.isArray(data.lines)) {
+                if (data.lines.length === 0) {
+                    el.innerHTML = '<div style="color:var(--fm-text-muted);text-align:center;padding:20px">Nessun log presente nel file.</div>';
+                } else {
+                    el.innerHTML = data.lines.map(line => {
+                        let color = "#c0caf5";
+                        if (line.includes("ERROR") || line.includes("CRITICAL")) color = "#f7768e";
+                        else if (line.includes("WARNING")) color = "#e0af68";
+                        else if (line.includes("accepted") || line.includes("won") || line.includes("aggiudicato") || line.includes("Aggiudicato")) color = "#9ece6a";
+                        else if (line.includes("rejected") || line.includes("pari merito") || line.includes("tie")) color = "#ff9e64";
+                        return `<div style="color:${color};white-space:pre-wrap;word-break:break-word;margin-bottom:2px">${escapeHtml(line)}</div>`;
+                    }).join("");
+                    el.scrollTop = el.scrollHeight;
+                }
+            } else {
+                el.innerHTML = '<div style="color:#f7768e">Impossibile caricare i log.</div>';
+            }
+        } catch (e) {
+            el.innerHTML = `<div style="color:#f7768e">Errore di rete: ${e.message}</div>`;
+        }
+    }
+
+    function openSystemLogs() {
+        const modal = document.getElementById("system-logs-modal");
+        if (modal) {
+            modal.style.display = "flex";
+            fetchSystemLogs();
+            if (systemLogsTimer) clearInterval(systemLogsTimer);
+            systemLogsTimer = setInterval(fetchSystemLogs, 3000);
+        }
+    }
+
+    function closeSystemLogs() {
+        const modal = document.getElementById("system-logs-modal");
+        if (modal) {
+            modal.style.display = "none";
+            if (systemLogsTimer) {
+                clearInterval(systemLogsTimer);
+                systemLogsTimer = null;
+            }
+        }
+    }
+
+    const logsModal = document.getElementById("system-logs-modal");
+    if (logsModal) {
+        logsModal.addEventListener("click", (e) => {
+            if (e.target === e.currentTarget) closeSystemLogs();
+        });
+    }
+
+    function undoLastAward() {
+        if (!confirm("Sei sicuro di voler annullare l'ultimo lotto aggiudicato?\n\nIl calciatore tornerà all'asta e i crediti spesi verranno riaccreditati all'acquirente.")) {
+            return;
+        }
+        manualStep('prev', true);
+    }
+
+    document.getElementById("edit-auction-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById("ea-save-btn");
+        const fb = document.getElementById("ea-feedback");
+        btn.disabled = true; btn.textContent = "Salvataggio…";
+        const body = new FormData(e.target);
+        const r = await fetch(`/admin-auction/${AUCTION_ID}/edit/`, { method: "POST", body, headers: { "X-CSRFToken": CSRF } });
+        const data = await r.json();
+        btn.disabled = false; btn.textContent = "Salva";
+        if (data.ok) {
+            // Patch the live values immediately, then reload: many settings
+            // (rilanci, timer, rimborso, modalità) are server-rendered in panels
+            // that applyState alone does not redraw, so a reload is the only way
+            // to guarantee the page reflects what was just saved.
+            applyState(data.state);
+            fb.style.display = "block"; fb.style.color = "var(--live)"; fb.textContent = "✓ Salvato";
+            setTimeout(() => location.reload(), 500);
+        } else {
+            fb.style.display = "block"; fb.style.color = "var(--closed)"; fb.textContent = "✗ Errore";
+        }
+    });
+</script>

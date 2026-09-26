@@ -1,0 +1,1506 @@
+<!-- ═══════════════════════════════════════════════════════ GESTIONALE SPORTIVO DASHBOARD -->
+<div class="fm-sport-container">
+
+    {% if not current_league %}
+    <!-- ═══════════════════════════════════ MULTI-TENANT HUB (NO LEAGUE SELECTED) -->
+    <div class="fm-sport-header-bar">
+        <div class="fm-sport-header-info">
+            <div class="fm-sport-badge-row">
+                <span class="fm-badge-pill pill-accent"><svg class="ic">
+                        <use href="#i-trophy" />
+                    </svg> Hub Multi-Tenant</span>
+                <span class="fm-badge-pill pill-subtle">{{ leagues|length }} Leghe Configurate</span>
+            </div>
+            <h1 class="fm-sport-title">Federazione Leghe Sportive</h1>
+            <p class="fm-sport-desc">Da dove vuoi partire? Seleziona la competizione per accedere al centro di
+                controllo, conduzione aste live, mercato e rose.</p>
+        </div>
+        <div class="fm-sport-header-actions">
+            <a class="fm-btn fm-btn-primary fm-glow-btn fm-btn-sm" href="{% url 'admin_create_league' %}">
+                <svg class="ic">
+                    <use href="#i-plus" />
+                </svg> Nuova Lega
+            </a>
+            <a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% url 'admin_auction_wizard' %}">
+                <svg class="ic">
+                    <use href="#i-gavel" />
+                </svg> Nuova Asta
+            </a>
+            <button type="button" class="fm-btn fm-btn-ghost fm-btn-sm" onclick="openSystemLogs()">
+                📋 Log Sistema
+            </button>
+        </div>
+    </div>
+
+    <!-- LEAGUE CARDS GRID -->
+    <div class="fm-hub-grid">
+        {% for card in league_cards %}
+        <div class="fm-hub-card {% if card.active_auction %}is-live{% endif %}">
+            <div class="hub-card-top">
+                <span class="hub-mode-pill {% if card.active_auction %}is-live{% endif %}">
+                    {% if card.active_auction %}<span class="live-dot"></span> LIVE{% else %}{{ card.league.get_game_mode_display }}{% endif %}
+                </span>
+                <span class="hub-id">#{{ card.league.id }}</span>
+            </div>
+            <div class="hub-card-body">
+                <h3 class="hub-name">
+                    <svg class="ic">
+                        <use href="#i-trophy" />
+                    </svg>
+                    {{ card.league.name }}
+                </h3>
+                <div class="hub-sub">Budget {{ card.league.budget|floatformat:0 }} FM · {{ card.league.slots_label }}
+                </div>
+
+                <div class="hub-metrics">
+                    <div class="hub-metric">
+                        <span class="k">Club:</span>
+                        <span class="v">{{ card.team_count }}</span>
+                    </div>
+                    <div class="hub-metric">
+                        <span class="k">Listone:</span>
+                        <span class="v">{{ card.player_count }}</span>
+                    </div>
+                    <div class="hub-metric">
+                        <span class="k">Aste:</span>
+                        <span class="v">{{ card.auctions_count }}</span>
+                    </div>
+                </div>
+
+                {% if card.active_auction %}
+                <div class="hub-live-badge">
+                    <span class="live-pulse-mini"></span>
+                    <span><b>{{ card.active_auction.title }}</b> ({{ card.active_auction.get_flow_mode_display }})</span>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="hub-card-actions">
+                <a class="fm-btn fm-btn-primary fm-btn-sm" href="/dashboard/{{ card.league.id }}/"
+                    style="flex:1;justify-content:center">
+                    Apri Gestionale &rarr;
+                </a>
+                {% if card.active_auction %}
+                <a class="fm-btn fm-btn-secondary fm-btn-sm"
+                    href="{% url 'admin_dashboard' %}?auction={{ card.active_auction.id }}" title="Entra in Regia">
+                    <svg class="ic">
+                        <use href="#i-gavel" />
+                    </svg> Regia
+                </a>
+                <a class="fm-btn fm-btn-ghost fm-btn-sm"
+                    href="{% url 'screen' card.active_auction.id %}?t={{ card.active_auction.public_token }}"
+                    target="_blank" title="Maxischermo HDMI">
+                    <svg class="ic">
+                        <use href="#i-tv" />
+                    </svg>
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        {% empty %}
+        <div class="fm-empty-card" style="grid-column:1/-1">
+            <div class="empty-icon"><svg class="ic">
+                    <use href="#i-trophy" />
+                </svg></div>
+            <div class="empty-title">Nessuna Lega Creata</div>
+            <div class="empty-desc">Crea la tua prima lega per configurare squadre, budget e listone.</div>
+            <a class="fm-btn fm-btn-primary" href="{% url 'admin_create_league' %}">
+                <svg class="ic">
+                    <use href="#i-plus" />
+                </svg> Registra Nuova Lega
+            </a>
+        </div>
+        {% endfor %}
+
+        <a class="fm-hub-card is-create-slot" href="{% url 'admin_create_league' %}">
+            <div class="create-slot-inner">
+                <div class="create-slot-icon"><svg class="ic">
+                        <use href="#i-plus" />
+                    </svg></div>
+                <div class="create-slot-title">+ Nuova Lega</div>
+                <div class="create-slot-desc">Classic o Mantra, budget personalizzato</div>
+            </div>
+        </a>
+    </div>
+
+    {% else %}
+    <!-- ═══════════════════════════════════ SINGLE LEAGUE GESTIONALE SPORTIVO ═══════════════════════════════════ -->
+    <!-- 1. COMPACT LEAGUE OPERATIONAL BAR -->
+    <div class="fm-sport-header-bar">
+        <div class="fm-sport-header-info">
+            <div class="fm-sport-badge-row">
+                <span class="fm-badge-pill pill-lead"><svg class="ic">
+                        <use href="#i-trophy" />
+                    </svg> {{ current_league.name }}</span>
+                <span class="fm-badge-pill pill-subtle">{{ current_league.get_game_mode_display }}</span>
+                <span class="fm-badge-pill pill-subtle">Budget {{ current_league.budget|floatformat:0 }} FM</span>
+                <span class="fm-badge-pill pill-subtle">{{ current_league.slots_label }}</span>
+                <span class="fm-badge-pill pill-subtle">👑 {{ current_league.owner.username|default:"Presidente" }}</span>
+                <a class="fm-badge-pill pill-accent" href="{% url 'dashboard_hub' %}"
+                    title="Visualizza tutte le leghe">⇄ Cambia Lega</a>
+            </div>
+            <h1 class="fm-sport-title">Console Gestionale · {{ current_league.name }}</h1>
+            <p class="fm-sport-desc">Centro di controllo completo: gestione rose per reparto, crediti, iscritti e
+                sessioni d'asta.</p>
+        </div>
+        <div class="fm-sport-header-actions">
+            <a class="fm-btn fm-btn-primary fm-glow-btn fm-btn-sm" href="{% url 'admin_auction_wizard' %}">
+                <svg class="ic">
+                    <use href="#i-plus" />
+                </svg> Nuova Asta
+            </a>
+            <a class="fm-btn fm-btn-ghost fm-btn-sm"
+                href="{% url 'admin_market_dashboard' %}?league={{ current_league.id }}">
+                <svg class="ic">
+                    <use href="#i-mail" />
+                </svg> Buste Mercato
+            </a>
+            <a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% url 'admin_players' %}?league={{ current_league.id }}">
+                <svg class="ic">
+                    <use href="#i-users" />
+                </svg> Listone FVM
+            </a>
+            <button type="button" class="fm-btn fm-btn-ghost fm-btn-sm" onclick="openAddTeamModal()">
+                <svg class="ic">
+                    <use href="#i-shield" />
+                </svg> + Nuova Squadra
+            </button>
+        </div>
+    </div>
+
+    <!-- 2. HYBRID FANTACALCIO TABS BAR -->
+    <div class="fm-league-tabs-bar">
+        <button type="button" class="fm-league-tab-btn is-active" id="tabbtn-panoramica"
+            onclick="switchLeagueTab('panoramica')">
+            <svg class="ic">
+                <use href="#i-table" />
+            </svg> Panoramica
+        </button>
+        <button type="button" class="fm-league-tab-btn" id="tabbtn-rose" onclick="switchLeagueTab('rose')">
+            <svg class="ic">
+                <use href="#i-shield" />
+            </svg> Rose & Squadre
+            <span class="tab-badge">{{ participants|length }}</span>
+        </button>
+        <button type="button" class="fm-league-tab-btn" id="tabbtn-iscritti" onclick="switchLeagueTab('iscritti')">
+            <svg class="ic">
+                <use href="#i-users" />
+            </svg> Iscritti & Manager
+            <span class="tab-badge">{{ participants|length }}</span>
+        </button>
+        <button type="button" class="fm-league-tab-btn" id="tabbtn-aste" onclick="switchLeagueTab('aste')">
+            <svg class="ic">
+                <use href="#i-gavel" />
+            </svg> Mercato & Aste
+            <span class="tab-badge">{{ auctions|length }}</span>
+        </button>
+        <button type="button" class="fm-league-tab-btn" id="tabbtn-regole" onclick="switchLeagueTab('regole')">
+            <svg class="ic">
+                <use href="#i-gear" />
+            </svg> Regolamento & Moduli
+        </button>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════ TAB 1: PANORAMICA -->
+    <div class="fm-league-tab-pane is-active" id="pane-panoramica">
+        {% if active_auction %}
+        <!-- LIVE AUCTION ALERT BANNER -->
+        <div class="fm-sport-live-strip">
+            <div class="live-strip-left">
+                <span class="live-pulse-badge">
+                    <span class="pulse-dot"></span>
+                    <span>{% if active_auction.status == 'live' or active_auction.status == 'LIVE' %}ASTA LIVE IN SALA{% else %}ASTA IN PAUSA{% endif %}</span>
+                </span>
+                <div class="live-strip-title">
+                    <strong>{{ active_auction.title }}</strong>
+                    <span>Modalità {{ active_auction.get_flow_mode_display }} · Timer {{ active_auction.duration_seconds }}s · Base {{ active_auction.starting_price|floatformat:0 }} FM</span>
+                </div>
+            </div>
+            <div class="live-strip-actions">
+                <a class="fm-btn fm-btn-primary fm-glow-btn fm-btn-sm"
+                    href="{% url 'regia_auction' active_auction.id %}">
+                    <svg class="ic">
+                        <use href="#i-gavel" />
+                    </svg> Entra in Regia
+                </a>
+                <a class="fm-btn fm-btn-secondary fm-btn-sm"
+                    href="{% url 'screen' active_auction.id %}?t={{ active_auction.public_token }}" target="_blank">
+                    <svg class="ic">
+                        <use href="#i-tv" />
+                    </svg> Maxischermo HDMI
+                </a>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- SPORTS TELEMETRY HUD -->
+        <div class="fm-telemetry-hud">
+            <div class="hud-tile" style="cursor:pointer" onclick="switchLeagueTab('rose')">
+                <div class="hud-tile-top">
+                    <span class="hud-k">Rose & Calciatori</span>
+                    <span class="hud-badge cyan">{{ roster_fill_pct }}% Slot</span>
+                </div>
+                <div class="hud-val">
+                    {{ assigned_count }} <small>/ {{ total_roster_slots }}</small>
+                </div>
+                <div class="hud-bar-wrap">
+                    <div class="hud-bar-fill" style="width:{{ roster_fill_pct }}%"></div>
+                </div>
+                <div class="hud-sub-row">
+                    <span>{{ free_count }} svincolati liberi</span>
+                    <span class="hud-roles-mini">P:<b>{{ role_assigned.P|default:0 }}</b> D:<b>{{ role_assigned.D|default:0 }}</b> C:<b>{{ role_assigned.C|default:0 }}</b> A:<b>{{ role_assigned.A|default:0 }}</b></span>
+                </div>
+            </div>
+
+            <div class="hud-tile">
+                <div class="hud-tile-top">
+                    <span class="hud-k">Monte Crediti & Spesa</span>
+                    <span class="hud-badge emerald">{{ spent_pct }}% Speso</span>
+                </div>
+                <div class="hud-val">
+                    {{ total_spent_credits|floatformat:0 }} <small>FM</small>
+                </div>
+                <div class="hud-bar-wrap">
+                    <div class="hud-bar-fill emerald" style="width:{{ spent_pct }}%"></div>
+                </div>
+                <div class="hud-sub-row">
+                    <span>Residui: <b>{{ remaining_league_credits|floatformat:0 }} FM</b></span>
+                    <span>Media acquisto: <b>~{{ avg_spent|floatformat:1 }} FM</b></span>
+                </div>
+            </div>
+
+            <div class="hud-tile" style="cursor:pointer" onclick="switchLeagueTab('iscritti')">
+                <div class="hud-tile-top">
+                    <span class="hud-k">Squadre & Club</span>
+                    <span class="hud-badge blue">{{ participants|length }} Iscritti</span>
+                </div>
+                <div class="hud-val">
+                    {{ participants|length }} <small>Club</small>
+                </div>
+                <div class="hud-foot-txt">
+                    <span>{{ slots_per_team }} slot rosa per squadra</span>
+                    <span class="hud-status-ok">● Token & QR attivi</span>
+                </div>
+            </div>
+
+            <div class="hud-tile" style="cursor:pointer" onclick="switchLeagueTab('aste')">
+                <div class="hud-tile-top">
+                    <span class="hud-k">Aste & Sessioni</span>
+                    <span class="hud-badge amber">Competizione</span>
+                </div>
+                <div class="hud-val">
+                    {{ auctions|length }} <small>Aste</small> · {{ market_sessions|length }} <small>Buste</small>
+                </div>
+                <div class="hud-foot-txt">
+                    <span>Mercato di riparazione & live</span>
+                    <span>Regia sincronizzata</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2-COLUMN GRID -->
+        <div class="fm-sport-main-grid">
+            <div class="fm-sport-col-left">
+                <!-- CLASSIFICA SQUADRE & BILANCIO -->
+                <div class="fm-sport-card">
+                    <div class="sport-card-head">
+                        <div>
+                            <h2 class="sport-card-title">Classifica Squadre & Bilancio Rose</h2>
+                            <div class="sport-card-sub">Stato crediti, rosa e spesa di ogni club. Clicca su un club per
+                                aprire la sua rosa.</div>
+                        </div>
+                        <button type="button" class="fm-btn fm-btn-ghost fm-btn-sm" onclick="switchLeagueTab('rose')">
+                            <svg class="ic">
+                                <use href="#i-shield" />
+                            </svg> Tutte le Rose &rarr;
+                        </button>
+                    </div>
+
+                    {% if participants %}
+                    <div class="sport-table-wrap">
+                        <table class="sport-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:36px;text-align:center">#</th>
+                                    <th>Club & Allenatore</th>
+                                    <th style="text-align:right;width:130px">Crediti Residui</th>
+                                    <th style="text-align:right;width:90px">Spesi</th>
+                                    <th style="width:160px">Avanzamento Rosa</th>
+                                    <th style="text-align:center;width:100px">Azioni</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for p in participants %}
+                                <tr style="cursor:pointer" onclick="openTeamRosterTab({{ p.id }})">
+                                    <td class="col-rank">{{ forloop.counter }}</td>
+                                    <td>
+                                        <div class="sport-team-cell">
+                                            <span class="sport-team-avatar">
+                                                {% if p.logo %}<img src="{{ p.logo.url }}" alt="{{ p.display_name }}">{% else %}{{ p.display_name|slice:":2"|upper }}{% endif %}
+                                            </span>
+                                            <div class="sport-team-names">
+                                                <span class="t-name">{{ p.display_name }}</span>
+                                                <span class="t-owner">{{ p.user.username|default:"Nessun account collegato" }}</span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td style="text-align:right">
+                                        <span
+                                            class="sport-cred {% if p.remaining_credits < 20 %}is-danger{% elif p.remaining_credits < 60 %}is-warn{% else %}is-good{% endif %}">
+                                            {{ p.remaining_credits|floatformat:0 }} <small>FM</small>
+                                        </span>
+                                    </td>
+                                    <td style="text-align:right;color:var(--fm-text-muted);font-weight:600">
+                                        {{ p.spent_credits|floatformat:0 }} FM
+                                    </td>
+                                    <td>
+                                        <div class="sport-roster-meter">
+                                            <div class="meter-bar">
+                                                <div class="meter-fill" style="width:{{ p.roster_pct }}%"></div>
+                                            </div>
+                                            <span class="meter-text">{{ p.roster_n }}{% if p.slots_total %}/{{ p.slots_total }}{% endif %}</span>
+                                        </div>
+                                    </td>
+                                    <td style="text-align:center" onclick="event.stopPropagation()">
+                                        <button type="button" class="fm-btn fm-btn-primary fm-btn-xs"
+                                            onclick="openTeamRosterTab({{ p.id }})">
+                                            Apri Rosa &rarr;
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="fm-sport-empty">
+                        <span>Nessuna squadra iscritta.</span>
+                        <button type="button" class="fm-btn fm-btn-primary fm-btn-xs" onclick="openAddTeamModal()">+
+                            Iscrivi Prima Squadra</button>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- SESSIONI D'ASTA -->
+                <div class="fm-sport-card">
+                    <div class="sport-card-head">
+                        <div>
+                            <h2 class="sport-card-title">Sessioni d'Asta</h2>
+                            <div class="sport-card-sub">Sessioni live e programmate per questa lega.</div>
+                        </div>
+                        <a class="fm-btn fm-btn-secondary fm-btn-sm" href="{% url 'admin_auction_wizard' %}">
+                            <svg class="ic">
+                                <use href="#i-plus" />
+                            </svg> Nuova Asta
+                        </a>
+                    </div>
+                    {% if auctions %}
+                    <div class="sport-auctions-list">
+                        {% for a in auctions %}
+                        <div
+                            class="sport-auction-row {% if a.status == 'live' %}is-live{% elif a.status == 'paused' %}is-paused{% endif %}">
+                            <div class="row-status">
+                                <span class="status-pill s-{{ a.status }}"><span class="dot"></span> {{ a.get_status_display }}</span>
+                            </div>
+                            <div class="row-info">
+                                <strong>{{ a.title }}</strong>
+                                <span>{{ a.get_flow_mode_display }} · Timer {{ a.duration_seconds }}s · Base {{ a.starting_price|floatformat:0 }} FM</span>
+                            </div>
+                            <div class="row-actions">
+                                <a class="fm-btn fm-btn-primary fm-btn-xs" href="{% url 'regia_auction' a.id %}">
+                                    <svg class="ic">
+                                        <use href="#i-gavel" />
+                                    </svg> Regia
+                                </a>
+                                <a class="fm-btn fm-btn-ghost fm-btn-xs"
+                                    href="{% url 'screen' a.id %}?t={{ a.public_token }}" target="_blank"
+                                    title="Maxischermo HDMI TV">
+                                    <svg class="ic">
+                                        <use href="#i-tv" />
+                                    </svg>
+                                </a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="fm-sport-empty">
+                        <span>Nessuna sessione configurata.</span>
+                        <a class="fm-btn fm-btn-primary fm-btn-xs" href="{% url 'admin_auction_wizard' %}">+ Avvia Nuova
+                            Asta</a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="fm-sport-col-right">
+                <!-- CENTRO OPERATIVO -->
+                <div class="fm-sport-card">
+                    <div class="sport-card-head">
+                        <div>
+                            <h2 class="sport-card-title">Centro Operativo</h2>
+                            <div class="sport-card-sub">Strumenti rapidi di gestione fantacalcistica.</div>
+                        </div>
+                        <span class="sport-card-tag">Cockpit</span>
+                    </div>
+
+                    <div class="sport-tools-grid">
+                        <button type="button" class="sport-tool-tile is-btn" onclick="openAddTeamModal()">
+                            <div class="tool-icon icon-cyan"><svg class="ic">
+                                    <use href="#i-plus" />
+                                </svg></div>
+                            <div class="tool-content">
+                                <div class="tool-title">Nuova Squadra</div>
+                                <div class="tool-desc">Iscrivi un nuovo club alla lega</div>
+                            </div>
+                        </button>
+
+                        <button type="button" class="sport-tool-tile is-btn" onclick="switchLeagueTab('rose')">
+                            <div class="tool-icon icon-emerald"><svg class="ic">
+                                    <use href="#i-shield" />
+                                </svg></div>
+                            <div class="tool-content">
+                                <div class="tool-title">Rose Complete</div>
+                                <div class="tool-desc">Calciatori divisi per P, D, C, A</div>
+                            </div>
+                        </button>
+
+                        <button type="button" class="sport-tool-tile is-btn" onclick="switchLeagueTab('iscritti')">
+                            <div class="tool-icon icon-blue"><svg class="ic">
+                                    <use href="#i-users" />
+                                </svg></div>
+                            <div class="tool-content">
+                                <div class="tool-title">Iscritti & Inviti</div>
+                                <div class="tool-desc">Credenziali, PIN e link WhatsApp</div>
+                            </div>
+                        </button>
+
+                        <a class="sport-tool-tile"
+                            href="{% url 'admin_market_dashboard' %}?league={{ current_league.id }}">
+                            <div class="tool-icon icon-amber"><svg class="ic">
+                                    <use href="#i-mail" />
+                                </svg></div>
+                            <div class="tool-content">
+                                <div class="tool-title">Buste Mercato</div>
+                                <div class="tool-desc">Riparazione segreta con tagli e crediti</div>
+                            </div>
+                        </a>
+
+                        <a class="sport-tool-tile" href="{% url 'admin_players' %}?league={{ current_league.id }}">
+                            <div class="tool-icon icon-blue"><svg class="ic">
+                                    <use href="#i-users" />
+                                </svg></div>
+                            <div class="tool-content">
+                                <div class="tool-title">Listone & FVM</div>
+                                <div class="tool-desc">Quotazioni, ruoli Classic e Mantra</div>
+                            </div>
+                        </a>
+
+                        <a class="sport-tool-tile" href="{% url 'admin_fantapazz' %}?league={{ current_league.id }}">
+                            <div class="tool-icon icon-emerald"><svg class="ic">
+                                    <use href="#i-import" />
+                                </svg></div>
+                            <div class="tool-content">
+                                <div class="tool-title">Importa Rose</div>
+                                <div class="tool-desc">Sincronizzazione da Excel o Fantapazz</div>
+                            </div>
+                        </a>
+
+                        <a class="sport-tool-tile" href="{% url 'admin_export' %}?league={{ current_league.id }}">
+                            <div class="tool-icon icon-purple"><svg class="ic">
+                                    <use href="#i-export" />
+                                </svg></div>
+                            <div class="tool-content">
+                                <div class="tool-title">Esportazioni</div>
+                                <div class="tool-desc">Report XLSX, CSV e file leghe</div>
+                            </div>
+                        </a>
+
+                        <a class="sport-tool-tile" href="{% url 'app_home' %}" target="_blank">
+                            <div class="tool-icon icon-emerald"><svg class="ic">
+                                    <use href="#i-shirt" />
+                                </svg></div>
+                            <div class="tool-content">
+                                <div class="tool-title">App Allenatori (/app/)</div>
+                                <div class="tool-desc">Portale mobile manager</div>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- ULTIME ASSEGNAZIONI -->
+                <div class="fm-sport-card">
+                    <div class="sport-card-head">
+                        <div>
+                            <h2 class="sport-card-title">Ultime Assegnazioni</h2>
+                            <div class="sport-card-sub">Calciatori battuti all'asta di recente.</div>
+                        </div>
+                        <span class="sport-card-tag">Mercato</span>
+                    </div>
+
+                    {% if recent_assignments %}
+                    <div class="sport-deals-feed">
+                        {% for deal in recent_assignments %}
+                        <div class="deal-row">
+                            <div class="deal-role role-{{ deal.player.role|default:deal.player_role|default:'A' }}">
+                                {{ deal.player.role|default:deal.player_role|default:"?" }}
+                            </div>
+                            <div class="deal-player">
+                                <span class="deal-name">{{ deal.player.name|default:deal.player_name }}</span>
+                                <span class="deal-winner">
+                                    <svg class="ic">
+                                        <use href="#i-shield" />
+                                    </svg> {{ deal.winner.display_name|default:deal.winner_name|default:"Svincolato" }}
+                                </span>
+                            </div>
+                            <div class="deal-price">
+                                <b>{{ deal.amount|floatformat:0 }}</b> <small>FM</small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="fm-sport-empty">
+                        <span>Nessun calciatore assegnato finora.</span>
+                        <small style="color:var(--fm-text-muted)">I colpi battuti all'asta compariranno qui in tempo
+                            reale.</small>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════ TAB 2: ROSE & SQUADRE -->
+    <div class="fm-league-tab-pane" id="pane-rose">
+        <!-- TOP TOOLBAR -->
+        <div
+            style="display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:14px;flex-wrap:wrap">
+            <div>
+                <h2 style="font-family:var(--fm-display);font-size:20px;font-weight:800;color:#fff;margin:0">Rose
+                    Complete & Gestione Squadre</h2>
+                <div style="font-size:12.5px;color:var(--fm-text-secondary);margin-top:2px">
+                    Visualizza i calciatori per reparto (Portieri, Difensori, Centrocampisti, Attaccanti), crediti spesi
+                    e gestisci ogni club.
+                </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <button type="button" class="fm-btn fm-btn-secondary fm-btn-sm" id="btn-view-single"
+                    onclick="toggleRoseViewMode('single')">
+                    👤 Vista Squadra
+                </button>
+                <button type="button" class="fm-btn fm-btn-ghost fm-btn-sm" id="btn-view-all"
+                    onclick="toggleRoseViewMode('all')">
+                    📋 Tutte le Rose
+                </button>
+                <button type="button" class="fm-btn fm-btn-primary fm-btn-sm" onclick="openAddTeamModal()">
+                    <svg class="ic">
+                        <use href="#i-plus" />
+                    </svg> + Aggiungi Squadra
+                </button>
+            </div>
+        </div>
+
+        {% if participants %}
+        <!-- TEAM SWITCHER STRIP (CLICKABLE CARDS) -->
+        <div class="fm-teams-strip" id="team-selector-strip">
+            {% for p in participants %}
+            <div class="fm-team-chip {% if forloop.first %}is-selected{% endif %}" id="team-chip-{{ p.id }}"
+                onclick="selectTeamRosa({{ p.id }})">
+                <div class="fm-chip-top">
+                    <div class="fm-chip-avatar">
+                        {% if p.logo %}<img src="{{ p.logo.url }}" alt="{{ p.display_name }}">{% else %}{{ p.display_name|slice:":2"|upper }}{% endif %}
+                    </div>
+                    <div class="fm-chip-names">
+                        <div class="fm-chip-teamname">{{ p.display_name }}</div>
+                        <div class="fm-chip-coach">{{ p.user.username|default:"Senza allenatore" }}</div>
+                    </div>
+                </div>
+                <div class="fm-chip-metrics">
+                    <span
+                        class="fm-chip-cred {% if p.remaining_credits < 20 %}is-danger{% elif p.remaining_credits < 60 %}is-warn{% endif %}">
+                        {{ p.remaining_credits|floatformat:0 }} FM res.
+                    </span>
+                    <span class="fm-chip-slots">{{ p.roster_n }}/{{ p.slots_total }} slot</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- 1. VISTA SQUADRA SINGOLA (ACTIVE TEAM ROSTER DETAILED) -->
+        <div id="view-mode-single">
+            {% for p in participants %}
+            <div class="team-roster-view-container" id="team-roster-pane-{{ p.id }}"
+                style="{% if not forloop.first %}display:none;{% endif %}">
+                <!-- COCKPIT BAR DELLA SQUADRA SELEZIONATA -->
+                <div class="fm-team-cockpit-bar">
+                    <div class="fm-team-cockpit-info">
+                        <div class="fm-team-cockpit-avatar">
+                            {% if p.logo %}<img src="{{ p.logo.url }}" alt="{{ p.display_name }}">{% else %}{{ p.display_name|slice:":2"|upper }}{% endif %}
+                        </div>
+                        <div>
+                            <h3 class="fm-team-cockpit-title">{{ p.display_name }}</h3>
+                            <div class="fm-team-cockpit-sub">
+                                <span>Allenatore: <b>{{ p.user.username|default:"Non associato" }}</b></span>
+                                <span>·</span>
+                                <span>Crediti Residui: <b style="color:var(--fm-success)">{{ p.remaining_credits|floatformat:0 }} FM</b></span>
+                                <span>·</span>
+                                <span>Spesi: <b>{{ p.spent_credits|floatformat:0 }} FM</b> (Totale: {{ p.credits|floatformat:0 }} FM)</span>
+                                <span>·</span>
+                                <span>Slot Rosa: <b>{{ p.roster_n }}/{{ p.slots_total }}</b></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="fm-team-cockpit-actions">
+                        <button type="button" class="fm-btn fm-btn-secondary fm-btn-sm"
+                            onclick="openEditTeamModal({{ p.id }}, '{{ p.display_name|escapejs }}', '{{ p.user_id|default:'' }}')">
+                            <svg class="ic">
+                                <use href="#i-gear" />
+                            </svg> Modifica Club
+                        </button>
+                        <button type="button" class="fm-btn fm-btn-secondary fm-btn-sm"
+                            onclick="openCreditsModal({{ p.id }}, '{{ p.display_name|escapejs }}', {{ p.credits|floatformat:0 }}, {{ p.remaining_credits|floatformat:0 }})">
+                            💰 Regola Crediti
+                        </button>
+                        <button type="button" class="fm-btn fm-btn-secondary fm-btn-sm"
+                            onclick="openPinModal({{ p.id }}, '{{ p.display_name|escapejs }}', '{{ p.access_code }}', '{{ p.join_url|escapejs }}')">
+                            🔑 PIN & Accesso
+                        </button>
+                        <button type="button" class="fm-btn fm-btn-primary fm-btn-sm"
+                            onclick="openQuickAssignModal({{ p.id }}, '{{ p.display_name|escapejs }}')">
+                            <svg class="ic">
+                                <use href="#i-plus" />
+                            </svg> Assegna Calciatore
+                        </button>
+                        <button type="button" class="fm-btn fm-btn-ghost fm-btn-sm" style="color:var(--fm-danger)"
+                            onclick="confirmDeleteTeam({{ p.id }}, '{{ p.display_name|escapejs }}')">
+                            🗑️
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 4 REPARTI CLASSICI FANTACALCIO (P, D, C, A) -->
+                <div class="fm-rose-dept-grid">
+                    <!-- PORTIERI -->
+                    <div class="fm-rose-dept-card">
+                        <div class="fm-rose-dept-head">
+                            <div class="fm-dept-title-wrap">
+                                <span class="fm-dept-badge role-P">P</span>
+                                <span class="fm-dept-title">Portieri</span>
+                            </div>
+                            <div class="fm-dept-meta">
+                                <span
+                                    class="fm-dept-slots-pill {% if p.role_caps.P and p.role_counts.P >= p.role_caps.P %}is-complete{% endif %}">
+                                    {{ p.role_counts.P }}{% if p.role_caps.P %}/{{ p.role_caps.P }}{% endif %}
+                                </span>
+                                <span><b>{{ p.role_spent.P|floatformat:0 }}</b> FM</span>
+                            </div>
+                        </div>
+                        <div class="fm-dept-players-list">
+                            {% for pl in p.roster_by_role.P %}
+                            <div class="fm-player-item" id="player-row-{{ pl.id }}">
+                                <div class="fm-player-left">
+                                    <span class="fm-role-tag role-P">P</span>
+                                    <span class="fm-player-name" title="{{ pl.name }}">{{ pl.name }}</span>
+                                    {% if pl.team %}<span class="fm-player-team">{{ pl.team }}</span>{% endif %}
+                                </div>
+                                <div class="fm-player-right">
+                                    <span class="fm-player-cost">{{ pl.cost|floatformat:0 }}<small>FM</small></span>
+                                    <span class="fm-player-fvm" title="FVM / Quotazione Iniziale">FVM {{ pl.initial_price|floatformat:0 }}</span>
+                                    <button type="button" class="fm-btn-svincola-mini"
+                                        onclick="quickReleasePlayer({{ pl.id }}, '{{ pl.name|escapejs }}')"
+                                        title="Svincola giocatore">
+                                        Svincola
+                                    </button>
+                                </div>
+                            </div>
+                            {% empty %}
+                            <div style="font-size:12px;color:var(--fm-text-muted);padding:6px 8px;font-style:italic">
+                                Nessun portiere in rosa.</div>
+                            {% endfor %}
+
+                            <!-- Slot liberi portieri -->
+                            {% for _ in p.empty_slots_ranges.P %}
+                            <div class="fm-empty-slot-box"
+                                onclick="openQuickAssignModal({{ p.id }}, '{{ p.display_name|escapejs }}', 'P')">
+                                <span>+ Slot Portiere Libero</span>
+                                <span style="font-size:10px;opacity:.7">Assegna &rarr;</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- DIFENSORI -->
+                    <div class="fm-rose-dept-card">
+                        <div class="fm-rose-dept-head">
+                            <div class="fm-dept-title-wrap">
+                                <span class="fm-dept-badge role-D">D</span>
+                                <span class="fm-dept-title">Difensori</span>
+                            </div>
+                            <div class="fm-dept-meta">
+                                <span
+                                    class="fm-dept-slots-pill {% if p.role_caps.D and p.role_counts.D >= p.role_caps.D %}is-complete{% endif %}">
+                                    {{ p.role_counts.D }}{% if p.role_caps.D %}/{{ p.role_caps.D }}{% endif %}
+                                </span>
+                                <span><b>{{ p.role_spent.D|floatformat:0 }}</b> FM</span>
+                            </div>
+                        </div>
+                        <div class="fm-dept-players-list">
+                            {% for pl in p.roster_by_role.D %}
+                            <div class="fm-player-item" id="player-row-{{ pl.id }}">
+                                <div class="fm-player-left">
+                                    <span class="fm-role-tag role-D">D</span>
+                                    <span class="fm-player-name" title="{{ pl.name }}">{{ pl.name }}</span>
+                                    {% if pl.team %}<span class="fm-player-team">{{ pl.team }}</span>{% endif %}
+                                </div>
+                                <div class="fm-player-right">
+                                    <span class="fm-player-cost">{{ pl.cost|floatformat:0 }}<small>FM</small></span>
+                                    <span class="fm-player-fvm" title="FVM / Quotazione Iniziale">FVM {{ pl.initial_price|floatformat:0 }}</span>
+                                    <button type="button" class="fm-btn-svincola-mini"
+                                        onclick="quickReleasePlayer({{ pl.id }}, '{{ pl.name|escapejs }}')"
+                                        title="Svincola giocatore">
+                                        Svincola
+                                    </button>
+                                </div>
+                            </div>
+                            {% empty %}
+                            <div style="font-size:12px;color:var(--fm-text-muted);padding:6px 8px;font-style:italic">
+                                Nessun difensore in rosa.</div>
+                            {% endfor %}
+
+                            <!-- Slot liberi difensori -->
+                            {% for _ in p.empty_slots_ranges.D %}
+                            <div class="fm-empty-slot-box"
+                                onclick="openQuickAssignModal({{ p.id }}, '{{ p.display_name|escapejs }}', 'D')">
+                                <span>+ Slot Difensore Libero</span>
+                                <span style="font-size:10px;opacity:.7">Assegna &rarr;</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- CENTROCAMPISTI -->
+                    <div class="fm-rose-dept-card">
+                        <div class="fm-rose-dept-head">
+                            <div class="fm-dept-title-wrap">
+                                <span class="fm-dept-badge role-C">C</span>
+                                <span class="fm-dept-title">Centrocampisti</span>
+                            </div>
+                            <div class="fm-dept-meta">
+                                <span
+                                    class="fm-dept-slots-pill {% if p.role_caps.C and p.role_counts.C >= p.role_caps.C %}is-complete{% endif %}">
+                                    {{ p.role_counts.C }}{% if p.role_caps.C %}/{{ p.role_caps.C }}{% endif %}
+                                </span>
+                                <span><b>{{ p.role_spent.C|floatformat:0 }}</b> FM</span>
+                            </div>
+                        </div>
+                        <div class="fm-dept-players-list">
+                            {% for pl in p.roster_by_role.C %}
+                            <div class="fm-player-item" id="player-row-{{ pl.id }}">
+                                <div class="fm-player-left">
+                                    <span class="fm-role-tag role-C">C</span>
+                                    <span class="fm-player-name" title="{{ pl.name }}">{{ pl.name }}</span>
+                                    {% if pl.team %}<span class="fm-player-team">{{ pl.team }}</span>{% endif %}
+                                </div>
+                                <div class="fm-player-right">
+                                    <span class="fm-player-cost">{{ pl.cost|floatformat:0 }}<small>FM</small></span>
+                                    <span class="fm-player-fvm" title="FVM / Quotazione Iniziale">FVM {{ pl.initial_price|floatformat:0 }}</span>
+                                    <button type="button" class="fm-btn-svincola-mini"
+                                        onclick="quickReleasePlayer({{ pl.id }}, '{{ pl.name|escapejs }}')"
+                                        title="Svincola giocatore">
+                                        Svincola
+                                    </button>
+                                </div>
+                            </div>
+                            {% empty %}
+                            <div style="font-size:12px;color:var(--fm-text-muted);padding:6px 8px;font-style:italic">
+                                Nessun centrocampista in rosa.</div>
+                            {% endfor %}
+
+                            <!-- Slot liberi centrocampisti -->
+                            {% for _ in p.empty_slots_ranges.C %}
+                            <div class="fm-empty-slot-box"
+                                onclick="openQuickAssignModal({{ p.id }}, '{{ p.display_name|escapejs }}', 'C')">
+                                <span>+ Slot Centrocampista Libero</span>
+                                <span style="font-size:10px;opacity:.7">Assegna &rarr;</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- ATTACCANTI -->
+                    <div class="fm-rose-dept-card">
+                        <div class="fm-rose-dept-head">
+                            <div class="fm-dept-title-wrap">
+                                <span class="fm-dept-badge role-A">A</span>
+                                <span class="fm-dept-title">Attaccanti</span>
+                            </div>
+                            <div class="fm-dept-meta">
+                                <span
+                                    class="fm-dept-slots-pill {% if p.role_caps.A and p.role_counts.A >= p.role_caps.A %}is-complete{% endif %}">
+                                    {{ p.role_counts.A }}{% if p.role_caps.A %}/{{ p.role_caps.A }}{% endif %}
+                                </span>
+                                <span><b>{{ p.role_spent.A|floatformat:0 }}</b> FM</span>
+                            </div>
+                        </div>
+                        <div class="fm-dept-players-list">
+                            {% for pl in p.roster_by_role.A %}
+                            <div class="fm-player-item" id="player-row-{{ pl.id }}">
+                                <div class="fm-player-left">
+                                    <span class="fm-role-tag role-A">A</span>
+                                    <span class="fm-player-name" title="{{ pl.name }}">{{ pl.name }}</span>
+                                    {% if pl.team %}<span class="fm-player-team">{{ pl.team }}</span>{% endif %}
+                                </div>
+                                <div class="fm-player-right">
+                                    <span class="fm-player-cost">{{ pl.cost|floatformat:0 }}<small>FM</small></span>
+                                    <span class="fm-player-fvm" title="FVM / Quotazione Iniziale">FVM {{ pl.initial_price|floatformat:0 }}</span>
+                                    <button type="button" class="fm-btn-svincola-mini"
+                                        onclick="quickReleasePlayer({{ pl.id }}, '{{ pl.name|escapejs }}')"
+                                        title="Svincola giocatore">
+                                        Svincola
+                                    </button>
+                                </div>
+                            </div>
+                            {% empty %}
+                            <div style="font-size:12px;color:var(--fm-text-muted);padding:6px 8px;font-style:italic">
+                                Nessun attaccante in rosa.</div>
+                            {% endfor %}
+
+                            <!-- Slot liberi attaccanti -->
+                            {% for _ in p.empty_slots_ranges.A %}
+                            <div class="fm-empty-slot-box"
+                                onclick="openQuickAssignModal({{ p.id }}, '{{ p.display_name|escapejs }}', 'A')">
+                                <span>+ Slot Attaccante Libero</span>
+                                <span style="font-size:10px;opacity:.7">Assegna &rarr;</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- 2. VISTA TUTTE LE ROSE (SIDE-BY-SIDE ALL CLUBS COMPARISON) -->
+        <div id="view-mode-all" style="display:none">
+            <div class="fm-all-rose-grid">
+                {% for p in participants %}
+                <div class="fm-all-rose-card">
+                    <div class="fm-all-rose-head">
+                        <div>
+                            <div class="fm-all-rose-title">{{ p.display_name }}</div>
+                            <div style="font-size:11px;color:var(--fm-text-muted)">{{ p.user.username|default:"Nessun allenatore" }}</div>
+                        </div>
+                        <div style="text-align:right">
+                            <span
+                                class="sport-cred {% if p.remaining_credits < 20 %}is-danger{% elif p.remaining_credits < 60 %}is-warn{% endif %}">
+                                {{ p.remaining_credits|floatformat:0 }} FM
+                            </span>
+                            <div style="font-size:10.5px;color:var(--fm-text-muted)">{{ p.roster_n }}/{{ p.slots_total }} slot</div>
+                        </div>
+                    </div>
+
+                    <!-- Portieri -->
+                    <div class="fm-all-rose-dept">
+                        <div class="fm-all-rose-dept-label">Portieri ({{ p.role_counts.P }})</div>
+                        <div class="fm-all-rose-chips">
+                            {% for pl in p.roster_by_role.P %}
+                            <span class="fm-mini-player-pill"
+                                title="{{ pl.name }} ({{ pl.team }}) · Costo: {{ pl.cost|floatformat:0 }} FM">
+                                <span class="fm-role-tag role-P" style="width:14px;height:14px;font-size:9px">P</span>
+                                <b>{{ pl.name }}</b> <small>{{ pl.cost|floatformat:0 }}</small>
+                            </span>
+                            {% empty %}
+                            <span style="font-size:11px;color:var(--fm-text-muted);font-style:italic">Nessuno</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- Difensori -->
+                    <div class="fm-all-rose-dept">
+                        <div class="fm-all-rose-dept-label">Difensori ({{ p.role_counts.D }})</div>
+                        <div class="fm-all-rose-chips">
+                            {% for pl in p.roster_by_role.D %}
+                            <span class="fm-mini-player-pill"
+                                title="{{ pl.name }} ({{ pl.team }}) · Costo: {{ pl.cost|floatformat:0 }} FM">
+                                <span class="fm-role-tag role-D" style="width:14px;height:14px;font-size:9px">D</span>
+                                <b>{{ pl.name }}</b> <small>{{ pl.cost|floatformat:0 }}</small>
+                            </span>
+                            {% empty %}
+                            <span style="font-size:11px;color:var(--fm-text-muted);font-style:italic">Nessuno</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- Centrocampisti -->
+                    <div class="fm-all-rose-dept">
+                        <div class="fm-all-rose-dept-label">Centrocampisti ({{ p.role_counts.C }})</div>
+                        <div class="fm-all-rose-chips">
+                            {% for pl in p.roster_by_role.C %}
+                            <span class="fm-mini-player-pill"
+                                title="{{ pl.name }} ({{ pl.team }}) · Costo: {{ pl.cost|floatformat:0 }} FM">
+                                <span class="fm-role-tag role-C" style="width:14px;height:14px;font-size:9px">C</span>
+                                <b>{{ pl.name }}</b> <small>{{ pl.cost|floatformat:0 }}</small>
+                            </span>
+                            {% empty %}
+                            <span style="font-size:11px;color:var(--fm-text-muted);font-style:italic">Nessuno</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- Attaccanti -->
+                    <div class="fm-all-rose-dept">
+                        <div class="fm-all-rose-dept-label">Attaccanti ({{ p.role_counts.A }})</div>
+                        <div class="fm-all-rose-chips">
+                            {% for pl in p.roster_by_role.A %}
+                            <span class="fm-mini-player-pill"
+                                title="{{ pl.name }} ({{ pl.team }}) · Costo: {{ pl.cost|floatformat:0 }} FM">
+                                <span class="fm-role-tag role-A" style="width:14px;height:14px;font-size:9px">A</span>
+                                <b>{{ pl.name }}</b> <small>{{ pl.cost|floatformat:0 }}</small>
+                            </span>
+                            {% empty %}
+                            <span style="font-size:11px;color:var(--fm-text-muted);font-style:italic">Nessuno</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div
+                        style="margin-top:6px;padding-top:8px;border-top:1px solid rgba(255,255,255,.05);display:flex;justify-content:flex-end">
+                        <button type="button" class="fm-btn fm-btn-ghost fm-btn-xs"
+                            onclick="selectTeamRosa({{ p.id }});toggleRoseViewMode('single');">
+                            Gestisci Rosa &rarr;
+                        </button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% else %}
+        <div class="fm-sport-empty">
+            <span>Nessuna squadra iscritta in questa lega.</span>
+            <button type="button" class="fm-btn fm-btn-primary fm-btn-sm" onclick="openAddTeamModal()">+ Iscrivi la
+                prima squadra</button>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════ TAB 3: ISCRITTI & MANAGER -->
+    <div class="fm-league-tab-pane" id="pane-iscritti">
+        <div
+            style="display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:14px;flex-wrap:wrap">
+            <div>
+                <h2 style="font-family:var(--fm-display);font-size:20px;font-weight:800;color:#fff;margin:0">Iscritti &
+                    Manager della Lega</h2>
+                <div style="font-size:12.5px;color:var(--fm-text-secondary);margin-top:2px">
+                    Gestione degli allenatori partecipanti, ruoli di lega, PIN personali, QR code e link di accesso.
+                </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <button type="button" class="fm-btn fm-btn-secondary fm-btn-sm" onclick="copyLeaguePublicInvite()">
+                    📋 Copia Link Invito
+                </button>
+                <a class="fm-btn fm-btn-ghost fm-btn-sm" style="color:#22c55e"
+                    href="https://api.whatsapp.com/send?text=Unisciti%20alla%20mia%20lega%20{{ current_league.name|urlencode }}%20su%20FantaManager!%20Accedi%20dal%20portale:%20{{ request.build_absolute_uri|urlencode }}"
+                    target="_blank">
+                    💬 Condividi su WhatsApp
+                </a>
+                <button type="button" class="fm-btn fm-btn-primary fm-btn-sm" onclick="openAddTeamModal()">
+                    <svg class="ic">
+                        <use href="#i-plus" />
+                    </svg> + Aggiungi Iscritto
+                </button>
+            </div>
+        </div>
+
+        <div class="fm-sport-card">
+            <div class="sport-table-wrap">
+                <table class="sport-table">
+                    <thead>
+                        <tr>
+                            <th style="width:36px;text-align:center">#</th>
+                            <th>Manager / Account</th>
+                            <th>Squadra Assegnata</th>
+                            <th>Ruolo Lega</th>
+                            <th>Credenziali Rapide</th>
+                            <th style="text-align:center;width:160px">Azioni</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in participants %}
+                        <tr>
+                            <td class="col-rank">{{ forloop.counter }}</td>
+                            <td>
+                                <div class="sport-team-cell">
+                                    <span class="sport-team-avatar">
+                                        {% if p.user %}{{ p.user.username|slice:":2"|upper }}{% else %}?{% endif %}
+                                    </span>
+                                    <div class="sport-team-names">
+                                        <span class="t-name">{{ p.user.username|default:"In attesa di registrazione" }}</span>
+                                        <span class="t-owner">{{ p.user.email|default:"Nessuna email registrata" }}</span>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div style="display:flex;align-items:center;gap:8px">
+                                    <span class="sport-team-avatar" style="width:24px;height:24px;font-size:10px">
+                                        {% if p.logo %}<img src="{{ p.logo.url }}" alt="{{ p.display_name }}">{% else %}{{ p.display_name|slice:":2"|upper }}{% endif %}
+                                    </span>
+                                    <span style="font-weight:700;color:#fff">{{ p.display_name }}</span>
+                                </div>
+                            </td>
+                            <td>
+                                {% if current_league.owner_id == p.user_id %}
+                                <span class="fm-badge-pill pill-lead">👑 Presidente</span>
+                                {% elif p.user and p.user.is_staff %}
+                                <span class="fm-badge-pill pill-accent">🛡️ Amministratore</span>
+                                {% else %}
+                                <span class="fm-badge-pill pill-subtle">⚽ Allenatore</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div style="display:flex;align-items:center;gap:6px">
+                                    <span class="code" id="pin-display-{{ p.id }}" title="PIN di accesso">PIN: <b>{{ p.access_code|default:"----" }}</b></span>
+                                    <button type="button" class="fm-btn fm-btn-ghost fm-btn-xs"
+                                        onclick="copyToClipboard('{{ p.join_url|escapejs }}', 'Link personale copiato!')"
+                                        title="Copia link personale magico">
+                                        📋 Link
+                                    </button>
+                                    <button type="button" class="fm-btn fm-btn-ghost fm-btn-xs"
+                                        onclick="openQrModal('{{ p.display_name|escapejs }}', '{% url 'participant_qr' p.id %}')"
+                                        title="Mostra QR Code">
+                                        📱 QR
+                                    </button>
+                                </div>
+                            </td>
+                            <td style="text-align:center">
+                                <div style="display:flex;align-items:center;justify-content:center;gap:4px">
+                                    <button type="button" class="fm-btn fm-btn-secondary fm-btn-xs"
+                                        onclick="openEditTeamModal({{ p.id }}, '{{ p.display_name|escapejs }}', '{{ p.user_id|default:'' }}')">
+                                        Modifica
+                                    </button>
+                                    <button type="button" class="fm-btn fm-btn-ghost fm-btn-xs"
+                                        onclick="openPinModal({{ p.id }}, '{{ p.display_name|escapejs }}', '{{ p.access_code }}', '{{ p.join_url|escapejs }}')">
+                                        🔑 PIN
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" style="text-align:center;padding:24px;color:var(--fm-text-muted)">
+                                Nessun iscritto presente. Clicca su "+ Aggiungi Iscritto" per registrare le squadre.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════ TAB 4: MERCATO & ASTE -->
+    <div class="fm-league-tab-pane" id="pane-aste">
+        <div
+            style="display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:14px;flex-wrap:wrap">
+            <div>
+                <h2 style="font-family:var(--fm-display);font-size:20px;font-weight:800;color:#fff;margin:0">Mercato &
+                    Conduzione Aste</h2>
+                <div style="font-size:12.5px;color:var(--fm-text-secondary);margin-top:2px">
+                    Sessioni live a chiamata libera, ordine alfabetico, rilanci a busta chiusa e mercato di riparazione.
+                </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+                <a class="fm-btn fm-btn-primary fm-btn-sm" href="{% url 'admin_auction_wizard' %}">
+                    <svg class="ic">
+                        <use href="#i-plus" />
+                    </svg> Nuova Asta Live
+                </a>
+                <a class="fm-btn fm-btn-secondary fm-btn-sm"
+                    href="{% url 'admin_market_dashboard' %}?league={{ current_league.id }}">
+                    <svg class="ic">
+                        <use href="#i-mail" />
+                    </svg> Sessione Buste Mercato
+                </a>
+            </div>
+        </div>
+
+        <div class="fm-sport-card">
+            <div class="sport-card-head">
+                <h3 class="sport-card-title">Tutte le Sessioni d'Asta della Lega</h3>
+            </div>
+            {% if auctions %}
+            <div class="sport-auctions-list">
+                {% for a in auctions %}
+                <div
+                    class="sport-auction-row {% if a.status == 'live' %}is-live{% elif a.status == 'paused' %}is-paused{% endif %}">
+                    <div class="row-status">
+                        <span class="status-pill s-{{ a.status }}"><span class="dot"></span> {{ a.get_status_display }}</span>
+                    </div>
+                    <div class="row-info">
+                        <strong>{{ a.title }}</strong>
+                        <span>Flusso {{ a.get_flow_mode_display }} · Ordine {{ a.get_call_order_display }} · Timer {{ a.duration_seconds }}s · Prezzo base: {{ a.starting_price|floatformat:0 }} FM</span>
+                    </div>
+                    <div class="row-actions">
+                        <a class="fm-btn fm-btn-primary fm-btn-xs" href="{% url 'regia_auction' a.id %}">
+                            <svg class="ic">
+                                <use href="#i-gavel" />
+                            </svg> Entra in Regia
+                        </a>
+                        <a class="fm-btn fm-btn-ghost fm-btn-xs" href="{% url 'screen' a.id %}?t={{ a.public_token }}"
+                            target="_blank" title="Maxischermo HDMI">
+                            <svg class="ic">
+                                <use href="#i-tv" />
+                            </svg> Maxischermo
+                        </a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="fm-sport-empty">
+                <span>Nessuna asta live configurata.</span>
+                <a class="fm-btn fm-btn-primary fm-btn-sm" href="{% url 'admin_auction_wizard' %}">Crea la tua prima
+                    asta &rarr;</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════ TAB 5: REGOLAMENTO -->
+    <div class="fm-league-tab-pane" id="pane-regole">
+        <div class="fm-sport-card">
+            <div class="sport-card-head">
+                <div>
+                    <h2 class="sport-card-title">Regolamento & Parametri di Lega</h2>
+                    <div class="sport-card-sub">Configurazione tecnica della competizione {{ current_league.name }}.
+                    </div>
+                </div>
+                <a class="fm-btn fm-btn-secondary fm-btn-sm" href="{% url 'admin_config' %}">
+                    <svg class="ic">
+                        <use href="#i-gear" />
+                    </svg> Impostazioni Globali
+                </a>
+            </div>
+
+            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));gap:16px;padding:16px">
+                <div
+                    style="background:rgba(7,26,51,.6);padding:14px;border-radius:var(--fm-radius-sm);border:1px solid var(--fm-border)">
+                    <div style="font-size:11px;font-weight:700;color:var(--fm-text-muted);text-transform:uppercase">
+                        Modalità di Gioco</div>
+                    <div style="font-family:var(--fm-display);font-size:18px;font-weight:800;color:#fff;margin-top:4px">
+                        {{ current_league.get_game_mode_display }}
+                    </div>
+                    <div style="font-size:12px;color:var(--fm-text-secondary);margin-top:4px">
+                        {% if current_league.is_mantra %}Ruoli multipli Mantra (Dc, M, C, W, Pc...) con portieri e
+                        movimento.{% else %}Ruoli classici (P, D, C, A) con quote e FVM dedicati.{% endif %}
+                    </div>
+                </div>
+
+                <div
+                    style="background:rgba(7,26,51,.6);padding:14px;border-radius:var(--fm-radius-sm);border:1px solid var(--fm-border)">
+                    <div style="font-size:11px;font-weight:700;color:var(--fm-text-muted);text-transform:uppercase">
+                        Budget Iniziale per Club</div>
+                    <div
+                        style="font-family:var(--fm-display);font-size:18px;font-weight:800;color:var(--fm-success);margin-top:4px">
+                        {{ current_league.budget|floatformat:0 }} FM
+                    </div>
+                    <div style="font-size:12px;color:var(--fm-text-secondary);margin-top:4px">
+                        Monte crediti assegnato a ogni presidente al momento dell'iscrizione.
+                    </div>
+                </div>
+
+                <div
+                    style="background:rgba(7,26,51,.6);padding:14px;border-radius:var(--fm-radius-sm);border:1px solid var(--fm-border)">
+                    <div style="font-size:11px;font-weight:700;color:var(--fm-text-muted);text-transform:uppercase">
+                        Composizione Slot Rosa</div>
+                    <div style="font-family:var(--fm-display);font-size:18px;font-weight:800;color:#fff;margin-top:4px">
+                        {{ current_league.slots_label }}
+                    </div>
+                    <div style="font-size:12px;color:var(--fm-text-secondary);margin-top:4px">
+                        Totale: <b>{{ current_league.total_slots }} calciatori</b> per rosa.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %} {# End current_league check #}
+
+    <!-- ═══════════════════════════════════════════════════════ MODALS FOR TEAM SETTINGS & MANAGEMENT -->
+
+    <!-- 1. MODALE MODIFICA SQUADRA -->
+    <div id="modal-edit-team" class="fm-modal-backdrop" style="display:none"
+        onclick="if(event.target===this)closeModal('modal-edit-team')">
+        <div class="fm-modal-dialog">
+            <div class="fm-modal-header">
+                <h3 class="fm-modal-title">Modifica Squadra</h3>
+                <button type="button" class="fm-modal-close" onclick="closeModal('modal-edit-team')">&times;</button>
+            </div>
+            <form id="form-edit-team" method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}#rose">
+                <div class="fm-modal-body">
+                    <div class="fm-form-group">
+                        <label class="fm-form-label">Nome della Squadra</label>
+                        <input type="text" name="display_name" id="edit-team-name" class="fm-form-input" required
+                            maxlength="80">
+                    </div>
+                    <div class="fm-form-group">
+                        <label class="fm-form-label">Allenatore / Account Utente Associato</label>
+                        <select name="user_id" id="edit-team-user" class="fm-form-select">
+                            <option value="none">— Nessun account associato —</option>
+                            {% for u in available_users %}
+                            <option value="{{ u.id }}">{{ u.username }} {% if u.email %}({{ u.email }}){% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="fm-form-group">
+                        <label class="fm-form-label">Logo / Stemma Squadra (Immagine)</label>
+                        <input type="file" name="logo" accept="image/*" class="fm-form-input" style="padding-top:5px">
+                    </div>
+                </div>
+                <div class="fm-modal-footer">
+                    <button type="button" class="fm-btn fm-btn-ghost fm-btn-sm"
+                        onclick="closeModal('modal-edit-team')">Annulla</button>
+                    <button type="submit" class="fm-btn fm-btn-primary fm-btn-sm">Salva Modifiche</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 2. MODALE REGOLA CREDITI -->
+    <div id="modal-credits" class="fm-modal-backdrop" style="display:none"
+        onclick="if(event.target===this)closeModal('modal-credits')">
+        <div class="fm-modal-dialog">
+            <div class="fm-modal-header">
+                <h3 class="fm-modal-title" id="credits-modal-title">Regola Crediti Squadra</h3>
+                <button type="button" class="fm-modal-close" onclick="closeModal('modal-credits')">&times;</button>
+            </div>
+            <form id="form-adjust-credits" method="post">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}#rose">
+                <div class="fm-modal-body">
+                    <div style="background:rgba(3,15,32,.6);padding:10px 14px;border-radius:var(--fm-radius-sm);border:1px solid var(--fm-border);font-size:13px"
+                        id="credits-summary-box">
+                        Crediti attuali: <b>0 FM</b> (Residui: <b>0 FM</b>)
+                    </div>
+                    <div class="fm-form-group">
+                        <label class="fm-form-label">Tipo di Operazione</label>
+                        <select name="mode" id="adjust-credit-mode" class="fm-form-select">
+                            <option value="add">➕ Aggiungi Crediti Bonus (es. vittoria, premio)</option>
+                            <option value="sub">➖ Sottrai Crediti Penalità / Trattieni</option>
+                            <option value="set">⚙️ Imposta Budget Totale Assoluto</option>
+                        </select>
+                    </div>
+                    <div class="fm-form-group">
+                        <label class="fm-form-label">Importo (Fanta-Milioni FM)</label>
+                        <input type="number" name="amount" id="adjust-credit-amount" class="fm-form-input" min="1"
+                            step="1" required placeholder="Es. 10">
+                    </div>
+                </div>
+                <div class="fm-modal-footer">
+                    <button type="button" class="fm-btn fm-btn-ghost fm-btn-sm"
+                        onclick="closeModal('modal-credits')">Annulla</button>
+                    <button type="submit" class="fm-btn fm-btn-primary fm-btn-sm">Applica Variazione</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 3. MODALE PIN & ACCESSO MANAGER -->
+    <div id="modal-pin" class="fm-modal-backdrop" style="display:none"
+        onclick="if(event.target===this)closeModal('modal-pin')">
+        <div class="fm-modal-dialog">
+            <div class="fm-modal-header">
+                <h3 class="fm-modal-title" id="pin-modal-title">PIN & Credenziali Accesso</h3>
+                <button type="button" class="fm-modal-close" onclick="closeModal('modal-pin')">&times;</button>
+            </div>
+            <div class="fm-modal-body">
+                <p style="font-size:13px;color:var(--fm-text-secondary);margin:0">
+                    Ogni squadra ha un <b>codice PIN</b> e un <b>link magico personale</b> per consentire all'allenatore
+                    di fare offerte dal proprio smartphone.
+                </p>
+                <div
+                    style="background:rgba(3,15,32,.75);padding:14px;border-radius:var(--fm-radius-sm);border:1px solid var(--fm-border);display:flex;align-items:center;justify-content:space-between">
+                    <div>
+                        <div style="font-size:11px;color:var(--fm-text-muted);font-weight:700;text-transform:uppercase">
+                            Codice PIN Personale</div>
+                        <div id="pin-modal-code"
+                            style="font-family:var(--fm-display);font-size:24px;font-weight:800;color:var(--fm-primary-light);letter-spacing:.08em;margin-top:2px">
+                            ----</div>
+                    </div>
+                    <form id="form-reset-pin" method="post" style="margin:0">
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}#rose">
+                        <button type="submit" class="fm-btn fm-btn-secondary fm-btn-sm">Rigenera PIN</button>
+                    </form>
+                </div>
+
+                <div class="fm-form-group">
+                    <label class="fm-form-label">Link Magico Personale (Senza login)</label>
+                    <div style="display:flex;gap:6px">
+                        <input type="text" id="pin-modal-link" class="fm-form-input" readonly onclick="this.select()">
+                        <button type="button" class="fm-btn fm-btn-primary fm-btn-sm"
+                            onclick="copyToClipboard(document.getElementById('pin-modal-link').value, 'Link personale copiato!')">Copia</button>
+                    </div>
+                </div>
+
+                <div
+                    style="text-align:center;padding:10px;background:#fff;border-radius:8px;max-width:140px;margin:0 auto">
+                    <img id="pin-modal-qr-img" src="" alt="QR Code" style="width:120px;height:120px;display:block">
+                </div>
+            </div>
+            <div class="fm-modal-footer">
+                <button type="button" class="fm-btn fm-btn-ghost fm-btn-sm"
+                    onclick="closeModal('modal-pin')">Chiudi</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. MODALE ASSEGNA CALCIATORE MANUALE -->
+    <div id="modal-quick-assign" class="fm-modal-backdrop" style="display:none"
+        onclick="if(event.target===this)closeModal('modal-quick-assign')">
+        <div class="fm-modal-dialog">
+            <div class="fm-modal-header">
+                <h3 class="fm-modal-title" id="assign-modal-title">Assegna Calciatore da Listone</h3>
+                <button type="button" class="fm-modal-close" onclick="closeModal('modal-quick-assign')">&times;</button>
+            </div>
+            <form id="form-quick-assign" method="post" action="{% url 'admin_quick_assign_player' %}">
+                {% csrf_token %}
+                <input type="hidden" name="participant_id" id="assign-participant-id">
+                <input type="hidden" name="next" value="{{ request.get_full_path }}#rose">
+                <div class="fm-modal-body">
+                    <div class="fm-form-group">
+                        <label class="fm-form-label">Cerca Calciatore Svincolato</label>
+                        <input type="text" id="assign-search-input" class="fm-form-input"
+                            placeholder="Digita almeno 2 caratteri (es. Lautaro, Dimarco...)" autocomplete="off"
+                            oninput="searchListoneFreePlayers(this.value)">
+                    </div>
+                    <div class="fm-form-group">
+                        <label class="fm-form-label">Seleziona Calciatore</label>
+                        <select name="player_id" id="assign-player-select" class="fm-form-select" required size="5"
+                            style="height:120px">
+                            {% for pl in free_players_sample %}
+                            <option value="{{ pl.id }}" data-price="{{ pl.initial_price|floatformat:0 }}">
+                                [{{ pl.role }}] {{ pl.name }} ({{ pl.team }}) · FVM: {{ pl.initial_price|floatformat:0 }} FM
+                            </option>
+                            {% empty %}
+                            <option disabled>Nessun calciatore svincolato trovato.</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="fm-form-group">
+                        <label class="fm-form-label">Prezzo di Acquisto (FM)</label>
+                        <input type="number" name="price" id="assign-player-price" class="fm-form-input" min="1"
+                            step="1" required value="1">
+                    </div>
+                </div>
+                <div class="fm-modal-footer">
+                    <button type="button" class="fm-btn fm-btn-ghost fm-btn-sm"
+                        onclick="closeModal('modal-quick-assign')">Annulla</button>
+                    <button type="submit" class="fm-btn fm-btn-primary fm-btn-sm">Conferma Assegnazione</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 5. MODALE AGGIUNGI SQUADRA -->
+    <div id="modal-add-team" class="fm-modal-backdrop" style="display:none"
+        onclick="if(event.target===this)closeModal('modal-add-team')">
+        <div class="fm-modal-dialog">
+            <div class="fm-modal-header">
+                <h3 class="fm-modal-title">Iscrivi Nuova Squadra</h3>
+                <button type="button" class="fm-modal-close" onclick="closeModal('modal-add-team')">&times;</button>
+            </div>
+            <form method="post" action="{% url 'admin_create_participant' %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                <input type="hidden" name="league_id" value="{{ current_league.id }}">
+                <input type="hidden" name="next" value="{{ request.get_full_path }}#rose">
+                <div class="fm-modal-body">
+                    <div class="fm-form-group">
+                        <label class="fm-form-label">Nome del Club</label>
+                        <input type="text" name="display_name" class="fm-form-input" required
+                            placeholder="Es. FC Galacticos" maxlength="80">
+                    </div>
+                    <div class="fm-form-group">
+                        <label class="fm-form-label">Allenatore / Utente Manager</label>
+                        <select name="user_id" class="fm-form-select">
+                            <option value="">— Seleziona account o lascia vuoto —</option>
+                            {% for u in available_users %}
+                            <option value="{{ u.id }}">{{ u.username }} {% if u.email %}({{ u.email }}){% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="fm-form-group">
+                        <label class="fm-form-label">Budget Iniziale (FM)</label>
+                        <input type="number" name="credits" class="fm-form-input" min="1" step="1"
+                            value="{{ current_league.budget|floatformat:0 }}">
+                    </div>
+                    <div class="fm-form-group">
+                        <label class="fm-form-label">PIN di Accesso (Opzionale)</label>
+                        <input type="text" name="access_code" class="fm-form-input"
+                            placeholder="Es. 1234 (se vuoto viene generato)">
+                    </div>
+                    <div class="fm-form-group">
+                        <label class="fm-form-label">Logo / Stemma Squadra</label>
+                        <input type="file" name="logo" accept="image/*" class="fm-form-input" style="padding-top:5px">
+                    </div>
+                </div>
+                <div class="fm-modal-footer">
+                    <button type="button" class="fm-btn fm-btn-ghost fm-btn-sm"
+                        onclick="closeModal('modal-add-team')">Annulla</button>
+                    <button type="submit" class="fm-btn fm-btn-primary fm-btn-sm">Iscrivi Squadra</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 6. MODALE QR CODE INGRANDITO -->
+    <div id="modal-qr" class="fm-modal-backdrop" style="display:none"
+        onclick="if(event.target===this)closeModal('modal-qr')">
+        <div class="fm-modal-dialog" style="max-width:340px;text-align:center">
+            <div class="fm-modal-header">
+                <h3 class="fm-modal-title" id="qr-modal-team-title">QR Code Squadra</h3>
+                <button type="button" class="fm-modal-close" onclick="closeModal('modal-qr')">&times;</button>
+            </div>
+            <div class="fm-modal-body" style="align-items:center">
+                <div style="background:#fff;padding:12px;border-radius:12px;display:inline-block">
+                    <img id="qr-modal-image" src="" alt="QR Code" style="width:200px;height:200px;display:block">
+                </div>
+                <div style="font-size:12px;color:var(--fm-text-secondary);margin-top:8px">
+                    Inquadra con la fotocamera dello smartphone per entrare direttamente nella sessione d'asta.
+                </div>
+            </div>
+            <div class="fm-modal-footer" style="justify-content:center">
+                <button type="button" class="fm-btn fm-btn-ghost fm-btn-sm"
+                    onclick="closeModal('modal-qr')">Chiudi</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. SYSTEM STATUS FOOTER -->
+    <div class="fm-sport-foot">
+        <div class="foot-left">
+            <span class="fm-status-dot-green"></span>
+            <span class="foot-sys-txt"><b>FantaManager Sport Engine</b> · Daphne ASGI porta 8001 · SQLite Locale
+                sincronizzato</span>
+        </div>
+        <div class="foot-right">
+            <button type="button" class="fm-btn fm-btn-ghost fm-btn-xs" onclick="openSystemLogs()">
+                📋 Log Sistema
+            </button>
+            <a class="fm-btn fm-btn-ghost fm-btn-xs" href="{% url 'admin_config' %}">
+                <svg class="ic">
+                    <use href="#i-gear" />
+                </svg> Configurazione
+            </a>
+            <button type="button" class="fm-btn fm-btn-danger fm-btn-xs" onclick="startQuit()">
+                <svg class="ic">
+                    <use href="#i-stop" />
+                </svg> Chiudi
+            </button>
+        </div>
+    </div>
+
+</div>

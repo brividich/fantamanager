@@ -1,0 +1,194 @@
+<!-- ═══════ 4. CLASSIFICA · ATTIVITÀ LIVE · PROSSIMO GIOCATORE ───────── -->
+<div class="fm-bottom-grid">
+
+    <!-- Classifica squadre -->
+    <section class="fm-card">
+        <div class="fm-section-title"><svg class="ic">
+                <use href="#i-chart" />
+            </svg> Classifica squadre <span class="sep"></span></div>
+        <div class="table-scroll">
+            <table class="classifica">
+                <thead>
+                    <tr>
+                        <th style="width:34px">Pos</th>
+                        <th>Squadra</th>
+                        <th style="text-align:right">Crediti</th>
+                        <th style="text-align:right">Spesi</th>
+                        <th>Rosa</th>
+                    </tr>
+                </thead>
+                <tbody id="classifica-tbody">
+                    {% include "auctions/_classifica_rows.html" %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- Attività live -->
+    <section class="fm-card">
+        <div class="fm-section-title"><svg class="ic">
+                <use href="#i-pulse" />
+            </svg> Attività live <span class="sep"></span></div>
+        <div class="fm-activity" id="live-activity" aria-live="polite" aria-label="Ultimi rilanci">
+            {% for b in recent_bids %}
+            <div class="act-row">
+                <span class="act-t">{{ b.server_received_at|date:"H:i:s" }}</span>
+                <span class="team-crest is-initials sm">{{ b.participant.display_name|slice:":2"|upper }}</span>
+                <span class="act-w">{{ b.participant.display_name }}</span>
+                <span class="act-a">rilancia a</span>
+                <span class="act-amt">{{ b.amount|floatformat:0 }} FM</span>
+            </div>
+            {% empty %}
+            <div class="fm-empty" id="activity-empty">Ancora nessun rilancio.</div>
+            {% endfor %}
+        </div>
+        <a class="fm-btn fm-btn-ghost fm-btn-sm" style="width:100%;margin-top:auto" href="#bidlog-panel">
+            Visualizza storico completo <svg class="ic">
+                <use href="#i-arrow-right" />
+            </svg></a>
+    </section>
+
+    <!-- Prossimo giocatore (dipende dalla modalità d'asta) -->
+    <section class="fm-card fm-next-card">
+        <div class="fm-section-title"><svg class="ic">
+                <use href="#i-target" />
+            </svg> Prossimo giocatore <span class="sep"></span></div>
+
+        {% if selected.flow_mode == "call" %}
+        <!-- Server-side search: the listone stays on the server, only what the
+             admin types comes down (max 20 rows). -->
+        <div class="fm-search">
+            <svg class="ic">
+                <use href="#i-search" />
+            </svg>
+            <input id="call-search" type="search" placeholder="Cerca giocatore…" autocomplete="off" role="combobox"
+                aria-expanded="false" aria-controls="call-results" aria-autocomplete="list"
+                aria-label="Cerca un giocatore svincolato da chiamare">
+        </div>
+        <div class="fm-next-list" id="call-results" role="listbox" aria-label="Risultati della ricerca">
+            <div class="fm-empty" id="call-hint">Scrivi almeno 2 lettere per cercare
+                tra i {{ free_count }} svincolati.</div>
+        </div>
+        <div class="fm-next-nav">
+            <button class="fm-btn fm-btn-secondary fm-btn-sm" onclick="storicoStep('prev')"
+                title="Lotto precedente nello storico">
+                <svg class="ic">
+                    <use href="#i-arrow-left" />
+                </svg> Precedente</button>
+            <span class="muted" style="font-size:11.5px;text-align:center">{{ free_count }} svincolati</span>
+            <button class="fm-btn fm-btn-secondary fm-btn-sm" onclick="storicoStep('next')"
+                title="Lotto successivo nello storico">
+                Successivo <svg class="ic">
+                    <use href="#i-arrow-right" />
+                </svg></button>
+        </div>
+        <div class="fm-next-nav" style="margin-top:6px">
+            <button class="fm-btn fm-btn-ghost fm-btn-sm" onclick="storicoStep('prev_role')">⏮ Ruolo prec.</button>
+            <span></span>
+            <button class="fm-btn fm-btn-ghost fm-btn-sm" onclick="storicoStep('next_role')">Ruolo succ. ⏭</button>
+        </div>
+        <p class="muted" style="font-size:11px;margin:8px 0 0;line-height:1.5">
+            I tasti scorrono lo <b>storico</b> dei chiamati (sola lettura). Per mettere un
+            giocatore sul piatto usa <b>Chiama</b>.</p>
+
+        {% else %}
+        {% if selected.call_order == "random" %}
+        <!-- Random order: showing who is next would give away the draw, which is
+             the whole point of the mode. The count still tells how much is left. -->
+        <div class="fm-next-list fm-next-hidden">
+            <svg class="ic">
+                <use href="#i-target" />
+            </svg>
+            <b>Ordine casuale</b>
+            <span>I prossimi giocatori restano coperti: si scoprono solo quando salgono sul piatto.</span>
+        </div>
+        {% else %}
+        <div class="fm-next-list table-scroll">
+            <table>
+                <tbody id="queue-tbody">
+                    {% for it in queue_preview %}
+                    <tr data-player-id="{{ it.player.id }}">
+                        <td class="muted" style="width:26px">{{ forloop.counter }}</td>
+                        <td style="width:30px">
+                            <span class="role-badge role-{{ it.player.role }}">{{ it.player.role }}</span>
+                            {% if it.order >= 10000000 %}<span class="role-badge"
+                                style="background:#f59e0b;color:#fff;margin-left:4px;font-size:10px"
+                                title="Giro di recupero">REC</span>{% endif %}
+                        </td>
+                        <td style="font-weight:600">{{ it.player.name }}<div class="muted" style="font-size:11px">{{ it.player.team }}</div>
+                        </td>
+                        <td style="text-align:right;font-weight:700;white-space:nowrap">
+                            <span>{{ it.player.initial_price|floatformat:0 }} FM</span>
+                            <span class="q-actions">
+                                <button type="button" class="fm-btn-icon" title="Metti come prossimo"
+                                    onclick="prioritizeQueuePlayer({{ it.player.id }})">⚡</button>
+                                <button type="button" class="fm-btn-icon" title="Rimanda a fine reparto"
+                                    onclick="postponeQueuePlayer({{ it.player.id }})">⏭</button>
+                                <button type="button" class="fm-btn-icon text-danger" title="Escludi dalla coda"
+                                    onclick="excludeQueuePlayer({{ it.player.id }})">✕</button>
+                            </span>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="fm-empty">Coda vuota. Premi “Ricostruisci coda”.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+        <!-- The action that ends a lot gets its own full-width row; the four
+             navigation steps sit below it in one even grid. -->
+        <button class="fm-btn fm-btn-primary fm-next-go" onclick="manualStep('next')">
+            <svg class="ic">
+                <use href="#i-gavel" />
+            </svg> Aggiudica e avanza</button>
+        <div class="fm-next-steps">
+            <button class="fm-btn fm-btn-secondary fm-btn-sm" onclick="manualStep('prev')">
+                <svg class="ic">
+                    <use href="#i-arrow-left" />
+                </svg> Precedente</button>
+            <button class="fm-btn fm-btn-secondary fm-btn-sm" onclick="manualStep('next_role')">
+                Ruolo succ. <svg class="ic">
+                    <use href="#i-arrow-right" />
+                </svg></button>
+            <button class="fm-btn fm-btn-ghost fm-btn-sm" onclick="manualStep('prev_role')">⏮ Ruolo prec.</button>
+            <button class="fm-btn fm-btn-ghost fm-btn-sm" onclick="buildQueue()">↻ Ricostruisci coda</button>
+        </div>
+        <div style="margin-top: 6px;">
+            <button type="button" class="fm-btn fm-btn-danger fm-btn-sm"
+                style="width:100%;font-size:12px;display:flex;align-items:center;justify-content:center;gap:6px"
+                onclick="undoLastAward()"
+                title="Annulla l'ultima aggiudicazione: restituisce i crediti all'acquirente e rimette il calciatore sul piatto">
+                <span>↩</span> Annulla / Correggi ultimo lotto
+            </button>
+        </div>
+        <div class="fm-next-meta">
+            <span><span id="players-remaining">{{ free_count }}</span> giocatori mancano alla fine ·
+                <span id="queue-pending">{{ queue_pending }}</span> passaggi in coda
+                {% if selected.auto_advances %} · timer <span id="hdr-duration">{{ selected.duration_seconds }}</span>s{% endif %}</span>
+        </div>
+        {% if selected.flow_mode == "manual" %}
+        <!-- Regia toggle: same flag as ⚙ Impostazioni, flipped without leaving
+             the console (it applies to the lot already on the block). -->
+        <label class="fm-auto-adv{% if selected.manual_auto_advance %} is-on{% endif %}"
+            title="Vale anche per il giocatore già sul piatto">
+            <input type="checkbox" id="auto-advance-chk" {% if selected.manual_auto_advance %}checked{% endif %}
+                onchange="setAutoAdvance(this.checked)">
+            <span>Scorri anche senza rilanci</span>
+        </label>
+        {% endif %}
+        <p class="muted fm-next-hint">
+            {% if selected.flow_mode == "manual" %}
+            <span id="auto-adv-hint">{% if selected.manual_auto_advance %}Ogni giocatore parte
+                col timer avviato: senza rilanci va invenduto e si passa avanti da
+                solo.{% else %}Il timer parte alla prima offerta.{% endif %}</span>
+            {% else %}
+            La coda avanza da sola a fine timer; i tasti qui sopra la forzano a mano.
+            Gli invenduti rientrano in fondo al loro ruolo.
+            {% endif %}
+        </p>
+        {% endif %}
+    </section>
+</div>

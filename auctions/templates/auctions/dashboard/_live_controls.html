@@ -1,0 +1,90 @@
+<!-- ══════════════════════════════════ 3. CONTROLLI ASTA + RILANCIO ─── -->
+<div class="fm-ctrl-grid">
+
+    <section class="fm-card fm-ctrl-card">
+        <div class="fm-ctrl-main">
+            <button class="fm-btn fm-btn-primary" id="btn-start" onclick="control('start')">
+                <svg class="ic">
+                    <use href="#i-play" />
+                </svg> Avvia asta</button>
+            <button class="fm-btn fm-btn-secondary" id="btn-pause" onclick="control('pause')">
+                <svg class="ic">
+                    <use href="#i-pause" />
+                </svg> Pausa</button>
+            <button class="fm-btn fm-btn-secondary" id="btn-resume" onclick="control('resume')">
+                <svg class="ic">
+                    <use href="#i-play" />
+                </svg> Riprendi</button>
+            <button class="fm-btn fm-btn-danger" id="btn-close" onclick="control('close')">
+                <svg class="ic">
+                    <use href="#i-stop" />
+                </svg> Termina asta</button>
+        </div>
+        <div class="fm-ctrl-second">
+            <a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% url 'screen' selected.id %}?t={{ selected.public_token }}"
+                target="_blank">
+                <svg class="ic">
+                    <use href="#i-tv" />
+                </svg> Maxischermo</a>
+            <button type="button" class="fm-btn fm-btn-ghost fm-btn-sm" onclick="openEditAuction()">
+                <svg class="ic">
+                    <use href="#i-gear" />
+                </svg> Impostazioni</button>
+            <form method="post" action="{% url 'admin_save_session' selected.id %}" style="display:contents"
+                onsubmit="this.querySelector('[name=name]').value = prompt('Nome sessione da salvare:', '{{ selected.title|escapejs }}') || ''; return this.querySelector('[name=name]').value !== '';">
+                {% csrf_token %}
+                <input type="hidden" name="name" value="">
+                <button type="submit" class="fm-btn fm-btn-ghost fm-btn-sm"><svg class="ic">
+                        <use href="#i-save" />
+                    </svg> Salva sessione</button>
+            </form>
+            <button type="button" class="fm-btn fm-btn-ghost fm-btn-sm" onclick="openSystemLogs()"
+                title="Visualizza i log di sistema in tempo reale">
+                📋 Log sistema</button>
+            <span style="flex:1 1 auto"></span>
+            <input id="announce-text" type="text" maxlength="140" placeholder="Annuncio alla sala…"
+                style="flex:0 1 220px" onkeydown="if(event.key==='Enter')announce()">
+            <button type="button" class="fm-btn fm-btn-secondary fm-btn-sm" onclick="announce()">
+                <svg class="ic">
+                    <use href="#i-mega" />
+                </svg> Invia</button>
+            <button type="button" class="fm-btn fm-btn-secondary fm-btn-sm"
+                onclick="announce('Ultima chiamata!', 'call')">
+                <svg class="ic">
+                    <use href="#i-bell" />
+                </svg> Ultima chiamata</button>
+        </div>
+    </section>
+
+    <section class="fm-card fm-bidfor-card" id="bidfor-card">
+        <div class="fm-kpi-label">Fai un'offerta per conto di</div>
+        <div class="fm-bidfor-row">
+            <select id="bidfor-part">
+                {% for p in participants %}
+                <option value="{{ p.id }}">{{ p.display_name }} · {{ p.remaining_credits|floatformat:0 }} FM</option>
+                {% empty %}
+                <option value="">Nessuna squadra</option>
+                {% endfor %}
+            </select>
+            <div class="fm-stepper">
+                <button type="button" class="fm-btn fm-btn-secondary" onclick="bidForStep(-1)"
+                    aria-label="Diminuisci il rilancio di 1">
+                    <svg class="ic">
+                        <use href="#i-minus" />
+                    </svg></button>
+                <input id="bidfor-inc" type="number" inputmode="numeric" value="1" min="1" oninput="syncBidForLabel()"
+                    title="Rilancio">
+                <span class="fm-stepper-cur">FM</span>
+                <button type="button" class="fm-btn fm-btn-secondary" onclick="bidForStep(1)"
+                    aria-label="Aumenta il rilancio di 1">
+                    <svg class="ic">
+                        <use href="#i-plus" />
+                    </svg></button>
+            </div>
+            <button type="button" class="fm-btn fm-btn-primary" onclick="bidFor()">
+                <svg class="ic">
+                    <use href="#i-gavel" />
+                </svg> <span id="bidfor-label">Rilancia a 1 FM</span></button>
+        </div>
+    </section>
+</div>
