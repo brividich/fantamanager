@@ -194,6 +194,18 @@ Identity = the session participant (join via league code) — no separate login.
             margin: 0 0 0 216px; max-width: 960px;
             padding: 26px 32px 48px;
         }
+        /* Pagine "a schermo intero": su PC la pagina non scorre, occupa lo
+           spazio sotto la barra in alto e sono i singoli pannelli (liste
+           lunghe) ad avere uno scroll interno. */
+        .app-main.fit {
+            max-width: none; box-sizing: border-box;
+            height: calc(100vh - 56px); overflow: hidden;
+            display: flex; flex-direction: column;
+            padding: 20px 28px;
+        }
+        .app-main.fit > * + * { margin-top: 12px; }
+        .app-main.fit .fit-body { flex: 1; min-height: 0; }
+        .app-main.fit .fit-scroll { min-height: 0; overflow-y: auto; }
     }
 </style>
 
@@ -218,7 +230,7 @@ Identity = the session participant (join via league code) — no separate login.
     {% endif %}
 </header>
 
-<main class="app-main">
+<main class="app-main {% block mainclass %}{% endblock %}">
     {% if messages %}
     <div style="margin-bottom:14px">
         {% for msg in messages %}

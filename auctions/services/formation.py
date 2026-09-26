@@ -102,7 +102,12 @@ def formation_state(participant):
     is_mantra = _is_mantra(participant)
     module, starter_ids = _formation_saved(participant)
     slots = _module_slots(module, is_mantra)
-    owned = list(Player.objects.filter(owner=participant).order_by("role", "name"))
+    # P, D, C, A (not alphabetical by role code); within a role, by name as
+    # before — bench order only matters between players of the same role.
+    owned = sorted(
+        Player.objects.filter(owner=participant),
+        key=lambda p: ("PDCA".find(p.role) % 5, p.name),
+    )
     by_id = {p.id: p for p in owned}
 
     # Assegnazione posizionale, con una rete per le formazioni salvate in

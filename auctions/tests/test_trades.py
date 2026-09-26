@@ -187,3 +187,27 @@ class RosaReleaseButtonTests(TestCase):
         s.save()
         resp = self.client.post(reverse("participant_release_player", args=[pl.id]))
         self.assertTrue(resp.json()["ok"])
+
+
+class RosaAndBenchLayoutTests(TestCase):
+    def setUp(self):
+        self.league = League.objects.create(name="L")
+        self.p = Participant.objects.create(display_name="Alfa", league=self.league, credits=Decimal("100"))
+        for name, role in (("Zeta", "A"), ("Beta", "C"), ("Alfa D", "D"), ("Gigi", "P")):
+            Player.objects.create(name=name, role=role, league=self.league, owner=self.p, cost=Decimal("10"))
+        s = self.client.session
+        s["participant_id"] = self.p.id
+        s.save()
+
+    def test_rosa_groups_every_role_with_slots(self):
+        resp = self.client.get(reverse("app_rosa"))
+        groups = resp.context["roster_groups"]
+        self.assertEqual([g["code"] for g in groups], ["P", "D", "C", "A"])
+        self.assertEqual(groups[0]["slots"], self.league.slots_p)
+        self.assertEqual(resp.context["roster_value"], Decimal("40"))
+        self.assertContains(resp, 'aria-label="Svincola Zeta"')
+
+    def test_bench_is_listed_p_d_c_a(self):
+        from ..services.formation import formation_state
+        bench = formation_state(self.p)["bench"]
+        self.assertEqual([pl.role for pl in bench], ["P", "D", "C", "A"])

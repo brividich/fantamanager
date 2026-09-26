@@ -1,5 +1,6 @@
 {% extends "auctions/app_base.html" %}
 {% block title %}Mercato & Buste — FantaManager{% endblock %}
+{% block mainclass %}fit{% endblock %}
 {% block app %}
 <style>
     .market-filters { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
@@ -93,12 +94,28 @@
     }
     .btn-submit { background: var(--accent); color: #0a1108; }
     .btn-cancel { background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); }
+    .merc-grid { display: flex; flex-direction: column; gap: 14px; }
+    .merc-side > * + *, .merc-main > * + * { margin-top: 12px; }
+    @media (min-width: 1000px) {
+        .merc-grid { display: grid; grid-template-columns: minmax(320px, 400px) minmax(0, 1fr); gap: 18px; }
+        .merc-side { min-height: 0; overflow-y: auto; padding-right: 4px; }
+        .merc-main { min-height: 0; display: flex; flex-direction: column; }
+        .merc-main .fa-card { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+        .merc-main .fa-card .fa-list { flex: 1; min-height: 0; overflow-y: auto; }
+        .merc-side .a-cta, .merc-side .market-banner, .merc-side .bids-card, .merc-side .slot-strip { margin-bottom: 0 !important; }
+        .merc-main .market-filters { margin-bottom: 0; }
+        .merc-main nav.search-row { margin: 0 !important; }
+        .merc-main .free-agent-row { padding: 6px 14px; }
+        .merc-main .market-filters { gap: 8px; }
+    }
 </style>
 
 <div class="tab-head">
     <h1>Mercato & Buste</h1>
     <p>Calciatori liberi e mercato di riparazione · <b>{{ participant.remaining_credits|floatformat:0 }} FM</b> disponibili</p>
 </div>
+<div class="merc-grid fit-body">
+<div class="merc-side">
 
 {% if active_auction %}
 <a class="a-cta" href="{% url 'bid' active_auction.id %}" style="margin-bottom:14px">
@@ -204,12 +221,14 @@
     {% empty %}
     <div class="soon" style="border:none;background:none;padding:18px 10px" id="bids-empty">
         <b>Nessuna busta consegnata</b>
-        <span>Scegli uno svincolato dall'elenco sotto e premi “Offri”.</span>
+        <span>Scegli uno svincolato dall'elenco e premi “Offri”.</span>
     </div>
     {% endfor %}
     </div>
 </div>
 {% endif %}
+</div>
+<div class="merc-main">
 
 <!-- Filtri ricerca svincolati -->
 <form method="get" class="market-filters" id="fa-filters">
@@ -239,11 +258,12 @@
 </form>
 
 <!-- Elenco svincolati -->
-<div class="a-card">
+<div class="a-card fa-card">
     <div class="a-label">
         <svg class="ic"><use href="#i-users"/></svg>
         Svincolati ({{ page.paginator.count }}){% if page.paginator.num_pages > 1 %} · pagina {{ page.number }}/{{ page.paginator.num_pages }}{% endif %}
     </div>
+    <div class="fa-list">
     {% for pl in free_agents %}
     <div class="free-agent-row">
         <div class="fa-main">
@@ -277,6 +297,7 @@
         <span>Nessuno svincolato corrisponde ai criteri di ricerca impostati.</span>
     </div>
     {% endfor %}
+    </div>
 </div>
 {% if page.has_other_pages %}
 <nav class="search-row" style="justify-content:space-between;align-items:center;margin:-4px 0 14px" aria-label="Pagine svincolati">
@@ -285,6 +306,8 @@
     {% if page.has_next %}<a class="role-chip" href="?{{ base_query }}&page={{ page.next_page_number }}">Successivi ›</a>{% else %}<span></span>{% endif %}
 </nav>
 {% endif %}
+</div>
+</div>
 
 <!-- Modal Invia Busta -->
 {% if market_open %}
