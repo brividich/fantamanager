@@ -292,7 +292,7 @@ def extra_cap_locked(league):
 
 @transaction.atomic
 def convert_budget(participant_id, blocks):
-    participant = Participant.objects.select_for_update().select_related("league").get(pk=participant_id)
+    participant = Participant.objects.select_for_update(of=("self",)).select_related("league").get(pk=participant_id)
     league = participant.league
     if league is None or not league.salary_cap_enabled:
         return {"ok": False, "message": "Il tetto salariale non è attivo."}

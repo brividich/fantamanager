@@ -31,6 +31,19 @@ class BidServiceTests(TestCase):
     def setUp(self):
         self.participant = Participant.objects.create(display_name="Alice")
 
+    def test_place_bid_runs_in_its_own_transaction(self):
+        # select_for_update senza transazione: su PostgreSQL ogni rilancio va in errore.
+        from django.db import connection
+        from ..services import bidding
+        auction = make_live_auction()
+        outside = len(connection.atomic_blocks)
+        depth = []
+        real_now = timezone.now
+        with mock.patch.object(bidding.timezone, "now",
+                               side_effect=lambda: depth.append(len(connection.atomic_blocks)) or real_now()):
+            services.place_bid(auction.id, self.participant.id, 50)
+        self.assertGreater(depth[0], outside)
+
     def test_accepted_while_live(self):
         auction = make_live_auction()
         result = services.place_bid(auction.id, self.participant.id, 50)
