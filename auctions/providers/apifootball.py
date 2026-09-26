@@ -9,13 +9,18 @@ stagioni in corso: se la ricerca per stagione in Serie A viene rifiutata si
 ripiega sull'anagrafica dei giocatori (``/players/profiles``), che non dipende
 dalla stagione, e si riconosce il giocatore giusto dai suoi trasferimenti. Per
 giocatore servono da 2 a 5 richieste.
+
+Il controllo di tutte le rose invece va per club: i trasferimenti di un club
+di Serie A (``/transfers?team=``) dicono in una richiesta chi dei suoi
+giocatori è andato via, quindi basta una ventina di richieste, fatte al ritmo
+consentito dal piano (il gratuito ne concede 10 al minuto).
 """
 import logging
 import os
 import re
 import time
 import unicodedata
-from datetime import date
+from datetime import date, timedelta
 
 import requests
 
@@ -38,8 +43,17 @@ class ApiFootballError(Exception):
     """Un problema che vale per ogni richiesta (chiave, limite, rete): inutile insistere."""
 
 
+class RateLimited(ApiFootballError):
+    """Troppe richieste in questo minuto: fra poco si può riprovare."""
+
+
 class _SeasonRefused(Exception):
     pass
+
+
+# Richieste rimaste secondo le intestazioni dell'ultima risposta (None = ignoto).
+_limits = {"minute": None, "day": None}
+LIMIT_HEADERS = {"minute": "x-ratelimit-remaining", "day": "x-ratelimit-requests-remaining"}
 
 
 def _season():
@@ -56,6 +70,7 @@ def _get(path, params, *, get=requests.get):
         raise ApiFootballError("API-Football non configurata: imposta APIFOOTBALL_KEY sul server e riavvia")
     try:
         resp = get(f"{BASE}{path}", params=params, headers={"x-apisports-key": key}, timeout=15)
+        _remember_limits(resp)
         resp.raise_for_status()
         data = resp.json()
     except requests.HTTPError as exc:
@@ -64,7 +79,7 @@ def _get(path, params, *, get=requests.get):
         if status in (401, 403):
             raise ApiFootballError("API-Football ha rifiutato la chiave (APIFOOTBALL_KEY)") from exc
         if status == 429:
-            raise ApiFootballError("limite di richieste API-Football raggiunto: riprova più tardi") from exc
+            raise RateLimited("troppe richieste ad API-Football: riprova tra un minuto") from exc
         raise ApiFootballError(f"API-Football non risponde (HTTP {status})") from exc
     except (requests.RequestException, ValueError) as exc:
         logger.warning("API-Football %s non disponibile: %s", path, exc)
@@ -77,19 +92,49 @@ def _get(path, params, *, get=requests.get):
                 raise _SeasonRefused(str(errors["plan"]))
             if "token" in errors or "access" in errors:
                 raise ApiFootballError("API-Football ha rifiutato la chiave (APIFOOTBALL_KEY)")
-            if "requests" in errors or "rateLimit" in errors:
-                raise ApiFootballError("limite di richieste API-Football raggiunto: riprova più tardi")
+            if "rateLimit" in errors:
+                raise RateLimited("troppe richieste al minuto ad API-Football: riprova tra un minuto")
+            if "requests" in errors:
+                raise ApiFootballError("limite giornaliero di richieste API-Football raggiunto: riprova domani")
         # Un parametro che l'API non accetta vale solo per questa ricerca.
         return []
     return (data.get("response") if isinstance(data, dict) else None) or []
+
+
+def _remember_limits(resp):
+    headers = getattr(resp, "headers", None) or {}
+    for key, header in LIMIT_HEADERS.items():
+        value = str(headers.get(header, "")).strip()
+        if value.isdigit():
+            _limits[key] = int(value)
+
+
+def paced(fn, *args, sleep=time.sleep, **kwargs):
+    """Chiama ``fn`` senza superare il limite al minuto: se è esaurito aspetta
+    che si liberi, e se l'API risponde comunque "troppe richieste" riprova."""
+    for attempt in range(3):
+        if _limits["minute"] == 0:
+            sleep(61)
+            _limits["minute"] = None
+        try:
+            return fn(*args, **kwargs)
+        except RateLimited:
+            if attempt == 2:
+                raise
+            sleep(61)
 
 
 def is_configured():
     return bool(os.environ.get("APIFOOTBALL_KEY", "").strip())
 
 
+# Lettere che la scomposizione Unicode non riduce a una lettera latina semplice.
+_LATIN = str.maketrans({"ı": "i", "İ": "I", "ø": "o", "Ø": "O", "ł": "l", "Ł": "L", "đ": "d", "Đ": "D",
+                        "ß": "ss", "æ": "ae", "Æ": "AE", "œ": "oe", "Œ": "OE", "þ": "th", "ð": "d"})
+
+
 def _ascii(s):
-    return unicodedata.normalize("NFKD", s or "").encode("ascii", "ignore").decode()
+    return unicodedata.normalize("NFKD", (s or "").translate(_LATIN)).encode("ascii", "ignore").decode()
 
 
 def _norm_club(s):
@@ -222,4 +267,88 @@ def find_destination(name, team="", *, get=requests.get):
         found, _reason = lookup(name, team, get=get)
     except ApiFootballError:
         return None
+    return found
+
+
+# --- Controllo di tutte le rose: per club di Serie A -------------------------------
+
+def _season_refused_recently(season):
+    return time.monotonic() - _refused_seasons.get(season, -REFUSED_TTL) < REFUSED_TTL
+
+
+def italian_clubs(names, *, get=requests.get):
+    """{squadra del listone: (id API, nome API)} per le squadre di Serie A.
+
+    Prima l'elenco della Serie A (stagione in corso o precedente); se il piano
+    non lo concede, o manca qualche neopromossa, i club italiani (``country``).
+    Vale solo il nome identico (tolte sigle come AC/AS): "Inter" non è
+    "Inter Miami" né "Inter U19".
+    """
+    wanted = {name: _norm_club(name) for name in names if _norm_club(name)}
+    mapping = {}
+
+    def match(teams):
+        catalog = [((t.get("team") or {}).get("id"), (t.get("team") or {}).get("name") or "")
+                   for t in teams if not (t.get("team") or {}).get("national")]
+        for name, key in wanted.items():
+            if name in mapping:
+                continue
+            same = [(tid, tname) for tid, tname in catalog if tid and _norm_club(tname) == key]
+            if not same and len(key) <= 3:  # sigla (JUV, INT, …): il nome più corto che comincia così
+                same = sorted(((tid, tname) for tid, tname in catalog if tid and _norm_club(tname).startswith(key)),
+                              key=lambda c: len(c[1]))
+            if same:
+                mapping[name] = same[0]
+
+    for season in (_season(), _season() - 1):
+        if len(mapping) == len(wanted) or _season_refused_recently(season):
+            continue
+        try:
+            match(_get("/teams", {"league": SERIE_A, "season": season}, get=get))
+        except _SeasonRefused:
+            _refused_seasons[season] = time.monotonic()
+    if len(mapping) < len(wanted):
+        match(_get("/teams", {"country": "Italy"}, get=get))
+    return mapping
+
+
+def club_transfers(team_id, *, get=requests.get):
+    """Tutti i trasferimenti dei giocatori passati dal club (una richiesta)."""
+    return _get("/transfers", {"team": team_id}, get=get)
+
+
+def departures(entries, players, club_id, is_serie_a, *, today=None, max_age_days=365):
+    """Chi dei ``players`` (in rosa, di questo club secondo il listone) è andato via.
+
+    ``entries`` è la risposta di :func:`club_transfers`. Vale l'ultimo
+    trasferimento già avvenuto (non quelli annunciati per il futuro) dell'ultimo
+    anno: se porta fuori dalla Serie A, il giocatore è uscito. Un nome che nei
+    trasferimenti corrisponde a più giocatori si lascia stare.
+    Ritorna ``{player.id: {"club", "date"}}``.
+    """
+    today = (today or date.today()).isoformat()
+    cutoff = (date.fromisoformat(today) - timedelta(days=max_age_days)).isoformat()
+    people = []
+    for entry in entries or []:
+        name = (entry.get("player") or {}).get("name") or ""
+        people.append(([w.lower() for w in re.split(r"[\s.'’\-]+", _ascii(name)) if w], entry))
+    found = {}
+    for player in players:
+        term, initial = _search_term(player.name)
+        if not term:
+            continue
+        matches = [(words, entry) for words, entry in people if term.lower() in words]
+        if len(matches) > 1 and initial:
+            matches = [(words, entry) for words, entry in matches if words[0][:1].upper() == initial]
+        if len(matches) != 1:
+            continue
+        moves = [m for m in matches[0][1].get("transfers") or []
+                 if cutoff <= (m.get("date") or "")[:10] <= today]
+        if not moves:
+            continue
+        last = max(moves, key=lambda m: (m.get("date") or "")[:10])
+        dest = (last.get("teams") or {}).get("in") or {}
+        if not dest.get("name") or dest.get("id") == club_id or is_serie_a(dest):
+            continue
+        found[player.id] = {"club": dest["name"], "date": (last.get("date") or "")[:10]}
     return found
