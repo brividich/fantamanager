@@ -25,12 +25,14 @@ from .common import (
     broadcast_state,
     current_auction,
     forbidden_json,
+    league_mismatch_json,
     managed_or_403,
     participant_join_url,
     participant_lan_join_url,
     staff_member_required,
     target_league,
     user_can_manage,
+    user_can_manage_league,
 )
 
 
@@ -370,6 +372,14 @@ def admin_create_auction(request):
     player    = Player.objects.select_related("league").filter(pk=player_id).first() if player_id else None
     if player is not None and not user_can_manage(request.user, player):
         return forbidden_json()
+    # The auction lives in the player's league, else the one the console is on.
+    # One outside any league is superuser-only: its creator could not open it.
+    league = player.league if player is not None else target_league(request)
+    if league is None:
+        if not request.user.is_superuser:
+            return forbidden_json()
+    elif not user_can_manage_league(request.user, league):
+        return forbidden_json()
     sp        = dec("starting_price", str(player.initial_price) if player else "1")
 
     mode = request.POST.get("mode", "").strip()
@@ -377,6 +387,7 @@ def admin_create_auction(request):
         mode = Auction.Mode.NEW_FROM_ZERO
 
     auction = Auction.objects.create(
+        league=league,
         title=request.POST.get("title", "").strip() or (str(player) if player else "Asta"),
         description=request.POST.get("description", "").strip(),
         player=player,
@@ -397,6 +408,25 @@ def admin_create_auction(request):
         status=Auction.Status.READY,
     )
     return redirect(f"/admin-auction/?auction={auction.id}")
+
+
+def _pool_player_or_error(request, auction, player_id):
+    """Check the player a regia action names against ``auction``.
+
+    ``(player, None)`` when it is in the auction's pool, ``(None, None)`` when
+    there is no such player (the service reports that), else ``(None, error)``:
+    403 for a player the user does not manage, 400 for one of another league.
+    The queue and call services look the player up by id in every league.
+    """
+    player = Player.objects.select_related("league").filter(pk=player_id).first() \
+        if str(player_id or "").isdigit() else None
+    if player is None:
+        return None, None
+    if not user_can_manage(request.user, player):
+        return None, forbidden_json()
+    if player.league_id != auction.league_id:
+        return None, league_mismatch_json()
+    return player, None
 
 
 def _pint(raw, fallback):
@@ -554,6 +584,9 @@ def admin_queue_prioritize(request, auction_id):
     player_id = request.POST.get("player_id")
     if not player_id:
         return JsonResponse({"ok": False, "error": "missing_player_id"}, status=400)
+    _player, denied = _pool_player_or_error(request, auction, player_id)
+    if denied:
+        return denied
     item = services.prioritize_queue_item(auction, player_id)
     if item is None:
         return JsonResponse({"ok": False, "error": "player_not_found"}, status=404)
@@ -576,6 +609,9 @@ def admin_queue_postpone(request, auction_id):
     player_id = request.POST.get("player_id")
     if not player_id:
         return JsonResponse({"ok": False, "error": "missing_player_id"}, status=400)
+    _player, denied = _pool_player_or_error(request, auction, player_id)
+    if denied:
+        return denied
     res = services.postpone_queue_item(auction, player_id)
     if res is None:
         return JsonResponse({"ok": False, "error": "player_not_found"}, status=404)
@@ -614,14 +650,13 @@ def admin_queue_exclude(request, auction_id):
 @require_POST
 def admin_call_player(request, auction_id):
     """CALL mode: put a specific free agent on the block."""
-    _auction, denied = managed_or_403(request, Auction, auction_id)
+    auction, denied = managed_or_403(request, Auction, auction_id)
     if denied:
         return denied
     player_id = request.POST.get("player_id")
-    player = Player.objects.select_related("league").filter(pk=player_id).first() \
-        if str(player_id or "").isdigit() else None
-    if player is not None and not user_can_manage(request.user, player):
-        return forbidden_json()
+    _player, denied = _pool_player_or_error(request, auction, player_id)
+    if denied:
+        return denied
     auction = services.call_player(auction_id, player_id)
     if auction is None:
         return JsonResponse({"ok": False, "error": "player_unavailable"}, status=400)

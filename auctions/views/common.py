@@ -273,6 +273,21 @@ def forbidden_json():
     return JsonResponse({"ok": False, "error": "forbidden"}, status=403)
 
 
+def mixed_leagues(*objs):
+    """True when the given auction/team/player objects (``None`` skipped) do
+    not all belong to one league.
+
+    Managing each of them is not enough: an admin who runs two leagues could
+    otherwise sell one league's player to the other's team, and the services
+    below the views never compare leagues.
+    """
+    return len({o.league_id for o in objs if o is not None}) > 1
+
+
+def league_mismatch_json():
+    return JsonResponse({"ok": False, "error": "league_mismatch"}, status=400)
+
+
 def managed_or_403(request, model, pk):
     """``(obj, None)`` when the user may administer ``model`` #``pk``, else
     ``(None, 403 response)``. A missing object (or a junk id) is a 404.
