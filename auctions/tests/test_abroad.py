@@ -108,6 +108,22 @@ class DepartureFlowTests(TestCase):
         self.team.refresh_from_db()
         self.assertEqual(self.team.credits, 1080)   # 31°-50° attaccante = 80
 
+    def test_manual_flag_visible_with_contracts_disabled(self):
+        admin = User.objects.create_user("adm", password="pw")
+        self.league.owner = admin
+        self.league.contracts_enabled = False
+        self.league.save()
+        self.client.force_login(admin)
+        url = reverse("admin_contracts") + f"?league={self.league.id}"
+        page = self.client.get(url)
+        self.assertContains(page, "Segnala uscita")
+        self.assertContains(page, "API-Football")
+        self.client.post(reverse("admin_contracts_action"), {
+            "league_id": self.league.id, "action": "left_flag", "player_id": self.p.id})
+        self.p.refresh_from_db()
+        self.assertIsNotNone(self.p.left_serie_a_at)
+        self.assertContains(self.client.get(url), "Rileva")
+
     def test_app_list_release_only_during_auction(self):
         abroad.resolve(self.p.id, "list", club="X", position=1)
         s = self.client.session
