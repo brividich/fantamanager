@@ -315,18 +315,71 @@ def _app_standings(league, me_id):
     return rows
 
 
+def app_admin_leagues(user):
+    """Leagues ``user`` runs from the console — the same set /dashboard/ lists:
+    every league for a superuser, the ones they own for a league admin."""
+    if user is None or not user.is_authenticated:
+        return []
+    qs = League.objects.all() if user.is_superuser else League.objects.filter(owner=user)
+    return list(qs.order_by("name"))
+
+
+def app_admin_league(request, admin_leagues, participant=None):
+    """The league the app's Regia works on, or None when the user runs none.
+
+    ``?league=`` wins and is remembered, so the console follows the app (and
+    vice versa: both read the same session key). Then the league the console
+    was last on, then the one of the team being viewed, then the first.
+    """
+    if not admin_leagues:
+        return None
+    by_id = {lg.id: lg for lg in admin_leagues}
+    raw = (request.GET.get("league") or "").strip()
+    if raw.isdigit() and int(raw) in by_id:
+        request.session[SESSION_LEAGUE_KEY] = int(raw)
+        return by_id[int(raw)]
+    sess = request.session.get(SESSION_LEAGUE_KEY)
+    if sess in by_id:
+        return by_id[sess]
+    if participant is not None and participant.league_id in by_id:
+        return by_id[participant.league_id]
+    return admin_leagues[0]
+
+
 def _app_ctx(request, active_tab):
-    """Shared shell context. Returns (participant, ctx); participant is None when
-    there's no session (caller redirects to join)."""
+    """Shared shell context. Returns (participant, ctx).
+
+    ``ctx`` is None only when there's nobody to show the app to (caller sends
+    them to the login). A league admin without a team of their own still gets a
+    context — with ``participant`` None — so the app can open on the Regia
+    instead of asking them to log in as somebody's team.
+    """
     participant = _session_participant(request)
-    if participant is None:
+    user = getattr(request, "user", None)
+    admin_leagues = app_admin_leagues(user)
+    if participant is None and not admin_leagues:
         return None, None
-    league = participant.league
+    if participant is not None:
+        league = participant.league
+    else:
+        league = app_admin_league(request, admin_leagues)
+    admin_ids = {lg.id for lg in admin_leagues}
     return participant, {
         "participant": participant,
         "app_league": league,
         "active_tab": active_tab,
         "active_auction": _app_active_auction(league),
+        # The Regia tab and the "Console" door show up for league admins only.
+        "is_app_admin": bool(admin_leagues),
+        "admin_leagues": admin_leagues,
+        "manages_app_league": league is not None and league.id in admin_ids,
+        # An admin looking at the app through a team that isn't theirs: the
+        # shell says so, and offers the way back to the Regia.
+        "viewing_as": bool(
+            admin_leagues and participant is not None
+            and participant.league_id in admin_ids
+            and participant.user_id != getattr(user, "id", None)
+        ),
     }
 
 

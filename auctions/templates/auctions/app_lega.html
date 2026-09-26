@@ -23,7 +23,7 @@
 <div class="a-card">
     <div class="a-label"><svg class="ic"><use href="#i-gavel"/></svg> Aste</div>
     {% for a in auctions %}
-    <a class="a-row" href="{% url 'bid' a.id %}" style="text-decoration:none;color:inherit">
+    <a class="a-row" href="{% if not participant and manages_app_league %}{% url 'regia_auction' a.id %}{% else %}{% url 'bid' a.id %}{% endif %}" style="text-decoration:none;color:inherit">
         <span class="nm">{{ a.title }}<small>{{ a.get_status_display }}</small></span>
         <span class="status-pill s-{{ a.status }}" style="font-size:9px;padding:4px 9px">{{ a.get_status_display }}</span>
     </a>

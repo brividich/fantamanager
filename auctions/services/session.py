@@ -9,20 +9,25 @@ from ..models import (
 )
 
 
-def league_overview():
+def league_overview(leagues=None):
     """One row per league for the config page: size, activity, health.
 
     ``playable`` is the same condition ``start_auction`` enforces, so the page
     can show at a glance which leagues are dead weight (no listone, no auction)
-    and which are the real ones.
+    and which are the real ones. ``leagues`` narrows it to the ones a user
+    runs; None means every league.
     """
+    qs = League.objects.all() if leagues is None else leagues
     rows = []
-    for lg in League.objects.all().order_by("id"):
+    for lg in qs.order_by("id"):
         pool = Player.objects.filter(league=lg)
         auctions = Auction.objects.filter(league=lg)
+        teams = Participant.objects.filter(league=lg)
         rows.append({
             "league": lg,
-            "teams": Participant.objects.filter(league=lg).count(),
+            "teams": teams.count(),
+            # Teams nobody can log into: no account and no PIN.
+            "locked_out": teams.filter(user__isnull=True, access_code="").count(),
             "pool": pool.count(),
             "free": pool.filter(owner__isnull=True).count(),
             "auctions": auctions.count(),
