@@ -1,4 +1,5 @@
 """Shared helpers, decorators, and context builders for HTTP views."""
+import re
 from functools import wraps
 
 from asgiref.sync import async_to_sync
@@ -32,6 +33,45 @@ def staff_member_required(view):
             return redirect(f"{reverse('regia_unlock')}?next={request.get_full_path()}")
         return view(request, *args, **kwargs)
     return wrapped
+
+
+def regia_pin_lockout_error():
+    """The message to show while PIN attempts are locked out, else ""."""
+    remaining = remote.regia_pin_lockout_remaining()
+    return f"Troppi tentativi. Riprova tra {int(remaining)} secondi." if remaining > 0 else ""
+
+
+def try_regia_pin(request):
+    """Check the posted ``pin`` against the one minted for the tunnel.
+
+    Returns "" once the session is unlocked, else the error to show. Every PIN
+    form goes through here so they all share the process-wide lockout (see
+    ``regia_unlock``). There is no fallback PIN: until a tunnel has minted one,
+    nothing unlocks.
+    """
+    error = regia_pin_lockout_error()
+    if error:
+        return error
+    given = re.sub(r"\D", "", request.POST.get("pin", ""))
+    if given and given == remote.regia_pin():
+        remote.regia_pin_register_success()
+        request.session["regia_unlocked"] = True
+        return ""
+    remote.regia_pin_register_failure()
+    return regia_pin_lockout_error() or "PIN errato."
+
+
+def safe_next(request, fallback):
+    """The ``next`` target from GET or POST, or ``fallback`` if it leaves this site.
+
+    Stops a crafted link (``?next=https://evil.example/`` or the protocol-relative
+    ``//evil.example/``) from bouncing someone off-site right after they log in.
+    """
+    target = request.GET.get("next") or request.POST.get("next") or ""
+    if target and url_has_allowed_host_and_scheme(
+            target, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+        return target
+    return fallback
 
 
 # --- Shared helpers ---------------------------------------------------------
@@ -223,13 +263,10 @@ def user_can_manage(user, obj):
     """True when ``user`` may administer ``obj`` — an auction, a team, a player:
     anything that hangs off a league.
 
-    The object's league decides, as in ``user_can_manage_league``. An object
-    with no league (legacy single-league data, or left behind by a deleted
-    league) has no owner to delegate it to, so only superusers manage it.
+    The object's league decides, as in ``user_can_manage_scope``: an object
+    with no league is superuser-only.
     """
-    if obj.league_id is None:
-        return bool(user is not None and user.is_authenticated and user.is_superuser)
-    return user_can_manage_league(user, obj.league)
+    return user_can_manage_scope(user, obj.league)
 
 
 def forbidden_json():
@@ -253,21 +290,47 @@ def managed_or_403(request, model, pk):
     return obj, None
 
 
-def safe_next(request, fallback):
-    """The ``next`` a form posted when it points back into this site, else ``fallback``."""
-    target = request.POST.get("next") or ""
-    if target and url_has_allowed_host_and_scheme(
-            target, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
-        return target
-    return fallback
-
-
 def manageable_leagues(user):
     """Leagues listed in the console pickers for ``user``."""
     qs = League.objects.all()
     if not user.is_superuser:
         qs = qs.filter(Q(owner=user) | Q(owner__isnull=True))
     return qs.order_by("name")
+
+
+FORBIDDEN_LEAGUE_MSG = "Non hai i permessi per gestire questa lega."
+
+
+def user_can_manage_scope(user, league):
+    """``user_can_manage_league``, where ``league`` None means the global pool.
+
+    Players and teams without a league (legacy single-league data, or left
+    behind by a deleted league) have no owner to delegate them to, so only
+    superusers may read or write them.
+    """
+    if league is None:
+        return bool(user is not None and user.is_authenticated and user.is_superuser)
+    return user_can_manage_league(user, league)
+
+
+def league_scope_or_403(request, raw_id, fallback=None):
+    """The league a form writes into, checked: ``(league, None)`` or
+    ``(None, error response)``.
+
+    ``raw_id`` is the posted league pk. A blank one means ``fallback`` — the
+    global pool when that is None, which only a superuser may touch. A pk that
+    names no league is a 404, never a silent fall back to the global pool.
+    """
+    raw_id = str(raw_id or "").strip()
+    if raw_id:
+        league = League.objects.filter(pk=int(raw_id)).first() if raw_id.isdigit() else None
+        if league is None:
+            return None, JsonResponse({"ok": False, "error": "Lega non trovata."}, status=404)
+    else:
+        league = fallback
+    if not user_can_manage_scope(request.user, league):
+        return None, JsonResponse({"ok": False, "error": FORBIDDEN_LEAGUE_MSG}, status=403)
+    return league, None
 
 
 def current_league(request):

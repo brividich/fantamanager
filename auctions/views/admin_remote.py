@@ -1,7 +1,6 @@
 """Remote access management: Cloudflare quick tunnel, remote PIN gate, and shutdown."""
 import io
 import json
-import re
 
 try:
     import qrcode
@@ -15,7 +14,8 @@ from django.views.decorators.http import require_POST
 
 from ..models import League
 from .. import remote
-from .common import current_auction, staff_member_required, target_league
+from .common import (current_auction, regia_pin_lockout_error, safe_next,
+                     staff_member_required, target_league, try_regia_pin)
 
 
 def _current_port(request):
@@ -122,24 +122,14 @@ def regia_unlock(request):
     if not remote.request_is_remote(request):
         return redirect("admin_dashboard")
 
-    target = request.GET.get("next") or request.POST.get("next") or reverse("admin_dashboard")
-    if not target.startswith("/"):
-        target = reverse("admin_dashboard")   # never bounce off-site
+    target = safe_next(request, reverse("admin_dashboard"))   # never bounce off-site
 
-    error = ""
-    remaining = remote.regia_pin_lockout_remaining()
-    if remaining > 0:
-        error = f"Troppi tentativi. Riprova tra {int(remaining)} secondi."
-    elif request.method == "POST":
-        given = re.sub(r"\D", "", request.POST.get("pin", ""))
-        if given and given == remote.regia_pin():
-            remote.regia_pin_register_success()
-            request.session["regia_unlocked"] = True
+    if request.method == "POST":
+        error = try_regia_pin(request)
+        if not error:
             return redirect(target)
-        remote.regia_pin_register_failure()
-        remaining = remote.regia_pin_lockout_remaining()
-        error = (f"Troppi tentativi. Riprova tra {int(remaining)} secondi."
-                 if remaining > 0 else "PIN errato.")
+    else:
+        error = regia_pin_lockout_error()
 
     return render(request, "auctions/regia_unlock.html",
                   {"error": error, "next": target}, status=200 if not error else 401)
