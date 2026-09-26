@@ -1,0 +1,350 @@
+{% extends "auctions/app_base.html" %}
+{% comment %}
+Regia — the console's league dashboard inside the app (league admins only).
+
+Same data as /dashboard/<league>/, laid out for a phone first: what needs
+doing, the numbers, the teams (tap one to see its roster, "Vedi come" to open
+the app as that team), trades to ratify, auctions, envelopes and the doors to
+the full console pages. Every link carries ?league= so the console lands on
+the same league.
+{% endcomment %}
+{% block title %}Regia — {{ app_league.name }}{% endblock %}
+{% block mainclass %}wide{% endblock %}
+{% block app %}
+<style>
+    @media (min-width: 880px) { .app-main.wide { max-width: 1240px; } }
+
+    .rg-head { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+    .rg-head .tab-head { flex: 1 1 240px; }
+    .rg-head .tab-head h1 { display: flex; align-items: center; gap: 10px; }
+    .rg-head .tab-head h1 .ic { width: 24px; height: 24px; color: var(--paused); }
+    .rg-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .rg-actions select { height: 38px; min-width: 180px; }
+    .rg-actions .fm-btn { height: 38px; }
+
+    .rg-note { font-size: 12.5px; color: var(--muted); padding: 10px 12px; border-radius: 10px;
+               border: 1px dashed var(--line); background: var(--panel-2); }
+
+    .rg-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+    .rg-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+    @media (min-width: 1040px) {
+        .rg-grid { grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); align-items: start; }
+    }
+
+    /* Da fare */
+    .rg-todo { display: flex; flex-direction: column; gap: 8px; }
+    .rg-item {
+        display: flex; align-items: center; gap: 12px; padding: 12px;
+        border-radius: 10px; background: var(--panel-2); border: 1px solid var(--line);
+        border-left: 3px solid var(--lvl, var(--accent)); color: inherit; text-decoration: none;
+    }
+    a.rg-item:hover { border-color: var(--line-strong); border-left-color: var(--lvl, var(--accent)); color: inherit; }
+    .rg-item .ic { width: 20px; height: 20px; color: var(--lvl, var(--accent)); flex-shrink: 0; }
+    .rg-item .t { flex: 1; min-width: 0; }
+    .rg-item .t b { display: block; font-size: 14px; }
+    .rg-item .t span { font-size: 12px; color: var(--muted); }
+    .rg-item .go { font-size: 11.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+                   color: var(--lvl, var(--accent)); white-space: nowrap; }
+    .rg-item.l-live { --lvl: var(--closed); }
+    .rg-item.l-live .ic { animation: fmPulse 2.2s ease-in-out infinite; }
+    .rg-item.l-warn { --lvl: var(--paused); }
+    .rg-item.l-info { --lvl: var(--accent); }
+    .rg-item.l-ok   { --lvl: var(--live); }
+
+    /* KPI */
+    .rg-kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    @media (min-width: 560px) { .rg-kpis { grid-template-columns: repeat(4, 1fr); } }
+    .rg-kpis .a-stat .sub { margin-top: 8px; width: 100%; display: block; }
+
+    /* Squadre */
+    .rg-team { border-bottom: 1px solid var(--line); }
+    .rg-team:last-child { border-bottom: 0; }
+    .rg-team > summary {
+        list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px;
+        padding: 11px 2px;
+    }
+    .rg-team > summary::-webkit-details-marker { display: none; }
+    .rg-av {
+        width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0; overflow: hidden;
+        display: flex; align-items: center; justify-content: center;
+        font-family: var(--display); font-weight: 900; font-size: 13px;
+        background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent-line);
+    }
+    .rg-av img { width: 100%; height: 100%; object-fit: cover; }
+    .rg-team .nm { flex: 1; min-width: 0; }
+    .rg-team .nm b { display: block; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rg-team .nm small { font-size: 11px; color: var(--muted); }
+    .rg-tag { display: inline-block; margin-left: 4px; padding: 1px 6px; border-radius: 4px; font-size: 9.5px;
+              font-weight: 800; letter-spacing: .08em; text-transform: uppercase; vertical-align: 1px;
+              color: var(--accent); background: var(--accent-soft); }
+    .rg-tag.warn { color: var(--paused); background: rgba(255,181,38,.12); }
+    .rg-fig { text-align: right; min-width: 74px; }
+    .rg-fig b { font-family: var(--display); font-size: 17px; font-variant-numeric: tabular-nums; }
+    .rg-fig small { display: block; font-size: 10.5px; color: var(--muted); }
+    .rg-fig .fm-meter { margin-top: 4px; }
+    .rg-chev { width: 16px; height: 16px; color: var(--muted); transition: transform .15s; flex-shrink: 0; }
+    .rg-team[open] .rg-chev { transform: rotate(180deg); }
+    .rg-fig.cr { width: 78px; min-width: 0; }
+    .rg-fig.ro { width: 104px; min-width: 0; }
+    .rg-fig.ro .fm-meter { width: 100%; }
+    .rg-mini { display: none; font-size: 11.5px; color: var(--muted); margin-top: 1px; }
+    .rg-team .nm .rg-mini b { display: inline; color: var(--ink); font-family: var(--display); font-size: 13px; }
+    @media (max-width: 560px) {
+        .rg-fig { display: none; }
+        .rg-mini { display: block; }
+        .rg-item .go .lbl { display: none; }
+        .rg-item .go { font-size: 20px; }
+    }
+    .rg-team-body { padding: 2px 2px 14px 44px; }
+    @media (max-width: 480px) { .rg-team-body { padding-left: 2px; } }
+    .rg-roles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+    .rg-role { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+    .rg-role .h { font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+    .rg-role .pl { display: flex; justify-content: space-between; gap: 6px; font-size: 12.5px; padding: 2px 0; }
+    .rg-role .pl span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rg-role .pl span:last-child { color: var(--muted); font-variant-numeric: tabular-nums; }
+    .rg-role .none { font-size: 12px; color: var(--muted); }
+    .rg-team-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; align-items: center; }
+    .rg-team-actions form { margin: 0; }
+    .rg-team-actions .fm-btn { height: 34px; font-size: 12px; }
+    .rg-code { font-size: 12px; color: var(--muted); }
+    .rg-code b { color: var(--ink); letter-spacing: .08em; }
+
+    /* Scambi */
+    .rg-trade { padding: 10px 0; border-bottom: 1px solid var(--line); }
+    .rg-trade:last-child { border-bottom: 0; }
+    .rg-trade .sides { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: start; font-size: 12.5px; }
+    .rg-trade .sides b { display: block; font-size: 13px; }
+    .rg-trade .sides .mid { color: var(--muted); padding-top: 2px; }
+    .rg-trade .btns { display: flex; gap: 8px; margin-top: 8px; }
+    .rg-trade .btns form { margin: 0; flex: 1; }
+    .rg-trade .btns button { width: 100%; height: 34px; font-size: 12px; }
+
+    /* Strumenti */
+    .rg-tools { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
+    .rg-tool {
+        display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 12px;
+        border-radius: 10px; background: var(--panel-2); border: 1px solid var(--line);
+        color: var(--ink); text-decoration: none; font-weight: 700; font-size: 13px;
+    }
+    .rg-tool:hover { border-color: var(--line-strong); color: #fff; }
+    .rg-tool .ic { width: 20px; height: 20px; color: var(--accent); }
+    .rg-tool small { font-weight: 500; font-size: 11px; color: var(--muted); line-height: 1.3; }
+    .rg-tool.primary { background: var(--accent-soft); border-color: var(--accent-line); }
+</style>
+
+<div class="rg-head">
+    <div class="tab-head">
+        <h1><svg class="ic"><use href="#i-gavel"/></svg> Regia</h1>
+        <p>{{ app_league.name }} · {{ kpi.teams }} squadr{{ kpi.teams|pluralize:"a,e" }} · {{ app_league.get_game_mode_display }} · {{ app_league.budget|floatformat:0 }} FM</p>
+    </div>
+    <div class="rg-actions">
+        {% if admin_leagues|length > 1 %}
+        <select id="rg-league" aria-label="Lega da gestire" onchange="location.href='{% url 'app_regia' %}?league='+this.value" title="Cambia lega">
+            {% for lg in admin_leagues %}
+            <option value="{{ lg.id }}" {% if lg.id == app_league.id %}selected{% endif %}>{{ lg.name }}</option>
+            {% endfor %}
+        </select>
+        {% endif %}
+        <a class="fm-btn fm-btn-secondary" href="{% url 'dashboard_league' app_league.id %}">
+            <svg class="ic"><use href="#i-table"/></svg> Console completa</a>
+    </div>
+</div>
+
+{% if team_elsewhere %}
+<div class="rg-note">La tua squadra, <b>{{ participant.display_name }}</b>, gioca in un'altra lega ({{ participant.league.name|default:"senza lega" }}): Home, Rosa e Mercato restano i suoi, la Regia è su <b>{{ app_league.name }}</b>.</div>
+{% endif %}
+
+<div class="rg-grid">
+<div class="rg-col">
+    <section class="a-card" aria-labelledby="rg-todo-h">
+        <div class="a-label" id="rg-todo-h"><svg class="ic"><use href="#i-bell"/></svg> Da fare</div>
+        <div class="rg-todo">
+            {% for t in todo %}
+            {% if t.url %}
+            <a class="rg-item l-{{ t.level }}" href="{{ t.url }}">
+            {% else %}
+            <div class="rg-item l-{{ t.level }}">
+            {% endif %}
+                <svg class="ic"><use href="#i-{{ t.icon }}"/></svg>
+                <span class="t"><b>{{ t.title }}</b><span>{{ t.text }}</span></span>
+                {% if t.cta %}<span class="go"><span class="lbl">{{ t.cta }} </span>›</span>{% endif %}
+            {% if t.url %}</a>{% else %}</div>{% endif %}
+            {% endfor %}
+        </div>
+    </section>
+
+    <div class="rg-kpis">
+        <div class="a-stat">
+            <div class="v">{{ kpi.teams }}</div>
+            <div class="k">Squadre</div>
+        </div>
+        <div class="a-stat">
+            <div class="v">{{ kpi.spent_pct }}<small>%</small></div>
+            <div class="k">Crediti spesi</div>
+            <div class="fm-meter sub {% if kpi.spent_pct >= 90 %}is-low{% elif kpi.spent_pct >= 60 %}is-warn{% endif %}"><span style="width:{{ kpi.spent_pct }}%"></span></div>
+        </div>
+        <div class="a-stat">
+            <div class="v">{% if kpi.slots %}{{ kpi.fill_pct }}<small>%</small>{% else %}{{ kpi.assigned }}{% endif %}</div>
+            <div class="k">{% if kpi.slots %}Rose piene{% else %}Assegnati{% endif %}</div>
+            {% if kpi.slots %}<div class="fm-meter sub is-ok"><span style="width:{{ kpi.fill_pct }}%"></span></div>{% endif %}
+        </div>
+        <div class="a-stat">
+            <div class="v">{{ kpi.free }}</div>
+            <div class="k">Svincolati</div>
+        </div>
+    </div>
+
+    <section class="a-card" aria-labelledby="rg-teams-h">
+        <div class="a-label" id="rg-teams-h"><svg class="ic"><use href="#i-shield"/></svg> Squadre
+            <span class="muted" style="margin-left:auto;font-size:11px;letter-spacing:.04em;text-transform:none;font-weight:600">Tocca per la rosa</span></div>
+        {% for row in teams %}
+        {% with p=row.team %}
+        <details class="rg-team">
+            <summary>
+                <span class="rg-av">{% if p.logo %}<img src="{{ p.logo.url }}" alt="">{% else %}{{ p.display_name|slice:":2"|upper }}{% endif %}</span>
+                <span class="nm">
+                    <b>{{ p.display_name }}{% if row.is_mine %}<span class="rg-tag">tua</span>{% endif %}{% if row.is_viewing and not row.is_mine %}<span class="rg-tag warn">in vista</span>{% endif %}</b>
+                    <small>{% if p.user %}{{ p.user.username }}{% elif p.access_code %}accesso con PIN{% else %}<span style="color:var(--paused)">senza accesso</span>{% endif %}</small>
+                    <span class="rg-mini"><b>{{ p.remaining_credits|floatformat:0 }}</b> FM · <b>{{ p.roster_n }}</b>{% if p.slots_total %}/{{ p.slots_total }}{% endif %} gioc.</span>
+                </span>
+                <span class="rg-fig cr">
+                    <b>{{ p.remaining_credits|floatformat:0 }}</b><small>FM residui</small>
+                </span>
+                <span class="rg-fig ro">
+                    <b>{{ p.roster_n }}{% if p.slots_total %}<small style="display:inline;font-size:12px">/{{ p.slots_total }}</small>{% endif %}</b>
+                    {% if p.slots_total %}<div class="fm-meter {% if p.roster_pct >= 100 %}is-ok{% endif %}"><span style="width:{{ p.roster_pct }}%"></span></div>{% else %}<small>gioc.</small>{% endif %}
+                </span>
+                <svg class="rg-chev"><use href="#i-chev-down"/></svg>
+            </summary>
+            <div class="rg-team-body">
+                <div class="rg-roles">
+                    {% for g in row.groups %}
+                    <div class="rg-role">
+                        <div class="h"><span class="role-{{ g.code }}">●</span> {{ g.label }} · {{ g.list|length }}</div>
+                        {% for pl in g.list %}
+                        <div class="pl"><span>{{ pl.name }}</span><span>{{ pl.cost|floatformat:0 }}</span></div>
+                        {% empty %}
+                        <div class="none">—</div>
+                        {% endfor %}
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="rg-team-actions">
+                    {% if not row.is_viewing %}
+                    <form method="post" action="{% url 'app_view_as' p.id %}">{% csrf_token %}
+                        <button type="submit" class="fm-btn fm-btn-primary"><svg class="ic"><use href="#i-eye"/></svg> Vedi come {{ p.display_name|truncatechars:18 }}</button>
+                    </form>
+                    {% endif %}
+                    <a class="fm-btn fm-btn-secondary" href="{% url 'dashboard_league' app_league.id %}#rose">
+                        <svg class="ic"><use href="#i-gear"/></svg> Gestisci in console</a>
+                    <button type="button" class="fm-btn fm-btn-ghost" onclick="rgCopy('{{ row.join_url|escapejs }}', this)">
+                        <svg class="ic"><use href="#i-link"/></svg> Copia invito</button>
+                    {% if p.access_code %}<span class="rg-code">PIN <b>{{ p.access_code }}</b></span>{% endif %}
+                </div>
+            </div>
+        </details>
+        {% endwith %}
+        {% empty %}
+        <p class="muted" style="font-size:13px;text-align:center;padding:10px 0">
+            Nessuna squadra. <a href="{% url 'admin_participants' %}{{ league_q }}">Aggiungile dalla console</a>.</p>
+        {% endfor %}
+    </section>
+</div>
+
+<div class="rg-col">
+    {% if trades_to_ratify %}
+    <section class="a-card" id="scambi" aria-labelledby="rg-trades-h">
+        <div class="a-label" id="rg-trades-h"><svg class="ic"><use href="#i-swap"/></svg> Scambi da ratificare</div>
+        {% for t in trades_to_ratify %}
+        <div class="rg-trade">
+            <div class="sides">
+                <div><b>{{ t.proposer.display_name }}</b>
+                    {% for pl in t.proposer_players.all %}{{ pl.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                    {% if t.proposer_credits %}{% if t.proposer_players.all %} + {% endif %}{{ t.proposer_credits|floatformat:0 }} FM{% endif %}</div>
+                <div class="mid">⇄</div>
+                <div><b>{{ t.receiver.display_name }}</b>
+                    {% for pl in t.receiver_players.all %}{{ pl.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                    {% if t.receiver_credits %}{% if t.receiver_players.all %} + {% endif %}{{ t.receiver_credits|floatformat:0 }} FM{% endif %}</div>
+            </div>
+            {% if t.kind == 'loan' %}<div class="muted" style="font-size:11.5px;margin-top:4px">Prestito · {{ t.loan_sessions }} sessioni</div>{% endif %}
+            <div class="btns">
+                <form method="post" action="{% url 'admin_trade_decide' t.id %}">{% csrf_token %}
+                    <input type="hidden" name="action" value="approve">
+                    <input type="hidden" name="next" value="{% url 'app_regia' %}{{ league_q }}#scambi">
+                    <button type="submit" class="fm-btn fm-btn-primary">Ratifica</button>
+                </form>
+                <form method="post" action="{% url 'admin_trade_decide' t.id %}" onsubmit="return confirm('Bocciare lo scambio tra {{ t.proposer.display_name|escapejs }} e {{ t.receiver.display_name|escapejs }}?')">{% csrf_token %}
+                    <input type="hidden" name="action" value="veto">
+                    <input type="hidden" name="next" value="{% url 'app_regia' %}{{ league_q }}#scambi">
+                    <button type="submit" class="fm-btn fm-btn-danger">Boccia</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </section>
+    {% endif %}
+
+    <section class="a-card" aria-labelledby="rg-auctions-h">
+        <div class="a-label" id="rg-auctions-h"><svg class="ic"><use href="#i-gavel"/></svg> Aste
+            <a href="{% url 'admin_auction_wizard' %}{{ league_q }}" style="margin-left:auto;font-size:11px;letter-spacing:.06em">+ Nuova</a></div>
+        {% for a in auctions %}
+        <a class="a-row" href="{% url 'regia_auction' a.id %}" style="text-decoration:none;color:inherit">
+            <span class="nm">{{ a.title }}<small>{{ a.get_flow_mode_display }} · {{ a.created_at|date:"d/m/Y" }}</small></span>
+            <span class="status-pill s-{{ a.status }}" style="font-size:9px;padding:4px 9px">{{ a.get_status_display }}</span>
+        </a>
+        {% empty %}
+        <p class="muted" style="font-size:13px;padding:4px 0">Nessuna asta. <a href="{% url 'admin_auction_wizard' %}{{ league_q }}">Creane una</a>.</p>
+        {% endfor %}
+        {% if active_auction %}
+        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+            <a class="fm-btn fm-btn-primary fm-btn-sm" href="{% url 'regia_auction' active_auction.id %}"><svg class="ic"><use href="#i-gavel"/></svg> Regia live</a>
+            <a class="fm-btn fm-btn-secondary fm-btn-sm" href="{% url 'screen' active_auction.id %}?t={{ active_auction.public_token }}" target="_blank" rel="noopener"><svg class="ic"><use href="#i-tv"/></svg> Maxischermo</a>
+        </div>
+        {% endif %}
+    </section>
+
+    <section class="a-card" aria-labelledby="rg-market-h">
+        <div class="a-label" id="rg-market-h"><svg class="ic"><use href="#i-mail"/></svg> Mercato a buste
+            <a href="{% url 'admin_market_dashboard' %}{{ league_q }}" style="margin-left:auto;font-size:11px;letter-spacing:.06em">Gestisci</a></div>
+        {% for s in market_sessions %}
+        <a class="a-row" href="{% url 'admin_market_dashboard' %}{{ league_q }}&session={{ s.id }}" style="text-decoration:none;color:inherit">
+            <span class="nm">{{ s.title }}<small>{{ s.get_status_display }}</small></span>
+            <span class="val" style="font-size:12px;color:var(--muted)">{% if s.closes_at %}{{ s.closes_at|date:"d/m H:i" }}{% endif %}</span>
+        </a>
+        {% empty %}
+        <p class="muted" style="font-size:13px;padding:4px 0">Nessuna sessione di buste.</p>
+        {% endfor %}
+    </section>
+
+    <section class="a-card" aria-labelledby="rg-tools-h">
+        <div class="a-label" id="rg-tools-h"><svg class="ic"><use href="#i-gear"/></svg> Strumenti della console</div>
+        <div class="rg-tools">
+            <a class="rg-tool primary" href="{% url 'dashboard_league' app_league.id %}"><svg class="ic"><use href="#i-table"/></svg>Dashboard<small>Rose, crediti, assegnazioni</small></a>
+            <a class="rg-tool" href="{% url 'admin_players' %}{{ league_q }}"><svg class="ic"><use href="#i-users"/></svg>Giocatori<small>Listone e svincolati</small></a>
+            <a class="rg-tool" href="{% url 'admin_participants' %}{{ league_q }}"><svg class="ic"><use href="#i-shield"/></svg>Squadre<small>PIN, inviti, loghi</small></a>
+            <a class="rg-tool" href="{% url 'admin_contracts' %}{{ league_q }}"><svg class="ic"><use href="#i-doc"/></svg>Contratti<small>Dadi e rinnovi</small></a>
+            <a class="rg-tool" href="{% url 'admin_season' %}{{ league_q }}"><svg class="ic"><use href="#i-trophy"/></svg>Stagione<small>Economia e passaggi</small></a>
+            <a class="rg-tool" href="{% url 'admin_fantapazz' %}{{ league_q }}"><svg class="ic"><use href="#i-import"/></svg>Importa<small>Rose da file o sito</small></a>
+            <a class="rg-tool" href="{% url 'admin_export' %}{{ league_q }}"><svg class="ic"><use href="#i-export"/></svg>Export<small>Rose in Excel/CSV</small></a>
+            <a class="rg-tool" href="{% url 'admin_config' %}{{ league_q }}"><svg class="ic"><use href="#i-gear"/></svg>Impostazioni<small>Regole della lega</small></a>
+        </div>
+    </section>
+</div>
+</div>
+
+<script>
+    function rgCopy(text, btn) {
+        const done = () => {
+            const old = btn.innerHTML;
+            btn.textContent = "Copiato ✓";
+            setTimeout(() => { btn.innerHTML = old; }, 1600);
+        };
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).then(done, () => prompt("Copia il link di invito:", text));
+        } else {
+            prompt("Copia il link di invito:", text);
+        }
+    }
+</script>
+{% endblock %}

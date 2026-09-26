@@ -9,6 +9,9 @@ Tab templates extend THIS and fill {% block app %}. Each view passes
 `active_tab` (home/rosa/live/lega/mercato/altro) so the nav highlights.
 
 Identity = the session participant (join via league code) — no separate login.
+A league admin also gets the Regia tab (the console's dashboard, app-sized),
+a "Console" door to /dashboard/ on the same league, and — when looking at the
+app through one of their teams — a banner with the way back.
 {% endcomment %}
 {% block bodyclass %}role-player app-mode{% endblock %}
 {% block wrapclass %}app-wrap{% endblock %}
@@ -175,6 +178,32 @@ Identity = the session participant (join via league code) — no separate login.
     }
     .a-rolehdr:first-child { margin-top: 2px; }
 
+    /* ---- Admin: console door, "vedi come" banner, 7-tab nav ------------ */
+    .app-door {
+        flex-shrink: 0; height: 38px; padding: 0 11px; border-radius: 10px;
+        display: inline-flex; align-items: center; gap: 7px;
+        font-size: 12px; font-weight: 800; letter-spacing: .04em; text-decoration: none;
+        color: var(--accent); background: var(--accent-soft); border: 1px solid var(--accent-line);
+    }
+    .app-door .ic { width: 17px; height: 17px; }
+    .app-door span { display: none; }
+    @media (min-width: 480px) { .app-door span { display: inline; } }
+    .app-viewas {
+        position: sticky; top: 56px; z-index: 69;
+        display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+        padding: 8px 14px; font-size: 12.5px; line-height: 1.35;
+        background: rgba(255,181,38,.12); border-bottom: 1px solid rgba(255,181,38,.35); color: var(--ink);
+    }
+    .app-viewas .ic { width: 16px; height: 16px; color: var(--paused); flex-shrink: 0; }
+    .app-viewas > span { flex: 1 1 220px; min-width: 0; }
+    .app-viewas form { margin: 0; }
+    .app-viewas button { height: 30px; padding: 0 12px; font-size: 12px; }
+    .app-nav.is-wide a { font-size: 8.5px; letter-spacing: .01em; }
+    .app-nav.is-wide a .ic { width: 20px; height: 20px; }
+    .app-nav .nav-sep, .app-nav .nav-console { display: none; }
+    .app-nav a.nav-regia.active { color: var(--paused); }
+    .app-nav a.nav-regia.active .ic { filter: drop-shadow(0 0 6px rgba(255,181,38,.45)); }
+
     /* ---- Desktop: nav becomes a left side-rail ------------------------- */
     @media (min-width: 880px) {
         .app-nav {
@@ -189,7 +218,15 @@ Identity = the session participant (join via league code) — no separate login.
             font-size: 13px; letter-spacing: .07em;
         }
         .app-nav a .ic { width: 20px; height: 20px; }
+        .app-nav.is-wide a { font-size: 13px; letter-spacing: .07em; }
         .app-nav a.active { background: var(--accent-soft); }
+        .app-nav a.nav-regia.active { background: rgba(255,181,38,.12); }
+        .app-nav .nav-sep {
+            display: block; margin: 10px 14px 4px; font-size: 9.5px; font-weight: 800;
+            letter-spacing: .2em; text-transform: uppercase; color: var(--muted); opacity: .8;
+        }
+        .app-nav a.nav-console { display: flex; margin-top: auto; color: var(--accent); border: 1px dashed var(--accent-line); }
+        .app-viewas { top: 56px; margin-left: 216px; }
         .app-main {
             margin: 0 0 0 216px; max-width: 960px;
             padding: 26px 32px 48px;
@@ -215,9 +252,14 @@ Identity = the session participant (join via league code) — no separate login.
         <span class="ac-league">{% if app_league %}{{ app_league.name }}{% else %}FantaManager{% endif %}</span>
         <span class="ac-team">
             <svg class="ic"><use href="#i-shield"/></svg>
-            {% if participant %}{{ participant.display_name }}{% else %}Nessuna squadra{% endif %}
+            {% if participant %}{{ participant.display_name }}{% elif is_app_admin %}Regia · {{ request.user.username }}{% else %}Nessuna squadra{% endif %}
         </span>
     </a>
+    {% if manages_app_league %}
+    <a class="app-door" href="{% url 'dashboard_league' app_league.id %}" title="Apri la console completa di {{ app_league.name }}">
+        <svg class="ic"><use href="#i-table"/></svg><span>Console</span>
+    </a>
+    {% endif %}
     {% if request.user.is_authenticated %}
     <a class="app-bell" href="{% url 'logout' %}" title="Esci ({{ request.user.username }})" style="color:#ef4444">
         <svg class="ic"><use href="#i-logout"/></svg>
@@ -230,12 +272,22 @@ Identity = the session participant (join via league code) — no separate login.
     {% endif %}
 </header>
 
+{% if viewing_as %}
+<div class="app-viewas" role="status">
+    <svg class="ic"><use href="#i-eye"/></svg>
+    <span>Vista admin: stai usando l'app come <b>{{ participant.display_name }}</b>. Offerte, scambi e formazione valgono per questa squadra.</span>
+    <form method="post" action="{% url 'app_view_as_exit' %}">{% csrf_token %}
+        <button type="submit" class="fm-btn-secondary"><svg class="ic"><use href="#i-arrow-left"/></svg> Torna alla Regia</button>
+    </form>
+</div>
+{% endif %}
+
 <main class="app-main {% block mainclass %}{% endblock %}">
     {% if messages %}
     <div style="margin-bottom:14px">
         {% for msg in messages %}
         <div role="status" style="padding:10px 14px;border-radius:8px;font-size:13px;font-weight:700;margin-bottom:6px;
-                    {% if msg.tags == 'error' %}background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3){% else %}background:rgba(34,197,94,0.15);color:#22c55e;border:1px solid rgba(34,197,94,0.3){% endif %}">
+                    {% if msg.tags == 'error' %}background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3){% elif msg.tags == 'info' %}background:var(--accent-soft);color:var(--ink);border:1px solid var(--accent-line){% else %}background:rgba(34,197,94,0.15);color:#22c55e;border:1px solid rgba(34,197,94,0.3){% endif %}">
             {{ msg }}
         </div>
         {% endfor %}
@@ -244,18 +296,35 @@ Identity = the session participant (join via league code) — no separate login.
     {% block app %}{% endblock %}
 </main>
 
-<nav class="app-nav">
+<nav class="app-nav{% if is_app_admin and participant %} is-wide{% endif %}" aria-label="Sezioni dell'app">
+    {% if participant %}
     <a href="{% url 'app_home' %}"    class="{% if active_tab == 'home' %}active{% endif %}">
         <svg class="ic"><use href="#i-home"/></svg>Home</a>
     <a href="{% url 'app_rosa' %}"    class="{% if active_tab == 'rosa' %}active{% endif %}">
         <svg class="ic"><use href="#i-shirt"/></svg>Rosa</a>
     <a href="{% url 'app_live' %}"    class="{% if active_tab == 'live' %}active{% endif %}">
         <svg class="ic"><use href="#i-pulse"/></svg>Live</a>
+    {% endif %}
+    {% if is_app_admin and not participant %}
+    <a href="{% url 'app_regia' %}" class="nav-regia {% if active_tab == 'regia' %}active{% endif %}">
+        <svg class="ic"><use href="#i-gavel"/></svg>Regia</a>
+    {% endif %}
     <a href="{% url 'app_lega' %}"    class="{% if active_tab == 'lega' %}active{% endif %}">
         <svg class="ic"><use href="#i-trophy"/></svg>Lega</a>
+    {% if participant %}
     <a href="{% url 'app_mercato' %}" class="{% if active_tab == 'mercato' %}active{% endif %}">
         <svg class="ic"><use href="#i-swap"/></svg>Mercato</a>
+    {% endif %}
+    {% if is_app_admin and participant %}
+    <span class="nav-sep">Organizzatore</span>
+    <a href="{% url 'app_regia' %}" class="nav-regia {% if active_tab == 'regia' %}active{% endif %}">
+        <svg class="ic"><use href="#i-gavel"/></svg>Regia</a>
+    {% endif %}
     <a href="{% url 'app_altro' %}"   class="{% if active_tab == 'altro' %}active{% endif %}">
         <svg class="ic"><use href="#i-menu"/></svg>Altro</a>
+    {% if manages_app_league %}
+    <a class="nav-console" href="{% url 'dashboard_league' app_league.id %}">
+        <svg class="ic"><use href="#i-table"/></svg>Console completa</a>
+    {% endif %}
 </nav>
 {% endblock %}

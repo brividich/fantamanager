@@ -151,6 +151,7 @@ from .app import (
     app_rosa,
     app_update_pin,
 )
+from .app_admin import app_regia, app_view_as, app_view_as_exit, league_admin_digest
 from .bidder import (
     _auction_for_join,
     bid_page,
@@ -358,6 +359,11 @@ __all__ = [
     "app_trade_respond",
     "app_trade_cancel",
     "app_altro",
+    # app_admin (Regia inside the app)
+    "app_regia",
+    "app_view_as",
+    "app_view_as_exit",
+    "league_admin_digest",
     "app_formazione",
     "app_login",
     "app_logout",
