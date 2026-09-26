@@ -97,6 +97,10 @@ Keeping this in one file is what makes the pages look like one product.
         <svg class="ic"><use href="#i-shield"/></svg> Squadre</a>
     <a class="fm-nav-link {% if console_active == 'market' %}is-active{% endif %}" href="{% url 'admin_market_dashboard' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
         <svg class="ic"><use href="#i-mail"/></svg> Buste</a>
+    <a class="fm-nav-link {% if console_active == 'contracts' %}is-active{% endif %}" href="{% url 'admin_contracts' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
+        <svg class="ic"><use href="#i-doc"/></svg> Contratti</a>
+    <a class="fm-nav-link {% if console_active == 'season' %}is-active{% endif %}" href="{% url 'admin_season' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
+        <svg class="ic"><use href="#i-trophy"/></svg> Stagione</a>
     <a class="fm-nav-link {% if console_active == 'import' %}is-active{% endif %}" href="{% url 'admin_fantapazz' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
         <svg class="ic"><use href="#i-import"/></svg> Importa</a>
     <a class="fm-nav-link {% if console_active == 'export' %}is-active{% endif %}" href="{% url 'admin_export' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">

@@ -7,6 +7,7 @@ from .. import health, mantra
 from ..models import Auction, Player
 from .lifecycle import stuck_closed_lot
 from .sealed import sealed_status
+from .turns import current_turn
 
 
 def roster_plan(participant):
@@ -20,7 +21,7 @@ def roster_plan(participant):
     remaining = participant.remaining_credits
     league = participant.league
     owned_by_role = {"P": 0, "D": 0, "C": 0, "A": 0}
-    for role in Player.objects.filter(owner=participant).values_list("role", flat=True):
+    for role in Player.objects.filter(owner=participant, abroad_list=False).values_list("role", flat=True):
         if role in owned_by_role:
             owned_by_role[role] += 1
 
@@ -185,6 +186,7 @@ def serialize_state(auction, now=None):
         },
         "game_mode": "MANTRA" if is_mantra else "CLASSIC",
         "flow_mode": auction.flow_mode,
+        "turn": current_turn(auction),
         "manual_auto_advance": auction.manual_auto_advance,
         "cycle_break_seconds": auction.cycle_break_seconds,
         "interlude_seconds": interlude,

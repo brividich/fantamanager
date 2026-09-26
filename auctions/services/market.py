@@ -71,6 +71,13 @@ def place_market_bid(
 
     if player.owner_id is not None or (player.league_id and player.league_id != session.league_id):
         return {"ok": False, "error": "player_unavailable", "message": "Calciatore non disponibile sul mercato svincolati."}
+    from .bidding import gk_clubs_problem
+    if gk_clubs_problem(participant, player):
+        return {"ok": False, "error": "gk_clubs",
+                "message": "Hai già portieri di due squadre di Serie A: puoi prendere solo portieri di quelle squadre."}
+    if player.rescinded_from_id == participant.id:
+        return {"ok": False, "error": "rescinded_rebuy",
+                "message": "Hai perso questo giocatore al rinnovo: non puoi ricomprarlo in questo mercato."}
 
     try:
         val = Decimal(str(amount).strip().replace(",", "."))
@@ -81,10 +88,27 @@ def place_market_bid(
     if val < Decimal("1"):
         return {"ok": False, "error": "amount_too_low", "message": "L'offerta minima è 1 FM."}
 
+    total_rule = session.budget_rule == MarketSession.BudgetRule.TOTAL
+    existing = MarketBid.objects.filter(session=session, participant=participant)
+    # Con la regola "totale" (regolamento 5.2) ogni invio è una nuova offerta,
+    # anche sullo stesso giocatore; altrimenti l'offerta sul giocatore si aggiorna.
+    replaces = None if total_rule else existing.filter(player=player).first()
+    if session.max_bids and replaces is None and existing.count() >= session.max_bids:
+        return {
+            "ok": False, "error": "too_many_bids",
+            "message": f"Hai già inviato il massimo di {session.max_bids} offerte per questa sessione.",
+        }
+
+    if session.require_same_role_release and not release_player_id:
+        return {
+            "ok": False, "error": "release_required",
+            "message": f"Ogni acquisto deve sostituire un tuo giocatore di pari ruolo ({player.role}): scegli chi tagliare.",
+        }
+
     release_player = None
     refund = Decimal("0")
     if release_player_id:
-        if not session.allow_conditional_release:
+        if not session.allow_conditional_release and not session.require_same_role_release:
             return {"ok": False, "error": "release_not_allowed", "message": "Svincoli condizionati non ammessi in questa sessione."}
         try:
             release_player = Player.objects.get(pk=release_player_id)
@@ -94,9 +118,24 @@ def place_market_bid(
         if release_player.owner_id != participant.id:
             return {"ok": False, "error": "release_player_not_owned", "message": "Il calciatore da svincolare non appartiene alla tua rosa."}
 
+        if session.require_same_role_release and release_player.role != player.role:
+            return {
+                "ok": False, "error": "release_wrong_role",
+                "message": f"Devi tagliare un giocatore dello stesso ruolo ({player.role}).",
+            }
+
         refund = _calc_release_refund(session, release_player)
 
-    max_spendable = participant.remaining_credits + refund
+    # Regola "totale": il tetto è il budget, i tagli non lo alzano (la somma
+    # di tutte le offerte si controlla allo spoglio).
+    max_spendable = participant.remaining_credits + (Decimal("0") if total_rule else refund)
+    from .salary import purchase_room
+    room = purchase_room(participant, market_session=session)
+    if room is not None and val > room:
+        return {
+            "ok": False, "error": "salary_cap",
+            "message": f"Tetto salariale: in questa sessione puoi spendere ancora {room:.0f} FM.",
+        }
     if val > max_spendable:
         return {
             "ok": False,
@@ -109,18 +148,20 @@ def place_market_bid(
     except (ValueError, TypeError):
         prio = 1
 
-    bid, _ = MarketBid.objects.update_or_create(
-        session=session,
-        participant=participant,
-        player=player,
-        defaults={
-            "amount": val,
-            "priority": prio,
-            "release_player": release_player,
-            "status": MarketBid.Status.PENDING,
-            "note": "",
-        },
-    )
+    fields = {
+        "amount": val,
+        "priority": prio,
+        "release_player": release_player,
+        "status": MarketBid.Status.PENDING,
+        "note": "",
+    }
+    if replaces is not None:
+        for k, v in fields.items():
+            setattr(replaces, k, v)
+        replaces.save()
+        bid = replaces
+    else:
+        bid = MarketBid.objects.create(session=session, participant=participant, player=player, **fields)
 
     logger.info(
         f"Market bid placed: session={session_id}, participant='{participant.display_name}', "
@@ -238,6 +279,9 @@ class _Plan:
         for b in self.bids:
             self.participants.setdefault(b.participant_id, b.participant)
         self.remaining = {pid: p.remaining_credits for pid, p in self.participants.items()}
+        # Tetto salariale (None = nessun limite per quella squadra).
+        from .salary import purchase_room
+        self.cap_room = {pid: purchase_room(p, market_session=session) for pid, p in self.participants.items()}
 
         player_ids = {b.player_id for b in self.bids}
         player_ids |= {b.release_player_id for b in self.bids if b.release_player_id}
@@ -246,7 +290,7 @@ class _Plan:
 
         self.owned = defaultdict(lambda: defaultdict(int))
         for owner_id, role in Player.objects.filter(
-            owner_id__in=list(self.participants)
+            owner_id__in=list(self.participants), abroad_list=False
         ).values_list("owner_id", "role"):
             self.owned[owner_id][role] += 1
         self.role_acquisitions = defaultdict(lambda: defaultdict(int))
@@ -294,6 +338,13 @@ class _Plan:
                 refund = _calc_release_refund(self.session, release)
             else:
                 release_note = " (taglio condizionato non più possibile)"
+        if self.session.require_same_role_release and (release is None or release.role != role):
+            return (
+                False,
+                "Il giocatore da tagliare (pari ruolo) non è più in rosa: l'acquisto non può sostituire nessuno",
+                None,
+                Decimal("0"),
+            )
 
         available = self.remaining[participant.id] + refund
         if available < bid.amount:
@@ -303,6 +354,10 @@ class _Plan:
                 None,
                 Decimal("0"),
             )
+
+        room = self.cap_room.get(participant.id)
+        if room is not None and bid.amount > room:
+            return (False, f"Tetto salariale: margine rimasto {room:.0f} FM", None, Decimal("0"))
 
         cap = self.league.slots_for(role)
         if cap > 0:
@@ -324,6 +379,8 @@ class _Plan:
             self.owner[release.id] = None
             self.owned[pid][release.role] -= 1
         self.remaining[pid] -= bid.amount - refund
+        if self.cap_room.get(pid) is not None:
+            self.cap_room[pid] -= bid.amount
         self.role_acquisitions[pid][player.role] += 1
         self.awards[bid.id] = (release, refund)
         self._decide(bid, MarketBid.Status.WON, ("Aggiudicato con successo " + note).strip())
@@ -366,13 +423,25 @@ class _Plan:
 
         w, note, release, refund = winner
         tied = []
+        seen = {w.participant_id}
+        first_wins = self.session.tie_break == MarketSession.TieBreak.FIRST
         for b in bids:
-            if b.id in self.outcome or b is w:
+            if b.id in self.outcome or b is w or b.participant_id in seen:
                 continue
             if b.amount == w.amount and b.priority == w.priority:
+                if first_wins:
+                    # Bids are ranked by insertion time on equal amount, so w
+                    # is the earliest: the others lose the tie outright.
+                    self._decide(
+                        b, MarketBid.Status.LOST,
+                        f"Pari merito: vince l'offerta inserita prima ({w.participant.display_name})",
+                    )
+                    seen.add(b.participant_id)
+                    continue
                 ok, bnote, _, _ = self._check(b)
                 if ok:
                     tied.append(b)
+                    seen.add(b.participant_id)
                 else:
                     self._decide(b, MarketBid.Status.LOST, bnote)
 
@@ -394,15 +463,75 @@ class _Plan:
                 ],
             })
         else:
+            w, release, refund, note = self._ladder_price(w, release, refund, note, bids)
             self._award(w, release, refund, note)
 
+        won_by = w.participant_id if not tied else None
         for b in bids:
             if b.id not in self.outcome:
-                self._decide(b, MarketBid.Status.LOST, "Offerta superata")
+                if b.participant_id == won_by and b.amount > w.amount:
+                    self._decide(b, MarketBid.Status.LOST,
+                                 f"Non necessaria: aggiudicato con la tua offerta di {w.amount:.0f} FM")
+                elif b.participant_id == won_by:
+                    self._decide(b, MarketBid.Status.LOST, "Superata da una tua offerta più alta")
+                else:
+                    self._decide(b, MarketBid.Status.LOST, "Offerta superata")
+
+    def _ladder_price(self, w, release, refund, note, bids):
+        """Regolamento 5.03: con più offerte sullo stesso giocatore si paga
+        "l'offerta minima fatta" che basta a battere le altre squadre."""
+        if self.session.budget_rule != MarketSession.BudgetRule.TOTAL:
+            return w, release, refund, note
+        # Le offerte rivali già scartate (non valide) non contano.
+        rivals = [b.amount for b in bids
+                  if b.participant_id != w.participant_id and b.id not in self.outcome]
+        beat = max(rivals) if rivals else Decimal("0")
+        mine = sorted((b for b in bids if b.participant_id == w.participant_id
+                       and b.id not in self.outcome and b.amount > beat and b is not w),
+                      key=lambda b: (b.amount, b.created_at))
+        for b in mine:
+            if b.amount >= w.amount:
+                break
+            ok, bnote, brelease, brefund = self._check(b)
+            if ok:
+                return b, brelease, brefund, bnote
+        return w, release, refund, note
+
+    def _apply_budget_rule(self):
+        """Regolamento 5.03: il totale delle offerte massime (una per giocatore)
+        di una squadra non può superare il suo budget; se lo supera si
+        annullano le offerte partendo dalla più alta finché il totale non rientra."""
+        if self.session.budget_rule != MarketSession.BudgetRule.TOTAL:
+            return
+        by_participant = defaultdict(list)
+        for b in self.bids:
+            by_participant[b.participant_id].append(b)
+
+        def total_of_max(bids):
+            best = {}
+            for b in bids:
+                best[b.player_id] = max(best.get(b.player_id, Decimal("0")), b.amount)
+            return sum(best.values())
+
+        for pid, bids in by_participant.items():
+            budget = self.remaining.get(pid, Decimal("0"))
+            if self.cap_room.get(pid) is not None:
+                budget = min(budget, self.cap_room[pid])
+            alive = list(bids)
+            # Highest first; on equal amounts the most recent goes first.
+            for b in sorted(bids, key=lambda x: (-x.amount, -x.created_at.timestamp(), -x.id)):
+                if total_of_max(alive) <= budget:
+                    break
+                alive.remove(b)
+                self._decide(
+                    b, MarketBid.Status.CANCELLED,
+                    f"Annullata: il totale delle offerte superava il budget ({budget:.0f} FM)",
+                )
 
     # -- main loop -------------------------------------------------------------
 
     def run(self):
+        self._apply_budget_rule()
         while True:
             pending = self._pending()
             if not pending:
@@ -445,7 +574,7 @@ def _summary(plan, preview=False):
     lost = []
     for b in plan.bids:
         status, note = plan.outcome[b.id]
-        if status == MarketBid.Status.LOST:
+        if status in (MarketBid.Status.LOST, MarketBid.Status.CANCELLED):
             lost.append({
                 "bid_id": b.id,
                 "player_name": b.player.name,
@@ -474,6 +603,8 @@ def _apply_award(session, participant, player, amount, release, refund):
     player.owner = participant
     player.cost = amount
     player.save(update_fields=["owner", "cost"])
+    from .contracts import on_player_acquired
+    on_player_acquired(player)
 
     if release is not None:
         release.owner = None
@@ -554,7 +685,7 @@ def resolve_market_session(session_id):
 
 
 @transaction.atomic
-def settle_market_tie(session_id, player_id, winner_id=None, rng=None):
+def settle_market_tie(session_id, player_id, winner_id=None, rng=None, rebids=None):
     """Risolve un pari merito: vincitore scelto dall'admin o sorteggiato.
 
     ``winner_id`` None = sorteggio tra i contendenti ancora in regola (crediti,
@@ -592,7 +723,33 @@ def settle_market_tie(session_id, player_id, winner_id=None, rng=None):
         else:
             reasons[b.participant.display_name] = note
 
-    if winner_id is not None:
+    if rebids:
+        # Secondo sfoglio speciale (5.03): vince l'offerta più alta tra le nuove,
+        # che diventa il prezzo; un nuovo pari merito lascia il pareggio aperto.
+        offers = {}
+        for b, rel, ref in eligible:
+            raw = rebids.get(b.participant_id)
+            try:
+                amount = Decimal(str(raw)).quantize(Decimal("1")) if raw not in (None, "") else None
+            except (InvalidOperation, ValueError):
+                amount = None
+            if amount is not None and amount >= b.amount:
+                offers[b.participant_id] = (amount, b, rel, ref)
+        if not offers:
+            return {"ok": False, "message": "Nessuna offerta valida: nel secondo sfoglio si offre almeno quanto la prima busta."}
+        top = max(o[0] for o in offers.values())
+        best = [o for o in offers.values() if o[0] == top]
+        if len(best) > 1:
+            return {"ok": False, "message": f"Nuovo pari merito a {top:.0f} FM: ripeti lo sfoglio."}
+        amount, b, rel, ref = best[0]
+        room = plan.cap_room.get(b.participant_id)
+        if plan.remaining[b.participant_id] + ref < amount or (room is not None and amount > room):
+            return {"ok": False, "message": f"{b.participant.display_name} non ha budget o tetto per {amount:.0f} FM."}
+        b.amount = amount
+        b.save(update_fields=["amount", "updated_at"])
+        chosen = (b, rel, ref)
+        method = "rebid"
+    elif winner_id is not None:
         chosen = next((e for e in eligible if e[0].participant_id == int(winner_id)), None)
         if chosen is None:
             name = next((b.participant.display_name for b in bids if b.participant_id == int(winner_id)), None)
@@ -609,7 +766,7 @@ def settle_market_tie(session_id, player_id, winner_id=None, rng=None):
     participant = plan.participants[win_bid.participant_id]
     _apply_award(session, participant, win_bid.player, win_bid.amount, release, refund)
 
-    how = "sorteggio" if method == "draw" else "scelta admin"
+    how = {"draw": "sorteggio", "rebid": "secondo sfoglio"}.get(method, "scelta admin")
     for b in bids:
         if b.id == win_bid.id:
             b.status = MarketBid.Status.WON
@@ -722,7 +879,7 @@ def undo_market_resolution(session_id):
             spent_credits=F("spent_credits") - (amount - refund)
         )
 
-    session.bids.exclude(status=MarketBid.Status.CANCELLED).update(
+    session.bids.all().update(
         status=MarketBid.Status.PENDING, note="", updated_at=timezone.now()
     )
     session.status = MarketSession.Status.CLOSED

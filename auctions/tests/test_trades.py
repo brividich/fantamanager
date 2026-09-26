@@ -187,3 +187,158 @@ class RosaReleaseButtonTests(TestCase):
         s.save()
         resp = self.client.post(reverse("participant_release_player", args=[pl.id]))
         self.assertTrue(resp.json()["ok"])
+
+
+class RosaAndBenchLayoutTests(TestCase):
+    def setUp(self):
+        self.league = League.objects.create(name="L")
+        self.p = Participant.objects.create(display_name="Alfa", league=self.league, credits=Decimal("100"))
+        for name, role in (("Zeta", "A"), ("Beta", "C"), ("Alfa D", "D"), ("Gigi", "P")):
+            Player.objects.create(name=name, role=role, league=self.league, owner=self.p, cost=Decimal("10"))
+        s = self.client.session
+        s["participant_id"] = self.p.id
+        s.save()
+
+    def test_rosa_groups_every_role_with_slots(self):
+        resp = self.client.get(reverse("app_rosa"))
+        groups = resp.context["roster_groups"]
+        self.assertEqual([g["code"] for g in groups], ["P", "D", "C", "A"])
+        self.assertEqual(groups[0]["slots"], self.league.slots_p)
+        self.assertEqual(resp.context["roster_value"], Decimal("40"))
+        self.assertContains(resp, 'aria-label="Svincola Zeta"')
+
+    def test_bench_is_listed_p_d_c_a(self):
+        from ..services.formation import formation_state
+        bench = formation_state(self.p)["bench"]
+        self.assertEqual([pl.role for pl in bench], ["P", "D", "C", "A"])
+
+
+class TradeRulesTests(TestCase):
+    """Regolamento 5.3: stessi ruoli e periodi di scambio."""
+
+    def setUp(self):
+        from ..models import TradeWindow
+        self.TradeWindow = TradeWindow
+        self.league = League.objects.create(name="L", trades_need_approval=False, trades_same_roles=True)
+        self.a = Participant.objects.create(display_name="A", league=self.league, credits=Decimal("100"))
+        self.b = Participant.objects.create(display_name="B", league=self.league, credits=Decimal("100"))
+        self.a_d = Player.objects.create(name="aD", role="D", league=self.league, owner=self.a)
+        self.a_c = Player.objects.create(name="aC", role="C", league=self.league, owner=self.a)
+        self.b_d = Player.objects.create(name="bD", role="D", league=self.league, owner=self.b)
+
+    def test_same_roles_required(self):
+        res = propose_trade(self.a.id, self.b.id, [self.a_c.id], [self.b_d.id])
+        self.assertFalse(res["ok"])
+        self.assertIn("stesso numero di giocatori per ruolo", res["message"])
+        self.assertTrue(propose_trade(self.a.id, self.b.id, [self.a_d.id], [self.b_d.id])["ok"])
+
+    def test_windows(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        now = timezone.now()
+        w = self.TradeWindow.objects.create(league=self.league, name="Invernale",
+                                            opens_at=now + timedelta(days=1), closes_at=now + timedelta(days=20))
+        res = propose_trade(self.a.id, self.b.id, [self.a_d.id], [self.b_d.id])
+        self.assertFalse(res["ok"])
+        self.assertIn("Invernale", res["message"])
+        w.opens_at = now - timedelta(days=1)
+        w.save()
+        tid = propose_trade(self.a.id, self.b.id, [self.a_d.id], [self.b_d.id])["trade_id"]
+        w.closes_at = now - timedelta(minutes=1)
+        w.save()
+        res = respond_trade(tid, self.b.id, True)
+        self.assertFalse(res["ok"])
+        self.assertIn("chiuso", res["message"])
+
+    def test_admin_manages_windows(self):
+        root = User.objects.create_superuser("root", "r@x.local", "pw")
+        self.client.force_login(root)
+        self.client.post(reverse("admin_trade_window_add"), {
+            "league_id": self.league.id, "name": "Estivo",
+            "opens_at": "2026-07-01T00:00", "closes_at": "2026-09-02T17:00",
+        })
+        w = self.TradeWindow.objects.get(name="Estivo")
+        page = self.client.get(reverse("admin_market_dashboard") + f"?league={self.league.id}")
+        self.assertContains(page, "Estivo")
+        self.client.post(reverse("admin_trade_window_delete", args=[w.id]))
+        self.assertFalse(self.TradeWindow.objects.exists())
+
+
+class LoansSalesAndSessionRulesTests(TestCase):
+    """5.07 prestiti, 5.08 cessioni, 5.01/4.02 divieti nella stessa sessione."""
+
+    def setUp(self):
+        from ..models import CapPhase
+        from django.utils import timezone
+        from datetime import timedelta
+        self.league = League.objects.create(name="L", trades_need_approval=False, trades_same_roles=True,
+                                            contracts_enabled=True)
+        self.a = Participant.objects.create(display_name="A", league=self.league, credits=Decimal("500"))
+        self.b = Participant.objects.create(display_name="B", league=self.league, credits=Decimal("500"))
+        past = timezone.now() - timedelta(days=30)
+        self.old = Player.objects.create(name="Vecchio", role="A", league=self.league, owner=self.a,
+                                         contract_years=2, acquired_at=past)
+        self.b_c = Player.objects.create(name="Centro", role="C", league=self.league, owner=self.b, contract_years=2)
+        self.phase = CapPhase.objects.create(league=self.league, season=1, kind=CapPhase.Kind.SUMMER)
+
+    def test_sale_for_credits_is_allowed_despite_same_roles_rule(self):
+        tid = propose_trade(self.a.id, self.b.id, [self.old.id], [], get_credits=50)["trade_id"]
+        self.assertTrue(respond_trade(tid, self.b.id, True)["ok"])
+        self.old.refresh_from_db()
+        self.assertEqual(self.old.owner, self.b)
+        self.assertEqual(self.old.contract_years, 2)   # il contratto viaggia col giocatore
+
+    def test_player_bought_this_session_cannot_be_sold_but_can_be_swapped_or_loaned(self):
+        from ..services.contracts import on_player_acquired
+        new = Player.objects.create(name="Nuovo", role="C", league=self.league, owner=self.a, contract_years=2)
+        on_player_acquired(new)
+        res = propose_trade(self.a.id, self.b.id, [new.id], [], get_credits=10)
+        self.assertFalse(res["ok"])
+        self.assertIn("acquistato in questa sessione", res["message"])
+        self.assertTrue(propose_trade(self.a.id, self.b.id, [new.id], [self.b_c.id])["ok"])
+        self.assertTrue(propose_trade(self.a.id, self.b.id, [new.id], [], kind="loan")["ok"])
+
+    def test_release_blocked_same_session_and_after_renewal(self):
+        from ..services.contracts import on_player_acquired
+        from ..services.lifecycle import release_player
+        new = Player.objects.create(name="Nuovo", role="C", league=self.league, owner=self.a)
+        on_player_acquired(new)
+        res = release_player(new.id, participant_id=self.a.id)
+        self.assertEqual(res["error"], "release_locked")
+        from django.utils import timezone
+        Player.objects.filter(pk=self.old.pk).update(renewed_at=timezone.now())
+        self.old.refresh_from_db()
+        self.assertIn("rinnovato", release_player(self.old.id, participant_id=self.a.id)["message"])
+        self.assertTrue(release_player(self.old.id, by_admin=True)["ok"])   # l'admin può sempre
+
+    def test_loan_returns_after_its_sessions(self):
+        from ..services import loans
+        tid = propose_trade(self.a.id, self.b.id, [self.old.id], [], kind="loan", loan_sessions=2,
+                            get_credits=30)["trade_id"]
+        respond_trade(tid, self.b.id, True)
+        self.old.refresh_from_db()
+        self.assertEqual((self.old.owner, self.old.loan_from, self.old.loan_sessions_left), (self.b, self.a, 2))
+        # Chi l'ha in prestito non può né svincolarlo né girarlo.
+        from ..services.lifecycle import release_player
+        self.assertIn("prestito", release_player(self.old.id, participant_id=self.b.id)["message"])
+        self.assertFalse(propose_trade(self.b.id, self.a.id, [self.old.id], [], get_credits=1)["ok"])
+        self.assertEqual(loans.tick(self.league), [])
+        self.assertEqual(loans.tick(self.league), ["Vecchio"])
+        self.old.refresh_from_db()
+        self.assertEqual((self.old.owner, self.old.loan_from), (self.a, None))
+
+    def test_loan_cannot_outlast_contract(self):
+        short = Player.objects.create(name="Breve", role="A", league=self.league, owner=self.a, contract_years=1)
+        res = propose_trade(self.a.id, self.b.id, [short.id], [], kind="loan", loan_sessions=4)
+        self.assertFalse(res["ok"])
+        self.assertIn("oltre il suo contratto", res["message"])
+
+    def test_expiring_loan_goes_back_before_renewals(self):
+        from ..services import contracts
+        tid = propose_trade(self.a.id, self.b.id, [self.old.id], [], kind="loan", loan_sessions=4)["trade_id"]
+        respond_trade(tid, self.b.id, True)
+        Player.objects.filter(pk=self.old.pk).update(contract_years=1)
+        contracts.new_season(self.league.id)
+        self.old.refresh_from_db()
+        self.assertEqual(self.old.owner, self.a)
+        self.assertEqual(contracts.expiring(self.a), [self.old])

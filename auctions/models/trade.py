@@ -42,6 +42,14 @@ class Trade(models.Model):
     proposer_credits = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
     receiver_credits = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
 
+    class Kind(models.TextChoices):
+        DEFINITIVE = "definitive", "Definitivo"
+        LOAN       = "loan",       "Prestito"
+
+    kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.DEFINITIVE)
+    # Prestito: quante sessioni d'asta dura (rientro all'apertura della N-esima).
+    loan_sessions = models.PositiveSmallIntegerField(default=1)
+
     message = models.CharField(max_length=200, blank=True)
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING)
     status_note = models.CharField(max_length=300, blank=True)
@@ -59,3 +67,22 @@ class Trade(models.Model):
     @property
     def is_open(self):
         return self.status in self.OPEN_STATUSES
+
+
+class TradeWindow(models.Model):
+    """A period in which trades may be proposed and accepted (regolamento 5.3).
+
+    A league without windows trades all season; once at least one window is
+    defined, trades are allowed only inside one of them.
+    """
+
+    league = models.ForeignKey(League, on_delete=models.CASCADE, related_name="trade_windows")
+    name = models.CharField(max_length=80, default="Periodo scambi")
+    opens_at = models.DateTimeField()
+    closes_at = models.DateTimeField()
+
+    class Meta:
+        ordering = ["opens_at"]
+
+    def __str__(self):
+        return f"{self.name} ({self.opens_at:%d/%m/%Y} – {self.closes_at:%d/%m/%Y %H:%M})"

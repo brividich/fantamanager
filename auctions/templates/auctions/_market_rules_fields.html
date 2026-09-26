@@ -1,0 +1,44 @@
+{% comment %}
+Campi delle regole di una sessione a buste. `s` = sessione da modificare;
+senza `s` i valori proposti sono quelli del regolamento di lega (5.2).
+{% endcomment %}
+<div class="mr-grid">
+    <label class="mr-field">
+        <span class="mr-lbl">Offerte massime per squadra</span>
+        <input type="number" name="max_bids" min="0" value="{% if s %}{{ s.max_bids }}{% else %}5{% endif %}" class="mr-input">
+        <span class="mr-hint">0 = nessun limite. Più offerte sullo stesso giocatore contano tutte.</span>
+    </label>
+    <label class="mr-field">
+        <span class="mr-lbl">Budget</span>
+        <select name="budget_rule" class="mr-input">
+            {% for value, label in budget_rules %}<option value="{{ value }}"{% if s and s.budget_rule == value or not s and value == "total" %} selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+    </label>
+    <label class="mr-field">
+        <span class="mr-lbl">Pari merito</span>
+        <select name="tie_break" class="mr-input">
+            {% for value, label in tie_breaks %}<option value="{{ value }}"{% if s and s.tie_break == value or not s and value == "first" %} selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+    </label>
+    <label class="mr-field">
+        <span class="mr-lbl">Rimborso del giocatore tagliato</span>
+        <select name="refund_mode" class="mr-input">
+            {% for value, label in refund_modes %}<option value="{{ value }}"{% if s and s.release_refund_mode == value or not s and value == "purchase" %} selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+    </label>
+</div>
+<div class="mr-checks">
+    <label><input type="checkbox" name="require_same_role_release" value="1"{% if s and s.require_same_role_release or not s %} checked{% endif %}>
+        Ogni acquisto sostituisce un giocatore di pari ruolo (taglio obbligatorio)</label>
+    <label><input type="checkbox" name="allow_conditional_release" value="1"{% if s and s.allow_conditional_release or not s %} checked{% endif %}>
+        Consenti il taglio condizionato (anche se non obbligatorio)</label>
+</div>
+<div class="mr-field">
+    <span class="mr-lbl">Acquisti massimi per ruolo (0 = illimitati)</span>
+    <div class="mr-roles">
+        {% for code, field in role_caps %}
+        <label><span class="role-badge role-{{ code }}">{{ code }}</span>
+            <input type="number" name="{{ field }}" min="0" class="mr-input" value="{% if s %}{% if code == 'P' %}{{ s.max_acquisitions_p }}{% elif code == 'D' %}{{ s.max_acquisitions_d }}{% elif code == 'C' %}{{ s.max_acquisitions_c }}{% else %}{{ s.max_acquisitions_a }}{% endif %}{% else %}0{% endif %}"></label>
+        {% endfor %}
+    </div>
+</div>

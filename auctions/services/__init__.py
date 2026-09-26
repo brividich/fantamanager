@@ -94,11 +94,26 @@ from .queue import (
     postpone_queue_item,
     prioritize_queue_item,
 )
+from .abroad import compensation as abroad_compensation
+from .contracts import (
+    close_renewals,
+    contract_faces,
+    contract_rules,
+    declare_u21,
+    declare_renewals,
+    expiring as expiring_contracts,
+    min_years as contract_min_years,
+    new_season,
+    roll_contract,
+    roll_renewal,
+    set_contract,
+)
 from .trade import (
     cancel_trade,
     decide_trade,
     propose_trade,
     respond_trade,
+    trade_window_status,
 )
 from .market import (
     delete_market_bid,
@@ -174,11 +189,25 @@ __all__ = [
     "sealed_tick",
     "open_sealed_now",
     "sealed_status",
+    # contracts
+    "abroad_compensation",
+    "roll_contract",
+    "contract_faces",
+    "contract_rules",
+    "declare_u21",
+    "set_contract",
+    "new_season",
+    "declare_renewals",
+    "roll_renewal",
+    "close_renewals",
+    "expiring_contracts",
+    "contract_min_years",
     # trade
     "propose_trade",
     "respond_trade",
     "cancel_trade",
     "decide_trade",
+    "trade_window_status",
     # market
     "place_market_bid",
     "delete_market_bid",

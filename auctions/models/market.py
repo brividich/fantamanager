@@ -43,6 +43,26 @@ class MarketSession(models.Model):
     max_acquisitions_c = models.PositiveIntegerField(default=0)
     max_acquisitions_a = models.PositiveIntegerField(default=0)
 
+    # --- Regole della sessione (regolamento 5.2) -------------------------
+    # I default del modello restano quelli storici, così le sessioni già
+    # esistenti non cambiano comportamento; il form di creazione propone
+    # invece le regole del regolamento di lega.
+    class BudgetRule(models.TextChoices):
+        PRIORITY = "priority", "Ogni offerta entro il budget, poi conta la priorità"
+        TOTAL    = "total",    "Totale offerte entro il budget (si annullano dalla più alta)"
+
+    class TieBreak(models.TextChoices):
+        MANUAL = "manual", "Decide l'admin (scelta o sorteggio)"
+        FIRST  = "first",  "Vince chi ha inserito l'offerta per primo"
+        REBID  = "rebid",  "Secondo sfoglio speciale tra le squadre in parità"
+
+    # Offerte massime per squadra (0 = nessun limite).
+    max_bids = models.PositiveIntegerField(default=0)
+    # Ogni acquisto deve sostituire un giocatore della rosa di pari ruolo.
+    require_same_role_release = models.BooleanField(default=False)
+    budget_rule = models.CharField(max_length=10, choices=BudgetRule.choices, default=BudgetRule.PRIORITY)
+    tie_break = models.CharField(max_length=10, choices=TieBreak.choices, default=TieBreak.MANUAL)
+
     # Report dettagliato dello spoglio (vincitori, tagli, pareggi)
     results_summary = models.JSONField(default=dict, blank=True)
 
@@ -105,13 +125,9 @@ class MarketBid(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        # Più offerte della stessa squadra sullo stesso giocatore sono ammesse
+        # (regolamento 5.2): ognuna conta per il limite e per il budget.
         ordering = ["priority", "-amount", "created_at"]
-        constraints = [
-            models.UniqueConstraint(
-                fields=["session", "participant", "player"],
-                name="uniq_market_bid_per_player",
-            )
-        ]
 
     def __str__(self):
         return f"{self.participant} -> {self.player.name} ({self.amount} FM, p{self.priority})"

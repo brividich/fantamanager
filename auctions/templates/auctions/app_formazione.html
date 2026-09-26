@@ -1,5 +1,6 @@
 {% extends "auctions/app_base.html" %}
 {% block title %}Formazione — FantaManager{% endblock %}
+{% block mainclass %}fit{% endblock %}
 {% block app %}
 <style>
     .fm-back { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700;
@@ -51,6 +52,15 @@
 
     .fm-save { width:100%; }
     .bench-badge { min-width:20px; text-align:center; }
+    .fz-grid { display:grid; grid-template-columns:1fr; gap:14px; }
+    .fz-bench { display:flex; flex-direction:column; }
+    .fz-bench .a-row { padding:7px 12px; }
+    @media (min-width: 1000px) {
+        .fz-grid { grid-template-columns:minmax(0, 1.5fr) minmax(280px, 1fr); align-items:stretch; }
+        .fz-grid > form { display:flex; flex-direction:column; min-height:0; }
+        .fz-grid .pitch { flex:1; justify-content:space-evenly; }
+        .fz-bench { margin-top:0 !important; min-height:0; }
+    }
 </style>
 
 <div class="tab-head">
@@ -67,6 +77,7 @@
     <span>Vinci giocatori all'asta per poter schierare una formazione.</span>
 </div>
 {% else %}
+<div class="fz-grid fit-body">
 <form method="post" id="fm-form">
     {% csrf_token %}
 
@@ -103,8 +114,9 @@
     </button>
 </form>
 
-<div class="a-card" style="margin-top:14px">
+<div class="a-card fz-bench">
     <div class="a-label"><svg class="ic"><use href="#i-users"/></svg> Panchina (riserve in ordine) · {{ bench|length }}</div>
+    <div class="fit-scroll">
     {% for pl in bench %}
     <div class="a-row" style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px">
         <div style="display:flex;align-items:center;gap:8px">
@@ -119,6 +131,8 @@
         Tutti i giocatori della rosa sono schierati nell'undici titolare.
     </p>
     {% endfor %}
+    </div>
+</div>
 </div>
 {% endif %}
 {% endblock %}

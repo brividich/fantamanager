@@ -90,6 +90,42 @@ class Player(models.Model):
     )
     cost  = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("0"))
 
+    # --- Contratto di permanenza (regolamento 4) ---------------------------
+    # Stagioni di contratto rimaste, compresa quella in corso: 1 = ultimo anno,
+    # 0 = scaduto (da rinnovare), None = appena acquistato, dado da tirare.
+    contract_years = models.PositiveSmallIntegerField(null=True, blank=True)
+    # Dichiarazione di rinnovo a contratto scaduto: None = da decidere,
+    # True = da rinnovare (tiro del dado rinnovo), False = lasciato andare.
+    renewal_declared = models.BooleanField(null=True, blank=True)
+    # Rescisso col dado rinnovo: la squadra che l'aveva non può ricomprarlo
+    # alla prossima asta, e l'incasso di quell'asta va a lei (4.1).
+    rescinded_from = models.ForeignKey(
+        "Participant", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+
+    # --- Usciti dalla Serie A (regolamento 5.05, 5.06, 5.09) --------------
+    # Segnalato quando sparisce dal listone ufficiale mentre è in una rosa.
+    left_serie_a_at = models.DateTimeField(null=True, blank=True)
+    # Destinazione rilevata/indicata e posizione nel ranking (UEFA club o FIFA).
+    left_club = models.CharField(max_length=120, blank=True)
+    left_rank_kind = models.CharField(max_length=5, blank=True)  # "uefa" / "fifa" / "free"
+    left_rank_pos = models.PositiveIntegerField(null=True, blank=True)
+    # Lista ceduti temporanei (5.09): resta della squadra fino a fine contratto,
+    # fuori dagli slot della rosa; alla fine vale una cessione all'estero.
+    abroad_list = models.BooleanField(default=False)
+    abroad_compensation = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+
+    # Prestito (5.07): la squadra che ha il cartellino e quante sessioni d'asta
+    # mancano al rientro (si scala a ogni apertura di fase estiva/invernale).
+    loan_from = models.ForeignKey(
+        "Participant", null=True, blank=True, on_delete=models.SET_NULL, related_name="loaned_out"
+    )
+    loan_sessions_left = models.PositiveSmallIntegerField(null=True, blank=True)
+    # Quando è arrivato in rosa (acquisto) e quando ha rinnovato: servono ai
+    # divieti "non si vende/svincola nella stessa sessione di mercato".
+    acquired_at = models.DateTimeField(null=True, blank=True)
+    renewed_at = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         ordering = ["role", "name"]
 

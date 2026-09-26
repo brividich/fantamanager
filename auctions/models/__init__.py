@@ -25,7 +25,9 @@ from .league import (
     League,
     LeagueConfig,
 )
-from .trade import Trade
+from .trade import Trade, TradeWindow
+from .contract import ContractEvent
+from .season import CapEntry, CapPhase, DecreeAward, LeagueRanking, UefaClubRank
 from .market import (
     MarketBid,
     MarketSession,
@@ -57,6 +59,13 @@ __all__ = [
     "MarketSession",
     "MarketBid",
     "Trade",
+    "TradeWindow",
+    "ContractEvent",
+    "LeagueRanking",
+    "CapPhase",
+    "CapEntry",
+    "DecreeAward",
+    "UefaClubRank",
     "Formation",
     "Season",
     "Giornata",

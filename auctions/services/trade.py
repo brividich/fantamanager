@@ -7,7 +7,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from ..models import Participant, Player, RosterLog, Trade
+from ..models import Participant, Player, RosterLog, Trade, TradeWindow
 
 logger = logging.getLogger("auctions.trade")
 
@@ -38,7 +38,7 @@ def _slot_problem(league, participant, gives, gets):
     """Why ``participant`` can't take this trade for roster slots, or ''."""
     if not league.slot_limits:
         return ""
-    owned = Counter(Player.objects.filter(owner=participant).values_list("role", flat=True))
+    owned = Counter(Player.objects.filter(owner=participant, abroad_list=False).values_list("role", flat=True))
     delta = Counter(p.role for p in gets)
     delta.subtract(Counter(p.role for p in gives))
     checked = set()
@@ -55,6 +55,32 @@ def _slot_problem(league, participant, gives, gets):
     return ""
 
 
+def trade_window_status(league, now=None):
+    """(open?, current_or_next_window) for the league's trade windows.
+
+    No windows defined = trades allowed all season (open, None).
+    """
+    now = now or timezone.now()
+    windows = list(TradeWindow.objects.filter(league=league))
+    if not windows:
+        return True, None
+    for w in windows:
+        if w.opens_at <= now <= w.closes_at:
+            return True, w
+    upcoming = [w for w in windows if w.opens_at > now]
+    return False, (min(upcoming, key=lambda w: w.opens_at) if upcoming else None)
+
+
+def _window_problem(league):
+    is_open, nxt = trade_window_status(league)
+    if is_open:
+        return ""
+    if nxt is not None:
+        return (f"Il periodo scambi è chiuso: il prossimo ({nxt.name}) apre il "
+                f"{timezone.localtime(nxt.opens_at):%d/%m/%Y alle %H:%M}.")
+    return "Il periodo scambi è chiuso."
+
+
 def _validate(trade, proposer_players, receiver_players):
     """Every rule a trade must satisfy, both when proposed and when executed."""
     league = trade.league
@@ -68,6 +94,34 @@ def _validate(trade, proposer_players, receiver_players):
             return f"{p.display_name} non può partecipare a scambi in questa lega."
     if not proposer_players and not receiver_players:
         return "Lo scambio deve includere almeno un calciatore."
+    for pl in list(proposer_players) + list(receiver_players):
+        if pl.loan_from_id:
+            return f"{pl.name} è in prestito: può trattarlo solo chi ha il cartellino, quando rientra."
+    is_loan = trade.kind == Trade.Kind.LOAN
+    if is_loan:
+        for pl in list(proposer_players) + list(receiver_players):
+            if pl.contract_years is not None and trade.loan_sessions > max(1, pl.contract_years * 2):
+                return f"Il prestito di {pl.name} non può durare oltre il suo contratto ({pl.contract_years} anni)."
+    else:
+        # 5.01: chi è stato comprato in questa sessione non si vende (scambi e
+        # prestiti invece sì): vendere = cederlo per soli crediti.
+        from .contracts import release_problem
+        for sellers, gets in ((proposer_players, receiver_players), (receiver_players, proposer_players)):
+            if sellers and not gets:
+                for pl in sellers:
+                    problem = release_problem(pl)
+                    if problem and "acquistato" in problem:
+                        return problem
+    # 5.04: negli scambi alla pari stesso numero di giocatori e ruoli; le
+    # vendite per crediti (5.08) e i prestiti (5.07) sono liberi.
+    if league.trades_same_roles and not is_loan and proposer_players and receiver_players:
+        give = Counter(p.role for p in proposer_players)
+        get = Counter(p.role for p in receiver_players)
+        if give != get:
+            def fmt(c):
+                return " ".join(f"{c[r]}{r}" for r in "PDCA" if c[r]) or "nessuno"
+            return ("Lo scambio deve spostare lo stesso numero di giocatori per ruolo da entrambe le parti "
+                    f"(cedi {fmt(give)}, ricevi {fmt(get)}).")
     for pl in proposer_players:
         if pl.owner_id != proposer.id:
             return f"{pl.name} non è più nella rosa di {proposer.display_name}."
@@ -88,7 +142,7 @@ def _validate(trade, proposer_players, receiver_players):
 
 @transaction.atomic
 def propose_trade(proposer_id, receiver_id, give_ids=(), get_ids=(),
-                  give_credits=0, get_credits=0, message=""):
+                  give_credits=0, get_credits=0, message="", kind="definitive", loan_sessions=1):
     proposer = Participant.objects.select_related("league").filter(pk=proposer_id).first()
     receiver = Participant.objects.filter(pk=receiver_id).first()
     if proposer is None or receiver is None or proposer.league is None:
@@ -97,11 +151,22 @@ def propose_trade(proposer_id, receiver_id, give_ids=(), get_ids=(),
     if pc is None or rc is None:
         return _err("Importo crediti non valido.")
 
+    window = _window_problem(proposer.league)
+    if window:
+        return _err(window)
+
     give = list(Player.objects.filter(pk__in=_ids(give_ids)))
     get = list(Player.objects.filter(pk__in=_ids(get_ids)))
+    if kind not in Trade.Kind.values:
+        kind = Trade.Kind.DEFINITIVE
+    try:
+        loan_sessions = max(1, min(8, int(loan_sessions or 1)))
+    except (TypeError, ValueError):
+        loan_sessions = 1
     trade = Trade(
         league=proposer.league, proposer=proposer, receiver=receiver,
         proposer_credits=pc, receiver_credits=rc, message=(message or "").strip()[:200],
+        kind=kind, loan_sessions=loan_sessions,
     )
     problem = _validate(trade, give, get)
     if problem:
@@ -148,12 +213,16 @@ def _execute(trade):
         _close(trade, Trade.Status.FAILED, problem)
         return _err(f"Scambio non eseguibile: {problem}")
 
-    note = f"Scambio #{trade.id}"
+    is_loan = trade.kind == Trade.Kind.LOAN
+    note = f"{'Prestito' if is_loan else 'Scambio'} #{trade.id}"
     for pl, new_owner, old_owner in (
         [(p, receiver, proposer) for p in give] + [(p, proposer, receiver) for p in get]
     ):
         pl.owner = new_owner
-        pl.save(update_fields=["owner"])
+        if is_loan:
+            pl.loan_from = old_owner
+            pl.loan_sessions_left = trade.loan_sessions
+        pl.save(update_fields=["owner", "loan_from", "loan_sessions_left"])
         for who, verb in ((old_owner, "ceduto a"), (new_owner, "arrivato da")):
             other = new_owner if who is old_owner else old_owner
             RosterLog.objects.create(
@@ -200,6 +269,9 @@ def respond_trade(trade_id, participant_id, accept):
     if not accept:
         _close(trade, Trade.Status.REJECTED)
         return {"ok": True, "status": trade.status}
+    window = _window_problem(trade.league)
+    if window:
+        return _err(window)
 
     trade.responded_at = timezone.now()
     if trade.league.trades_need_approval:

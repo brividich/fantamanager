@@ -43,7 +43,7 @@ def participant_release_player(request, player_id):
                 f"{result['player_name']} svincolato: +{Decimal(result['refund']):.0f} FM.",
             )
         else:
-            messages.error(request, _RELEASE_ERRORS.get(result.get("error"), "Svincolo non riuscito."))
+            messages.error(request, result.get("message") or _RELEASE_ERRORS.get(result.get("error"), "Svincolo non riuscito."))
         return redirect("app_rosa")
     return JsonResponse(result, status=200 if result.get("ok") else 400)
 
