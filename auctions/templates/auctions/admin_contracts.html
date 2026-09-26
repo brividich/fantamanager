@@ -152,7 +152,7 @@
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 8px">
         {% if apifootball %}<span class="ct-pill" style="background:rgba(34,197,94,0.15);color:#22c55e">API-Football attiva</span>
         {% else %}<span class="ct-pill bad">API-Football non configurata: imposta APIFOOTBALL_KEY sul server e riavvia</span>{% endif %}
-        <span class="ct-pill{% if not uefa_count %} warn{% endif %}">Ranking UEFA: {{ uefa_count }} club salvati</span>
+        <span class="ct-pill{% if not uefa_count or uefa_stale %} warn{% endif %}"{% if uefa_count %} title="Oltre {{ uefa_max_age }} giorni si riscarica da solo alla prossima ricerca"{% endif %}>Ranking UEFA: {{ uefa_count }} club salvati{% if uefa_saved_at %} · aggiornato il {{ uefa_saved_at|date:"d/m/Y" }}{% if uefa_stale %} (da aggiornare){% endif %}{% endif %}</span>
     </div>
     <div class="muted" style="font-size:12px;margin-bottom:10px">
         Quando importi il listone ufficiale, chi è in una rosa ma non c'è più viene segnalato da solo e
@@ -221,7 +221,8 @@
     <details id="uefa-ranking" style="margin-top:12px"{% if not uefa_count %} open{% endif %}>
         <summary style="cursor:pointer;font-size:12.5px;font-weight:800">Ranking UEFA club{% if uefa_count %} · {{ uefa_count }} club{% endif %}</summary>
         <p class="muted" style="font-size:12px;margin:8px 0 0;line-height:1.5">
-            Serve a calcolare il compenso di chi va all'estero. Prova prima «Scarica da uefa.com»; se il sito non risponde,
+            Serve a calcolare il compenso di chi va all'estero. Si scarica da solo quando manca o ha più di {{ uefa_max_age }} giorni;
+            per aggiornarlo subito usa «Scarica da uefa.com». Se il sito non risponde,
             apri la <a href="{{ uefa_ranking_page }}" target="_blank" rel="noopener">classifica club su uefa.com</a>,
             seleziona la tabella, copiala e incollala qui sotto: posizione e nome del club li riconosco da soli
             (vanno bene anche righe tipo <code>1;Real Madrid</code>).</p>

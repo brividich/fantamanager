@@ -438,7 +438,71 @@ class AutoDetectTests(TestCase):
         self.client.force_login(self.admin)
         url = reverse("admin_contracts") + f"?league={self.league.id}"
         self.assertContains(self.client.get(url), "Rileva tutti (1)")
-        with mock.patch("auctions.providers.apifootball.lookup", return_value=(None, "giocatore non trovato")):
+        with mock.patch("auctions.providers.apifootball.lookup", return_value=(None, "giocatore non trovato")), \
+                mock.patch("auctions.providers.uefa.fetch", side_effect=lambda: self._ranking()):
             resp = self.client.post(reverse("admin_contracts_action"),
                                     {"league_id": self.league.id, "action": "left_detect_all"}, follow=True)
         self.assertContains(resp, "non trovati: Vlahovic")
+
+
+class UefaRankingRefreshTests(TestCase):
+    """Il ranking UEFA salvato si riscarica da solo quando ha più di un mese."""
+
+    def setUp(self):
+        abroad._uefa_refresh_failed_at = None
+        self.addCleanup(setattr, abroad, "_uefa_refresh_failed_at", None)
+        abroad.store_uefa_ranking([("Real Madrid", 1, "ESP"), ("Galatasaray", 25, "TUR")])
+        self.calls = []
+
+    def _age(self, days):
+        from datetime import timedelta
+        from django.utils import timezone
+        from ..models import UefaClubRank
+        UefaClubRank.objects.update(updated_at=timezone.now() - timedelta(days=days))
+
+    def fetcher(self, rows):
+        def fetch():
+            self.calls.append(1)
+            return (rows, "") if rows else ([], "uefa.com ha rifiutato la richiesta (403)")
+        return fetch
+
+    def test_fresh_ranking_is_not_downloaded_again(self):
+        self._age(10)
+        self.assertEqual(abroad.ensure_uefa_ranking(fetcher=self.fetcher([("X", 1, "")])), "")
+        self.assertEqual(self.calls, [])
+
+    def test_old_ranking_is_replaced(self):
+        self._age(abroad.UEFA_MAX_AGE_DAYS + 1)
+        self.assertEqual(abroad.ensure_uefa_ranking(fetcher=self.fetcher([("Galatasaray", 18, "TUR")])), "")
+        self.assertEqual(abroad.uefa_position("Galatasaray SK"), 18)
+        self.assertFalse(abroad.uefa_ranking_stale(abroad.uefa_ranking_date()))
+
+    def test_failed_refresh_keeps_the_old_ranking_and_waits_before_retrying(self):
+        self._age(abroad.UEFA_MAX_AGE_DAYS + 1)
+        note = abroad.ensure_uefa_ranking(fetcher=self.fetcher([]))
+        self.assertIn("non aggiornato", note)
+        self.assertIn("403", note)
+        self.assertEqual(abroad.uefa_position("Galatasaray"), 25)
+        # Entro l'ora non si riprova: uefa.com non va interrogato a ogni ricerca.
+        self.assertIn("non aggiornato", abroad.ensure_uefa_ranking(fetcher=self.fetcher([])))
+        self.assertEqual(len(self.calls), 1)
+
+    def test_detect_all_refreshes_an_old_ranking(self):
+        self._age(abroad.UEFA_MAX_AGE_DAYS + 1)
+        league = League.objects.create(name="L")
+        team = Participant.objects.create(display_name="A", league=league)
+        p = Player.objects.create(name="Icardi", role="A", team="INT", league=league, owner=team)
+        abroad.flag_player(p.id)
+        abroad.detect_all(league, finder=lambda n, t: {"club": "Galatasaray"},
+                          fetcher=self.fetcher([("Galatasaray", 18, "TUR")]))
+        p.refresh_from_db()
+        self.assertEqual(p.left_rank_pos, 18)
+
+    def test_contracts_page_shows_the_ranking_date(self):
+        admin = User.objects.create_user("adm", password="pw")
+        league = League.objects.create(name="L", owner=admin)
+        self.client.force_login(admin)
+        url = reverse("admin_contracts") + f"?league={league.id}"
+        self.assertContains(self.client.get(url), "aggiornato il")
+        self._age(abroad.UEFA_MAX_AGE_DAYS + 1)
+        self.assertContains(self.client.get(url), "(da aggiornare)")

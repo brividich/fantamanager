@@ -5,7 +5,8 @@ Flusso:
    segnalato (``Player.left_serie_a_at``).
 2. Subito dopo l'import (e con "Rileva" / "Rileva tutti") si cerca da soli il
    club di destinazione (API-Football) e la sua posizione nel ranking UEFA,
-   che se manca si scarica da uefa.com; l'admin conferma o corregge.
+   che si scarica da uefa.com se manca o ha più di un mese; l'admin conferma o
+   corregge.
 3. L'admin chiude il caso:
    * ceduto a un club UEFA / a un campionato extra-UEFA (ranking FIFA della
      nazione) → la squadra incassa il compenso della tabella 5.06 e perde il
@@ -19,10 +20,13 @@ In ogni caso la perdita conta per le estensioni del tetto salariale (3.02).
 """
 import logging
 import re
+import time
 import unicodedata
+from datetime import timedelta
 from decimal import Decimal
 
 from django.db import transaction
+from django.db.models import Max
 from django.utils import timezone
 
 from ..models import ContractEvent, Player, UefaClubRank
@@ -50,6 +54,11 @@ LIST_SLOTS = 3
 # (2-5 richieste API l'uno: il piano gratuito ne concede 100 al giorno).
 AUTO_DETECT_LIMIT = 6
 DETECT_ALL_LIMIT = 15
+# Il ranking UEFA cambia durante la stagione: oltre questa età si riscarica.
+UEFA_MAX_AGE_DAYS = 30
+# Se uefa.com non risponde, il ranking vecchio si usa e si riprova più tardi.
+UEFA_RETRY_SECONDS = 3600
+_uefa_refresh_failed_at = None
 
 
 def _norm(s):
@@ -115,17 +124,45 @@ def flag_player(player_id):
     return {"ok": True, "player_name": player.name}
 
 
+def uefa_ranking_date():
+    """Quando è stato salvato il ranking UEFA (None se non ce n'è uno)."""
+    return UefaClubRank.objects.aggregate(saved=Max("updated_at"))["saved"]
+
+
+def uefa_ranking_stale(saved_at, now=None):
+    return saved_at is not None and (now or timezone.now()) - saved_at > timedelta(days=UEFA_MAX_AGE_DAYS)
+
+
 def ensure_uefa_ranking(*, fetcher=None):
-    """Scarica il ranking UEFA se non ce n'è uno salvato: "" o il motivo per cui manca."""
-    if UefaClubRank.objects.exists():
+    """Scarica il ranking UEFA se manca o ha più di ``UEFA_MAX_AGE_DAYS`` giorni.
+
+    Ritorna "" quando c'è un ranking aggiornato da usare, altrimenti una nota
+    per l'admin. Se l'aggiornamento non riesce si continua col ranking vecchio
+    e per un'ora non si riprova (uefa.com può metterci parecchio a non rispondere).
+    """
+    global _uefa_refresh_failed_at
+    saved_at = uefa_ranking_date()
+    stale = uefa_ranking_stale(saved_at)
+    if saved_at is not None and not stale:
         return ""
+    old_note = f"ranking UEFA del {timezone.localtime(saved_at):%d/%m/%Y} non aggiornato" if stale else ""
+    if stale and _uefa_refresh_failed_at is not None \
+            and time.monotonic() - _uefa_refresh_failed_at < UEFA_RETRY_SECONDS:
+        return old_note
     from ..providers import uefa
 
     rows, reason = (fetcher or uefa.fetch)()
-    if not rows:
-        return reason or "ranking UEFA non disponibile"
-    store_uefa_ranking(rows)
-    return ""
+    if rows:
+        store_uefa_ranking(rows)
+        _uefa_refresh_failed_at = None
+        logger.info("Ranking UEFA %s: %s club", "aggiornato" if stale else "scaricato", len(rows))
+        return ""
+    reason = reason or "ranking UEFA non disponibile"
+    if stale:
+        _uefa_refresh_failed_at = time.monotonic()
+        logger.warning("Ranking UEFA del %s non aggiornato: %s", saved_at, reason)
+        return f"{old_note} ({reason}): si usa quello salvato"
+    return f"ranking UEFA da caricare a mano ({reason})"
 
 
 def detect(player_id, *, finder=None, fetch_ranking=True):
@@ -207,7 +244,7 @@ def detect_summary(report):
     if report["error"]:
         parts.append(report["error"])
     if report["ranking_problem"]:
-        parts.append(f"ranking UEFA da caricare a mano ({report['ranking_problem']})")
+        parts.append(report["ranking_problem"])
     return " · ".join(parts)
 
 
