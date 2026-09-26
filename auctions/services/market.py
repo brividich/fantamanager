@@ -194,6 +194,266 @@ def get_participant_market_bids(session_id, participant_id):
     return result
 
 
+# --- Spoglio -----------------------------------------------------------------
+#
+# Lo spoglio è diviso in due: ``plan_market_resolution`` calcola l'esito senza
+# scrivere nulla (serve anche all'anteprima dell'admin), ``resolve_market_session``
+# lo applica.
+#
+# Regole:
+# * Ogni calciatore va all'offerta più alta *valida*; a parità d'importo vince
+#   la priorità più bassa (1 prima di 2), a parità anche di priorità è pari merito.
+# * La priorità è l'ordine di preferenza del singolo manager: una sua busta
+#   entra in gioco solo quando quelle con priorità più alta (numero più basso)
+#   sono state decise. Così budget e slot vengono spesi prima sugli obiettivi
+#   principali, qualunque sia l'ordine dei calciatori nel database.
+# * Un calciatore si decide quando tutte le sue offerte migliori sono "in gioco".
+#   Se nessun calciatore è decidibile (preferenze incrociate) si decide quello
+#   con l'offerta più alta in assoluto, così lo spoglio termina sempre.
+# * Al momento dell'aggiudicazione si ricontrollano: calciatore ancora libero,
+#   partecipante attivo, tetto acquisti per ruolo, taglio condizionato ancora
+#   possibile, crediti e slot della rosa.
+
+
+class _Plan:
+    """Stato in memoria dello spoglio: nessuna scrittura sul database."""
+
+    def __init__(self, session):
+        self.session = session
+        self.league = session.league
+        self.bids = list(
+            session.bids.filter(status=MarketBid.Status.PENDING)
+            .select_related("participant", "player", "release_player")
+        )
+        self.participants = {
+            p.id: p for p in Participant.objects.filter(league=self.league)
+        }
+        for b in self.bids:
+            self.participants.setdefault(b.participant_id, b.participant)
+        self.remaining = {pid: p.remaining_credits for pid, p in self.participants.items()}
+
+        player_ids = {b.player_id for b in self.bids}
+        player_ids |= {b.release_player_id for b in self.bids if b.release_player_id}
+        self.players = {p.id: p for p in Player.objects.filter(pk__in=player_ids)}
+        self.owner = {pid: p.owner_id for pid, p in self.players.items()}
+
+        self.owned = defaultdict(lambda: defaultdict(int))
+        for owner_id, role in Player.objects.filter(
+            owner_id__in=list(self.participants)
+        ).values_list("owner_id", "role"):
+            self.owned[owner_id][role] += 1
+        self.role_acquisitions = defaultdict(lambda: defaultdict(int))
+
+        # bid.id -> (status, note)
+        self.outcome = {}
+        self.won = []
+        self.tied = []
+        # bid.id -> (release_player, refund) for the awarded bids
+        self.awards = {}
+
+    # -- helpers --------------------------------------------------------------
+
+    def _pending(self):
+        return [b for b in self.bids if b.id not in self.outcome]
+
+    def _decide(self, bid, status, note):
+        self.outcome[bid.id] = (status, note)
+
+    @staticmethod
+    def _rank(b):
+        return (-b.amount, b.priority, b.created_at, b.id)
+
+    def _check(self, bid):
+        """Can ``bid`` be awarded now? Returns (ok, note, release_player, refund)."""
+        participant = self.participants.get(bid.participant_id)
+        if participant is None or not participant.is_active or participant.league_id != self.league.id:
+            return False, "Partecipante non valido o non attivo", None, Decimal("0")
+
+        role = bid.player.role
+        max_role = self.session.max_for_role(role)
+        if max_role > 0 and self.role_acquisitions[participant.id][role] >= max_role:
+            return False, f"Raggiunto limite acquisti per ruolo {role} ({max_role})", None, Decimal("0")
+
+        release = None
+        refund = Decimal("0")
+        release_note = ""
+        if bid.release_player_id:
+            if self.owner.get(bid.release_player_id) == participant.id:
+                release = self.players[bid.release_player_id]
+                refund = _calc_release_refund(self.session, release)
+            else:
+                release_note = " (taglio condizionato non più possibile)"
+
+        available = self.remaining[participant.id] + refund
+        if available < bid.amount:
+            return (
+                False,
+                f"Crediti insufficienti al momento dello spoglio (disponibili: {available:.0f} FM)" + release_note,
+                None,
+                Decimal("0"),
+            )
+
+        cap = self.league.slots_for(role)
+        if cap > 0:
+            bucket = self.league.slot_roles(role)
+            count = sum(self.owned[participant.id][r] for r in bucket)
+            if release is not None and release.role in bucket:
+                count -= 1
+            if count + 1 > cap:
+                return False, f"Rosa piena per il ruolo {role} ({cap} slot)" + release_note, None, Decimal("0")
+
+        return True, release_note.strip(), release, refund
+
+    def _award(self, bid, release, refund, note):
+        pid = bid.participant_id
+        player = bid.player
+        self.owner[player.id] = pid
+        self.owned[pid][player.role] += 1
+        if release is not None:
+            self.owner[release.id] = None
+            self.owned[pid][release.role] -= 1
+        self.remaining[pid] -= bid.amount - refund
+        self.role_acquisitions[pid][player.role] += 1
+        self.awards[bid.id] = (release, refund)
+        self._decide(bid, MarketBid.Status.WON, ("Aggiudicato con successo " + note).strip())
+        self.won.append({
+            "bid_id": bid.id,
+            "player_id": player.id,
+            "player_name": player.name,
+            "player_role": player.role,
+            "player_team": player.team,
+            "winner_id": pid,
+            "winner_name": self.participants[pid].display_name,
+            "amount": int(bid.amount),
+            "released_player_id": release.id if release else None,
+            "released_player": release.name if release else None,
+            "released_player_cost": str(release.cost) if release else None,
+            "refund": int(refund),
+        })
+
+    def _resolve_player(self, player_id, bids):
+        player = bids[0].player
+        if self.owner.get(player_id) is not None:
+            for b in bids:
+                self._decide(b, MarketBid.Status.LOST, "Calciatore non più disponibile")
+            return
+
+        bids = sorted(bids, key=self._rank)
+        winner = None
+        for b in bids:
+            if winner is not None:
+                break
+            ok, note, release, refund = self._check(b)
+            if not ok:
+                self._decide(b, MarketBid.Status.LOST, note)
+                continue
+            winner = (b, note, release, refund)
+
+        if winner is None:
+            return
+
+        w, note, release, refund = winner
+        tied = []
+        for b in bids:
+            if b.id in self.outcome or b is w:
+                continue
+            if b.amount == w.amount and b.priority == w.priority:
+                ok, bnote, _, _ = self._check(b)
+                if ok:
+                    tied.append(b)
+                else:
+                    self._decide(b, MarketBid.Status.LOST, bnote)
+
+        if tied:
+            group = [w] + tied
+            names = [b.participant.display_name for b in group]
+            for b in group:
+                others = ", ".join(n for n in names if n != b.participant.display_name)
+                self._decide(b, MarketBid.Status.TIED, f"Pari merito ({w.amount:.0f} FM) con: {others}")
+            self.tied.append({
+                "player_id": player.id,
+                "player_name": player.name,
+                "player_role": player.role,
+                "player_team": player.team,
+                "amount": int(w.amount),
+                "contenders": names,
+                "contender_ids": [b.participant_id for b in group],
+            })
+        else:
+            self._award(w, release, refund, note)
+
+        for b in bids:
+            if b.id not in self.outcome:
+                self._decide(b, MarketBid.Status.LOST, "Offerta superata")
+
+    # -- main loop -------------------------------------------------------------
+
+    def run(self):
+        while True:
+            pending = self._pending()
+            if not pending:
+                break
+
+            active_prio = {}
+            for b in pending:
+                cur = active_prio.get(b.participant_id)
+                if cur is None or b.priority < cur:
+                    active_prio[b.participant_id] = b.priority
+
+            by_player = defaultdict(list)
+            for b in pending:
+                by_player[b.player_id].append(b)
+
+            candidates = []
+            for player_id, bids in by_player.items():
+                ranked = sorted(bids, key=self._rank)
+                top = ranked[0]
+                top_group = [b for b in ranked if b.amount == top.amount]
+                decidable = all(b.priority == active_prio[b.participant_id] for b in top_group)
+                candidates.append((not decidable, self._rank(top), player_id, bids))
+
+            # Decidable players first, then by best top offer; one at a time,
+            # because each award changes budgets, slots and active priorities.
+            candidates.sort(key=lambda c: (c[0], c[1]))
+            _, _, player_id, bids = candidates[0]
+            self._resolve_player(player_id, bids)
+        return self
+
+
+def plan_market_resolution(session_id):
+    """Simula lo spoglio senza scrivere nulla. Ritorna il riepilogo previsto."""
+    session = MarketSession.objects.select_related("league").get(pk=session_id)
+    plan = _Plan(session).run()
+    return _summary(plan, preview=True)
+
+
+def _summary(plan, preview=False):
+    lost = []
+    for b in plan.bids:
+        status, note = plan.outcome[b.id]
+        if status == MarketBid.Status.LOST:
+            lost.append({
+                "bid_id": b.id,
+                "player_name": b.player.name,
+                "player_role": b.player.role,
+                "participant_name": b.participant.display_name,
+                "amount": int(b.amount),
+                "note": note,
+            })
+    summary = {
+        "won": plan.won,
+        "tied": plan.tied,
+        "lost": lost,
+        "total_acquisitions": len(plan.won),
+        "total_ties": len(plan.tied),
+    }
+    if preview:
+        summary["preview"] = True
+    else:
+        summary["resolved_at"] = timezone.now().isoformat()
+    return summary
+
+
 @transaction.atomic
 def resolve_market_session(session_id):
     """Scrutinize all sealed bids and assign players, releases, and refunds."""
@@ -206,188 +466,69 @@ def resolve_market_session(session_id):
     if session.status == MarketSession.Status.RESOLVED:
         return session.results_summary
 
-    # Get all pending bids with participants and players
-    bids = list(
-        session.bids.filter(status=MarketBid.Status.PENDING)
-        .select_related("participant", "player", "release_player")
-        .order_by("player_id", "priority", "-amount", "created_at")
+    plan = _Plan(session).run()
+    logger.info(
+        f"Resolving market session {session_id} ('{session.title}'). "
+        f"Total pending bids: {len(plan.bids)}"
     )
 
-    # Group bids by player
-    bids_by_player = defaultdict(list)
-    for b in bids:
-        bids_by_player[b.player_id].append(b)
+    bids_by_id = {b.id: b for b in plan.bids}
+    for bid_id, (status, note) in plan.outcome.items():
+        b = bids_by_id[bid_id]
+        b.status = status
+        b.note = note[:200]
+        b.save(update_fields=["status", "note", "updated_at"])
 
-    logger.info(f"Resolving market session {session_id} ('{session.title}'). Total pending bids: {len(bids)}, distinct players: {len(bids_by_player)}")
+    for w in plan.won:
+        bid = bids_by_id[w["bid_id"]]
+        participant = plan.participants[w["winner_id"]]
+        player = plan.players[w["player_id"]]
+        amount = bid.amount
+        rel, refund = plan.awards[bid.id]
 
-    # State trackers during resolution
-    participants = {
-        p.id: p
-        for p in Participant.objects.select_for_update().filter(league=session.league)
-    }
-    credits_spent = defaultdict(Decimal)
-    released_player_ids = set()
-    acquired_by_participant = defaultdict(list)
-    role_acquisitions = defaultdict(lambda: defaultdict(int))
+        player.owner = participant
+        player.cost = amount
+        player.save(update_fields=["owner", "cost"])
 
-    won_results = []
-    tied_results = []
-    lost_results = []
-
-    # Process player by player
-    for player_id, player_bids in bids_by_player.items():
-        # Sort bids for this player: highest amount first, then lowest priority (1 before 2), then oldest
-        player_bids.sort(key=lambda b: (-b.amount, b.priority, b.created_at))
-
-        top_amount = player_bids[0].amount
-
-        # Check for ties at the top
-        top_bids = [b for b in player_bids if b.amount == top_amount]
-        if len(top_bids) > 1 and top_bids[0].priority == top_bids[1].priority:
-            # Exact tie at the top amount and priority!
-            tied_names = [b.participant.display_name for b in top_bids]
-            for b in top_bids:
-                b.status = MarketBid.Status.TIED
-                b.note = f"Pari merito ({top_amount:.0f} FM) con: {', '.join(t for t in tied_names if t != b.participant.display_name)}"
-                b.save(update_fields=["status", "note", "updated_at"])
-            logger.info(f"Market tie detected: player='{player_bids[0].player.name}' ({top_amount:.0f} FM) between: {', '.join(tied_names)}")
-            tied_results.append({
-                "player_id": player_id,
-                "player_name": player_bids[0].player.name,
-                "player_role": player_bids[0].player.role,
-                "player_team": player_bids[0].player.team,
-                "amount": int(top_amount),
-                "contenders": tied_names,
-            })
-            # Remaining lower bids for this player are lost
-            for b in player_bids[len(top_bids):]:
-                b.status = MarketBid.Status.LOST
-                b.note = "Offerta superata"
-                b.save(update_fields=["status", "note", "updated_at"])
-            continue
-
-        assigned = False
-        for bid in player_bids:
-            participant = participants.get(bid.participant_id)
-            if not participant:
-                bid.status = MarketBid.Status.LOST
-                bid.note = "Partecipante non valido"
-                bid.save(update_fields=["status", "note", "updated_at"])
-                continue
-
-            role = bid.player.role
-            # Check max acquisitions per role limit
-            max_role = session.max_for_role(role)
-            if max_role > 0 and role_acquisitions[participant.id][role] >= max_role:
-                bid.status = MarketBid.Status.LOST
-                bid.note = f"Raggiunto limite acquisti per ruolo {role} ({max_role})"
-                bid.save(update_fields=["status", "note", "updated_at"])
-                continue
-
-            # Check conditional release
-            rel_player = bid.release_player
-            refund = Decimal("0")
-            if rel_player:
-                if rel_player.id in released_player_ids:
-                    # Player was already released for another acquisition earlier in this resolution!
-                    rel_player = None
-                else:
-                    refund = _calc_release_refund(session, rel_player)
-
-            # Check budget availability
-            effective_spent = credits_spent[participant.id]
-            current_rem = participant.remaining_credits - effective_spent
-            if current_rem + refund < bid.amount:
-                bid.status = MarketBid.Status.LOST
-                bid.note = f"Crediti insufficienti al momento dello spoglio (disponibili: {current_rem + refund:.0f} FM)"
-                bid.save(update_fields=["status", "note", "updated_at"])
-                continue
-
-            # Bid is successful!
-            assigned = True
-            bid.status = MarketBid.Status.WON
-            bid.note = "Aggiudicato con successo"
-            bid.save(update_fields=["status", "note", "updated_at"])
-            logger.info(
-                f"Market bid won: player='{bid.player.name}' ({bid.player.role}), winner='{participant.display_name}', "
-                f"amount={bid.amount:.0f} FM, release={rel_player.name if rel_player else None}"
-            )
-
-            # 1. Assign player
-            bid.player.owner = participant
-            bid.player.cost = bid.amount
-            bid.player.save(update_fields=["owner", "cost"])
-
-            # 2. Release conditional player if any
-            if rel_player:
-                rel_player.owner = None
-                rel_player.cost = Decimal("0")
-                rel_player.save(update_fields=["owner", "cost"])
-                released_player_ids.add(rel_player.id)
-                RosterLog.objects.create(
-                    participant=participant,
-                    participant_name=participant.display_name,
-                    player_name=rel_player.name,
-                    player_role=rel_player.role,
-                    action=RosterLog.Action.RELEASE,
-                    credits_delta=-refund,
-                    by_admin=True,
-                    note=f"Taglio mercato: {session.title}",
-                )
-
-            # 3. Update participant credits
-            net_delta = bid.amount - refund
-            Participant.objects.filter(pk=participant.id).update(
-                spent_credits=F("spent_credits") + net_delta
-            )
-            credits_spent[participant.id] += net_delta
-
-            # 4. RosterLog for assignment
+        if rel is not None:
+            rel.owner = None
+            rel.cost = Decimal("0")
+            rel.save(update_fields=["owner", "cost"])
             RosterLog.objects.create(
                 participant=participant,
                 participant_name=participant.display_name,
-                player_name=bid.player.name,
-                player_role=bid.player.role,
-                action=RosterLog.Action.ASSIGN,
-                credits_delta=bid.amount,
+                player_name=rel.name,
+                player_role=rel.role,
+                action=RosterLog.Action.RELEASE,
+                credits_delta=-refund,
                 by_admin=True,
-                note=f"Acquisto mercato: {session.title}",
+                note=f"Taglio mercato: {session.title}",
             )
 
-            role_acquisitions[participant.id][role] += 1
-            acquired_by_participant[participant.id].append(bid.player.name)
+        Participant.objects.filter(pk=participant.id).update(
+            spent_credits=F("spent_credits") + (amount - refund)
+        )
+        RosterLog.objects.create(
+            participant=participant,
+            participant_name=participant.display_name,
+            player_name=player.name,
+            player_role=player.role,
+            action=RosterLog.Action.ASSIGN,
+            credits_delta=amount,
+            by_admin=True,
+            note=f"Acquisto mercato: {session.title}",
+        )
+        logger.info(
+            f"Market bid won: player='{player.name}' ({player.role}), winner='{participant.display_name}', "
+            f"amount={amount:.0f} FM, release={w['released_player']}"
+        )
 
-            won_results.append({
-                "player_id": bid.player_id,
-                "player_name": bid.player.name,
-                "player_role": bid.player.role,
-                "player_team": bid.player.team,
-                "winner_id": participant.id,
-                "winner_name": participant.display_name,
-                "amount": int(bid.amount),
-                "released_player": rel_player.name if rel_player else None,
-                "refund": int(refund),
-            })
-            break
-
-        # Mark all other lower bids for this player as LOST
-        for b in player_bids:
-            if b.status == MarketBid.Status.PENDING:
-                b.status = MarketBid.Status.LOST
-                b.note = "Offerta superata o non valida"
-                b.save(update_fields=["status", "note", "updated_at"])
-
-    # Finalize session
-    summary = {
-        "resolved_at": timezone.now().isoformat(),
-        "won": won_results,
-        "tied": tied_results,
-        "total_acquisitions": len(won_results),
-        "total_ties": len(tied_results),
-    }
+    summary = _summary(plan)
     session.results_summary = summary
     session.status = MarketSession.Status.RESOLVED
     session.save(update_fields=["status", "results_summary", "updated_at"])
-    logger.info(f"Market session {session_id} ('{session.title}') resolved: {len(won_results)} acquisitions, {len(tied_results)} ties")
-
+    logger.info(
+        f"Market session {session_id} ('{session.title}') resolved: "
+        f"{summary['total_acquisitions']} acquisitions, {summary['total_ties']} ties"
+    )
     return summary
