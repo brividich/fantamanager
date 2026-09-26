@@ -295,6 +295,11 @@
                         </form>
                     {% endif %}
 
+                    {% if selected_session.status != "resolved" %}
+                    <button type="button" class="btn-action btn-reopen" onclick="document.getElementById('modal-edit-rules').showModal()" title="Modifica le regole della sessione">
+                        <svg class="ic"><use href="#i-gear"/></svg> Regole
+                    </button>
+                    {% endif %}
                     <form method="post" action="{% url 'admin_market_delete' selected_session.id %}" style="display:inline" onsubmit="return confirm('Attenzione: eliminando la sessione cancellerai tutte le offerte associate. Procedere?');">
                         {% csrf_token %}
                         <button type="submit" class="btn-action btn-danger" style="padding:8px 10px;" title="Elimina sessione">
@@ -306,9 +311,15 @@
 
             <!-- Regole della sessione -->
             <div style="display:flex;gap:12px;flex-wrap:wrap;padding:10px 14px;background:rgba(255,255,255,0.02);border:1px solid var(--line);border-radius:8px;font-size:12px">
-                <div>Taglio condizionato: <b>{% if selected_session.allow_conditional_release %}Consentito (Rimborso: {{ selected_session.get_release_refund_mode_display }}){% else %}Disattivato{% endif %}</b></div>
+                <div>Offerte: <b>{% if selected_session.max_bids %}max {{ selected_session.max_bids }} per squadra{% else %}senza limite{% endif %}</b></div>
                 <div class="muted">&bull;</div>
-                <div>Limiti acquisti per ruolo: <b>P: {{ selected_session.max_acquisitions_p|default:"Libero" }} &bull; D: {{ selected_session.max_acquisitions_d|default:"Libero" }} &bull; C: {{ selected_session.max_acquisitions_c|default:"Libero" }} &bull; A: {{ selected_session.max_acquisitions_a|default:"Libero" }}</b></div>
+                <div>Budget: <b>{% if selected_session.budget_rule == "total" %}totale offerte ≤ budget{% else %}priorità{% endif %}</b></div>
+                <div class="muted">&bull;</div>
+                <div>Pari merito: <b>{% if selected_session.tie_break == "first" %}vince chi offre prima{% else %}decide l'admin{% endif %}</b></div>
+                <div class="muted">&bull;</div>
+                <div>Taglio: <b>{% if selected_session.require_same_role_release %}obbligatorio, pari ruolo{% elif selected_session.allow_conditional_release %}facoltativo{% else %}no{% endif %}</b>{% if selected_session.require_same_role_release or selected_session.allow_conditional_release %} (rimborso: {{ selected_session.get_release_refund_mode_display|lower }}){% endif %}</div>
+                <div class="muted">&bull;</div>
+                <div>Acquisti per ruolo: <b>P {{ selected_session.max_acquisitions_p|default:"∞" }} · D {{ selected_session.max_acquisitions_d|default:"∞" }} · C {{ selected_session.max_acquisitions_c|default:"∞" }} · A {{ selected_session.max_acquisitions_a|default:"∞" }}</b></div>
             </div>
         </div>
 
@@ -373,6 +384,13 @@
                                 <form method="post" action="{% url 'admin_market_settle_tie' selected_session.id %}" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap" onsubmit="return confirm('Confermi lo spareggio? Il calciatore verrà assegnato subito.');">
                                     {% csrf_token %}
                                     <input type="hidden" name="player_id" value="{{ t.player_id }}">
+                                    {% if selected_session.tie_break == "rebid" %}
+                                    {% for c in t.contender_list %}
+                                    <label style="font-size:11px">{{ c.name }}
+                                        <input type="number" name="rebid_{{ c.id }}" min="{{ t.amount }}" placeholder="{{ t.amount }}" style="width:70px;padding:5px;border-radius:6px;border:1px solid var(--line);background:rgba(0,0,0,0.2);color:inherit"></label>
+                                    {% endfor %}
+                                    <span class="muted" style="font-size:11px">Secondo sfoglio: inserisci le nuove offerte (oppure scegli sotto un accordo).</span>
+                                    {% endif %}
                                     <select name="winner_id" style="padding:6px;border-radius:6px;border:1px solid var(--line);background:rgba(0,0,0,0.2);color:inherit;font-size:12px">
                                         <option value="draw">🎲 Sorteggio</option>
                                         {% for c in t.contender_list %}<option value="{{ c.id }}">Assegna a {{ c.name }}</option>{% endfor %}
@@ -576,7 +594,31 @@
         <label style="display:flex;gap:8px;align-items:center;cursor:pointer">
             <input type="checkbox" name="trades_need_approval" value="1"{% if current_league.trades_need_approval %} checked{% endif %}> Richiedi la ratifica dell'admin
         </label>
+        <label style="display:flex;gap:8px;align-items:center;cursor:pointer">
+            <input type="checkbox" name="trades_same_roles" value="1"{% if current_league.trades_same_roles %} checked{% endif %}> Stesso numero di giocatori e ruoli per parte
+        </label>
         <button type="submit" class="btn btn-secondary" style="font-size:12px">Salva</button>
+    </form>
+
+    <h3 style="margin:18px 0 6px;font-size:15px">Periodi scambi</h3>
+    <div class="muted" style="font-size:12px;margin-bottom:8px">Senza periodi gli scambi sono aperti tutta la stagione. Con almeno un periodo, si propongono e accettano solo dentro un periodo (es. estate: luglio → giorno dopo il mercato di settembre alle 17:00).</div>
+    {% for w in trade_windows %}
+    <div style="display:flex;align-items:center;gap:10px;font-size:13px;padding:6px 0;border-bottom:1px solid var(--line)">
+        <b>{{ w.name }}</b>
+        <span class="muted">{{ w.opens_at|date:"d/m/Y H:i" }} → {{ w.closes_at|date:"d/m/Y H:i" }}</span>
+        {% if w.opens_at <= now and now <= w.closes_at %}<span class="stat-pill" style="background:rgba(34,197,94,0.15);color:#22c55e">aperto ora</span>{% endif %}
+        <form method="post" action="{% url 'admin_trade_window_delete' w.id %}" style="margin-left:auto" onsubmit="return confirm('Eliminare il periodo?');">
+            {% csrf_token %}<button type="submit" class="btn-action btn-danger" style="padding:4px 8px;font-size:11px">Elimina</button>
+        </form>
+    </div>
+    {% endfor %}
+    <form method="post" action="{% url 'admin_trade_window_add' %}" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;font-size:12px">
+        {% csrf_token %}
+        <input type="hidden" name="league_id" value="{{ current_league.id }}">
+        <input type="text" name="name" placeholder="Es. Periodo estivo" class="mr-input" style="width:180px">
+        <label>dal <input type="datetime-local" name="opens_at" class="mr-input" style="width:auto" required></label>
+        <label>al <input type="datetime-local" name="closes_at" class="mr-input" style="width:auto" required></label>
+        <button type="submit" class="btn btn-secondary" style="font-size:12px">Aggiungi periodo</button>
     </form>
 
     <h3 style="margin:18px 0 10px;font-size:15px">Da ratificare ({{ trades_pending|length }})</h3>
@@ -622,6 +664,40 @@
 </div>
 {% endif %}
 
+<style>
+    .mr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .mr-field { display: flex; flex-direction: column; gap: 5px; }
+    .mr-lbl { font-size: 13px; font-weight: 700; }
+    .mr-hint { font-size: 11px; color: var(--muted); }
+    .mr-input { width: 100%; padding: 9px 10px; border-radius: 8px; border: 1px solid var(--line); background: rgba(0,0,0,0.2); color: inherit; box-sizing: border-box; }
+    .mr-checks { display: flex; flex-direction: column; gap: 8px; padding: 12px; background: rgba(255,255,255,0.03); border: 1px solid var(--line); border-radius: 8px; font-size: 13px; font-weight: 600; }
+    .mr-checks label { display: flex; gap: 8px; align-items: center; cursor: pointer; }
+    .mr-roles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .mr-roles label { display: flex; gap: 6px; align-items: center; }
+    @media (max-width: 600px) { .mr-grid { grid-template-columns: 1fr; } }
+</style>
+
+<!-- Modal Modifica Regole -->
+{% if selected_session and selected_session.status != "resolved" %}
+<dialog id="modal-edit-rules" style="border:1px solid var(--line);border-radius:14px;background:var(--card-bg,#181d28);color:var(--ink);padding:24px;max-width:620px;width:92%">
+    <form method="post" action="{% url 'admin_market_rules' selected_session.id %}">
+        {% csrf_token %}
+        <h2 style="margin:0 0 16px;font-size:20px">Regole della sessione</h2>
+        <div style="display:flex;flex-direction:column;gap:14px">
+            <label class="mr-field"><span class="mr-lbl">Titolo</span>
+                <input type="text" name="title" value="{{ selected_session.title }}" class="mr-input"></label>
+            <label class="mr-field"><span class="mr-lbl">Chiusura consegna (vuoto = manuale)</span>
+                <input type="datetime-local" name="closes_at" class="mr-input" value="{% if selected_session.closes_at %}{{ selected_session.closes_at|date:'Y-m-d\TH:i' }}{% endif %}"></label>
+            {% include "auctions/_market_rules_fields.html" with s=selected_session %}
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px">
+            <button type="button" class="btn btn-secondary" onclick="document.getElementById('modal-edit-rules').close()">Annulla</button>
+            <button type="submit" class="fm-btn fm-nav-cta">Salva regole</button>
+        </div>
+    </form>
+</dialog>
+{% endif %}
+
 <!-- Modal Creazione Nuova Sessione -->
 <dialog id="modal-new-session" style="border:1px solid var(--line);border-radius:14px;background:var(--card-bg,#181d28);color:var(--ink);padding:24px;max-width:540px;width:90%">
     <form method="post" action="{% url 'admin_market_create' %}">
@@ -650,44 +726,7 @@
                 <div class="muted" style="font-size:11px;margin-top:4px">Oltre questo orario la consegna si chiude da sola; lo spoglio resta a te (con anteprima).</div>
             </div>
 
-            <div style="padding:12px;background:rgba(255,255,255,0.03);border:1px solid var(--line);border-radius:8px">
-                <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;cursor:pointer">
-                    <input type="checkbox" name="allow_conditional_release" value="1" checked style="width:16px;height:16px">
-                    Consenti svincolo condizionato (taglio per slot e crediti)
-                </label>
-                <div class="muted" style="font-size:11px;margin-top:6px;padding-left:24px">
-                    Permette al fantallenatore di indicare un giocatore da svincolare qualora vinca l'offerta, recuperando crediti.
-                </div>
-            </div>
-
-            <div>
-                <label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Modalità di rimborso crediti per lo svincolo</label>
-                <select name="refund_mode" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);background:rgba(0,0,0,0.2);color:inherit">
-                    {% for value, label in refund_modes %}<option value="{{ value }}"{% if value == "purchase" %} selected{% endif %}>{{ label }}</option>{% endfor %}
-                </select>
-            </div>
-
-            <div>
-                <label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Limiti massimi acquisti per ruolo (0 = illimitati)</label>
-                <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:10px">
-                    <div>
-                        <span class="role-badge role-P">P</span>
-                        <input type="number" name="max_acquisitions_p" value="0" min="0" class="input" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--line);background:rgba(0,0,0,0.2);color:inherit;margin-top:4px">
-                    </div>
-                    <div>
-                        <span class="role-badge role-D">D</span>
-                        <input type="number" name="max_acquisitions_d" value="0" min="0" class="input" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--line);background:rgba(0,0,0,0.2);color:inherit;margin-top:4px">
-                    </div>
-                    <div>
-                        <span class="role-badge role-C">C</span>
-                        <input type="number" name="max_acquisitions_c" value="0" min="0" class="input" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--line);background:rgba(0,0,0,0.2);color:inherit;margin-top:4px">
-                    </div>
-                    <div>
-                        <span class="role-badge role-A">A</span>
-                        <input type="number" name="max_acquisitions_a" value="0" min="0" class="input" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--line);background:rgba(0,0,0,0.2);color:inherit;margin-top:4px">
-                    </div>
-                </div>
-            </div>
+            {% include "auctions/_market_rules_fields.html" with s=None %}
         </div>
 
         <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px">

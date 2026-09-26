@@ -228,12 +228,19 @@ def sync_players(rows, *, league=None, replace=False, prune=False):
                 p.delete()
                 pruned += 1
 
+    flagged_left = 0
+    if league is not None and not replace:
+        # 5.05: chi è in rosa ma non è più nel listone è (forse) uscito dalla Serie A.
+        from ..services.abroad import flag_missing
+        flagged_left = flag_missing(league, owned_not_in_listone)
+
     return {
         "created": created,
         "updated": updated,
         "matched_owned": matched_owned,
         "pruned": pruned,
         "owned_not_in_listone": owned_not_in_listone,
+        "flagged_left_serie_a": flagged_left,
         "stats_seeded": seed_stats(league),
     }
 

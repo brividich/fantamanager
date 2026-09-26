@@ -57,6 +57,7 @@
         if (wasStatus === "LIVE" && s.status === "CLOSED" && s.best_bidder) soundSold();
         state = s;
         timerBase = { remaining: s.remaining_seconds, at: performance.now() };
+        renderTurn(s);
         $priceVal.textContent = money(s.current_price);
         if (prev !== null && prev !== s.current_price) {
             $priceVal.classList.remove("pulse"); void $priceVal.offsetWidth; $priceVal.classList.add("pulse");
@@ -308,6 +309,32 @@
             applyState(d.state);
             showToast(d.event === "tie" ? "✉ Pari merito: si rifà" : "✉ Buste aperte", "ok");
         } else showToast("✗ " + errLabel(d.error), "bad");
+    }
+
+    async function turnAction(action) {
+        const r = await fetch(`/admin-auction/${AUCTION_ID}/turns/`, {
+            method: "POST",
+            headers: { "X-CSRFToken": CSRF, "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({ action }),
+        });
+        const d = await r.json();
+        if (d.ok) applyState(d.state); else showToast("✗ " + errLabel(d.error), "bad");
+    }
+    function renderTurn(s) {
+        const text = document.getElementById("turn-text");
+        if (!text) return;
+        const skip = document.getElementById("turn-skip");
+        const toggle = document.getElementById("turn-toggle");
+        if (s.turn) {
+            const verb = s.status === "LIVE" || s.status === "PAUSED" ? "Ha chiamato" : "Tocca a";
+            text.textContent = `${verb}: ${s.turn.name} (${s.turn.position}/${s.turn.total})`;
+            skip.style.display = "";
+            toggle.textContent = "Disattiva"; toggle.dataset.next = "disable";
+        } else {
+            text.textContent = "non attiva";
+            skip.style.display = "none";
+            toggle.textContent = "Attiva (ordine di classifica)"; toggle.dataset.next = "enable";
+        }
     }
 
     async function forceCloseLot() {
@@ -855,69 +882,7 @@
     document.getElementById("edit-auction-modal")
         .addEventListener("click", (e) => { if (e.target === e.currentTarget) closeEditAuction(); });
 
-    // System logs modal
-    let systemLogsTimer = null;
-    function escapeHtml(str) {
-        const div = document.createElement("div");
-        div.textContent = str;
-        return div.innerHTML;
-    }
-
-    async function fetchSystemLogs() {
-        const el = document.getElementById("system-logs-content");
-        if (!el) return;
-        try {
-            const r = await fetch("/admin-auction/logs/");
-            const data = await r.json();
-            if (data.ok && Array.isArray(data.lines)) {
-                if (data.lines.length === 0) {
-                    el.innerHTML = '<div style="color:var(--fm-text-muted);text-align:center;padding:20px">Nessun log presente nel file.</div>';
-                } else {
-                    el.innerHTML = data.lines.map(line => {
-                        let color = "#c0caf5";
-                        if (line.includes("ERROR") || line.includes("CRITICAL")) color = "#f7768e";
-                        else if (line.includes("WARNING")) color = "#e0af68";
-                        else if (line.includes("accepted") || line.includes("won") || line.includes("aggiudicato") || line.includes("Aggiudicato")) color = "#9ece6a";
-                        else if (line.includes("rejected") || line.includes("pari merito") || line.includes("tie")) color = "#ff9e64";
-                        return `<div style="color:${color};white-space:pre-wrap;word-break:break-word;margin-bottom:2px">${escapeHtml(line)}</div>`;
-                    }).join("");
-                    el.scrollTop = el.scrollHeight;
-                }
-            } else {
-                el.innerHTML = '<div style="color:#f7768e">Impossibile caricare i log.</div>';
-            }
-        } catch (e) {
-            el.innerHTML = `<div style="color:#f7768e">Errore di rete: ${e.message}</div>`;
-        }
-    }
-
-    function openSystemLogs() {
-        const modal = document.getElementById("system-logs-modal");
-        if (modal) {
-            modal.style.display = "flex";
-            fetchSystemLogs();
-            if (systemLogsTimer) clearInterval(systemLogsTimer);
-            systemLogsTimer = setInterval(fetchSystemLogs, 3000);
-        }
-    }
-
-    function closeSystemLogs() {
-        const modal = document.getElementById("system-logs-modal");
-        if (modal) {
-            modal.style.display = "none";
-            if (systemLogsTimer) {
-                clearInterval(systemLogsTimer);
-                systemLogsTimer = null;
-            }
-        }
-    }
-
-    const logsModal = document.getElementById("system-logs-modal");
-    if (logsModal) {
-        logsModal.addEventListener("click", (e) => {
-            if (e.target === e.currentTarget) closeSystemLogs();
-        });
-    }
+    // System logs modal: le funzioni sono nello script globale (_global_js.html).
 
     function undoLastAward() {
         if (!confirm("Sei sicuro di voler annullare l'ultimo lotto aggiudicato?\n\nIl calciatore tornerà all'asta e i crediti spesi verranno riaccreditati all'acquirente.")) {

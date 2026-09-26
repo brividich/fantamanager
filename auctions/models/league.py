@@ -52,6 +52,36 @@ class League(models.Model):
     # Scambi tra squadre: ammessi? e, se sì, serve la ratifica dell'admin?
     trades_enabled = models.BooleanField(default=True)
     trades_need_approval = models.BooleanField(default=True)
+    # Regolamento 5.3: ogni scambio sposta lo stesso numero di giocatori e
+    # gli stessi ruoli da una parte all'altra.
+    trades_same_roles = models.BooleanField(default=False)
+
+    # Contratti di permanenza (regolamento 4). Disattivi di default: le leghe
+    # che non li usano non vedono né dadi né scadenze.
+    contracts_enabled = models.BooleanField(default=False)
+    # Regole dei contratti (facce del dado, soglie clausola per ruolo, tetto
+    # dell'incasso da rescissione): vuoto = default del regolamento, vedi
+    # services.contracts.DEFAULT_CONTRACT_RULES.
+    contract_rules = models.JSONField(default=dict, blank=True)
+    # Portieri (2.02): al massimo N squadre di Serie A diverse (0 = nessun limite).
+    gk_max_clubs = models.PositiveSmallIntegerField(default=0)
+    # Stagione corrente (contatore) e finestra dei rinnovi aperta.
+    season_number = models.PositiveIntegerField(default=1)
+    renewals_open = models.BooleanField(default=False)
+
+    # Tetto salariale (regolamento 1.2) e Decreto Salvacalcio (1.3).
+    class CapSpend(models.TextChoices):
+        GROSS = "gross", "Lorda (somma degli acquisti)"
+        NET   = "net",   "Netta (acquisti meno incassi da vendite e svincoli)"
+
+    salary_cap_enabled = models.BooleanField(default=False)
+    salary_cap_spend = models.CharField(max_length=5, choices=CapSpend.choices, default=CapSpend.GROSS)
+    # Tabelle del regolamento (vedi services.salary.DEFAULT_RULES); vuoto =
+    # valori di default.
+    salary_rules = models.JSONField(default=dict, blank=True)
+    # Pagina pubblica della classifica sul sito di lega (Fantapazz, Fantacalcio…):
+    # se impostata, i passaggi di stagione leggono da lì la classifica.
+    standings_url = models.URLField(blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

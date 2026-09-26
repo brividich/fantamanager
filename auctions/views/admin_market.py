@@ -10,7 +10,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.views.decorators.http import require_POST
 
-from ..models import Auction, League, MarketBid, MarketSession, Participant, Player, Trade
+from ..models import Auction, League, MarketBid, MarketSession, Participant, Player, Trade, TradeWindow
 from ..services.trade import decide_trade
 from ..services.market import (
     plan_market_resolution,
@@ -112,11 +112,13 @@ def admin_market_dashboard(request):
 
     trades_pending = []
     trades_recent = []
+    trade_windows = []
     if league:
         trades = Trade.objects.filter(league=league).select_related("proposer", "receiver").prefetch_related(
             "proposer_players", "receiver_players"
         )
         trades_pending = list(trades.filter(status=Trade.Status.ACCEPTED))
+        trade_windows = list(TradeWindow.objects.filter(league=league))
         trades_recent = list(trades.exclude(status=Trade.Status.ACCEPTED)[:10])
 
     results = None
@@ -141,12 +143,50 @@ def admin_market_dashboard(request):
             "results": results,
             "trades_pending": trades_pending,
             "trades_recent": trades_recent,
+            "trade_windows": trade_windows,
+            "now": timezone.now(),
             "is_preview": is_preview,
             "console_section": "Mercato Buste",
             "console_active": "market",
             "refund_modes": Auction.RefundMode.choices,
+            "budget_rules": MarketSession.BudgetRule.choices,
+            "tie_breaks": MarketSession.TieBreak.choices,
+            "role_caps": [("P", "max_acquisitions_p"), ("D", "max_acquisitions_d"),
+                          ("C", "max_acquisitions_c"), ("A", "max_acquisitions_a")],
         },
     )
+
+
+def _parse_int(val):
+    try:
+        return max(0, int(val))
+    except (ValueError, TypeError):
+        return 0
+
+
+def _session_rules(post):
+    """The rule fields of a MarketSession from the create/edit form."""
+    refund_mode = post.get("refund_mode") or Auction.RefundMode.PURCHASE
+    if refund_mode not in Auction.RefundMode.values:
+        refund_mode = Auction.RefundMode.PURCHASE
+    budget_rule = post.get("budget_rule")
+    if budget_rule not in MarketSession.BudgetRule.values:
+        budget_rule = MarketSession.BudgetRule.PRIORITY
+    tie_break = post.get("tie_break")
+    if tie_break not in MarketSession.TieBreak.values:
+        tie_break = MarketSession.TieBreak.MANUAL
+    return {
+        "allow_conditional_release": post.get("allow_conditional_release") == "1",
+        "require_same_role_release": post.get("require_same_role_release") == "1",
+        "release_refund_mode": refund_mode,
+        "max_bids": _parse_int(post.get("max_bids")),
+        "budget_rule": budget_rule,
+        "tie_break": tie_break,
+        "max_acquisitions_p": _parse_int(post.get("max_acquisitions_p")),
+        "max_acquisitions_d": _parse_int(post.get("max_acquisitions_d")),
+        "max_acquisitions_c": _parse_int(post.get("max_acquisitions_c")),
+        "max_acquisitions_a": _parse_int(post.get("max_acquisitions_a")),
+    }
 
 
 @staff_member_required
@@ -161,10 +201,6 @@ def admin_market_create(request):
         return HttpResponseForbidden(_FORBIDDEN_MSG)
 
     title = (request.POST.get("title") or "Mercato di Riparazione a Buste").strip()
-    allow_conditional_release = request.POST.get("allow_conditional_release") == "1"
-    refund_mode = request.POST.get("refund_mode") or Auction.RefundMode.PURCHASE
-    if refund_mode not in Auction.RefundMode.values:
-        refund_mode = Auction.RefundMode.PURCHASE
 
     opens_at = _parse_local_datetime(request.POST.get("opens_at"))
     closes_at = _parse_local_datetime(request.POST.get("closes_at"))
@@ -173,24 +209,13 @@ def admin_market_create(request):
         return redirect(_dashboard_url(request, league_id=league.id))
     scheduled = opens_at is not None and opens_at > timezone.now()
 
-    def _parse_int(val):
-        try:
-            return max(0, int(val))
-        except (ValueError, TypeError):
-            return 0
-
     session = MarketSession.objects.create(
         league=league,
         title=title,
         status=MarketSession.Status.DRAFT if scheduled else MarketSession.Status.OPEN,
         opens_at=opens_at,
         closes_at=closes_at,
-        allow_conditional_release=allow_conditional_release,
-        release_refund_mode=refund_mode,
-        max_acquisitions_p=_parse_int(request.POST.get("max_acquisitions_p")),
-        max_acquisitions_d=_parse_int(request.POST.get("max_acquisitions_d")),
-        max_acquisitions_c=_parse_int(request.POST.get("max_acquisitions_c")),
-        max_acquisitions_a=_parse_int(request.POST.get("max_acquisitions_a")),
+        **_session_rules(request.POST),
     )
 
     if scheduled:
@@ -268,9 +293,15 @@ def admin_market_settle_tie(request, session_id):
     raw_winner = (request.POST.get("winner_id") or "draw").strip()
     winner_id = int(raw_winner) if raw_winner.isdigit() else None
 
-    res = settle_market_tie(session.id, player_id, winner_id=winner_id)
+    rebids = {}
+    for key, value in request.POST.items():
+        if key.startswith("rebid_") and key[6:].isdigit() and value.strip():
+            rebids[int(key[6:])] = value.strip()
+    if rebids:
+        winner_id = None
+    res = settle_market_tie(session.id, player_id, winner_id=winner_id, rebids=rebids or None)
     if res["ok"]:
-        how = "per sorteggio" if res["method"] == "draw" else "per scelta dell'admin"
+        how = {"draw": "per sorteggio", "rebid": "al secondo sfoglio"}.get(res["method"], "per scelta dell'admin")
         messages.success(request, f"Pareggio risolto {how}: vince {res['winner_name']}.")
     else:
         messages.error(request, res["message"])
@@ -304,7 +335,8 @@ def admin_trade_settings(request):
         return HttpResponseForbidden(_FORBIDDEN_MSG)
     league.trades_enabled = request.POST.get("trades_enabled") == "1"
     league.trades_need_approval = request.POST.get("trades_need_approval") == "1"
-    league.save(update_fields=["trades_enabled", "trades_need_approval", "updated_at"])
+    league.trades_same_roles = request.POST.get("trades_same_roles") == "1"
+    league.save(update_fields=["trades_enabled", "trades_need_approval", "trades_same_roles", "updated_at"])
     messages.success(request, "Impostazioni scambi salvate.")
     return redirect(_dashboard_url(request, league_id=league.id))
 
@@ -323,3 +355,61 @@ def admin_trade_decide(request, trade_id):
     else:
         messages.error(request, res["message"])
     return redirect(_dashboard_url(request, league_id=trade.league_id))
+
+
+@staff_member_required
+@require_POST
+def admin_market_rules(request, session_id):
+    """Edit the rules of a session that has not been resolved yet."""
+    session, denied = _managed_session_or_403(request, session_id)
+    if denied:
+        return denied
+    if session.status == MarketSession.Status.RESOLVED:
+        messages.error(request, "Lo spoglio è già stato eseguito: annullalo prima di cambiare le regole.")
+        return redirect(_dashboard_url(request, session))
+    title = (request.POST.get("title") or "").strip()
+    rules = _session_rules(request.POST)
+    for field, value in rules.items():
+        setattr(session, field, value)
+    fields = list(rules) + ["updated_at"]
+    if title:
+        session.title = title
+        fields.append("title")
+    closes_at = _parse_local_datetime(request.POST.get("closes_at"))
+    if request.POST.get("closes_at") is not None:
+        session.closes_at = closes_at
+        fields.append("closes_at")
+    session.save(update_fields=fields)
+    messages.success(request, f"Regole della sessione '{session.title}' aggiornate.")
+    return redirect(_dashboard_url(request, session))
+
+
+@staff_member_required
+@require_POST
+def admin_trade_window_add(request):
+    league = target_league(request) or current_league(request)
+    if league is None or not user_can_manage_league(request.user, league):
+        return HttpResponseForbidden(_FORBIDDEN_MSG)
+    opens_at = _parse_local_datetime(request.POST.get("opens_at"))
+    closes_at = _parse_local_datetime(request.POST.get("closes_at"))
+    if not opens_at or not closes_at or closes_at <= opens_at:
+        messages.error(request, "Indica apertura e chiusura del periodo (la chiusura dopo l'apertura).")
+        return redirect(_dashboard_url(request, league_id=league.id))
+    TradeWindow.objects.create(
+        league=league, opens_at=opens_at, closes_at=closes_at,
+        name=(request.POST.get("name") or "Periodo scambi").strip()[:80],
+    )
+    messages.success(request, "Periodo scambi aggiunto: fuori dai periodi gli scambi sono chiusi.")
+    return redirect(_dashboard_url(request, league_id=league.id))
+
+
+@staff_member_required
+@require_POST
+def admin_trade_window_delete(request, window_id):
+    window = get_object_or_404(TradeWindow.objects.select_related("league"), pk=window_id)
+    if not user_can_manage_league(request.user, window.league):
+        return HttpResponseForbidden(_FORBIDDEN_MSG)
+    league_id = window.league_id
+    window.delete()
+    messages.info(request, "Periodo scambi eliminato.")
+    return redirect(_dashboard_url(request, league_id=league_id))

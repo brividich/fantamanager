@@ -1,5 +1,6 @@
 {% extends "auctions/app_base.html" %}
 {% block title %}Scambi — FantaManager{% endblock %}
+{% block mainclass %}fit{% endblock %}
 {% block app %}
 <style>
     .tr-row { padding: 12px 14px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
@@ -29,6 +30,15 @@
     .tr-input { width: 100%; padding: 9px 12px; border-radius: 10px; background: var(--panel-2); border: 1px solid var(--line); color: var(--ink); font-family: var(--sans); font-size: 14px; font-weight: 600; box-sizing: border-box; }
     .tr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     @media (max-width: 560px) { .tr-grid, .tr-sides { grid-template-columns: 1fr; } }
+    .sc-grid { display: flex; flex-direction: column; gap: 14px; }
+    .sc-col > * + * { margin-top: 12px; }
+    .sc-empty { padding: 18px 14px; font-size: 12.5px; color: var(--muted); }
+    @media (min-width: 1000px) {
+        .sc-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 18px; }
+        .sc-col { min-height: 0; overflow-y: auto; padding-right: 4px; }
+        .sc-col .pick-list { max-height: calc(100vh - 640px); min-height: 140px; }
+        .sc-col .tr-form { gap: 10px; }
+    }
 </style>
 
 <div class="tab-head">
@@ -42,6 +52,8 @@
     <span>L'admin della lega non ha abilitato gli scambi tra squadre.</span>
 </div></div>
 {% else %}
+<div class="sc-grid fit-body">
+<div class="sc-col">
 
 {% if incoming %}
 <div class="a-card">
@@ -57,9 +69,25 @@
     {% for r in awaiting %}{% include "auctions/_trade_row.html" with r=r %}{% endfor %}
 </div>
 {% endif %}
+{% if not incoming and not outgoing and not awaiting %}<div class="a-card"><div class="sc-empty">Nessuna trattativa in corso.</div></div>{% endif %}
+
+{% if history %}
+<div class="a-card">
+    <div class="a-label"><svg class="ic"><use href="#i-list"/></svg> Storico</div>
+    {% for r in history %}{% include "auctions/_trade_row.html" with r=r %}{% endfor %}
+</div>
+{% endif %}
+</div>
+<div class="sc-col">
 
 <div class="a-card">
     <div class="a-label"><svg class="ic"><use href="#i-plus"/></svg> Nuovo scambio</div>
+    {% if not trade_window_open %}
+    <div class="sc-empty" style="color:#eab308">
+        Periodo scambi chiuso.{% if trade_window %} Il prossimo, <b>{{ trade_window.name }}</b>, apre il {{ trade_window.opens_at|date:"d/m/Y \a\l\l\e H:i" }}.{% endif %}
+    </div>
+    {% else %}
+    {% if trade_window %}<div class="sc-empty" style="padding-bottom:0">{{ trade_window.name }}: aperto fino al {{ trade_window.closes_at|date:"d/m/Y H:i" }}.</div>{% endif %}
     <form method="get" class="tr-form" style="padding-bottom:0">
         <div>
             <label for="with">Con quale squadra?</label>
@@ -88,7 +116,7 @@
                 </div>
             </div>
             <div>
-                <label>Ricevi (rosa di {{ partner.display_name }})</label>
+                <label style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Ricevi (da {{ partner.display_name }})</label>
                 <div class="pick-list">
                     {% for pl in partner_roster %}
                     <label class="pick"><input type="checkbox" name="get" value="{{ pl.id }}">
@@ -100,12 +128,27 @@
         </div>
         <div class="tr-grid">
             <div>
-                <label for="give_credits">Crediti che dai (hai {{ participant.remaining_credits|floatformat:0 }} FM)</label>
+                <label for="give_credits">Crediti che dai <span style="text-transform:none">(max {{ participant.remaining_credits|floatformat:0 }})</span></label>
                 <input type="number" min="0" name="give_credits" id="give_credits" value="0" class="tr-input">
             </div>
             <div>
-                <label for="get_credits">Crediti che chiedi (ne ha {{ partner.remaining_credits|floatformat:0 }} FM)</label>
+                <label for="get_credits">Crediti che chiedi <span style="text-transform:none">(max {{ partner.remaining_credits|floatformat:0 }})</span></label>
                 <input type="number" min="0" name="get_credits" id="get_credits" value="0" class="tr-input">
+            </div>
+        </div>
+        <div class="tr-grid">
+            <div>
+                <label for="kind">Tipo di trattativa</label>
+                <select name="kind" id="kind" class="tr-input" onchange="document.getElementById('loan-len').style.display=this.value==='loan'?'':'none'">
+                    <option value="definitive">Definitiva (scambio o vendita)</option>
+                    <option value="loan">Prestito</option>
+                </select>
+            </div>
+            <div id="loan-len" style="display:none">
+                <label for="loan_sessions">Durata del prestito</label>
+                <select name="loan_sessions" id="loan_sessions" class="tr-input">
+                    {% for n in "1234" %}<option value="{{ n }}">{{ n }} session{{ n|pluralize:"e,i" }} d'asta</option>{% endfor %}
+                </select>
             </div>
         </div>
         <div>
@@ -113,20 +156,16 @@
             <input type="text" maxlength="200" name="message" id="message" class="tr-input" placeholder="Es. ti serve un difensore?">
         </div>
         <div class="muted" style="font-size:11.5px">
-            Rose e crediti vengono ricontrollati quando lo scambio viene eseguito.
+            {% if trades_same_roles %}Regola di lega: stesso numero di giocatori e stessi ruoli da entrambe le parti. {% endif %}Rose e crediti vengono ricontrollati quando lo scambio viene eseguito.
             {% if trades_need_approval %}Dopo l'accettazione serve la ratifica dell'admin.{% endif %}
         </div>
         <div class="tr-actions"><button type="submit" class="tr-btn ok">Invia proposta</button></div>
     </form>
     {% endif %}
+    {% endif %}
+</div>
+</div>
 </div>
 
-{% endif %}
-
-{% if history %}
-<div class="a-card">
-    <div class="a-label"><svg class="ic"><use href="#i-list"/></svg> Storico</div>
-    {% for r in history %}{% include "auctions/_trade_row.html" with r=r %}{% endfor %}
-</div>
 {% endif %}
 {% endblock %}

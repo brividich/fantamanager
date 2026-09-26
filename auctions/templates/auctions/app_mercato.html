@@ -1,5 +1,6 @@
 {% extends "auctions/app_base.html" %}
 {% block title %}Mercato & Buste — FantaManager{% endblock %}
+{% block mainclass %}fit{% endblock %}
 {% block app %}
 <style>
     .market-filters { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
@@ -93,12 +94,28 @@
     }
     .btn-submit { background: var(--accent); color: #0a1108; }
     .btn-cancel { background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); }
+    .merc-grid { display: flex; flex-direction: column; gap: 14px; }
+    .merc-side > * + *, .merc-main > * + * { margin-top: 12px; }
+    @media (min-width: 1000px) {
+        .merc-grid { display: grid; grid-template-columns: minmax(320px, 400px) minmax(0, 1fr); gap: 18px; }
+        .merc-side { min-height: 0; overflow-y: auto; padding-right: 4px; }
+        .merc-main { min-height: 0; display: flex; flex-direction: column; }
+        .merc-main .fa-card { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+        .merc-main .fa-card .fa-list { flex: 1; min-height: 0; overflow-y: auto; }
+        .merc-side .a-cta, .merc-side .market-banner, .merc-side .bids-card, .merc-side .slot-strip { margin-bottom: 0 !important; }
+        .merc-main .market-filters { margin-bottom: 0; }
+        .merc-main nav.search-row { margin: 0 !important; }
+        .merc-main .free-agent-row { padding: 6px 14px; }
+        .merc-main .market-filters { gap: 8px; }
+    }
 </style>
 
 <div class="tab-head">
     <h1>Mercato & Buste</h1>
     <p>Calciatori liberi e mercato di riparazione · <b>{{ participant.remaining_credits|floatformat:0 }} FM</b> disponibili</p>
 </div>
+<div class="merc-grid fit-body">
+<div class="merc-side">
 
 {% if active_auction %}
 <a class="a-cta" href="{% url 'bid' active_auction.id %}" style="margin-bottom:14px">
@@ -112,6 +129,19 @@
 {% endif %}
 
 {% include "auctions/_slot_strip.html" %}
+{% if cap and cap.extra_open %}
+<form method="post" action="{% url 'app_extra_cap' %}" class="a-card" style="display:flex;gap:8px;align-items:center;padding:10px 14px;font-size:12.5px;flex-wrap:wrap"
+      onsubmit="return confirm('Convertire budget in tetto salariale? L\'operazione non si annulla.');">
+    {% csrf_token %}
+    <span style="flex:1 1 100%"><b>Extra salary cap</b>: {{ cap.extra_cost }} FM di budget → {{ cap.extra_gain }} FM di tetto</span>
+    <span style="display:flex;gap:8px;align-items:center">
+        <select name="blocks" style="padding:5px 8px;font-size:12px;border-radius:8px;background:var(--panel-2);border:1px solid var(--line);color:var(--ink)">
+            {% for n in "1234" %}<option value="{{ n }}">{{ n }}× (−{% widthratio cap.extra_cost 1 n %} FM, +{% widthratio cap.extra_gain 1 n %} tetto)</option>{% endfor %}
+        </select>
+        <button type="submit" class="role-chip on" style="border:none;cursor:pointer;padding:6px 12px">Converti</button>
+    </span>
+</form>
+{% endif %}
 
 {% if trades_enabled %}
 <a class="a-cta" href="{% url 'app_scambi' %}" style="margin-bottom:14px">
@@ -147,7 +177,12 @@
         {% endif %}
     </div>
     <div class="mb-rules">
-        <span>Tagli condizionati: <b>{% if market_session.allow_conditional_release %}Sì ({{ market_session.get_release_refund_mode_display }}){% else %}No{% endif %}</b></span>
+        {% if market_session.max_bids %}<span>Offerte: <b>{{ my_bids|length }}/{{ market_session.max_bids }}</b></span>{% endif %}
+        {% if market_session.budget_rule == "total" %}<span>Totale offerte <b>≤ budget</b></span>{% endif %}
+        {% if market_session.require_same_role_release %}<span>Ogni acquisto sostituisce un <b>pari ruolo</b></span>
+        {% else %}<span>Tagli condizionati: <b>{% if market_session.allow_conditional_release %}Sì{% else %}No{% endif %}</b></span>{% endif %}
+        {% if market_session.require_same_role_release or market_session.allow_conditional_release %}<span>Rimborso taglio: <b>{{ market_session.get_release_refund_mode_display|lower }}</b></span>{% endif %}
+        {% if market_session.tie_break == "first" %}<span>Pari merito: <b>vince chi offre prima</b></span>{% endif %}
         {% if market_session.max_acquisitions_p or market_session.max_acquisitions_d or market_session.max_acquisitions_c or market_session.max_acquisitions_a %}
         <span>Tetti acquisti:
             {% if market_session.max_acquisitions_p %}{{ market_session.max_acquisitions_p }}P {% endif %}
@@ -168,7 +203,7 @@
     {% if market_open and my_bids %}
     <div style="padding:0 14px 8px;font-size:12px;color:var(--muted);font-weight:600">
         Offerte totali: <b style="color:{% if my_bids_total > participant.remaining_credits %}#eab308{% else %}var(--ink){% endif %}">{{ my_bids_total }} FM</b>
-        su {{ participant.remaining_credits|floatformat:0 }} FM disponibili{% if my_bids_total > participant.remaining_credits %} — allo spoglio vale l'ordine di priorità{% endif %}
+        su {{ participant.remaining_credits|floatformat:0 }} FM disponibili{% if my_bids_total > participant.remaining_credits %}{% if market_session.budget_rule == "total" %} — oltre il budget: allo spoglio verranno annullate le offerte più alte finché il totale non rientra{% else %} — allo spoglio vale l'ordine di priorità{% endif %}{% endif %}
     </div>
     {% endif %}
     <div id="my-bids-list">
@@ -204,12 +239,14 @@
     {% empty %}
     <div class="soon" style="border:none;background:none;padding:18px 10px" id="bids-empty">
         <b>Nessuna busta consegnata</b>
-        <span>Scegli uno svincolato dall'elenco sotto e premi “Offri”.</span>
+        <span>Scegli uno svincolato dall'elenco e premi “Offri”.</span>
     </div>
     {% endfor %}
     </div>
 </div>
 {% endif %}
+</div>
+<div class="merc-main">
 
 <!-- Filtri ricerca svincolati -->
 <form method="get" class="market-filters" id="fa-filters">
@@ -239,11 +276,12 @@
 </form>
 
 <!-- Elenco svincolati -->
-<div class="a-card">
+<div class="a-card fa-card">
     <div class="a-label">
         <svg class="ic"><use href="#i-users"/></svg>
         Svincolati ({{ page.paginator.count }}){% if page.paginator.num_pages > 1 %} · pagina {{ page.number }}/{{ page.paginator.num_pages }}{% endif %}
     </div>
+    <div class="fa-list">
     {% for pl in free_agents %}
     <div class="free-agent-row">
         <div class="fa-main">
@@ -263,9 +301,9 @@
                 {{ pl.quota|floatformat:0 }} <small>FM</small>
             </div>
             {% if market_open %}
-            <button type="button" class="role-chip on fa-offer" style="cursor:pointer;border:none"
+            <button type="button" class="role-chip on fa-offer" style="cursor:pointer;border:none"{% if bids_left == 0 and not pl.id in my_bid_player_ids %} disabled title="Hai già usato tutte le offerte"{% endif %}
                     onclick="openBidModal({{ pl.id }}, '{{ pl.name|escapejs }}', '{{ pl.role }}', '{{ pl.team|escapejs }}', {{ pl.quota|floatformat:0 }})">
-                {% if pl.id in my_bid_player_ids %}Modifica{% else %}Offri{% endif %}
+                {% if pl.id in my_bid_player_ids and market_session.budget_rule != "total" %}Modifica{% elif bids_left == 0 %}Limite{% else %}Offri{% endif %}
             </button>
             {% endif %}
         </div>
@@ -277,6 +315,7 @@
         <span>Nessuno svincolato corrisponde ai criteri di ricerca impostati.</span>
     </div>
     {% endfor %}
+    </div>
 </div>
 {% if page.has_other_pages %}
 <nav class="search-row" style="justify-content:space-between;align-items:center;margin:-4px 0 14px" aria-label="Pagine svincolati">
@@ -285,6 +324,8 @@
     {% if page.has_next %}<a class="role-chip" href="?{{ base_query }}&page={{ page.next_page_number }}">Successivi ›</a>{% else %}<span></span>{% endif %}
 </nav>
 {% endif %}
+</div>
+</div>
 
 <!-- Modal Invia Busta -->
 {% if market_open %}
@@ -312,6 +353,9 @@
                 <input type="number" id="bid-amount" name="amount" min="1" required style="font-size:18px;font-weight:900;color:var(--accent)" oninput="updateBudgetCalc()">
             </div>
 
+            {% if market_session.budget_rule == "total" %}
+            <input type="hidden" name="priority" value="1">
+            {% else %}
             <div class="form-group">
                 <label>Priorità di scelta</label>
                 <select name="priority" id="bid-priority">
@@ -322,14 +366,15 @@
                     <option value="5">5ª scelta</option>
                 </select>
             </div>
+            {% endif %}
 
-            {% if market_session.allow_conditional_release %}
+            {% if market_session.allow_conditional_release or market_session.require_same_role_release %}
             <div class="form-group">
-                <label>Taglio condizionato (opzionale)</label>
-                <select name="release_player_id" id="bid-release-player" onchange="updateBudgetCalc()">
-                    <option value="">-- Nessun taglio (mantieni rosa) --</option>
+                <label>{% if market_session.require_same_role_release %}Giocatore da sostituire (stesso ruolo, obbligatorio){% else %}Taglio condizionato (opzionale){% endif %}</label>
+                <select name="release_player_id" id="bid-release-player" onchange="updateBudgetCalc()"{% if market_session.require_same_role_release %} required data-same-role="1"{% endif %}>
+                    <option value="">{% if market_session.require_same_role_release %}-- Scegli chi tagliare --{% else %}-- Nessun taglio (mantieni rosa) --{% endif %}</option>
                     {% for rp in my_roster %}
-                    <option value="{{ rp.id }}" data-refund="{{ rp.market_refund }}">
+                    <option value="{{ rp.id }}" data-refund="{{ rp.market_refund }}" data-role="{{ rp.role }}">
                         Taglia {{ rp.name }} ({{ rp.role }} - {{ rp.team }})
                         [+{{ rp.market_refund }} FM]
                     </option>
@@ -377,8 +422,15 @@
         rEl.textContent = role;
         rEl.className = "role-badge role-" + role;
         document.getElementById("bid-amount").value = Math.max(1, quota);
-        if (document.getElementById("bid-release-player")) {
-            document.getElementById("bid-release-player").value = "";
+        const rel = document.getElementById("bid-release-player");
+        if (rel) {
+            rel.value = "";
+            // Con la sostituzione obbligatoria si può tagliare solo un pari ruolo.
+            if (rel.dataset.sameRole) {
+                Array.from(rel.options).forEach(o => {
+                    if (o.value) o.hidden = o.disabled = o.dataset.role !== role;
+                });
+            }
         }
         updateBudgetCalc();
         document.getElementById("bid-modal").classList.add("open");

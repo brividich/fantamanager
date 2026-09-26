@@ -6,6 +6,13 @@
     <p>Profilo, sicurezza e accessi</p>
 </div>
 
+<style>
+    .altro-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+    .altro-col { display: flex; flex-direction: column; gap: 14px; }
+    @media (min-width: 1000px) { .altro-grid { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); align-items: start; } }
+</style>
+<div class="altro-grid">
+<div class="altro-col">
 <div class="a-card">
     <div class="a-label"><svg class="ic"><use href="#i-shield"/></svg> Profilo squadra</div>
     <div class="a-row">
@@ -49,7 +56,9 @@
         </div>
     </form>
 </div>
+</div>
 
+<div class="altro-col">
 <a class="btn btn-ghost" href="{% url 'app_login' %}?switch=1" style="width:100%;justify-content:center">
     <svg class="ic"><use href="#i-swap"/></svg> Cambia squadra / Account
 </a>
@@ -67,5 +76,7 @@
     <b>Impostazioni & notifiche</b>
     <span>Preferenze, avvisi e gestione account completa arriveranno con il profilo manager esteso.</span>
     <span class="soon-tag">In arrivo</span>
+</div>
+</div>
 </div>
 {% endblock %}

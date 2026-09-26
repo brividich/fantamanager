@@ -385,7 +385,7 @@ def _role_saturated(auction, role):
         return True
     bucket = league.slot_roles(role)
     for p in participants:
-        if Player.objects.filter(owner=p, role__in=bucket).count() < cap:
+        if Player.objects.filter(owner=p, abroad_list=False, role__in=bucket).count() < cap:
             return False
     return True
 
@@ -655,6 +655,7 @@ def _record_winner_spend(auction, *, assigned_by="auto"):
         Player.objects.filter(pk=auction.player_id).update(
             owner=best.participant, cost=best.amount
         )
+        _contracts_after_sale(auction.player_id, best.participant, best.amount, auction)
 
     RosterLog.objects.create(
         participant=best.participant,
@@ -672,6 +673,28 @@ def _record_winner_spend(auction, *, assigned_by="auto"):
         best.participant.display_name, best.amount,
     )
     return result
+
+
+def _contracts_after_sale(player_id, winner, amount, auction):
+    """Regolamento 4: contratto da tirare per chi compra; se il giocatore era
+    stato rescisso al rinnovo, l'incasso dell'asta va alla squadra che lo aveva."""
+    from .contracts import on_player_acquired
+
+    player = Player.objects.select_related("owner", "owner__league", "rescinded_from").get(pk=player_id)
+    on_player_acquired(player)
+    former = player.rescinded_from
+    if former is None:
+        return
+    if former.id != winner.id:
+        from .contracts import contract_rules
+        from .salary import add_credits
+
+        league = former.league
+        cap = (contract_rules(league)["rescind_proceeds_cap"].get(player.role) if league else None)
+        proceeds = min(amount, Decimal(cap)) if cap else amount
+        add_credits(former, proceeds,
+                    f"Incasso asta di {player.name} (rescisso al rinnovo) · asta #{auction.id}")
+    Player.objects.filter(pk=player_id).update(rescinded_from=None)
 
 
 def _record_unsold(auction):
@@ -722,6 +745,10 @@ def release_player(player_id, *, auction_id=None, by_admin=False, participant_id
     if not by_admin:
         if participant_id is None or int(participant_id) != player.owner_id:
             return {"ok": False, "error": "forbidden"}
+        from .contracts import release_problem
+        problem = release_problem(player)
+        if problem:
+            return {"ok": False, "error": "release_locked", "message": problem}
 
     owner = Participant.objects.select_for_update().get(pk=player.owner_id)
 
@@ -854,6 +881,8 @@ def assign_player(player_id, participant_id, *, price=None, by_admin=True, note=
     player.owner = new_owner
     player.cost = price
     player.save(update_fields=["owner", "cost"])
+    from .contracts import on_player_acquired
+    on_player_acquired(player)
 
     RosterLog.objects.create(
         participant=new_owner, participant_name=new_owner.display_name,

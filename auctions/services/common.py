@@ -26,6 +26,13 @@ class Reject:
     SEALED_CLOSED         = "sealed_closed"
     SEALED_TOO_LOW        = "sealed_too_low"
     SEALED_NOT_CONTENDER  = "sealed_not_contender"
+    # Contratti (regolamento 4.1): chi ha perso il giocatore col dado rinnovo
+    # non può ricomprarlo all'asta successiva.
+    RESCINDED_REBUY       = "rescinded_rebuy"
+    # Tetto salariale (regolamento 1.2).
+    SALARY_CAP            = "salary_cap"
+    # Portieri di troppe squadre di Serie A (regolamento 2.02).
+    GK_CLUBS              = "gk_clubs"
 
 
 # Italian labels for every code the UI can receive — rejected bids plus the
@@ -33,6 +40,9 @@ class Reject:
 # page and the regia console render from this map, so a new code can never show
 # up on screen as a bare identifier.
 ERROR_LABELS = {
+    "gk_clubs": "Hai già portieri di due squadre di Serie A: puoi prendere solo portieri di quelle squadre",
+    "salary_cap": "Tetto salariale raggiunto: non puoi spendere di più in questo mercato",
+    "rescinded_rebuy": "Hai perso questo giocatore al rinnovo: non puoi ricomprarlo in questo mercato",
     Reject.AUCTION_NOT_FOUND:     "Asta non trovata",
     Reject.PARTICIPANT_NOT_FOUND: "Squadra non trovata",
     Reject.PARTICIPANT_INACTIVE:  "Squadra disattivata",
@@ -137,7 +147,7 @@ def _check_roster_limits(auction, participant, new_amount):
     if not cfg.slot_limits:
         return None
 
-    owned_total = Player.objects.filter(owner=participant).count()
+    owned_total = Player.objects.filter(owner=participant, abroad_list=False).count()
 
     role = auction.player.role if auction.player_id else ""
     if role:
@@ -145,7 +155,7 @@ def _check_roster_limits(auction, participant, new_amount):
         # si contano tutti i ruoli che condividono lo stesso slot (vedi
         # ``League.slot_roles``). In Classic l'insieme è il singolo ruolo.
         owned_role = Player.objects.filter(
-            owner=participant, role__in=cfg.slot_roles(role)).count()
+            owner=participant, abroad_list=False, role__in=cfg.slot_roles(role)).count()
         if owned_role >= cfg.slots_for(role):
             return Reject.ROSTER_SLOT_FULL
 
