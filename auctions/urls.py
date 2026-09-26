@@ -58,6 +58,7 @@ urlpatterns = [
     path("admin-auction/<int:auction_id>/announce/", views.admin_announce, name="admin_announce"),
     path("admin-auction/<int:auction_id>/timer/", views.admin_adjust_timer, name="admin_adjust_timer"),
     path("admin-auction/<int:auction_id>/force-close/", views.admin_force_close_lot, name="admin_force_close_lot"),
+    path("admin-auction/<int:auction_id>/turns/", views.admin_auction_turns, name="admin_auction_turns"),
     path("admin-auction/<int:auction_id>/auto-advance/", views.admin_set_auto_advance, name="admin_set_auto_advance"),
     path("admin-auction/<int:auction_id>/confirm-advance/", views.admin_confirm_advance, name="admin_confirm_advance"),
     path("admin-auction/<int:auction_id>/bid-for/", views.admin_bid_for, name="admin_bid_for"),

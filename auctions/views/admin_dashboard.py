@@ -763,3 +763,28 @@ def admin_logs_tail(request):
             lines = ["[Errore durante la lettura del file di log]"]
     return JsonResponse({"ok": True, "lines": [line.rstrip("\r\n") for line in lines]})
 
+
+
+@staff_member_required
+@require_POST
+def admin_auction_turns(request, auction_id):
+    """Regia: chiamata a turno (5.02) — attiva con l'ordine di classifica, passa il turno, disattiva."""
+    from .common import user_can_manage_league
+    from ..services.turns import default_order
+
+    auction = get_object_or_404(Auction.objects.select_related("league"), pk=auction_id)
+    if auction.league is not None and not user_can_manage_league(request.user, auction.league):
+        return JsonResponse({"ok": False, "error": "forbidden"}, status=403)
+    action = request.POST.get("action")
+    if action == "enable":
+        auction.turn_order = default_order(auction.league) if auction.league else []
+        auction.turn_skips = 0
+    elif action == "skip":
+        auction.turn_skips += 1
+    elif action == "disable":
+        auction.turn_order = []
+    else:
+        return JsonResponse({"ok": False, "error": "bad_action"}, status=400)
+    auction.save(update_fields=["turn_order", "turn_skips"])
+    broadcast_state(auction)
+    return JsonResponse({"ok": True, "state": services.serialize_state(auction)})

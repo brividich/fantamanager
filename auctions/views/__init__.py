@@ -13,6 +13,7 @@ from .admin_config import (
     admin_sessions,
 )
 from .admin_dashboard import (
+    admin_auction_turns,
     _break_seconds,
     _classifica_standings,
     _pint,
@@ -348,6 +349,7 @@ __all__ = [
     "app_list_release",
     "app_renewals_declare",
     "app_renewal_roll",
+    "admin_auction_turns",
     "admin_contracts",
     "admin_contracts_action",
     "admin_season",

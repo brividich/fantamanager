@@ -136,6 +136,21 @@
                 <input type="number" min="0" name="get_credits" id="get_credits" value="0" class="tr-input">
             </div>
         </div>
+        <div class="tr-grid">
+            <div>
+                <label for="kind">Tipo di trattativa</label>
+                <select name="kind" id="kind" class="tr-input" onchange="document.getElementById('loan-len').style.display=this.value==='loan'?'':'none'">
+                    <option value="definitive">Definitiva (scambio o vendita)</option>
+                    <option value="loan">Prestito</option>
+                </select>
+            </div>
+            <div id="loan-len" style="display:none">
+                <label for="loan_sessions">Durata del prestito</label>
+                <select name="loan_sessions" id="loan_sessions" class="tr-input">
+                    {% for n in "1234" %}<option value="{{ n }}">{{ n }} session{{ n|pluralize:"e,i" }} d'asta</option>{% endfor %}
+                </select>
+            </div>
+        </div>
         <div>
             <label for="message">Messaggio (opzionale)</label>
             <input type="text" maxlength="200" name="message" id="message" class="tr-input" placeholder="Es. ti serve un difensore?">

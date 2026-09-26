@@ -104,7 +104,8 @@ def app_rosa(request):
     participant, ctx = _app_ctx(request, "rosa")
     if participant is None:
         return _redirect_login(request)
-    roster = list(Player.objects.filter(owner=participant, abroad_list=False).order_by("role", "-cost", "name"))
+    roster = list(Player.objects.filter(owner=participant, abroad_list=False).select_related("loan_from")
+                  .order_by("role", "-cost", "name"))
     league = participant.league
     is_mantra = bool(league and league.is_mantra)
     groups = []
@@ -131,6 +132,7 @@ def app_rosa(request):
         "renewals_open": bool(league and league.contracts_enabled and league.renewals_open),
         "expiring": services.expiring_contracts(participant) if league and league.contracts_enabled else [],
         "abroad_listed": list(Player.objects.filter(owner=participant, abroad_list=True)),
+        "loaned_out": list(Player.objects.filter(loan_from=participant).select_related("owner")),
     })
     return render(request, "auctions/app_rosa.html", ctx)
 
@@ -434,8 +436,11 @@ def app_trade_propose(request):
         give_credits=request.POST.get("give_credits") or 0,
         get_credits=request.POST.get("get_credits") or 0,
         message=request.POST.get("message") or "",
+        kind=request.POST.get("kind") or "definitive",
+        loan_sessions=request.POST.get("loan_sessions") or 1,
     )
-    return _trade_feedback(request, res, "Proposta di scambio inviata.")
+    return _trade_feedback(request, res, "Proposta di prestito inviata." if request.POST.get("kind") == "loan"
+                           else "Proposta di scambio inviata.")
 
 
 @require_POST

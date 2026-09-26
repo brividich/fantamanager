@@ -225,6 +225,11 @@ def new_season(league_id):
         p.renewal_declared = None
         p.save(update_fields=["contract_years", "renewal_declared"])
         expired += p.contract_years == 0 and not p.abroad_list
+    # 5.07: un prestito non dura oltre il contratto: chi scade torna a chi ha il
+    # cartellino, che tenterà il rinnovo.
+    from .loans import return_loan
+    for p in Player.objects.filter(owner__league=league, contract_years=0, loan_from__isnull=False):
+        return_loan(p, note="Fine contratto durante il prestito")
     # 5.09: chi è nella lista ceduti non si rinnova; a fine contratto si perde
     # e la squadra incassa il compenso della cessione.
     from .abroad import expire_listed
@@ -305,9 +310,12 @@ def roll_renewal(player_id, *, participant_id=None, by_admin=False, manual_green
             return _err("Risultato del dado contratti non valido.")
     else:
         face = r.choice(contract_faces(league))
+    from django.utils import timezone
+
     player.contract_years = face
     player.renewal_declared = None
-    player.save(update_fields=["contract_years", "renewal_declared"])
+    player.renewed_at = timezone.now()
+    player.save(update_fields=["contract_years", "renewal_declared", "renewed_at"])
     _log(league, player, ContractEvent.Kind.RENEWED, participant=owner, roll=face, years=face,
          manual=manual or manual_face is not None, by_admin=by_admin)
     return {"ok": True, "green": True, "face": face, "years": face, "player_name": player.name}
@@ -324,6 +332,34 @@ def close_renewals(league_id):
 def on_player_acquired(player):
     """Hook: un giocatore è appena passato a una squadra per acquisto (asta,
     buste, assegnazione admin): il contratto è da tirare."""
+    from django.utils import timezone
+
+    Player.objects.filter(pk=player.pk).update(acquired_at=timezone.now(), loan_from=None, loan_sessions_left=None)
     league = player.owner.league if player.owner_id else None
     if league is not None and league.contracts_enabled:
         Player.objects.filter(pk=player.pk).update(contract_years=None, renewal_declared=None)
+
+
+def release_problem(player):
+    """Perché la squadra non può svincolare (o vendere alla Lega) il giocatore, o ''.
+
+    * 4.02: chi ha rinnovato non si svincola nella stessa sessione di mercato
+      (la sessione estiva che segue i rinnovi, fino all'apertura dell'invernale);
+    * 5.01: chi è stato comprato non si vende nella stessa sessione di mercato;
+    * 5.07: chi è in prestito non è della squadra che lo ha in rosa.
+    """
+    from ..models import CapPhase
+    from .salary import current_session_start
+
+    if player.loan_from_id:
+        return f"{player.name} è in prestito: il cartellino è di un'altra squadra."
+    league = player.owner.league if player.owner_id else None
+    if league is None or not league.contracts_enabled:
+        return ""
+    start = current_session_start(league)
+    if player.acquired_at and start and player.acquired_at >= start:
+        return f"{player.name} è stato acquistato in questa sessione di mercato: non si può vendere o svincolare ora."
+    if player.renewed_at and not CapPhase.objects.filter(
+            league=league, kind=CapPhase.Kind.WINTER, started_at__gt=player.renewed_at).exists():
+        return f"{player.name} ha rinnovato: non si può svincolare nella stessa sessione di mercato."
+    return ""

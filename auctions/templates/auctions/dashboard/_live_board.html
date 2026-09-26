@@ -100,6 +100,18 @@
     </aside>
 </div>
 
+<!-- Chiamata a turno (regolamento 5.02): chi deve chiamare il prossimo giocatore. -->
+{% if selected.flow_mode == "call" %}
+<div id="turn-card" class="fm-card" style="margin-bottom:16px;padding:12px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+    <span style="font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)">Chiamata a turno</span>
+    <span id="turn-text" style="font-size:16px;font-weight:800">—</span>
+    <span style="margin-left:auto;display:flex;gap:8px">
+        <button type="button" class="fm-btn" id="turn-skip" onclick="turnAction('skip')" style="display:none">Passa il turno</button>
+        <button type="button" class="fm-btn" id="turn-toggle" onclick="turnAction(this.dataset.next)">Attiva (ordine di classifica)</button>
+    </span>
+</div>
+{% endif %}
+
 <!-- Asta alle buste: mentre il giro e' aperto la regia vede il minimo e
      quante buste sono arrivate — mai il contenuto, che il server non manda
      a nessuno finche' non si spoglia. -->

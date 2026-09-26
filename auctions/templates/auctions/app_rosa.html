@@ -109,6 +109,12 @@
 </section>
 {% endif %}
 
+{% if loaned_out %}
+<div class="a-card" style="padding:8px 12px;font-size:12.5px">
+    <b>Prestati:</b> {% for p in loaned_out %}{{ p.name }} → {{ p.owner.display_name }} ({{ p.loan_sessions_left }} sess.){% if not forloop.last %} · {% endif %}{% endfor %}
+</div>
+{% endif %}
+
 {% if abroad_listed %}
 <section class="a-card" style="padding:0">
     <div class="a-label" style="padding:10px 12px 0"><svg class="ic"><use href="#i-globe"/></svg> Lista ceduti temporanei ({{ abroad_listed|length }}/3)</div>
@@ -147,7 +153,7 @@
                     {% if pl.photo_url %}<span class="pl-ava"><img src="{{ pl.photo_url }}" alt="" loading="lazy"></span>{% endif %}
                     <span class="pl-txt">
                         <span class="pl-name">{{ pl.name }}</span>
-                        <span class="pl-sub">{{ pl.team }}{% if is_mantra and pl.roles_display %} · <span class="mr">{{ pl.roles_display }}</span>{% endif %}{% if pl.goals %} · ⚽{{ pl.goals }}{% endif %}{% if pl.assists %} · A{{ pl.assists }}{% endif %}</span>
+                        <span class="pl-sub">{{ pl.team }}{% if is_mantra and pl.roles_display %} · <span class="mr">{{ pl.roles_display }}</span>{% endif %}{% if pl.loan_from_id %} · <span style="color:#eab308">in prestito da {{ pl.loan_from.display_name }}</span>{% endif %}{% if pl.goals %} · ⚽{{ pl.goals }}{% endif %}{% if pl.assists %} · A{{ pl.assists }}{% endif %}</span>
                     </span>
                 </div>
                 <span class="pl-fm{% if not pl.fanta_avg %} none{% endif %}" title="Fantamedia">{% if pl.fanta_avg %}{{ pl.fanta_avg|floatformat:2 }}{% else %}—{% endif %}</span>

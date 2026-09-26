@@ -199,6 +199,11 @@ class Auction(models.Model):
     # {"P": "M", "D": "F", ...}. Riempita da build_queue.
     drawn_letters = models.JSONField(default=dict, blank=True)
 
+    # Asta a chiamata a turno (regolamento 5.02): ordine delle squadre (id) che
+    # chiamano un giocatore a rotazione, e quante volte si è passato il turno.
+    turn_order = models.JSONField(default=list, blank=True)
+    turn_skips = models.PositiveIntegerField(default=0)
+
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.DRAFT)
 
     current_cycle = models.PositiveIntegerField(default=1)

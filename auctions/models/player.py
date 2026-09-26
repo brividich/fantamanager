@@ -115,6 +115,17 @@ class Player(models.Model):
     abroad_list = models.BooleanField(default=False)
     abroad_compensation = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
 
+    # Prestito (5.07): la squadra che ha il cartellino e quante sessioni d'asta
+    # mancano al rientro (si scala a ogni apertura di fase estiva/invernale).
+    loan_from = models.ForeignKey(
+        "Participant", null=True, blank=True, on_delete=models.SET_NULL, related_name="loaned_out"
+    )
+    loan_sessions_left = models.PositiveSmallIntegerField(null=True, blank=True)
+    # Quando è arrivato in rosa (acquisto) e quando ha rinnovato: servono ai
+    # divieti "non si vende/svincola nella stessa sessione di mercato".
+    acquired_at = models.DateTimeField(null=True, blank=True)
+    renewed_at = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         ordering = ["role", "name"]
 
