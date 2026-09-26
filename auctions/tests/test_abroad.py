@@ -163,3 +163,102 @@ class ProviderTests(TestCase):
         rows = uefa.fetch_club_ranking(get=lambda *a, **k: Resp(data))
         self.assertEqual(rows[0][:2], ("Real Madrid", 1))
         self.assertEqual(uefa.parse_pasted("3;Inter\nBenfica 12\n"), [("Inter", 3, ""), ("Benfica", 12, "")])
+
+
+class UefaRankingTests(TestCase):
+    """Download del ranking UEFA: forme della risposta, errori, incolla a mano."""
+
+    # La forma usata da uefa.com: la posizione sta in "overallRanking", e le
+    # classifiche delle singole stagioni hanno posizioni loro che non contano.
+    UEFA_SHAPE = {"data": {"members": [
+        {"member": {"displayName": "Bayern München", "countryName": "Germany"},
+         "overallRanking": {"position": 2, "totalValue": 120.5},
+         "seasonRankings": [{"seasonYear": 2025, "position": 7}]},
+        {"member": {"internationalName": "Real Madrid", "countryCode": "ESP"},
+         "overallRanking": {"position": 1, "totalValue": 130.0},
+         "seasonRankings": [{"seasonYear": 2025, "position": 1}]},
+    ]}}
+
+    def test_position_nested_in_overall_ranking(self):
+        rows, reason = uefa.fetch(get=lambda *a, **k: Resp(self.UEFA_SHAPE), year=2027)
+        self.assertEqual(reason, "")
+        self.assertEqual([r[:2] for r in rows], [("Real Madrid", 1), ("Bayern München", 2)])
+        self.assertEqual(rows[1][2], "Germany")
+
+    def test_asks_like_a_browser_from_uefa_com(self):
+        seen = {}
+
+        def get(url, **kw):
+            seen.update(kw)
+            return Resp(self.UEFA_SHAPE)
+        uefa.fetch(get=get, year=2027)
+        self.assertIn("Mozilla", seen["headers"]["User-Agent"])
+        self.assertEqual(seen["headers"]["Referer"], "https://www.uefa.com/")
+        self.assertEqual(seen["params"]["seasonYear"], 2027)
+
+    def test_refused_request_explains_why(self):
+        import requests
+
+        class Refused(Resp):
+            status_code = 403
+
+            def raise_for_status(self):
+                raise requests.HTTPError("403", response=self)
+        rows, reason = uefa.fetch(get=lambda *a, **k: Refused({}))
+        self.assertEqual(rows, [])
+        self.assertIn("rifiutato", reason)
+
+    def test_unreachable_site_explains_why(self):
+        import requests
+
+        def get(*a, **k):
+            raise requests.ConnectionError("no route")
+        rows, reason = uefa.fetch(get=get)
+        self.assertEqual(rows, [])
+        self.assertIn("non è raggiungibile", reason)
+
+    def test_falls_back_to_previous_season_when_current_is_empty(self):
+        years = []
+
+        def get(url, params=None, **kw):
+            years.append(params["seasonYear"])
+            return Resp({"data": {"members": []}} if len(years) == 1 else self.UEFA_SHAPE)
+        with mock.patch.object(uefa, "_season_year", return_value=2027):
+            rows, reason = uefa.fetch(get=get)
+        self.assertEqual(years, [2027, 2026])
+        self.assertEqual(len(rows), 2)
+
+    def test_pages_until_the_ranking_ends(self):
+        def page(n, count):
+            start = (n - 1) * uefa.PAGE_SIZE
+            return {"data": {"members": [
+                {"member": {"displayName": f"Club {start + i}"}, "overallRanking": {"position": start + i + 1}}
+                for i in range(count)]}}
+        pages = []
+
+        def get(url, params=None, **kw):
+            pages.append(params["page"])
+            return Resp(page(params["page"], uefa.PAGE_SIZE if params["page"] == 1 else 30))
+        rows, _ = uefa.fetch(get=get, year=2027)
+        self.assertEqual(pages, [1, 2])
+        self.assertEqual(len(rows), uefa.PAGE_SIZE + 30)
+        self.assertEqual(rows[-1][1], uefa.PAGE_SIZE + 30)
+
+    def test_paste_the_table_copied_from_uefa_com(self):
+        tabbed = "Pos\tClub\tAssociation\tPoints\n1\tReal Madrid\tESP\t143.500\n2\tBayern München\tGER\t136.250\n"
+        self.assertEqual(uefa.parse_pasted(tabbed), [("Real Madrid", 1, ""), ("Bayern München", 2, "")])
+        one_cell_per_line = "1\nReal Madrid\nESP\n143.500\n2\nInter\nITA\n116.250\n"
+        self.assertEqual(uefa.parse_pasted(one_cell_per_line), [("Real Madrid", 1, ""), ("Inter", 2, "")])
+        spaced = "3. Manchester City ENG 120.000\n12° Benfica POR 80,500\n"
+        self.assertEqual(uefa.parse_pasted(spaced), [("Manchester City", 3, ""), ("Benfica", 12, "")])
+
+    def test_failed_download_message_names_the_reason(self):
+        league = League.objects.create(name="Lega", budget=Decimal("500"))
+        admin = User.objects.create_superuser("admin", "a@b.c", "pass12345")
+        self.client.force_login(admin)
+        with mock.patch.object(uefa, "fetch", return_value=([], "uefa.com ha rifiutato la richiesta (403)")):
+            resp = self.client.post(reverse("admin_contracts_action"),
+                                    {"league_id": league.id, "action": "uefa_fetch"}, follow=True)
+        body = resp.content.decode()
+        self.assertIn("rifiutato la richiesta (403)", body)
+        self.assertIn(uefa.RANKING_PAGE, body)

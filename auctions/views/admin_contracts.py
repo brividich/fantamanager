@@ -7,6 +7,7 @@ from django.views.decorators.http import require_POST
 
 from .. import services
 from ..models import ContractEvent, Participant, Player
+from ..providers.uefa import RANKING_PAGE as UEFA_RANKING_PAGE
 from .common import current_league, manageable_leagues, staff_member_required, target_league, user_can_manage_league
 
 _FORBIDDEN = "Non hai i permessi per gestire i contratti di questa lega."
@@ -62,6 +63,7 @@ def admin_contracts(request):
         "listed": listed if league is not None else [],
         "flaggable": flaggable if league is not None else [],
         "uefa_count": UefaClubRank.objects.count() if league is not None else 0,
+        "uefa_ranking_page": UEFA_RANKING_PAGE,
         "apifootball": is_configured() if league is not None else False,
         "contract_faces": sorted(set(services.contract_faces(league))) if league else [1, 2, 3],
         "crules": services.contract_rules(league) if league else None,
@@ -132,12 +134,16 @@ def admin_contracts_action(request):
             res = abroad.release_from_list(player_id)
             ok = f"Svincolato dalla lista ceduti: +{res.get('amount')} FM."
         elif action == "uefa_fetch":
-            rows = uefa.fetch_club_ranking()
-            res = {"ok": bool(rows), "message": "Ranking UEFA non scaricabile ora: incollalo a mano."}
+            rows, reason = uefa.fetch()
+            res = {"ok": bool(rows), "message": (
+                f"Ranking UEFA non scaricato: {reason}. Apri la classifica su uefa.com, "
+                "copia la tabella e incollala nel riquadro «Ranking UEFA club».")}
             ok = f"Ranking UEFA aggiornato: {abroad.store_uefa_ranking(rows) if rows else 0} club."
         else:
             rows = uefa.parse_pasted(request.POST.get("ranking"))
-            res = {"ok": bool(rows), "message": "Nessuna riga valida (formato: posizione;club)."}
+            res = {"ok": bool(rows), "message": (
+                "Nessuna riga valida: servono posizione e club su ogni riga "
+                "(es. «1;Real Madrid»), oppure la tabella copiata da uefa.com.")}
             ok = f"Ranking UEFA salvato: {abroad.store_uefa_ranking(rows) if rows else 0} club."
         if res.get("ok"):
             messages.success(request, ok)
