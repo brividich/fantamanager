@@ -1,691 +1,994 @@
 {% extends "auctions/base.html" %}
-{% block title %}Nuova lega{% endblock %}
+{% comment %}
+"Nuova lega" — one guided page from the files to a ready auction.
+
+Three steps (File → Lega & squadre → Asta) with a live summary on the side.
+It tries to do the thinking for the user: the roster format is recognised from
+the file, the budget and the teams come from the roster, Mantra is suggested
+when the listone carries Mantra roles, presets set roster and pace in one tap,
+names can be pasted as a list, Enter moves forward instead of submitting half a
+form, and a draft survives a reload. The POST it sends is the same one
+admin_setup_create has always read.
+{% endcomment %}
+{% block title %}Nuova lega — FantaManager{% endblock %}
 {% block bodyclass %}role-admin{% endblock %}
 {% block wrapclass %}wrap-wide{% endblock %}
 
 {% block content %}
 <style>
-    /* .wiz-head / .wnav / .sumtable / .opt base — shared with the other
-       wizards, see static/css/console.css. Only .opt-t (below) stays local:
-       this one adds a flex layout (icon + text) the others don't need. */
-    .steps { display:flex; gap:10px; margin-bottom:20px; }
-    .steps .step {
-        flex:1; display:flex; align-items:center; gap:10px; padding:11px 14px; border-radius:var(--fm-radius-md);
-        border:1px solid var(--fm-border); background:var(--fm-card); color:var(--fm-text-secondary);
-        font-size:11px; letter-spacing:.12em; text-transform:uppercase; font-weight:700;
-        transition:border-color .12s, background .12s, color .12s;
+    .sw { max-width: 1180px; margin: 0 auto; padding-bottom: 96px; }
+
+    /* ---- Header + stepper ---------------------------------------------- */
+    .sw-top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 4px 0 16px; }
+    .sw-top .brand { flex: 0 0 auto; }
+    .sw-top .spacer { flex: 1 1 auto; }
+    .sw-steps { display: flex; gap: 8px; margin: 0 0 18px; padding: 0; list-style: none; }
+    .sw-steps li { flex: 1; }
+    .sw-steps button {
+        width: 100%; height: auto; min-height: 48px; justify-content: flex-start; gap: 10px;
+        padding: 8px 12px; text-align: left; white-space: normal;
+        background: var(--fm-card); border: 1px solid var(--fm-border); color: var(--fm-text-secondary);
     }
-    .steps .step .n {
-        display:inline-flex; align-items:center; justify-content:center; flex-shrink:0;
-        width:26px; height:26px; border-radius:50%;
-        background:rgba(255,255,255,.08); color:var(--muted); font-family:var(--display); font-size:14px;
+    .sw-steps button:disabled { opacity: .55; cursor: not-allowed; }
+    .sw-steps .n {
+        flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%;
+        display: inline-flex; align-items: center; justify-content: center;
+        font-family: var(--display); font-size: 15px; font-weight: 800;
+        background: rgba(255,255,255,.08); color: var(--muted);
     }
-    .steps .step.active { border-color:var(--fm-border-active); background:rgba(8,124,240,.14); color:var(--fm-primary-light); }
-    .steps .step.active .n { background:var(--fm-gradient); color:#fff; }
-    .steps .step.done { color:var(--fm-text); }
-    .steps .step.done .n { background:var(--fm-gradient); color:#fff; }
-    .steps .step.done .n::before { content:"✓"; }
-    .steps .step.done .n .num { display:none; }
-    @media (max-width:560px){ .steps .step .lbl { display:none; } .steps { gap:6px; } }
+    .sw-steps .l { display: flex; flex-direction: column; line-height: 1.15; }
+    .sw-steps .l b { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; }
+    .sw-steps .l small { font-size: 11.5px; font-weight: 500; color: var(--fm-text-muted); letter-spacing: 0; text-transform: none; }
+    .sw-steps button[aria-current="step"] { border-color: var(--fm-border-active); background: rgba(8,124,240,.14); color: var(--fm-primary-light); }
+    .sw-steps button[aria-current="step"] .n,
+    .sw-steps button.done .n { background: var(--fm-gradient); color: #fff; }
+    .sw-steps button.done { color: var(--fm-text); }
+    @media (max-width: 640px) { .sw-steps .l small { display: none; } .sw-steps button { padding: 8px; } }
+    @media (max-width: 420px) { .sw-steps .l { display: none; } .sw-steps button { justify-content: center; } }
 
-    .wstep { display:none; }
-    .wstep.active { display:block; animation:fadeStep .22s ease; }
-    @keyframes fadeStep { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+    /* ---- Layout: step + live summary ----------------------------------- */
+    .sw-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+    @media (min-width: 1100px) { .sw-layout { grid-template-columns: minmax(0, 1fr) 330px; } }
+    .sw-side { display: none; }
+    @media (min-width: 1100px) { .sw-side { display: block; position: sticky; top: 16px; } }
 
-    .sec-title { font-weight:700; text-transform:uppercase; letter-spacing:.14em;
-        font-size:11px; color:var(--fm-text-secondary); margin:22px 0 10px; padding-bottom:6px;
-        border-bottom:1px solid var(--fm-border); }
-    .sec-title:first-of-type { margin-top:4px; }
+    .wstep { display: none; }
+    .wstep.active { display: block; animation: swIn .2s ease; }
+    @keyframes swIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    .wstep h2 { font-size: 24px; margin: 0 0 4px; outline: none; }
+    .wstep .lead { color: var(--muted); font-size: 13.5px; margin: 0 0 16px; line-height: 1.5; max-width: 70ch; }
 
-    .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-    .grid4 { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
-    @media (max-width:560px){ .grid4 { grid-template-columns:repeat(2,1fr); } .grid2 { grid-template-columns:1fr; } }
+    .blk { margin-top: 22px; }
+    .blk:first-of-type { margin-top: 6px; }
+    .blk-t { display: flex; align-items: center; gap: 8px; margin: 0 0 10px;
+             font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--fm-text-secondary); }
+    .blk-t .ic { width: 15px; height: 15px; color: var(--fm-primary-light); }
+    .blk-t .req { color: var(--closed); letter-spacing: .06em; }
+    .blk-t .opt-tag { color: var(--fm-text-muted); font-weight: 600; letter-spacing: .04em; text-transform: none; }
 
-    .opt-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:10px; }
-    .opt .opt-t { display:flex; align-items:center; gap:8px; font-family:var(--fm-display); font-weight:800; font-size:17px; letter-spacing:.01em; color:#fff; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } .grid4 { grid-template-columns: repeat(2, 1fr); } }
+    .field label { margin-top: 0; }
+    .hint { font-size: 12.5px; color: var(--muted); margin-top: 6px; line-height: 1.45; }
+    .hint.warn { color: var(--paused); }
+    .hint.bad { color: var(--closed); font-weight: 700; }
+    .hint.good { color: var(--live); }
 
-    label.inline { display:flex; align-items:center; gap:10px; margin-top:14px; cursor:pointer; text-transform:none;
-        font-size:13px; letter-spacing:0; color:var(--ink); font-weight:500; }
-    label.inline input { width:auto; }
+    /* Labels that wrap a whole card/row are layout, not field captions. */
+    label.card-opt, label.toggle-row, label.drop {
+        text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 500; color: var(--fm-text); margin: 0;
+    }
+    .start-box { margin-top: 16px; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--accent-line); background: var(--accent-soft); }
 
-    .part-row { display:grid; grid-template-columns:1fr 130px 46px; gap:8px; align-items:center; margin-bottom:8px; }
-    .part-row input { margin:0; }
-    .rm-btn { background:transparent; border:1px solid rgba(248,113,113,.45); color:var(--closed); padding:13px 0; }
-    .rm-btn:hover { background:rgba(248,113,113,.08); filter:none; }
-    .attach-list { max-height:200px; overflow:auto; padding:4px 12px; margin-top:6px; }
-    .attach-item { display:flex; align-items:center; gap:10px; padding:9px 4px; border-bottom:1px solid rgba(255,255,255,.05); }
-    .attach-item:last-child { border-bottom:0; }
-    .attach-item input { width:auto; margin:0; }
+    /* Option cards (radio-like) */
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+    .card-opt { position: relative; display: block; cursor: pointer; padding: 13px 14px; border-radius: 12px;
+                border: 1px solid var(--line); background: rgba(255,255,255,.025); transition: border-color .12s, background .12s; }
+    .card-opt:hover { border-color: var(--line-strong); }
+    .card-opt input { position: absolute; opacity: 0; pointer-events: none; }
+    .card-opt:has(input:checked), .card-opt.sel { border-color: var(--accent); background: var(--accent-soft); }
+    .card-opt:has(input:focus-visible) { outline: 2px solid var(--fm-primary-light); outline-offset: 2px; }
+    .card-opt .t { display: flex; align-items: center; gap: 8px; font-family: var(--fm-display); font-weight: 800; font-size: 17px; color: #fff; }
+    .card-opt .t .ic { width: 17px; height: 17px; color: var(--accent); }
+    .card-opt .d { font-size: 12.5px; color: var(--muted); margin-top: 4px; line-height: 1.35; }
+    .card-opt .badge { position: absolute; top: 10px; right: 10px; font-size: 9.5px; font-weight: 800; letter-spacing: .08em;
+                       text-transform: uppercase; color: var(--live); }
 
-    .hint { font-size:13px; color:var(--muted); margin-top:8px; }
-    .hint a { font-weight:700; }
+    /* Chips (quick values) */
+    .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+    .chip { height: 30px; padding: 0 12px; font-size: 12px; font-weight: 700; border-radius: 999px;
+            background: rgba(255,255,255,.04); border: 1px solid var(--line); color: var(--fm-text-secondary); }
+    .chip:hover { color: #fff; border-color: var(--line-strong); filter: none; }
+    .chip.on { color: var(--accent); border-color: var(--accent-line); background: var(--accent-soft); }
 
-    .impbox { margin-top:14px; padding:16px; border-radius:var(--fm-radius-md);
-        border:1px dashed var(--fm-border-active); background:rgba(8,124,240,.05); }
-    .badge-ok { display:inline-block; padding:3px 9px; border-radius:6px; font-size:11px; font-weight:800;
-        background:rgba(8,124,240,.15); color:var(--live); }
-    .team-chip { display:inline-block; margin:3px; padding:6px 12px; border-radius:8px;
-        background:var(--accent-soft); border:1px solid var(--accent-line); font-size:13px; font-weight:700; }
-    .team-chip .muted { font-weight:500; }
+    /* Segmented control */
+    .seg { display: inline-flex; padding: 3px; gap: 3px; border-radius: 10px; background: rgba(255,255,255,.04); border: 1px solid var(--line); flex-wrap: wrap; }
+    .seg label { position: relative; cursor: pointer; }
+    .seg input { position: absolute; opacity: 0; pointer-events: none; }
+    .seg span { display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 7px;
+                font-size: 12.5px; font-weight: 700; color: var(--fm-text-secondary); }
+    .seg input:checked + span { background: var(--accent-soft); color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent-line); }
+    .seg input:focus-visible + span { outline: 2px solid var(--fm-primary-light); outline-offset: 1px; }
 
-    .err-box { margin-bottom:16px; padding:14px 16px; border-radius:12px;
-        border:1px solid rgba(248,113,113,.45); background:rgba(248,113,113,.10);
-        color:#fca5a5; font-size:13.5px; line-height:1.5; }
-    .err-box b { color:#fff; }
-    input.bad { border-color:var(--closed) !important; }
+    /* Drop zones */
+    .drop { position: relative; display: block; padding: 18px; border-radius: 14px; cursor: pointer;
+            border: 1.5px dashed var(--fm-border-active); background: rgba(8,124,240,.05);
+            transition: background .12s, border-color .12s; }
+    .drop:hover, .drop.over { background: rgba(8,124,240,.11); }
+    .drop:focus-within { outline: 2px solid var(--fm-primary-light); outline-offset: 2px; }
+    .drop input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+    .drop .row1 { display: flex; align-items: center; gap: 12px; pointer-events: none; }
+    .drop .ico { width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+                 background: rgba(8,124,240,.16); color: var(--fm-primary-light); }
+    .drop .ico .ic { width: 22px; height: 22px; }
+    .drop .txt b { display: block; font-size: 15px; color: #fff; }
+    .drop .txt span { font-size: 12.5px; color: var(--muted); }
+    .drop .txt u { color: var(--fm-primary-light); text-decoration: none; font-weight: 700; }
+    .drop.ok { border-style: solid; border-color: rgba(22,217,104,.55); background: rgba(22,217,104,.06); }
+    .drop.ok .ico { background: rgba(22,217,104,.16); color: var(--live); }
+    .drop.bad { border-color: rgba(255,61,80,.6); background: rgba(255,61,80,.06); }
+    .drop .res { position: relative; margin-top: 10px; font-size: 13px; pointer-events: none; }
+    .drop .res:empty { display: none; }
+    .drop .clear { position: relative; z-index: 2; margin-left: auto; height: 30px; padding: 0 10px; font-size: 12px; pointer-events: auto; }
+    .pill { display: inline-block; padding: 3px 9px; border-radius: 6px; font-size: 11.5px; font-weight: 800;
+            background: rgba(22,217,104,.14); color: var(--live); }
+    .pill.info { background: rgba(8,124,240,.15); color: var(--fm-primary-light); }
+
+    /* Teams */
+    .team-chip { display: inline-flex; gap: 6px; align-items: baseline; margin: 3px; padding: 6px 11px; border-radius: 8px;
+                 background: var(--accent-soft); border: 1px solid var(--accent-line); font-size: 13px; font-weight: 700; }
+    .team-chip small { color: var(--muted); font-weight: 500; }
+    .part-row { display: grid; grid-template-columns: 26px 1fr 120px 40px; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .part-row .ix { font-family: var(--display); font-weight: 800; color: var(--fm-text-muted); text-align: center; }
+    .part-row input { margin: 0; }
+    .part-row .rm { width: 40px; padding: 0; color: var(--closed); border-color: rgba(248,113,113,.4); background: transparent; }
+    .part-row input.bad { border-color: var(--closed) !important; }
+    @media (max-width: 480px) { .part-row { grid-template-columns: 1fr 92px 40px; } .part-row .ix { display: none; } }
+    .team-tools { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+    .paste-box { margin-top: 10px; display: none; }
+    .paste-box.open { display: block; }
+    .paste-box textarea { min-height: 110px; resize: vertical; }
+    .attach-list { max-height: 210px; overflow: auto; padding: 4px 12px; margin-top: 6px; }
+    .attach-item { display: flex; align-items: center; gap: 10px; padding: 9px 4px; border-bottom: 1px solid rgba(255,255,255,.05); cursor: pointer; }
+    .attach-item:last-child { border-bottom: 0; }
+    .attach-item input { width: auto; margin: 0; }
+
+    .toggle-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; cursor: pointer; }
+    .toggle-row input { margin-top: 3px; width: auto; }
+    .toggle-row b { display: block; font-size: 13.5px; }
+    .toggle-row span { font-size: 12.5px; color: var(--muted); line-height: 1.4; }
+
+    details.adv { margin-top: 22px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.02); }
+    details.adv > summary { list-style: none; cursor: pointer; padding: 13px 16px; display: flex; align-items: center; gap: 8px;
+                            font-weight: 700; font-size: 13.5px; }
+    details.adv > summary::-webkit-details-marker { display: none; }
+    details.adv > summary .ic { width: 16px; height: 16px; color: var(--accent); }
+    details.adv > summary .chev { margin-left: auto; transition: transform .15s; }
+    details.adv[open] > summary .chev { transform: rotate(180deg); }
+    details.adv .adv-body { padding: 0 16px 16px; }
+
+    /* Live summary */
+    .sum { padding: 16px; }
+    .sum h3 { margin: 0 0 10px; font-family: var(--fm-display); font-size: 18px; }
+    .sum-row { display: flex; gap: 10px; padding: 7px 0; border-bottom: 1px solid rgba(85,160,230,.09); font-size: 12.5px; }
+    .sum-row:last-child { border-bottom: 0; }
+    .sum-row .k { width: 42%; flex-shrink: 0; color: var(--muted); text-transform: uppercase; font-size: 10.5px; letter-spacing: .08em; padding-top: 2px; }
+    .sum-row .v { flex: 1; min-width: 0; font-weight: 700; color: #fff; overflow-wrap: anywhere; }
+    .sum-row .v.warn { color: var(--paused); }
+    .sum-row .v.bad { color: var(--closed); }
+    .ready { margin-top: 12px; padding: 10px 12px; border-radius: 10px; font-size: 12.5px; font-weight: 700; }
+    .ready.ok { background: rgba(22,217,104,.10); color: var(--live); }
+    .ready.no { background: rgba(255,181,38,.10); color: var(--paused); }
+
+    /* Sticky action bar */
+    .sw-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
+              background: rgba(3,18,38,.94); backdrop-filter: blur(8px); border-top: 1px solid var(--line);
+              padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); }
+    .sw-bar-in { max-width: 1180px; margin: 0 auto; display: flex; align-items: center; gap: 10px; }
+    .sw-bar .where { flex: 1; min-width: 0; font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sw-bar .where b { color: #fff; }
+    .sw-bar button { min-width: 120px; }
+    @media (max-width: 480px) { .sw-bar .where { display: none; } .sw-bar button { flex: 1; min-width: 0; } }
+    body.role-admin .app-version-badge { display: none; }
+    .sw-bar .btn-ok[disabled] { opacity: .7; }
+    .spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(255,255,255,.35); border-top-color: #fff;
+            animation: spin .8s linear infinite; display: none; }
+    .busy .spin { display: inline-block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .err-box { margin-bottom: 16px; padding: 14px 16px; border-radius: 12px; border: 1px solid rgba(248,113,113,.45);
+               background: rgba(248,113,113,.10); color: #fca5a5; font-size: 13.5px; line-height: 1.5; }
+    .err-box b { color: #fff; }
+    .draft-note { display: none; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; padding: 10px 14px;
+                  border-radius: 10px; border: 1px solid var(--accent-line); background: var(--accent-soft); font-size: 13px; }
+    .draft-note.show { display: flex; }
+    .draft-note span { flex: 1; }
+    .draft-note button { height: 30px; font-size: 12px; }
 </style>
 
-<div class="wiz-head">
+<div class="sw">
+<div class="sw-top">
     <div class="brand">
-        <div class="brand-icon"><svg class="ic" style="width:28px;height:28px"><use href="#i-trophy"/></svg></div>
-        <div class="brand-text"><div class="top">NUOVA</div><div class="bottom">LEGA</div><div class="sub">Piattaforma → lega → asta</div></div>
+        <div class="brand-icon"><svg class="ic" style="width:26px;height:26px"><use href="#i-trophy"/></svg></div>
+        <div class="brand-text"><div class="top">NUOVA</div><div class="bottom">LEGA</div><div class="sub">Dai file all'asta in 3 passi</div></div>
     </div>
-    <a class="btn btn-ghost" href="{% url 'admin_dashboard' %}">← Dashboard</a>
+    <span class="spacer"></span>
+    <a class="fm-btn fm-btn-ghost" href="{% url 'admin_dashboard' %}"><svg class="ic"><use href="#i-arrow-left"/></svg> Dashboard</a>
 </div>
 
 {% if error %}
-<div class="err-box"><b>Non ho creato niente.</b> {{ error }}</div>
+<div class="err-box" role="alert"><b>Non ho creato niente.</b> {{ error }} I dati scritti sono ancora qui: ricarica solo il file.</div>
 {% endif %}
 
-<div class="steps" id="steps">
-    <div class="step active" data-step="1"><div class="n"><span class="num">1</span></div><span class="lbl">Listone &amp; rose</span></div>
-    <div class="step" data-step="2"><div class="n"><span class="num">2</span></div><span class="lbl">Lega &amp; squadre</span></div>
-    <div class="step" data-step="3"><div class="n"><span class="num">3</span></div><span class="lbl">Asta</span></div>
+<div class="draft-note" id="draft-note" role="status">
+    <svg class="ic"><use href="#i-save"/></svg>
+    <span>Ho ripreso la bozza lasciata a metà. I file vanno ricaricati: il browser non li conserva.</span>
+    <button type="button" class="fm-btn-secondary" onclick="draft.reset()">Ricomincia da capo</button>
 </div>
 
-<details class="howto">
-    <summary><svg class="ic"><use href="#i-trophy"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
-    <div class="howto-body">
-        Crei una <b>nuova lega</b> e la sua prima asta in tre passi guidati.
-        <ol>
-            <li><b>Listone &amp; rose</b>: carica il <b>listone Quotazioni</b> (obbligatorio) e, se le hai, le <b>rose</b> (Fantapazz, Excel o Leghe Fantacalcio — opzionali). Squadre e giocatori vengono rilevati automaticamente.</li>
-            <li><b>Lega &amp; squadre</b>: nome, budget e composizione della rosa (<b>limite slot per ruolo</b> oppure <b>nessun limite</b>). Se hai importato le rose, le squadre arrivano già dal file; altrimenti le aggiungi qui — nome e crediti per ognuna.</li>
-            <li><b>Asta</b>: tipo di asta, modalità (a chiamata / continua / manuale), rilanci, timer e svincoli. Controlla il <b>Riepilogo</b> e crea.</li>
-        </ol>
-        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Usa <b>Avanti →</b> / <b>← Indietro</b> per muoverti. Spunta “Avvia subito l'asta” solo se vuoi partire all'istante, altrimenti resta “Pronta”.</div>
-    </div>
-</details>
+<ol class="sw-steps" id="steps" aria-label="Passi">
+    <li><button type="button" data-go="1" aria-current="step"><span class="n">1</span><span class="l"><b>File</b><small>Listone e rose</small></span></button></li>
+    <li><button type="button" data-go="2" disabled><span class="n">2</span><span class="l"><b>Lega</b><small>Regole e squadre</small></span></button></li>
+    <li><button type="button" data-go="3" disabled><span class="n">3</span><span class="l"><b>Asta</b><small>Ritmo e riepilogo</small></span></button></li>
+</ol>
 
-<form id="wiz-form" method="post" action="{% url 'admin_setup_create' %}" enctype="multipart/form-data">
+<form id="wiz-form" method="post" action="{% url 'admin_setup_create' %}" enctype="multipart/form-data" novalidate>
     {% csrf_token %}
     <input type="hidden" name="participants_json" id="participants_json">
     <input type="hidden" name="import_choice" id="import_choice" value="none">
     <input type="hidden" name="source_site" id="source_site" value="">
 
-    <!-- STEP 1 — Listone (obbligatorio) + rose (opzionali) -->
-    <div class="wstep panel active" data-step="1">
-        <div class="sec-title">Listone Quotazioni <span style="color:var(--closed)">*</span></div>
-        <div class="hint" style="margin-top:0">Carica il file ufficiale <code>Quotazioni_Fantacalcio…xlsx</code> (o un <code>.csv</code> con <code>Nome, Ruolo, Squadra, Quotazione</code>). È il listone della lega ed è <b>obbligatorio per avviare l'asta</b>, a prescindere dalle rose.</div>
-        <div class="impbox" id="up-listone">
-            <label>File listone (.xlsx / .xls / .csv)</label>
-            <input type="file" name="listone_file" id="listone_file" accept=".xlsx,.xls,.csv" onchange="analyzeListone()">
-            <div id="listone-result" class="hint" style="display:none"></div>
-            <div id="listone-missing" class="hint" style="display:none; color:var(--closed); font-weight:700">
-                Senza listone non c'è niente da mettere all'asta: carica il file per proseguire.
-            </div>
-        </div>
+<div class="sw-layout">
+<div class="sw-main">
 
-        <div class="sec-title" style="margin-top:22px">Rose <span class="muted" style="font-weight:400">(opzionale)</span></div>
-        <div class="hint" style="margin-top:0">Hai già delle rose assegnate? Scegli da dove arrivano e caricale: vengono riconciliate sul listone qui sopra. Altrimenti lascia “Manuale”.</div>
-        <div class="opt-grid" id="src-grid" style="margin-top:12px">
-            <label class="opt" data-src="fantapazz" onclick="selectSource('fantapazz')">
-                <div class="opt-t"><svg class="ic"><use href="#i-shield"/></svg> Fantapazz</div>
-                <div class="opt-d">Carica l'export rose (.xls) — squadre, giocatori e crediti già assegnati.</div>
-            </label>
-            <label class="opt" data-src="excel" onclick="selectSource('excel')">
-                <div class="opt-t"><svg class="ic"><use href="#i-doc"/></svg> File Excel</div>
-                <div class="opt-d">Un file .xls/.xlsx con le rose complete (ruolo, nome, costo, club).</div>
-            </label>
-            <label class="opt" data-src="leghe" onclick="selectSource('leghe')">
-                <div class="opt-t"><svg class="ic"><use href="#i-import"/></svg> Leghe Fantacalcio</div>
-                <div class="opt-d">Il .csv "Rose Mantra/Classic" scaricato da Leghe Fantacalcio — abbina i giocatori per Id ufficiale al listone qui sopra.</div>
-            </label>
-            <label class="opt sel" data-src="" onclick="selectSource('')">
-                <div class="opt-t"><svg class="ic"><use href="#i-info"/></svg> Nessuna rosa</div>
-                <div class="opt-d">Parti dal solo listone: tutti i giocatori svincolati. Le squadre le aggiungi al passo 2.</div>
+    <!-- ============================ STEP 1 — FILE ============================ -->
+    <section class="wstep panel active" data-step="1" aria-labelledby="s1-h">
+        <h2 id="s1-h" tabindex="-1">Da dove partiamo?</h2>
+        <p class="lead">Carica il <b>listone</b> delle quotazioni: è l'elenco dei giocatori da mettere all'asta. Se le squadre hanno già delle rose, aggiungi anche quelle: squadre, giocatori e crediti li leggo direttamente dal file.</p>
+
+        <div class="blk">
+            <div class="blk-t"><svg class="ic"><use href="#i-list"/></svg> Listone quotazioni <span class="req">obbligatorio</span></div>
+            <label class="drop" id="drop-listone" for="listone_file">
+                <input type="file" name="listone_file" id="listone_file" accept=".xlsx,.xls,.csv" aria-describedby="listone-help listone-result">
+                <div class="row1">
+                    <div class="ico"><svg class="ic"><use href="#i-cloud-up"/></svg></div>
+                    <div class="txt"><b id="listone-name">Trascina qui il listone</b>
+                        <span id="listone-help">oppure <u>sceglilo dal computer</u> · il file <i>Quotazioni_Fantacalcio…xlsx</i> o un .csv con Nome, Ruolo, Squadra, Quotazione</span></div>
+                </div>
+                <div class="res" id="listone-result" aria-live="polite"></div>
             </label>
         </div>
 
-        <!-- Rose upload (Fantapazz / Excel) -->
-        <div class="impbox" id="up-rose" style="display:none">
-            <div id="fp-note" class="hint" style="margin-top:0; display:none">
-                {% if has_fp_rose %}<span class="badge-ok">✓ Rose già scaricate</span> dal login Fantapazz: puoi proseguire senza caricare nulla, oppure carica un file qui sotto.
-                {% else %}Puoi caricare direttamente il file rose qui sotto, oppure <a href="{% url 'admin_fantapazz' %}" target="_blank">fare il login browser su Fantapazz</a> per scaricarle in automatico.{% endif %}
-                <div class="grid2" style="margin-top:10px">
-                    <div><label>ID lega su Fantapazz <span class="muted">(opzionale)</span></label><input name="external_id" id="external_id" placeholder="es. 332175"></div>
+        <div class="blk">
+            <div class="blk-t"><svg class="ic"><use href="#i-users"/></svg> Rose già assegnate <span class="opt-tag">facoltativo</span></div>
+            <label class="drop" id="drop-rose" for="rose_file">
+                <input type="file" name="rose_file" id="rose_file" accept=".xls,.xlsx,.csv" aria-describedby="rose-help rose-result">
+                <div class="row1">
+                    <div class="ico"><svg class="ic"><use href="#i-import"/></svg></div>
+                    <div class="txt"><b id="rose-name">Trascina qui le rose</b>
+                        <span id="rose-help">Export di Fantapazz, un Excel con le rose o il .csv «Rose» di Leghe Fantacalcio: il formato lo riconosco io.</span></div>
+                </div>
+                <div class="res" id="rose-result" aria-live="polite"></div>
+            </label>
+
+            <div id="src-wrap" style="display:none;margin-top:12px">
+                <div class="hint" style="margin:0 0 6px">Formato del file rose <span id="src-auto" class="pill info" style="display:none">riconosciuto</span></div>
+                <div class="seg" role="radiogroup" aria-label="Formato del file rose">
+                    <label><input type="radio" name="_src" value="fantapazz"><span>Fantapazz</span></label>
+                    <label><input type="radio" name="_src" value="excel"><span>Excel</span></label>
+                    <label><input type="radio" name="_src" value="leghe"><span>Leghe Fantacalcio (.csv)</span></label>
                 </div>
             </div>
-            <label id="rose-file-label">File rose (.xls / .xlsx)</label>
-            <input type="file" name="rose_file" id="rose_file" accept=".xls,.xlsx" onchange="analyzeRose()">
-            <div id="rose-result" class="hint" style="display:none"></div>
-        </div>
 
-        <div class="wnav">
-            <a class="btn btn-ghost" href="{% url 'admin_dashboard' %}">Annulla</a>
-            <button type="button" class="btn-ok" onclick="wiz.next()">Avanti →</button>
-        </div>
-    </div>
-
-    <!-- STEP 2 — Lega & squadre -->
-    <div class="wstep panel" data-step="2">
-        <div class="sec-title">Dati lega</div>
-        <div class="grid2">
-            <div><label>Nome lega</label><input name="name" id="league-name" value="{{ cfg.name }}" placeholder="La mia lega"></div>
-            <div><label>Budget squadra (FM)</label><input name="budget" id="budget" value="{{ cfg.budget|floatformat:0 }}" inputmode="decimal"></div>
-        </div>
-
-        <div class="sec-title">Sistema di gioco</div>
-        <input type="hidden" name="game_mode" id="game_mode" value="{{ cfg.game_mode|default:'CLASSIC' }}">
-        <div class="opt-grid" id="mode-grid">
-            <label class="opt" data-mode="CLASSIC" onclick="selectGameMode('CLASSIC')">
-                <div class="opt-t"><svg class="ic"><use href="#i-shield"/></svg> Classic</div>
-                <div class="opt-d">Quattro ruoli: portiere, difensore, centrocampista, attaccante.</div>
-            </label>
-            <label class="opt" data-mode="MANTRA" onclick="selectGameMode('MANTRA')">
-                <div class="opt-t"><svg class="ic"><use href="#i-users"/></svg> Mantra</div>
-                <div class="opt-d">Ruoli reali e multipli (Dc, M/C, W;A), quotazioni Mantra del listone
-                    e formazioni con gli slot dei moduli ufficiali.</div>
-            </label>
-        </div>
-        <div class="hint" id="mantra-hint" style="display:none">
-            <svg class="ic"><use href="#i-info"/></svg> I ruoli Mantra arrivano dalla colonna
-            <b>RM</b> del listone ufficiale: assicurati che il file caricato al passo 1 la contenga.
-        </div>
-
-        <div class="sec-title">Composizione della rosa</div>
-        <input type="hidden" name="slot_limits" id="slot_limits" value="{% if cfg.slot_limits %}1{% else %}0{% endif %}">
-        <div class="opt-grid" id="slotmode-grid">
-            <label class="opt {% if cfg.slot_limits %}sel{% endif %}" data-slotmode="1" onclick="selectSlotMode('1')">
-                <div class="opt-t"><svg class="ic"><use href="#i-shield"/></svg> Limite slot per ruolo</div>
-                <div class="opt-d">Ogni squadra può comprare al massimo il numero di P/D/C/A qui sotto.</div>
-            </label>
-            <label class="opt {% if not cfg.slot_limits %}sel{% endif %}" data-slotmode="0" onclick="selectSlotMode('0')">
-                <div class="opt-t"><svg class="ic"><use href="#i-info"/></svg> Nessun limite slot</div>
-                <div class="opt-d">Rosa libera: nessun tetto per ruolo né per numero di giocatori, conta solo il budget.</div>
-            </label>
-        </div>
-        <div id="slots-wrap">
-            <div class="sec-title">Slot rosa per ruolo</div>
-            <div class="grid4" id="slots-classic">
-                <div><label>Portieri</label><input name="slots_p" value="{{ cfg.slots_p }}" inputmode="numeric"></div>
-                <div><label>Difensori</label><input name="slots_d" value="{{ cfg.slots_d }}" inputmode="numeric"></div>
-                <div><label>Centrocamp.</label><input name="slots_c" value="{{ cfg.slots_c }}" inputmode="numeric"></div>
-                <div><label>Attaccanti</label><input name="slots_a" value="{{ cfg.slots_a }}" inputmode="numeric"></div>
+            <div id="fp-extra" style="display:none;margin-top:12px">
+                <div class="grid2">
+                    <div class="field"><label for="external_id">ID lega su Fantapazz <span class="muted" style="text-transform:none;letter-spacing:0">(facoltativo)</span></label>
+                        <input name="external_id" id="external_id" placeholder="es. 332175" inputmode="numeric"></div>
+                </div>
             </div>
-            <div class="grid2" id="slots-mantra" style="display:none">
-                <div><label>Portieri</label><input name="slots_gk" value="{{ cfg.slots_gk|default:3 }}" inputmode="numeric"></div>
-                <div><label>Giocatori di movimento</label><input name="slots_out" value="{{ cfg.slots_out|default:22 }}" inputmode="numeric"></div>
+
+            {% if has_fp_rose %}
+            <label class="toggle-row" style="margin-top:8px">
+                <input type="checkbox" id="use-fp-cache">
+                <div><b>Usa le rose già scaricate da Fantapazz</b>
+                    <span>Le hai prese col login browser: non serve caricare nessun file.</span></div>
+            </label>
+            {% else %}
+            <p class="hint">Le rose sono su Fantapazz e non hai il file? <a href="{% url 'admin_fantapazz' %}" target="_blank" rel="noopener">Scaricale col login</a> e torna qui.</p>
+            {% endif %}
+            <p class="hint">Niente rose? Va benissimo: si parte tutti da zero e le squadre le scrivi al passo 2.</p>
+        </div>
+    </section>
+
+    <!-- ========================== STEP 2 — LEGA ========================== -->
+    <section class="wstep panel" data-step="2" aria-labelledby="s2-h">
+        <h2 id="s2-h" tabindex="-1">La tua lega</h2>
+        <p class="lead">Nome, soldi e forma della rosa. I valori proposti sono quelli di una lega standard: cambia solo quello che ti serve.</p>
+
+        <div class="blk grid2">
+            <div class="field">
+                <label for="league-name">Nome della lega</label>
+                <input name="name" id="league-name" value="{{ cfg.name }}" placeholder="Es. Fantalega degli Amici" maxlength="120" autocomplete="off">
+                <div class="hint warn" id="name-dup" style="display:none">Hai già una lega con questo nome: sceglierne uno diverso evita confusione.</div>
+            </div>
+            <div class="field">
+                <label for="budget">Crediti per squadra (FM)</label>
+                <input name="budget" id="budget" value="{{ cfg.budget|floatformat:0 }}" inputmode="numeric">
+                <div class="chips" data-for="budget">
+                    <button type="button" class="chip" data-v="250">250</button>
+                    <button type="button" class="chip" data-v="500">500</button>
+                    <button type="button" class="chip" data-v="1000">1000</button>
+                </div>
+                <div class="hint" id="budget-hint"></div>
             </div>
         </div>
 
-        <div class="sec-title">Squadre</div>
-
-        <!-- Detected from an imported rose file -->
-        <div id="detected-teams" style="display:none">
-            <div class="hint" style="margin-top:0"><span class="badge-ok">✓ Rilevate dal file</span> queste squadre vengono create automaticamente con le loro rose.</div>
-            <div id="detected-teams-list" style="margin-top:10px"></div>
+        <div class="blk">
+            <div class="blk-t"><svg class="ic"><use href="#i-ball"/></svg> Sistema di gioco</div>
+            <input type="hidden" name="game_mode" id="game_mode" value="{{ cfg.game_mode|default:'CLASSIC' }}">
+            <div class="cards" id="gm-cards" role="radiogroup" aria-label="Sistema di gioco">
+                <label class="card-opt"><input type="radio" name="_gm" value="CLASSIC">
+                    <div class="t"><svg class="ic"><use href="#i-shield"/></svg> Classic</div>
+                    <div class="d">Quattro ruoli: portiere, difensore, centrocampista, attaccante.</div></label>
+                <label class="card-opt"><input type="radio" name="_gm" value="MANTRA">
+                    <span class="badge" id="mantra-badge" style="display:none">✓ nel listone</span>
+                    <div class="t"><svg class="ic"><use href="#i-users"/></svg> Mantra</div>
+                    <div class="d">Ruoli reali e multipli (Dc, M/C, W;A), quotazioni Mantra e moduli ufficiali.</div></label>
+            </div>
+            <div class="hint" id="gm-hint" aria-live="polite"></div>
         </div>
 
-        <!-- Manual teams (manual source / listone) -->
-        <div id="manual-teams">
-            <div class="hint" style="margin-top:0">Aggiungi le squadre che partecipano all'asta.</div>
-            {% if free_teams %}
-            <label style="margin-top:12px">Includi squadre esistenti (non ancora in una lega)</label>
-            <div class="glass attach-list">
-                {% for p in free_teams %}
-                <label class="attach-item">
-                    <input type="checkbox" name="attach_ids" value="{{ p.id }}">
-                    <span style="flex:1">{{ p.display_name }}</span>
-                    <span class="muted" style="font-size:12px">{{ p.remaining_credits|floatformat:0 }} FM</span>
-                </label>
+        <div class="blk">
+            <div class="blk-t"><svg class="ic"><use href="#i-shirt"/></svg> Com'è fatta una rosa</div>
+            <input type="hidden" name="slot_limits" id="slot_limits" value="{% if cfg.slot_limits %}1{% else %}0{% endif %}">
+            <div class="seg" role="radiogroup" aria-label="Limiti della rosa">
+                <label><input type="radio" name="_slots" value="1"><span>Posti per ruolo</span></label>
+                <label><input type="radio" name="_slots" value="0"><span>Nessun limite (conta solo il budget)</span></label>
+            </div>
+            <div id="slots-wrap" style="margin-top:12px">
+                <div class="grid4" id="slots-classic">
+                    <div class="field"><label for="s-p">Portieri</label><input id="s-p" name="slots_p" value="{{ cfg.slots_p }}" inputmode="numeric"></div>
+                    <div class="field"><label for="s-d">Difensori</label><input id="s-d" name="slots_d" value="{{ cfg.slots_d }}" inputmode="numeric"></div>
+                    <div class="field"><label for="s-c">Centrocampisti</label><input id="s-c" name="slots_c" value="{{ cfg.slots_c }}" inputmode="numeric"></div>
+                    <div class="field"><label for="s-a">Attaccanti</label><input id="s-a" name="slots_a" value="{{ cfg.slots_a }}" inputmode="numeric"></div>
+                </div>
+                <div class="grid2" id="slots-mantra" style="display:none">
+                    <div class="field"><label for="s-gk">Portieri</label><input id="s-gk" name="slots_gk" value="{{ cfg.slots_gk|default:3 }}" inputmode="numeric"></div>
+                    <div class="field"><label for="s-out">Giocatori di movimento</label><input id="s-out" name="slots_out" value="{{ cfg.slots_out|default:22 }}" inputmode="numeric"></div>
+                </div>
+                <div class="chips">
+                    <button type="button" class="chip" id="slots-std">Standard</button>
+                    <span class="hint" id="slots-total" style="margin:0;align-self:center"></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="blk">
+            <div class="blk-t"><svg class="ic"><use href="#i-shield"/></svg> Squadre <span class="opt-tag" id="teams-count"></span></div>
+
+            <div id="detected-teams" style="display:none">
+                <p class="hint" style="margin-top:0"><span class="pill">✓ Dal file rose</span> queste squadre nascono con le loro rose e i loro crediti.</p>
+                <div id="detected-teams-list" style="margin-top:8px"></div>
+            </div>
+
+            <div id="manual-teams">
+                <p class="hint" style="margin-top:0">Scrivi le squadre che partecipano. Invio passa alla riga successiva; i crediti partono dal budget della lega.</p>
+                <div id="part-list"></div>
+                <div class="team-tools">
+                    <button type="button" class="fm-btn-secondary" onclick="teams.add()"><svg class="ic"><use href="#i-plus"/></svg> Aggiungi squadra</button>
+                    <button type="button" class="fm-btn-ghost" onclick="teams.togglePaste()" aria-expanded="false" id="paste-toggle"><svg class="ic"><use href="#i-copy"/></svg> Incolla un elenco</button>
+                </div>
+                <div class="paste-box" id="paste-box">
+                    <label for="paste-area">Un nome per riga (o separati da virgola)</label>
+                    <textarea id="paste-area" placeholder="Real Madrink&#10;Atletico Ma Non Troppo&#10;Inter Nazionale"></textarea>
+                    <div class="team-tools" style="margin-top:8px">
+                        <button type="button" class="btn-ok" onclick="teams.fromPaste()">Aggiungi all'elenco</button>
+                    </div>
+                </div>
+                <div class="hint bad" id="part-error" role="alert" style="display:none"></div>
+
+                {% if free_teams %}
+                <div class="blk-t" style="margin-top:18px">Squadre già esistenti senza lega</div>
+                <div class="glass attach-list">
+                    {% for p in free_teams %}
+                    <label class="attach-item">
+                        <input type="checkbox" name="attach_ids" value="{{ p.id }}" data-name="{{ p.display_name }}">
+                        <span style="flex:1">{{ p.display_name }}</span>
+                        <span class="muted" style="font-size:12px">{{ p.remaining_credits|floatformat:0 }} FM</span>
+                    </label>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+
+    <!-- ========================== STEP 3 — ASTA ========================== -->
+    <section class="wstep panel" data-step="3" aria-labelledby="s3-h">
+        <h2 id="s3-h" tabindex="-1">L'asta</h2>
+        <p class="lead">Come si chiamano i giocatori e quanto corre il timer. Tutto resta modificabile anche dopo, dalle impostazioni dell'asta.</p>
+
+        <div class="blk">
+            <div class="blk-t"><svg class="ic"><use href="#i-gavel"/></svg> Tipo di asta</div>
+            <div class="cards">
+                {% for value, label in modes %}
+                <label class="card-opt"><input type="radio" name="mode" value="{{ value }}" {% if forloop.first %}checked{% endif %}>
+                    <div class="t">{{ label }}</div>
+                    <div class="d">{% if value == 'NEW_FROM_ZERO' %}Prima asta: rose vuote, tutti partono dal budget pieno.
+                        {% elif value == 'REPAIR_AUCTION' %}Rose già esistenti: si completano con il budget residuo.
+                        {% else %}Lega che continua: rose e budget storici restano.{% endif %}</div></label>
                 {% endfor %}
             </div>
-            {% endif %}
-            <label style="margin-top:16px">Aggiungi squadre a mano</label>
-            <div id="part-list"></div>
-            <button type="button" class="btn-ghost" onclick="addPart()" style="margin-top:6px">＋ Aggiungi squadra</button>
-            <div id="part-error" class="hint" style="display:none; color:var(--closed); font-weight:700">
-                Completa nome e crediti della squadra prima di aggiungerne un'altra.
+        </div>
+
+        <div class="blk">
+            <div class="blk-t"><svg class="ic"><use href="#i-play"/></svg> Come si va avanti</div>
+            <div class="cards" id="flow-cards">
+                {% for value, label in flow_modes %}
+                <label class="card-opt"><input type="radio" name="flow_mode" value="{{ value }}" {% if forloop.first %}checked{% endif %}>
+                    <div class="t">{{ label }}</div>
+                    <div class="d">{% if value == 'call' %}Scegli tu chi mettere all'asta, uno alla volta. Il più flessibile.
+                        {% elif value == 'continuous' %}La lista scorre da sola a fine timer: ideale per serate lunghe.
+                        {% else %}Lista pronta, la fai scorrere tu con avanti/indietro.{% endif %}</div></label>
+                {% endfor %}
+            </div>
+            <div id="wz-order-wrap" style="display:none">
+                <div class="grid2" style="margin-top:12px">
+                    <div class="field">
+                        <label for="call-order-select">Ordine della lista</label>
+                        <select name="call_order" id="call-order-select">
+                            {% for value, label in call_orders %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <div class="field" id="wz-within-wrap">
+                        <label for="within-role-select">Dentro ogni ruolo</label>
+                        <select name="within_role_order" id="within-role-select">
+                            {% for value, label in within_roles %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div id="wz-auto-advance-wrap" style="display:none">
+                <label class="toggle-row">
+                    <input type="checkbox" name="manual_auto_advance" value="1">
+                    <div><b>Scorri anche senza rilanci</b>
+                        <span>Ogni giocatore parte col timer già avviato; se nessuno rilancia va invenduto e si passa al successivo.</span></div>
+                </label>
             </div>
         </div>
 
-        <div class="wnav">
-            <button type="button" class="btn-ghost" onclick="wiz.prev()">← Indietro</button>
-            <button type="button" class="btn-ok" onclick="wiz.next()">Avanti →</button>
-        </div>
-    </div>
-
-    <!-- STEP 3 — Setup asta -->
-    <div class="wstep panel" data-step="3">
-        <div class="sec-title">Tipo di asta</div>
-        <div class="opt-grid" id="mode-grid">
-            {% for value, label in modes %}
-            <label class="opt {% if forloop.first %}sel{% endif %}">
-                <input type="radio" name="mode" value="{{ value }}" {% if forloop.first %}checked{% endif %}>
-                <div class="opt-t">{{ label }}</div>
-                <div class="opt-d">
-                    {% if value == 'NEW_FROM_ZERO' %}Asta iniziale da zero, nessuna rosa preesistente.
-                    {% elif value == 'REPAIR_AUCTION' %}Rose già esistenti e budget residuo da completare.
-                    {% else %}Lega continuativa: rose e budget storici.{% endif %}
-                </div>
-            </label>
-            {% endfor %}
-        </div>
-
-        <div class="sec-title">Come avanza l'asta</div>
-        <label>Modalità d'asta</label>
-        <select name="flow_mode" id="flow-mode-select" onchange="wzToggleOrder()">
-            {% for value, label in flow_modes %}
-            <option value="{{ value }}">{{ label }}</option>
-            {% endfor %}
-        </select>
-        <div class="hint" id="flow-hint"></div>
-        <div id="wz-order-wrap" style="display:none">
-            <div class="grid2" style="margin-top:12px">
-                <div>
-                    <label>Ordine di chiamata</label>
-                    <select name="call_order" id="call-order-select" onchange="wzToggleWithin()">
-                        {% for value, label in call_orders %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
-                    </select>
-                </div>
-                <div id="wz-within-wrap">
-                    <label>Dentro al ruolo</label>
-                    <select name="within_role_order" id="within-role-select">
-                        {% for value, label in within_roles %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
-                    </select>
-                </div>
+        <div class="blk">
+            <div class="blk-t"><svg class="ic"><use href="#i-clock"/></svg> Ritmo</div>
+            <div class="chips" id="pace-chips" style="margin:0 0 12px">
+                <button type="button" class="chip" data-pace="relax">Tranquillo · 90 s</button>
+                <button type="button" class="chip on" data-pace="std">Classico · 60 s</button>
+                <button type="button" class="chip" data-pace="fast">Veloce · 30 s</button>
+            </div>
+            <div class="grid2">
+                <div class="field"><label for="f-dur">Timer per giocatore (secondi)</label><input id="f-dur" name="duration_seconds" value="60" inputmode="numeric"></div>
+                <div class="field"><label for="f-anti">Tempo extra se rilanci all'ultimo (s, 0 = no)</label><input id="f-anti" name="antisnipe_seconds" value="10" inputmode="numeric"></div>
+                <div class="field"><label for="f-inc">Rilancio minimo (FM)</label><input id="f-inc" name="min_increment" value="1" inputmode="decimal"></div>
+                <div class="field"><label for="f-quick">Pulsanti rilancio rapido</label><input id="f-quick" name="quick_increments" value="1,2,5,10">
+                    <div class="hint">I tasti che vedono le squadre, separati da virgola.</div></div>
             </div>
         </div>
-        <!-- Manuale soltanto: "continua" scorre già da sola, "a chiamata" non
-             ha una coda che possa scorrere. -->
-        <div id="wz-auto-advance-wrap" style="display:none">
-            <label class="inline" style="margin-top:12px">
-                <input type="checkbox" name="manual_auto_advance" value="1">
-                <span>Scorri anche senza rilanci: ogni giocatore parte col timer già avviato,
-                    se nessuno rilancia va invenduto e si passa al successivo. I tasti
-                    avanti/indietro restano attivi.</span>
-            </label>
-        </div>
 
-
-        <div class="sec-title">Asta alle buste</div>
-        <label class="inline">
-            <input type="checkbox" name="sealed_bids" value="1" id="wz-sealed-toggle"
-                   onchange="wzToggleSealed()">
-            <span>Sopra la soglia del ruolo si va alle buste: si smette di gridare e ognuno
-                scrive una cifra non inferiore all'ultima dichiarata +1. Si aprono tutte
-                insieme, vince la piu' alta; a parita' si rifa', a oltranza, fra i soli
-                pari merito.</span>
-        </label>
-        <div id="wz-sealed-wrap" style="display:none">
-            <div class="grid2" style="margin-top:12px">
-                <div><label>Soglia portieri (FM)</label>
-                    <input name="sealed_threshold_p" value="50" inputmode="numeric"></div>
-                <div><label>Soglia difensori (FM)</label>
-                    <input name="sealed_threshold_d" value="50" inputmode="numeric"></div>
-                <div><label>Soglia centrocampisti (FM)</label>
-                    <input name="sealed_threshold_c" value="100" inputmode="numeric"></div>
-                <div><label>Soglia attaccanti (FM)</label>
-                    <input name="sealed_threshold_a" value="150" inputmode="numeric"></div>
-                <div><label>Tempo per busta (secondi)</label>
-                    <input name="sealed_seconds" value="45" inputmode="numeric"></div>
+        <details class="adv" id="adv">
+            <summary><svg class="ic"><use href="#i-gear"/></svg> Opzioni avanzate <span class="muted" style="font-weight:500">— prezzo di partenza, limiti, svincoli, buste</span>
+                <svg class="ic chev"><use href="#i-chev-down"/></svg></summary>
+            <div class="adv-body">
+                <div class="grid2">
+                    <div class="field"><label for="f-title">Nome dell'asta</label>
+                        <input id="f-title" name="title" placeholder="Uguale al nome della lega" maxlength="200"></div>
+                    <div class="field"><label for="f-open">Prezzo di partenza</label>
+                        <select id="f-open" name="opening_price_mode">
+                            {% for value, label in opening_price_modes %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+                        </select></div>
+                    <div class="field"><label for="f-refund">Rimborso se una squadra svincola</label>
+                        <select id="f-refund" name="release_refund_mode">
+                            <option value="purchase">Costo di acquisto (prezzo pagato)</option>
+                            <option value="current">Costo attuale (quotazione del listone)</option>
+                            <option value="none">Nessun rimborso</option>
+                        </select></div>
+                </div>
+                <label class="toggle-row">
+                    <input type="checkbox" name="enforce_limits" value="1" checked>
+                    <div><b>Applica limiti di rosa e budget</b>
+                        <span>Nessuno compra oltre i posti del ruolo e resta sempre 1 credito per ogni posto ancora vuoto.</span></div>
+                </label>
+                <label class="toggle-row">
+                    <input type="checkbox" name="block_leader_rebid" value="1" checked>
+                    <div><b>Chi sta vincendo non rilancia su se stesso</b>
+                        <span>Evita i doppi tocchi che gonfiano il prezzo.</span></div>
+                </label>
+                <label class="toggle-row">
+                    <input type="checkbox" name="sealed_bids" value="1" id="wz-sealed-toggle">
+                    <div><b>Asta alle buste sopra una soglia</b>
+                        <span>Oltre la soglia del ruolo si smette di rilanciare a voce: ognuno scrive la sua cifra, vince la più alta; a parità si rifà fra i pari merito.</span></div>
+                </label>
+                <div id="wz-sealed-wrap" style="display:none">
+                    <div class="grid4">
+                        <div class="field"><label for="st-p">Soglia P</label><input id="st-p" name="sealed_threshold_p" value="50" inputmode="numeric"></div>
+                        <div class="field"><label for="st-d">Soglia D</label><input id="st-d" name="sealed_threshold_d" value="50" inputmode="numeric"></div>
+                        <div class="field"><label for="st-c">Soglia C</label><input id="st-c" name="sealed_threshold_c" value="100" inputmode="numeric"></div>
+                        <div class="field"><label for="st-a">Soglia A</label><input id="st-a" name="sealed_threshold_a" value="150" inputmode="numeric"></div>
+                    </div>
+                    <div class="grid2" style="margin-top:10px">
+                        <div class="field"><label for="st-s">Tempo per la busta (secondi)</label><input id="st-s" name="sealed_seconds" value="45" inputmode="numeric"></div>
+                    </div>
+                    <p class="hint">0 in un ruolo = quel reparto non va mai alle buste.</p>
+                </div>
             </div>
-            <div class="hint">0 in un ruolo = quel reparto non va mai alle buste.
-                Soglie e tempi restano modificabili dalle impostazioni dell'asta.</div>
+        </details>
+
+        <div class="blk" id="sum-inline-wrap">
+            <div class="blk-t"><svg class="ic"><use href="#i-list"/></svg> Riepilogo</div>
+            <div class="glass sum" id="sum-inline"></div>
         </div>
 
-        <div class="sec-title">Rilanci &amp; timer</div>
-        <div class="grid2">
-            <div><label>Rilancio minimo (FM)</label><input name="min_increment" value="1" inputmode="decimal"></div>
-            <div><label>Incrementi rapidi</label><input name="quick_increments" value="1,2,5,10"></div>
-            <div><label>Timer (secondi)</label><input name="duration_seconds" value="60" inputmode="numeric"></div>
-            <div><label>Anti-snipe (secondi, 0=off)</label><input name="antisnipe_seconds" value="10" inputmode="numeric"></div>
-        </div>
-        <label style="margin-top:12px">Prezzo di partenza</label>
-        <select name="opening_price_mode">
-            {% for value, label in opening_price_modes %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
-        </select>
-        <div class="hint">Da dove parte l'offerta per ogni giocatore: dalla quotazione (valore attuale) o da una base fissa di 1. Modificabile anche dopo, nelle impostazioni.</div>
-        <label class="inline" style="margin-top:12px">
-            <input type="checkbox" name="enforce_limits" value="1" checked>
-            <span>Applica limiti rosa e budget (slot per ruolo + 1 credito riservato per ogni slot libero).</span>
-        </label>
-        <label class="inline">
-            <input type="checkbox" name="block_leader_rebid" value="1" checked>
-            <span>Blocca il rilancio di chi sta già vincendo (evita i doppi click che gonfiano il prezzo).</span>
-        </label>
-
-        <div class="sec-title">Svincoli</div>
-        <label>Rimborso quando una squadra svincola un giocatore</label>
-        <select name="release_refund_mode">
-            <option value="purchase">Costo di acquisto (prezzo pagato all'asta)</option>
-            <option value="current">Costo attuale (quotazione del listone)</option>
-            <option value="none">Nessun rimborso</option>
-        </select>
-
-        <div class="sec-title">Riepilogo</div>
-        <table class="sumtable"><tbody id="summary"></tbody></table>
-
-        <label class="opt sel inline" style="margin-top:18px; padding:14px 16px; border-radius:12px">
+        <label class="toggle-row start-box">
             <input type="checkbox" name="start_now" value="1">
-            <span><span class="opt-t" style="font-size:15px; display:block">Avvia subito l'asta</span>
-                <span class="opt-d">Altrimenti resta in stato “Pronta” e la avvii dalla dashboard.</span></span>
+            <div><b>Avvia subito l'asta</b>
+                <span>Altrimenti resta «Pronta» e la fai partire dalla regia quando la sala è pronta.</span></div>
         </label>
+    </section>
+</div>
 
-        <div class="wnav">
-            <button type="button" class="btn-ghost" onclick="wiz.prev()">← Indietro</button>
-            <button type="submit" class="btn-ok" style="font-size:16px"><svg class="ic"><use href="#i-shield"/></svg> Crea lega e asta</button>
-        </div>
+<aside class="sw-side" aria-label="Riepilogo">
+    <div class="fm-card sum">
+        <h3>Riepilogo</h3>
+        <div id="sum-side"></div>
     </div>
-</form>
+</aside>
+</div>
 
+<div class="sw-bar">
+    <div class="sw-bar-in">
+        <div class="where" id="where" aria-live="polite"></div>
+        <button type="button" class="fm-btn-secondary" id="btn-prev" onclick="wiz.prev()"><svg class="ic"><use href="#i-arrow-left"/></svg> Indietro</button>
+        <button type="button" class="btn-ok" id="btn-next" onclick="wiz.next()">Avanti <svg class="ic"><use href="#i-arrow-right"/></svg></button>
+        <button type="submit" class="btn-ok" id="btn-create" style="display:none"><span class="spin"></span><svg class="ic"><use href="#i-shield"/></svg> <span class="lbl">Crea lega e asta</span></button>
+    </div>
+</div>
+</form>
+</div>
+
+{{ existing_names|json_script:"existing-names" }}
 <script>
+(function () {
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const form = $("#wiz-form");
+const EXISTING = (JSON.parse($("#existing-names").textContent) || []).map(n => n.trim().toLowerCase());
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const num = v => { const n = Number(String(v || "").replace(",", ".")); return isFinite(n) ? n : NaN; };
 function getCsrf() {
     const m = document.cookie.match("(^|;)\\s*csrftoken\\s*=\\s*([^;]+)");
     return m ? m.pop() : "{{ csrf_token }}";
 }
 
-// ---- Step 1: listone (obbligatorio) + rose (opzionali) ----
-const SRC_LABEL = { "": "Nessuna rosa", fantapazz: "Fantapazz", excel: "File Excel", leghe: "Leghe Fantacalcio" };
-// Accept filter + label per source — "leghe" is a .csv keyed on official
-// player Ids, everything else here is a .xls/.xlsx roster export.
-const ROSE_FILE_UI = {
-    leghe:   { accept: ".csv",       label: "File rose (.csv)" },
-    default: { accept: ".xls,.xlsx", label: "File rose (.xls / .xlsx)" },
-};
-let detectedRose = null;      // analyze result for the rose file
-let detectedListone = null;   // analyze result for the listone file
+// ---------------------------------------------------------------- state
+const st = { listone: null, rose: null, source: "" };
+const SRC_LABEL = { "": "Nessuna", fantapazz: "Fantapazz", excel: "File Excel", leghe: "Leghe Fantacalcio" };
 
-function selectSource(s) {
-    document.getElementById("source_site").value = s;
-    document.querySelectorAll("#src-grid .opt").forEach(el =>
-        el.classList.toggle("sel", el.dataset.src === s));
-    const isRose = (s === "fantapazz" || s === "excel" || s === "leghe");
-    document.getElementById("up-rose").style.display = isRose ? "block" : "none";
-    document.getElementById("fp-note").style.display = (s === "fantapazz") ? "block" : "none";
-    const fileUi = ROSE_FILE_UI[s] || ROSE_FILE_UI.default;
-    document.getElementById("rose_file").setAttribute("accept", fileUi.accept);
-    document.getElementById("rose-file-label").textContent = fileUi.label;
-    // import_choice governs the (optional) roster source only — never the listone.
-    document.getElementById("import_choice").value = (s === "") ? "none" : s;
-    // Reset roster detection when switching source.
-    detectedRose = null;
-    const rr = document.getElementById("rose-result");
-    if (rr) rr.style.display = "none";
-    updateTeamsSection();
+// ---------------------------------------------------------------- files
+function setDrop(id, cls, html, name) {
+    const box = $(id);
+    box.classList.remove("ok", "bad");
+    if (cls) box.classList.add(cls);
+    box.querySelector(".res").innerHTML = html || "";
+    if (name != null) box.querySelector(".txt b").textContent = name;
 }
-
-async function _analyze(field, file, result) {
-    result.style.display = "block";
-    result.style.color = "var(--muted)";
-    result.textContent = "Analisi del file…";
+async function analyze(field, file) {
     const body = new FormData();
     body.append(field, file);
-    const r = await fetch("{% url 'admin_setup_analyze' %}", {
-        method: "POST", body, headers: { "X-CSRFToken": getCsrf() } });
+    const r = await fetch("{% url 'admin_setup_analyze' %}", { method: "POST", body, headers: { "X-CSRFToken": getCsrf() } });
+    if (!r.ok) throw new Error("errore " + r.status);
     return r.json();
 }
-
-async function analyzeListone() {
-    const result = document.getElementById("listone-result");
-    const file = document.getElementById("listone_file").files[0];
-    if (!file) { detectedListone = null; result.style.display = "none"; return; }
+async function onListone() {
+    const file = $("#listone_file").files[0];
+    st.listone = null;
+    if (!file) { setDrop("#drop-listone", "", "", "Trascina qui il listone"); refresh(); return; }
+    setDrop("#drop-listone", "", '<span class="muted">Leggo il file…</span>', file.name);
     try {
-        const d = await _analyze("listone_file", file, result);
-        if (!d.ok) { detectedListone = null; result.style.color = "var(--closed)"; result.textContent = "✗ " + d.error; return; }
-        detectedListone = d;
-        result.style.color = "var(--live)";
-        const rl = d.roles || {};
-        result.innerHTML = `<span class="badge-ok">✓ ${d.total_players} giocatori</span> nel listone · ${rl.P||0}P/${rl.D||0}D/${rl.C||0}C/${rl.A||0}A.`;
+        const d = await analyze("listone_file", file);
+        if (!d.ok) { setDrop("#drop-listone", "bad", "✗ " + esc(d.error)); refresh(); return; }
+        st.listone = d;
+        const r = d.roles || {};
+        setDrop("#drop-listone", "ok",
+            `<span class="pill">✓ ${d.total_players} giocatori</span> <span class="muted">${r.P || 0} P · ${r.D || 0} D · ${r.C || 0} C · ${r.A || 0} A${d.mantra ? " · ruoli Mantra presenti" : ""}</span>`);
     } catch (e) {
-        detectedListone = null; result.style.color = "var(--closed)"; result.textContent = "✗ " + e;
+        setDrop("#drop-listone", "bad", "✗ Non riesco a leggere il file (" + esc(e.message) + ").");
     }
+    gameModeHint();
+    refresh();
 }
-
-async function analyzeRose() {
-    const result = document.getElementById("rose-result");
-    const file = document.getElementById("rose_file").files[0];
-    if (!file) { detectedRose = null; result.style.display = "none"; updateTeamsSection(); return; }
+function guessSource(name) {
+    const ext = (name.split(".").pop() || "").toLowerCase();
+    if (ext === "csv") return "leghe";
+    return st.source === "fantapazz" ? "fantapazz" : "excel";
+}
+function setSource(s, auto) {
+    st.source = s;
+    $("#source_site").value = s;
+    $("#import_choice").value = s || "none";
+    $$('input[name="_src"]').forEach(i => { i.checked = i.value === s; });
+    $("#src-wrap").style.display = ($("#rose_file").files[0]) ? "" : "none";
+    $("#src-auto").style.display = auto ? "" : "none";
+    $("#fp-extra").style.display = s === "fantapazz" ? "" : "none";
+    refresh();
+}
+async function onRose() {
+    const file = $("#rose_file").files[0];
+    st.rose = null;
+    const fp = $("#use-fp-cache");
+    if (!file) {
+        setDrop("#drop-rose", "", "", "Trascina qui le rose");
+        setSource(fp && fp.checked ? "fantapazz" : "", false);
+        teams.sync(); return;
+    }
+    if (fp) fp.checked = false;
+    setSource(guessSource(file.name), true);
+    setDrop("#drop-rose", "", '<span class="muted">Leggo le rose…</span>', file.name);
     try {
-        const d = await _analyze("rose_file", file, result);
-        if (!d.ok) { detectedRose = null; result.style.color = "var(--closed)"; result.textContent = "✗ " + d.error; updateTeamsSection(); return; }
-        detectedRose = d;
-        result.style.color = "var(--live)";
-        result.innerHTML = `<span class="badge-ok">✓ ${d.teams.length} squadre · ${d.total_players} giocatori</span> rilevati dal file.`;
+        const d = await analyze("rose_file", file);
+        if (!d.ok) { setDrop("#drop-rose", "bad", "✗ " + esc(d.error)); teams.sync(); return; }
+        st.rose = d;
+        let html = `<span class="pill">✓ ${d.teams.length} squadre · ${d.total_players} giocatori</span>`;
         if (d.suggested_budget) {
-            const b = document.getElementById("budget");
-            if (b) b.value = d.suggested_budget;
+            $("#budget").value = d.suggested_budget;
+            html += ` <span class="muted">budget di partenza ${d.suggested_budget} FM</span>`;
         }
+        if (d.id_based && !st.listone) html += `<div class="hint warn">Queste rose usano gli Id ufficiali: servono abbinate al listone qui sopra.</div>`;
+        setDrop("#drop-rose", "ok", html);
     } catch (e) {
-        detectedRose = null; result.style.color = "var(--closed)"; result.textContent = "✗ " + e;
+        setDrop("#drop-rose", "bad", "✗ Non riesco a leggere il file (" + esc(e.message) + ").");
     }
-    updateTeamsSection();
+    teams.sync();
 }
+$("#listone_file").addEventListener("change", onListone);
+$("#rose_file").addEventListener("change", onRose);
+$$('input[name="_src"]').forEach(i => i.addEventListener("change", () => setSource(i.value, false)));
+const fpCache = $("#use-fp-cache");
+if (fpCache) fpCache.addEventListener("change", () => { if (!$("#rose_file").files[0]) setSource(fpCache.checked ? "fantapazz" : "", false); });
+// Drag & drop: highlight while a file hovers; the native input takes the drop.
+$$(".drop").forEach(box => {
+    ["dragenter", "dragover"].forEach(ev => box.addEventListener(ev, () => box.classList.add("over")));
+    ["dragleave", "drop"].forEach(ev => box.addEventListener(ev, () => box.classList.remove("over")));
+});
 
-// ---- Step 2: squadre ----
-function updateTeamsSection() {
-    const detected = detectedRose;
-    const hasDetectedTeams = !!(detected && detected.kind === "rose" && detected.teams.length);
-    document.getElementById("detected-teams").style.display = hasDetectedTeams ? "block" : "none";
-    document.getElementById("manual-teams").style.display   = hasDetectedTeams ? "none" : "block";
-    if (hasDetectedTeams) {
-        document.getElementById("detected-teams-list").innerHTML = detected.teams.map(t =>
-            `<span class="team-chip">${t.name}<span class="muted"> · ${t.n_players} gioc.${t.credits != null ? " · " + t.credits + " FM" : ""}</span></span>`
-        ).join("");
-    }
-}
-
-function selectSlotMode(v) {
-    document.getElementById("slot_limits").value = v;
-    document.querySelectorAll("#slotmode-grid .opt").forEach(el =>
-        el.classList.toggle("sel", el.dataset.slotmode === v));
-    document.getElementById("slots-wrap").style.display = (v === "1") ? "" : "none";
-}
-
-// Il sistema di gioco decide quali caselle di rosa hanno senso: quattro reparti
-// in Classic, portieri e movimento in Mantra. I valori dell'altro set restano
-// nel form e vengono salvati comunque, cosi' tornare indietro non li perde.
-function selectGameMode(v) {
-    document.getElementById("game_mode").value = v;
-    document.querySelectorAll("#mode-grid .opt").forEach(el =>
-        el.classList.toggle("sel", el.dataset.mode === v));
+// ---------------------------------------------------------------- lega
+function setGameMode(v) {
+    $("#game_mode").value = v;
+    $$('input[name="_gm"]').forEach(i => { i.checked = i.value === v; });
     const mantra = v === "MANTRA";
-    document.getElementById("slots-classic").style.display = mantra ? "none" : "";
-    document.getElementById("slots-mantra").style.display = mantra ? "" : "none";
-    document.getElementById("mantra-hint").style.display = mantra ? "" : "none";
-    const label = document.querySelector('#slotmode-grid .opt[data-slotmode="1"] .opt-d');
-    if (label) label.textContent = mantra
-        ? "Ogni squadra può comprare al massimo i portieri e i giocatori di movimento qui sotto."
-        : "Ogni squadra può comprare al massimo il numero di P/D/C/A qui sotto.";
+    $("#slots-classic").style.display = mantra ? "none" : "";
+    $("#slots-mantra").style.display = mantra ? "" : "none";
+    gameModeHint();
+    refresh();
 }
-
-// A team row is only complete with both a name and a credits figure — the
-// wizard refuses to open a second row (or leave the step) until it is.
-function incompletePartRow() {
-    return [...document.querySelectorAll("#part-list .part-row")].find(r => {
-        const n = r.querySelector(".p-name").value.trim();
-        const c = r.querySelector(".p-cred").value.trim();
-        return !n || !c || isNaN(Number(c));
-    }) || null;
-}
-// Leaving the step (or submitting) drops a still-blank row, but a *named* one
-// must carry its credits.
-function invalidPartRow() {
-    return [...document.querySelectorAll("#part-list .part-row")].find(r => {
-        const n = r.querySelector(".p-name").value.trim();
-        const c = r.querySelector(".p-cred").value.trim();
-        return n && (!c || isNaN(Number(c)));
-    }) || null;
-}
-function flagPartRow(row) {
-    const err = document.getElementById("part-error");
-    document.querySelectorAll("#part-list input").forEach(i => i.classList.remove("bad"));
-    if (!row) { err.style.display = "none"; return; }
-    const n = row.querySelector(".p-name"), c = row.querySelector(".p-cred");
-    const cv = c.value.trim();
-    if (!n.value.trim()) n.classList.add("bad");
-    if (!cv || isNaN(Number(cv))) c.classList.add("bad");
-    err.style.display = "block";
-    (n.classList.contains("bad") ? n : c).focus();
-}
-
-function addPart(name = "", credits = "") {
-    if (!name) {
-        const bad = incompletePartRow();
-        if (bad) { flagPartRow(bad); return; }
+function gameModeHint() {
+    const h = $("#gm-hint"), mantra = $("#game_mode").value === "MANTRA";
+    const has = st.listone && st.listone.mantra;
+    $("#mantra-badge").style.display = has ? "" : "none";
+    h.className = "hint";
+    if (mantra && st.listone && !has) {
+        h.classList.add("warn");
+        h.textContent = "Il listone caricato non ha la colonna RM dei ruoli Mantra: usa il file ufficiale completo o scegli Classic.";
+    } else if (!mantra && has) {
+        h.textContent = "Il listone ha anche i ruoli Mantra: se la tua lega gioca a Mantra, sceglilo qui.";
+    } else {
+        h.textContent = mantra ? "I ruoli Mantra arrivano dalla colonna RM del listone." : "";
     }
-    flagPartRow(null);
-    const div = document.createElement("div");
-    div.className = "part-row";
-    div.innerHTML =
-        `<input class="p-name" placeholder="Nome squadra" value="${name}">` +
-        `<input class="p-cred" placeholder="Crediti" inputmode="decimal" value="${credits || defaultCredits()}">` +
-        `<button type="button" class="rm-btn" onclick="this.parentNode.remove(); flagPartRow(null)">✕</button>`;
-    document.getElementById("part-list").appendChild(div);
-    div.querySelectorAll("input").forEach(i =>
-        i.addEventListener("input", () => flagPartRow(null)));
-    div.querySelector(".p-name").focus();
 }
-function defaultCredits() {
-    const b = (document.getElementById("budget") || {}).value || "";
-    return b.trim();
-}
-function collectParts() {
-    const rows = [...document.querySelectorAll("#part-list .part-row")];
-    const data = rows.map(r => ({
-        name: r.querySelector(".p-name").value.trim(),
-        credits: r.querySelector(".p-cred").value.trim(),
-    })).filter(p => p.name);
-    document.getElementById("participants_json").value = JSON.stringify(data);
-}
+$$('input[name="_gm"]').forEach(i => i.addEventListener("change", () => setGameMode(i.value)));
 
-// ---- Step 3: flow ----
-const FLOW_HINTS = {
-    call: "A chiamata: scegli tu chi mettere all'asta, uno alla volta.",
-    continuous: "Asta continua: la coda avanza da sola a fine timer.",
-    manual: "Manuale: coda precostruita, la fai scorrere tu (avanti/indietro).",
-};
-function wzToggleOrder() {
-    const flow = (document.getElementById("flow-mode-select") || {}).value;
-    document.getElementById("flow-hint").textContent = FLOW_HINTS[flow] || "";
-    const wrap = document.getElementById("wz-order-wrap");
-    if (wrap) wrap.style.display = (flow === "call") ? "none" : "";
-    const auto = document.getElementById("wz-auto-advance-wrap");
-    if (auto) auto.style.display = (flow === "manual") ? "" : "none";
-    wzToggleWithin();
+function setSlotMode(v) {
+    $("#slot_limits").value = v;
+    $$('input[name="_slots"]').forEach(i => { i.checked = i.value === v; });
+    $("#slots-wrap").style.display = v === "1" ? "" : "none";
+    refresh();
 }
-function wzToggleWithin() {
-    const order = (document.getElementById("call-order-select") || {}).value;
-    const wrap = document.getElementById("wz-within-wrap");
-    if (wrap) wrap.style.display = (order === "pdca" || order === "acdp") ? "" : "none";
+$$('input[name="_slots"]').forEach(i => i.addEventListener("change", () => setSlotMode(i.value)));
+$("#slots-std").addEventListener("click", () => {
+    if ($("#game_mode").value === "MANTRA") { $("#s-gk").value = 3; $("#s-out").value = 22; }
+    else { $("#s-p").value = 3; $("#s-d").value = 8; $("#s-c").value = 8; $("#s-a").value = 6; }
+    refresh();
+});
+function slotTotal() {
+    if ($("#slot_limits").value !== "1") return 0;
+    const ids = $("#game_mode").value === "MANTRA" ? ["#s-gk", "#s-out"] : ["#s-p", "#s-d", "#s-c", "#s-a"];
+    return ids.reduce((t, id) => t + (Math.max(0, parseInt($(id).value, 10)) || 0), 0);
 }
+$$('.chips[data-for] .chip').forEach(c => c.addEventListener("click", () => {
+    $("#" + c.parentNode.dataset.for).value = c.dataset.v; refresh();
+}));
 
-const wiz = {
-    cur: 1, max: 3,
-    show(n) {
-        this.cur = Math.min(this.max, Math.max(1, n));
-        document.querySelectorAll(".wstep").forEach(el =>
-            el.classList.toggle("active", +el.dataset.step === this.cur));
-        document.querySelectorAll("#steps .step").forEach(el => {
-            const s = +el.dataset.step;
-            el.classList.toggle("active", s === this.cur);
-            el.classList.toggle("done", s < this.cur);
+// ---------------------------------------------------------------- squadre
+const teams = {
+    rows() { return $$("#part-list .part-row"); },
+    add(name = "", credits = "", focus = true) {
+        const row = document.createElement("div");
+        row.className = "part-row";
+        row.innerHTML =
+            `<span class="ix"></span>` +
+            `<input class="p-name" placeholder="Nome squadra" aria-label="Nome squadra" maxlength="80" value="${esc(name)}">` +
+            `<input class="p-cred" placeholder="${esc($("#budget").value || "Crediti")}" aria-label="Crediti" inputmode="numeric" value="${esc(credits)}">` +
+            `<button type="button" class="rm" aria-label="Togli questa squadra" title="Togli">✕</button>`;
+        row.querySelector(".rm").addEventListener("click", () => { row.remove(); teams.renumber(); refresh(); });
+        row.querySelectorAll("input").forEach(i => i.addEventListener("input", () => { teams.flag(null); refresh(); }));
+        row.querySelector(".p-name").addEventListener("keydown", ev => {
+            if (ev.key === "Enter") { ev.preventDefault(); ev.stopPropagation(); if (ev.target.value.trim()) teams.add(); }
         });
-        if (this.cur === this.max) this.buildSummary();
+        $("#part-list").appendChild(row);
+        teams.renumber();
+        if (focus) row.querySelector(".p-name").focus();
+        refresh();
+        return row;
+    },
+    renumber() { teams.rows().forEach((r, i) => { r.querySelector(".ix").textContent = i + 1; }); },
+    togglePaste() {
+        const box = $("#paste-box"), open = !box.classList.contains("open");
+        box.classList.toggle("open", open);
+        $("#paste-toggle").setAttribute("aria-expanded", open);
+        if (open) $("#paste-area").focus();
+    },
+    fromPaste() {
+        const names = $("#paste-area").value.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean);
+        const have = new Set(teams.collect().map(t => t.name.toLowerCase()));
+        // Drop the empty row the list may start with, then append.
+        teams.rows().forEach(r => { if (!r.querySelector(".p-name").value.trim() && !r.querySelector(".p-cred").value.trim()) r.remove(); });
+        let added = 0;
+        names.forEach(n => { if (!have.has(n.toLowerCase())) { have.add(n.toLowerCase()); teams.add(n, "", false); added++; } });
+        $("#paste-area").value = "";
+        teams.togglePaste();
+        teams.flag(null, added ? "" : "Nessun nome nuovo da aggiungere.");
+        refresh();
+    },
+    collect() {
+        return teams.rows().map(r => ({
+            name: r.querySelector(".p-name").value.trim(),
+            credits: r.querySelector(".p-cred").value.trim(),
+        })).filter(t => t.name);
+    },
+    problem() {
+        const seen = new Map();
+        for (const r of teams.rows()) {
+            const n = r.querySelector(".p-name"), c = r.querySelector(".p-cred");
+            const name = n.value.trim(), cred = c.value.trim();
+            if (!name) continue;
+            if (cred && (isNaN(num(cred)) || num(cred) < 0)) return { el: c, msg: `I crediti di «${name}» devono essere un numero.` };
+            const k = name.toLowerCase();
+            if (seen.has(k)) return { el: n, msg: `«${name}» compare due volte: dai un nome diverso a ogni squadra.` };
+            seen.set(k, true);
+        }
+        return null;
+    },
+    flag(p, text) {
+        const err = $("#part-error");
+        $$("#part-list input").forEach(i => i.classList.remove("bad"));
+        if (p) { p.el.classList.add("bad"); p.el.focus(); }
+        const msg = p ? p.msg : (text || "");
+        err.textContent = msg;
+        err.style.display = msg ? "" : "none";
+    },
+    detected() { return !!(st.rose && st.rose.teams && st.rose.teams.length); },
+    count() {
+        const attached = $$('input[name="attach_ids"]:checked').length;
+        return teams.detected() ? st.rose.teams.length : teams.collect().length + attached;
+    },
+    sync() {
+        const det = teams.detected();
+        $("#detected-teams").style.display = det ? "" : "none";
+        $("#manual-teams").style.display = det ? "none" : "";
+        if (det) {
+            $("#detected-teams-list").innerHTML = st.rose.teams.map(t =>
+                `<span class="team-chip">${esc(t.name)}<small>${t.n_players} gioc.${t.credits != null ? " · " + Math.round(t.credits) + " FM" : ""}</small></span>`).join("");
+        } else if (!teams.rows().length) {
+            teams.add("", "", false);
+        }
+        refresh();
+    },
+};
+$$('input[name="attach_ids"]').forEach(i => i.addEventListener("change", refresh));
+
+// ---------------------------------------------------------------- asta
+function flowChanged() {
+    const flow = (form.querySelector('input[name="flow_mode"]:checked') || {}).value;
+    $("#wz-order-wrap").style.display = flow === "call" ? "none" : "";
+    $("#wz-auto-advance-wrap").style.display = flow === "manual" ? "" : "none";
+    withinChanged();
+    refresh();
+}
+function withinChanged() {
+    const order = $("#call-order-select").value;
+    $("#wz-within-wrap").style.display = (order === "pdca" || order === "acdp") ? "" : "none";
+}
+$$('input[name="flow_mode"]').forEach(i => i.addEventListener("change", flowChanged));
+$("#call-order-select").addEventListener("change", withinChanged);
+const PACE = { relax: [90, 15], std: [60, 10], fast: [30, 5] };
+$$("#pace-chips .chip").forEach(c => c.addEventListener("click", () => {
+    const [d, a] = PACE[c.dataset.pace];
+    $("#f-dur").value = d; $("#f-anti").value = a;
+    refresh();
+}));
+$("#wz-sealed-toggle").addEventListener("change", () => {
+    $("#wz-sealed-wrap").style.display = $("#wz-sealed-toggle").checked ? "" : "none";
+});
+
+// ---------------------------------------------------------------- summary
+function summaryRows() {
+    const val = n => (form.querySelector(`[name="${n}"]`) || {}).value || "";
+    const checkedLabel = n => {
+        const i = form.querySelector(`input[name="${n}"]:checked`);
+        return i ? (i.closest(".card-opt").querySelector(".t").textContent || "").trim() : "—";
+    };
+    const mantra = $("#game_mode").value === "MANTRA";
+    const total = slotTotal();
+    const nTeams = teams.count();
+    const rows = [];
+    rows.push(["Listone", st.listone ? `✓ ${st.listone.total_players} giocatori`
+        : ($("#listone_file").files[0] ? "In lettura…" : "Manca (obbligatorio)"), st.listone ? "" : "bad"]);
+    const roseLabel = st.rose ? `✓ ${SRC_LABEL[st.source] || "File"} · ${st.rose.teams.length} squadre`
+        : (st.source === "fantapazz" && fpCache && fpCache.checked ? "Fantapazz (già scaricate)" : "Nessuna — si parte da zero");
+    rows.push(["Rose", roseLabel, ""]);
+    rows.push(["Lega", `${val("name").trim() || "Lega"} · ${val("budget") || "?"} FM`, ""]);
+    rows.push(["Sistema", mantra ? "Mantra" : "Classic", ""]);
+    rows.push(["Rosa", $("#slot_limits").value === "1"
+        ? (mantra ? `${val("slots_gk")} por + ${val("slots_out")} mov.` : `${val("slots_p")}/${val("slots_d")}/${val("slots_c")}/${val("slots_a")}`) + ` · ${total} giocatori`
+        : "Nessun limite di posti", ""]);
+    rows.push(["Squadre", nTeams ? String(nTeams) : "Nessuna (le aggiungi dopo)", nTeams >= 2 ? "" : "warn"]);
+    rows.push(["Asta", `${checkedLabel("mode")} · ${checkedLabel("flow_mode")}`, ""]);
+    rows.push(["Ritmo", `${val("duration_seconds")} s · +${val("antisnipe_seconds")} s all'ultimo · rilancio ${val("min_increment")} FM`, ""]);
+    rows.push(["Avvio", form.querySelector('[name="start_now"]').checked ? "Subito" : "Resta pronta", ""]);
+    return rows;
+}
+function renderSummary(el) {
+    const rows = summaryRows();
+    const ready = !!st.listone;
+    el.innerHTML = rows.map(([k, v, c]) =>
+        `<div class="sum-row"><span class="k">${esc(k)}</span><span class="v ${c}">${esc(v)}</span></div>`).join("")
+        + `<div class="ready ${ready ? "ok" : "no"}">${ready ? "✓ Pronto per creare la lega" : "Manca il listone: caricalo al passo 1"}</div>`;
+}
+function refresh() {
+    // budget helper
+    const b = num($("#budget").value), tot = slotTotal();
+    $$('.chips[data-for="budget"] .chip').forEach(c => c.classList.toggle("on", String(b) === c.dataset.v));
+    $("#budget-hint").textContent = (!isNaN(b) && tot) ? `≈ ${Math.round(b / tot)} FM a giocatore con ${tot} posti in rosa.` : "";
+    $("#slots-total").textContent = tot ? `= ${tot} giocatori a squadra` : "";
+    // pace chips
+    const d = String($("#f-dur").value), a = String($("#f-anti").value);
+    $$("#pace-chips .chip").forEach(c => { const p = PACE[c.dataset.pace]; c.classList.toggle("on", String(p[0]) === d && String(p[1]) === a); });
+    // duplicate league name
+    const nm = $("#league-name").value.trim().toLowerCase();
+    $("#name-dup").style.display = nm && EXISTING.includes(nm) ? "" : "none";
+    // placeholder of empty credits follows the budget
+    $$("#part-list .p-cred").forEach(i => { i.placeholder = $("#budget").value || "Crediti"; });
+    const n = teams.count();
+    $("#teams-count").textContent = n ? `· ${n}` : "";
+    renderSummary($("#sum-side"));
+    if (wiz.cur === 3) renderSummary($("#sum-inline"));
+    draft.save();
+}
+form.addEventListener("input", ev => { if (ev.target.type !== "file") refresh(); });
+form.addEventListener("change", ev => { if (ev.target.type !== "file") refresh(); });
+
+// ---------------------------------------------------------------- steps
+const STEP_NAMES = { 1: "File", 2: "Lega e squadre", 3: "Asta e riepilogo" };
+const wiz = {
+    cur: 1, max: 3, seen: 1,
+    show(n, focus = true) {
+        this.cur = Math.min(this.max, Math.max(1, n));
+        this.seen = Math.max(this.seen, this.cur);
+        $$(".wstep").forEach(el => el.classList.toggle("active", +el.dataset.step === this.cur));
+        $$("#steps button").forEach(b => {
+            const s = +b.dataset.go;
+            b.disabled = s > this.seen;
+            b.classList.toggle("done", s < this.cur);
+            if (s === this.cur) b.setAttribute("aria-current", "step"); else b.removeAttribute("aria-current");
+        });
+        $("#btn-prev").style.visibility = this.cur > 1 ? "visible" : "hidden";
+        $("#btn-next").style.display = this.cur < this.max ? "" : "none";
+        $("#btn-create").style.display = this.cur === this.max ? "" : "none";
+        $("#where").innerHTML = `Passo <b>${this.cur}</b> di ${this.max} · ${STEP_NAMES[this.cur]}`;
+        refresh();
         window.scrollTo({ top: 0, behavior: "smooth" });
+        if (focus) { const h = $(`#s${this.cur}-h`); if (h) h.focus({ preventScroll: true }); }
     },
     next() { if (this.validate(this.cur)) this.show(this.cur + 1); },
     prev() { this.show(this.cur - 1); },
     validate(step) {
         if (step === 1) {
-            const has = !!document.getElementById("listone_file").files[0];
-            document.getElementById("listone-missing").style.display = has ? "none" : "block";
-            if (!has) {
-                document.getElementById("listone_file").focus();
-                window.scrollTo({ top: 0, behavior: "smooth" });
+            if (!$("#listone_file").files[0]) {
+                setDrop("#drop-listone", "bad", "Senza listone non c'è niente da mettere all'asta: caricalo per proseguire.");
+                $("#listone_file").focus();
+                return false;
             }
-            return has;
         }
-        if (step === 2) {
-            const bad = invalidPartRow();
-            if (bad) { flagPartRow(bad); return false; }
+        if (step === 2 && !teams.detected()) {
+            const p = teams.problem();
+            if (p) { teams.flag(p); return false; }
         }
         return true;
     },
-    buildSummary() {
-        const f = document.getElementById("wiz-form");
-        const v = n => (f.querySelector(`[name="${n}"]`) || {}).value || "";
-        const srcLabel = SRC_LABEL[document.getElementById("source_site").value] || "—";
-        const modeLabel = (f.querySelector('[name="mode"]:checked')?.closest(".opt")?.querySelector(".opt-t")?.textContent || "").trim();
-        const flowSel = f.querySelector('[name="flow_mode"]');
-        const ordered = flowSel.value !== "call";
-        let listoneLabel = "⚠ Mancante (obbligatorio)";
-        if (detectedListone && detectedListone.kind === "listone")
-            listoneLabel = `✓ ${detectedListone.total_players} giocatori`;
-        else if (document.getElementById("listone_file").files[0])
-            listoneLabel = "Caricato";
-        let impLabel = "No";
-        if (detectedRose && detectedRose.kind === "rose") impLabel = `Sì · ${srcLabel} (${detectedRose.teams.length} squadre)`;
-        else if (document.getElementById("import_choice").value !== "none") impLabel = "Sì · " + srcLabel;
-        const orderLabel = ordered
-            ? ((f.querySelector('[name="call_order"]').selectedOptions[0] || {}).text || "—")
-              + (["pdca", "acdp"].includes(f.querySelector('[name="call_order"]').value)
-                 ? " · " + ((f.querySelector('[name="within_role_order"]').selectedOptions[0] || {}).text || "") : "")
-            : "—";
-        const mantra = document.getElementById("game_mode").value === "MANTRA";
-        const slotLabel = document.getElementById("slot_limits").value === "1"
-            ? (mantra
-                ? v("slots_gk") + "/" + v("slots_out") + " (Portieri/Movimento)"
-                : v("slots_p") + "/" + v("slots_d") + "/" + v("slots_c") + "/" + v("slots_a") + " (P/D/C/A)")
-            : "Nessun limite slot";
-        const rows = [
-            ["Listone (Quotazioni)", listoneLabel],
-            ["Rose importate", impLabel],
-            ["Lega", v("name") + " · " + v("budget") + " FM"],
-            ["Sistema di gioco", mantra ? "Mantra" : "Classic"],
-            ["Slot rosa", slotLabel],
-            ["Tipo asta", modeLabel],
-            ["Modalità d'asta", flowSel.selectedOptions[0].text
-                + (flowSel.value === "manual" && f.querySelector('[name="manual_auto_advance"]').checked
-                   ? " · scorre senza rilanci" : "")],
-            ["Ordine di chiamata", orderLabel],
-            ["Rilancio minimo", v("min_increment") + " FM"],
-            ["Timer", v("duration_seconds") + " s · anti-snipe " + v("antisnipe_seconds") + " s"],
-            ["Prezzo di partenza", (f.querySelector('[name="opening_price_mode"]').selectedOptions[0] || {}).text || "—"],
-            ["Limiti rosa/budget", f.querySelector('[name="enforce_limits"]').checked ? "Attivi" : "Disattivati"],
-            ["Rilancio su se stessi", f.querySelector('[name="block_leader_rebid"]').checked ? "Bloccato" : "Permesso"],
-            ["Rimborso svincolo", (f.querySelector('[name="release_refund_mode"]').selectedOptions[0] || {}).text || "—"],
-        ];
-        document.getElementById("summary").innerHTML =
-            rows.map(([k, val]) => `<tr><td>${k}</td><td><b>${val || "—"}</b></td></tr>`).join("");
+};
+$$("#steps button").forEach(b => b.addEventListener("click", () => {
+    const to = +b.dataset.go;
+    // Going forward through the stepper still passes each step's checks.
+    for (let s = wiz.cur; s < to; s++) if (!wiz.validate(s)) { wiz.show(s); return; }
+    wiz.show(to);
+}));
+// Enter moves forward instead of posting a half-filled wizard.
+form.addEventListener("keydown", ev => {
+    if (ev.key !== "Enter" || ev.target.tagName === "TEXTAREA" || ev.target.type === "submit" || ev.target.type === "button") return;
+    ev.preventDefault();
+    if (wiz.cur < wiz.max) wiz.next();
+});
+form.addEventListener("submit", ev => {
+    for (const s of [1, 2]) if (!wiz.validate(s)) { ev.preventDefault(); wiz.show(s); return; }
+    $("#participants_json").value = JSON.stringify(teams.detected() ? [] : teams.collect());
+    const btn = $("#btn-create");
+    btn.classList.add("busy"); btn.disabled = true;
+    btn.querySelector(".lbl").textContent = "Sto creando la lega…";
+    draft.clear();
+});
+
+// ---------------------------------------------------------------- draft
+// A reload (or a server-side error) must not cost the user everything they
+// typed. Files can't be stored; every other field and the team list can.
+const DRAFT_KEY = "fm_setup_draft_v2";
+const draft = {
+    ready: false,
+    save() {
+        if (!this.ready) return;
+        try {
+            const data = { f: {}, teams: teams.collect(), step: wiz.seen };
+            $$("input, select", form).forEach(el => {
+                if (!el.name || el.type === "file" || el.type === "hidden" && !["game_mode", "slot_limits"].includes(el.name)) return;
+                if (el.name === "csrfmiddlewaretoken") return;
+                if (el.type === "checkbox") data.f[el.name + (el.name === "attach_ids" ? ":" + el.value : "")] = el.checked;
+                else if (el.type === "radio") { if (el.checked) data.f[el.name] = el.value; }
+                else data.f[el.name] = el.value;
+            });
+            localStorage.setItem(DRAFT_KEY, JSON.stringify(data));
+        } catch (e) { /* storage off: the wizard still works */ }
     },
+    load() {
+        let data = null;
+        try { data = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null"); } catch (e) { data = null; }
+        if (!data || !data.f) return false;
+        $$("input, select", form).forEach(el => {
+            if (!el.name || el.type === "file") return;
+            if (el.type === "checkbox") {
+                const k = el.name + (el.name === "attach_ids" ? ":" + el.value : "");
+                if (k in data.f) el.checked = !!data.f[k];
+            } else if (el.type === "radio") {
+                if (el.name in data.f) el.checked = el.value === data.f[el.name];
+            } else if (el.name in data.f && el.type !== "hidden" || ["game_mode", "slot_limits"].includes(el.name) && el.name in data.f) {
+                el.value = data.f[el.name];
+            }
+        });
+        (data.teams || []).forEach(t => teams.add(t.name, t.credits, false));
+        return true;
+    },
+    clear() { try { localStorage.removeItem(DRAFT_KEY); } catch (e) {} },
+    reset() { this.clear(); location.href = location.pathname; },
 };
 
-document.querySelectorAll('.opt input[name="mode"]').forEach(inp => {
-    inp.addEventListener("change", () => {
-        document.querySelectorAll('.opt input[name="mode"]').forEach(o =>
-            o.closest(".opt").classList.toggle("sel", o.checked));
-    });
-});
-
-// Final gate: the listone is mandatory and every team row must be complete, so
-// the POST can never build a league the auction cannot run on.
-document.getElementById("wiz-form").addEventListener("submit", ev => {
-    for (const step of [1, 2]) {
-        if (!wiz.validate(step)) { ev.preventDefault(); wiz.show(step); return; }
-    }
-    collectParts();
-});
-
-selectSource("");
-selectSlotMode(document.getElementById("slot_limits").value);
-selectGameMode(document.getElementById("game_mode").value);
-wzToggleOrder();
-
-    function wzToggleSealed() {
-        const on = (document.getElementById("wz-sealed-toggle") || {}).checked;
-        const wrap = document.getElementById("wz-sealed-wrap");
-        if (wrap) wrap.style.display = on ? "" : "none";
-    }
+// ---------------------------------------------------------------- boot
+const restored = draft.load();
+if (restored) $("#draft-note").classList.add("show");
+setSource("", false);
+setGameMode($("#game_mode").value || "CLASSIC");
+setSlotMode($("#slot_limits").value || "1");
+flowChanged();
+$("#wz-sealed-wrap").style.display = $("#wz-sealed-toggle").checked ? "" : "none";
+teams.sync();
+draft.ready = true;
+wiz.show(1, false);
+window.wiz = wiz; window.teams = teams; window.draft = draft;
+})();
 </script>
 {% endblock %}
