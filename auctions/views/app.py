@@ -34,6 +34,7 @@ from .common import (
     app_admin_leagues,
     _app_ctx,
     _app_standings,
+    safe_next,
 )
 
 
@@ -605,7 +606,7 @@ def app_login(request):
     3. Quick access code entry (e.g. 'DRAGO23')
     4. Guided team selection (League -> Team) with optional access code check
     """
-    next_url = request.GET.get("next") or request.POST.get("next") or reverse("app_home")
+    next_url = safe_next(request, reverse("app_home"))
 
     # 1. Check tokenized link in GET (?t=...)
     token = (request.GET.get("t") or "").strip()

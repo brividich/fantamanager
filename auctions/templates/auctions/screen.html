@@ -434,14 +434,14 @@
     </div>
     <div class="join-grid">
         {% for p in participants %}
-        <div class="join-card" onclick="zoomQr('{{ p.display_name|escapejs }}', '{% url 'participant_qr' p.id %}?a={{ auction.id }}')">
+        <div class="join-card" onclick="zoomQr('{{ p.display_name|escapejs }}', '{% url 'participant_qr' p.id %}?a={{ auction.id }}&t={{ auction.public_token|urlencode }}')">
             {% if p.logo %}
             <img class="jc-logo" src="{{ p.logo.url }}" alt="{{ p.display_name }}" style="border:none">
             {% else %}
             <div class="jc-logo"><svg class="ic" style="width:26px;height:26px"><use href="#i-shirt"/></svg></div>
             {% endif %}
             <div class="jc-name">{{ p.display_name }}</div>
-            <div class="jc-qr"><img src="{% url 'participant_qr' p.id %}?a={{ auction.id }}" alt="QR {{ p.display_name }}" loading="lazy"></div>
+            <div class="jc-qr"><img src="{% url 'participant_qr' p.id %}?a={{ auction.id }}&t={{ auction.public_token|urlencode }}" alt="QR {{ p.display_name }}" loading="lazy"></div>
             <div class="jc-hint"><svg class="ic" style="width:13px;height:13px"><use href="#i-search"/></svg> Tocca per ingrandire</div>
         </div>
         {% endfor %}
