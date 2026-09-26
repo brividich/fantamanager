@@ -11,7 +11,13 @@ from django.utils.dateparse import parse_datetime
 from django.views.decorators.http import require_POST
 
 from ..models import Auction, League, MarketBid, MarketSession, Participant, Player
-from ..services.market import resolve_market_session
+from ..services.market import (
+    plan_market_resolution,
+    resolve_market_session,
+    settle_market_tie,
+    sync_market_schedule,
+    undo_market_resolution,
+)
 from .common import (
     current_auction,
     current_league,
@@ -39,6 +45,22 @@ def _dashboard_url(request, session=None, league_id=None):
     return f"{base}?league={league_id}"
 
 
+def _parse_local_datetime(raw):
+    """Parse a ``datetime-local`` form value into an aware datetime (or None)."""
+    raw = (raw or "").strip()
+    if not raw:
+        return None
+    value = parse_datetime(raw)
+    if value is None:
+        try:
+            value = datetime.strptime(raw, "%Y-%m-%dT%H:%M")
+        except ValueError:
+            return None
+    if timezone.is_naive(value):
+        value = timezone.make_aware(value)
+    return value
+
+
 @staff_member_required
 def admin_market_dashboard(request):
     """Dashboard to manage market sessions, inspect submitted bids, and resolve envelopes."""
@@ -53,6 +75,7 @@ def admin_market_dashboard(request):
     bids_list = []
 
     if league:
+        sync_market_schedule(league)
         sessions = MarketSession.objects.filter(league=league).order_by("-created_at")
         sess_id = request.GET.get("session")
         if sess_id and sess_id.isdigit():
@@ -86,6 +109,15 @@ def admin_market_dashboard(request):
                 .order_by("player__role", "player__name", "-amount", "priority")
             )
 
+    results = None
+    is_preview = False
+    if selected_session:
+        if selected_session.status == MarketSession.Status.RESOLVED:
+            results = selected_session.results_summary or None
+        elif request.GET.get("preview") == "1":
+            results = plan_market_resolution(selected_session.id)
+            is_preview = True
+
     return render(
         request,
         "auctions/admin_market.html",
@@ -96,6 +128,8 @@ def admin_market_dashboard(request):
             "selected_session": selected_session,
             "participants_stats": participants_stats,
             "bids_list": bids_list,
+            "results": results,
+            "is_preview": is_preview,
             "console_section": "Mercato Buste",
             "console_active": "market",
             "refund_modes": Auction.RefundMode.choices,
@@ -120,17 +154,12 @@ def admin_market_create(request):
     if refund_mode not in Auction.RefundMode.values:
         refund_mode = Auction.RefundMode.PURCHASE
 
-    closes_at_raw = (request.POST.get("closes_at") or "").strip()
-    closes_at = None
-    if closes_at_raw:
-        closes_at = parse_datetime(closes_at_raw)
-        if not closes_at:
-            try:
-                closes_at = datetime.strptime(closes_at_raw, "%Y-%m-%dT%H:%M")
-            except ValueError:
-                closes_at = None
-        if closes_at and timezone.is_naive(closes_at):
-            closes_at = timezone.make_aware(closes_at)
+    opens_at = _parse_local_datetime(request.POST.get("opens_at"))
+    closes_at = _parse_local_datetime(request.POST.get("closes_at"))
+    if opens_at and closes_at and closes_at <= opens_at:
+        messages.error(request, "La chiusura deve essere successiva all'apertura.")
+        return redirect(_dashboard_url(request, league_id=league.id))
+    scheduled = opens_at is not None and opens_at > timezone.now()
 
     def _parse_int(val):
         try:
@@ -141,7 +170,8 @@ def admin_market_create(request):
     session = MarketSession.objects.create(
         league=league,
         title=title,
-        status=MarketSession.Status.OPEN,
+        status=MarketSession.Status.DRAFT if scheduled else MarketSession.Status.OPEN,
+        opens_at=opens_at,
         closes_at=closes_at,
         allow_conditional_release=allow_conditional_release,
         release_refund_mode=refund_mode,
@@ -151,7 +181,13 @@ def admin_market_create(request):
         max_acquisitions_a=_parse_int(request.POST.get("max_acquisitions_a")),
     )
 
-    messages.success(request, f"Sessione '{session.title}' creata con successo e aperta alle offerte.")
+    if scheduled:
+        messages.success(
+            request,
+            f"Sessione '{session.title}' creata: si aprirà il {timezone.localtime(opens_at):%d/%m/%Y alle %H:%M}.",
+        )
+    else:
+        messages.success(request, f"Sessione '{session.title}' creata con successo e aperta alle offerte.")
     return redirect(_dashboard_url(request, session))
 
 
@@ -204,3 +240,44 @@ def admin_market_delete(request, session_id):
     session.delete()
     messages.info(request, f"Sessione '{title}' eliminata.")
     return redirect(_dashboard_url(request, league_id=league_id))
+
+
+@staff_member_required
+@require_POST
+def admin_market_settle_tie(request, session_id):
+    """Assign a tied player to a chosen contender, or draw one at random."""
+    session, denied = _managed_session_or_403(request, session_id)
+    if denied:
+        return denied
+    try:
+        player_id = int(request.POST.get("player_id") or 0)
+    except ValueError:
+        player_id = 0
+    raw_winner = (request.POST.get("winner_id") or "draw").strip()
+    winner_id = int(raw_winner) if raw_winner.isdigit() else None
+
+    res = settle_market_tie(session.id, player_id, winner_id=winner_id)
+    if res["ok"]:
+        how = "per sorteggio" if res["method"] == "draw" else "per scelta dell'admin"
+        messages.success(request, f"Pareggio risolto {how}: vince {res['winner_name']}.")
+    else:
+        messages.error(request, res["message"])
+    return redirect(_dashboard_url(request, session))
+
+
+@staff_member_required
+@require_POST
+def admin_market_undo(request, session_id):
+    """Revert a resolution: rosters and credits restored, envelopes back to pending."""
+    session, denied = _managed_session_or_403(request, session_id)
+    if denied:
+        return denied
+    res = undo_market_resolution(session.id)
+    if res["ok"]:
+        messages.success(
+            request,
+            f"Spoglio annullato: {res['reverted']} acquisti stornati. La sessione è di nuovo chiusa, in attesa di spoglio.",
+        )
+    else:
+        messages.error(request, res["message"])
+    return redirect(_dashboard_url(request, session))

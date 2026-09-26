@@ -15,6 +15,9 @@ from ..services.market import (
     place_market_bid,
     plan_market_resolution,
     resolve_market_session,
+    settle_market_tie,
+    sync_market_schedule,
+    undo_market_resolution,
 )
 
 
@@ -634,3 +637,203 @@ class MarketAdminTenantIsolationTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         self.session_b.refresh_from_db()
         self.assertEqual(self.session_b.status, MarketSession.Status.CLOSED)
+
+
+class MarketAfterResolutionTests(TestCase):
+    """Tie settlement, undo, scheduling and the admin/app pages around them."""
+
+    def setUp(self):
+        self.root = User.objects.create_superuser("root", "root@x.local", "pw")
+        self.league = League.objects.create(name="Lega Post")
+        self.a = Participant.objects.create(display_name="Alfa", league=self.league, credits=Decimal("100"))
+        self.b = Participant.objects.create(display_name="Beta", league=self.league, credits=Decimal("100"))
+        self.session = MarketSession.objects.create(
+            league=self.league, title="Buste", status=MarketSession.Status.OPEN,
+        )
+        self.x = Player.objects.create(name="X", role="A", league=self.league)
+
+    def _tie(self):
+        place_market_bid(self.session.id, self.a.id, self.x.id, 30)
+        place_market_bid(self.session.id, self.b.id, self.x.id, 30)
+        resolve_market_session(self.session.id)
+
+    def test_admin_picks_tie_winner(self):
+        self._tie()
+        res = settle_market_tie(self.session.id, self.x.id, winner_id=self.b.id)
+        self.assertTrue(res["ok"], res)
+        self.x.refresh_from_db()
+        self.assertEqual(self.x.owner, self.b)
+        self.assertEqual(self.x.cost, Decimal("30"))
+        self.b.refresh_from_db()
+        self.assertEqual(self.b.spent_credits, Decimal("30"))
+        self.session.refresh_from_db()
+        summary = self.session.results_summary
+        self.assertEqual(summary["open_ties"], 0)
+        self.assertEqual(summary["tied"][0]["settled"]["winner_id"], self.b.id)
+        self.assertEqual(summary["total_acquisitions"], 1)
+        statuses = dict(MarketBid.objects.filter(player=self.x).values_list("participant_id", "status"))
+        self.assertEqual(statuses[self.b.id], MarketBid.Status.WON)
+        self.assertEqual(statuses[self.a.id], MarketBid.Status.LOST)
+        # Settling twice is refused
+        self.assertFalse(settle_market_tie(self.session.id, self.x.id)["ok"])
+
+    def test_draw_uses_rng_and_skips_contenders_who_cannot_pay(self):
+        self._tie()
+        Participant.objects.filter(pk=self.a.pk).update(spent_credits=Decimal("90"))
+
+        class First:
+            def choice(self, seq):
+                return seq[0]
+
+        res = settle_market_tie(self.session.id, self.x.id, rng=First())
+        self.assertTrue(res["ok"], res)
+        self.assertEqual(res["winner_id"], self.b.id)
+        self.assertEqual(res["method"], "draw")
+
+    def test_admin_cannot_pick_contender_who_cannot_pay(self):
+        self._tie()
+        Participant.objects.filter(pk=self.a.pk).update(spent_credits=Decimal("90"))
+        res = settle_market_tie(self.session.id, self.x.id, winner_id=self.a.id)
+        self.assertFalse(res["ok"])
+        self.assertIn("Crediti insufficienti", res["message"])
+
+    def test_undo_restores_rosters_credits_and_bids(self):
+        cut = Player.objects.create(name="Cut", role="C", league=self.league, owner=self.a, cost=Decimal("12"))
+        place_market_bid(self.session.id, self.a.id, self.x.id, 40, release_player_id=cut.id)
+        resolve_market_session(self.session.id)
+        self.a.refresh_from_db()
+        self.assertEqual(self.a.spent_credits, Decimal("28"))
+
+        res = undo_market_resolution(self.session.id)
+        self.assertTrue(res["ok"], res)
+        self.x.refresh_from_db()
+        cut.refresh_from_db()
+        self.a.refresh_from_db()
+        self.session.refresh_from_db()
+        self.assertIsNone(self.x.owner)
+        self.assertEqual(cut.owner, self.a)
+        self.assertEqual(cut.cost, Decimal("12"))
+        self.assertEqual(self.a.spent_credits, Decimal("0"))
+        self.assertEqual(self.session.status, MarketSession.Status.CLOSED)
+        self.assertEqual(
+            set(self.session.bids.values_list("status", flat=True)), {MarketBid.Status.PENDING}
+        )
+        # And it can be resolved again with the same outcome
+        resolve_market_session(self.session.id)
+        self.x.refresh_from_db()
+        self.assertEqual(self.x.owner, self.a)
+
+    def test_undo_includes_tie_break_awards(self):
+        self._tie()
+        settle_market_tie(self.session.id, self.x.id, winner_id=self.a.id)
+        self.assertTrue(undo_market_resolution(self.session.id)["ok"])
+        self.a.refresh_from_db()
+        self.assertEqual(self.a.spent_credits, Decimal("0"))
+        self.x.refresh_from_db()
+        self.assertIsNone(self.x.owner)
+
+    def test_undo_refused_when_rosters_changed(self):
+        place_market_bid(self.session.id, self.a.id, self.x.id, 40)
+        resolve_market_session(self.session.id)
+        Player.objects.filter(pk=self.x.pk).update(owner=self.b)
+        res = undo_market_resolution(self.session.id)
+        self.assertFalse(res["ok"])
+        self.assertIn("X non è più di Alfa", res["message"])
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.status, MarketSession.Status.RESOLVED)
+
+    def test_schedule_opens_and_closes(self):
+        now = timezone.now()
+        draft = MarketSession.objects.create(
+            league=self.league, status=MarketSession.Status.DRAFT,
+            opens_at=now - timedelta(minutes=1), closes_at=now + timedelta(days=1),
+        )
+        future = MarketSession.objects.create(
+            league=self.league, status=MarketSession.Status.DRAFT, opens_at=now + timedelta(days=1),
+        )
+        self.session.closes_at = now - timedelta(seconds=1)
+        self.session.save()
+        sync_market_schedule(self.league)
+        for obj in (draft, future, self.session):
+            obj.refresh_from_db()
+        self.assertEqual(draft.status, MarketSession.Status.OPEN)
+        self.assertEqual(future.status, MarketSession.Status.DRAFT)
+        self.assertEqual(self.session.status, MarketSession.Status.CLOSED)
+
+    def test_create_with_future_opening_is_scheduled(self):
+        self.client.force_login(self.root)
+        when = (timezone.localtime() + timedelta(days=2)).strftime("%Y-%m-%dT%H:%M")
+        self.client.post(reverse("admin_market_create"), {
+            "league_id": self.league.id, "title": "Programmata", "opens_at": when,
+        })
+        s = MarketSession.objects.get(title="Programmata")
+        self.assertEqual(s.status, MarketSession.Status.DRAFT)
+        self.assertIsNotNone(s.opens_at)
+
+    def test_admin_preview_page(self):
+        self.client.force_login(self.root)
+        place_market_bid(self.session.id, self.a.id, self.x.id, 25)
+        url = reverse("admin_market_dashboard") + f"?league={self.league.id}&session={self.session.id}&preview=1"
+        resp = self.client.get(url)
+        self.assertContains(resp, "Anteprima:")
+        self.assertContains(resp, "Esito previsto dello spoglio")
+        self.x.refresh_from_db()
+        self.assertIsNone(self.x.owner)
+
+    def test_admin_tie_and_undo_views(self):
+        self.client.force_login(self.root)
+        self._tie()
+        page = self.client.get(
+            reverse("admin_market_dashboard") + f"?league={self.league.id}&session={self.session.id}"
+        )
+        self.assertContains(page, "Sorteggio")
+        self.assertContains(page, "Annulla spoglio")
+        resp = self.client.post(
+            reverse("admin_market_settle_tie", kwargs={"session_id": self.session.id}),
+            {"player_id": self.x.id, "winner_id": self.a.id},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.x.refresh_from_db()
+        self.assertEqual(self.x.owner, self.a)
+        resp = self.client.post(reverse("admin_market_undo", kwargs={"session_id": self.session.id}))
+        self.assertEqual(resp.status_code, 302)
+        self.x.refresh_from_db()
+        self.assertIsNone(self.x.owner)
+
+    def test_foreign_admin_cannot_settle_or_undo(self):
+        other = User.objects.create_user("other", password="pw")
+        self.league.owner = self.root
+        self.league.save()
+        self._tie()
+        self.client.force_login(other)
+        for name, data in (("admin_market_settle_tie", {"player_id": self.x.id}), ("admin_market_undo", {})):
+            resp = self.client.post(reverse(name, kwargs={"session_id": self.session.id}), data)
+            self.assertEqual(resp.status_code, 403, name)
+
+    def test_app_shows_outcome_after_resolution(self):
+        place_market_bid(self.session.id, self.a.id, self.x.id, 25)
+        resolve_market_session(self.session.id)
+        session = self.client.session
+        session["participant_id"] = self.a.id
+        session.save()
+        resp = self.client.get(reverse("app_mercato"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Spoglio eseguito")
+        self.assertContains(resp, "Aggiudicato")
+        self.assertFalse(resp.context["market_open"])
+        self.assertNotContains(resp, "Consegna Busta")
+
+    def test_app_cut_refund_uses_league_price(self):
+        self.league.game_mode = League.GameMode.MANTRA
+        self.league.save()
+        self.session.release_refund_mode = Auction.RefundMode.CURRENT
+        self.session.save()
+        Player.objects.create(
+            name="Mantra Guy", role="D", league=self.league, owner=self.a,
+            initial_price=Decimal("5"), price_m=Decimal("9"),
+        )
+        session = self.client.session
+        session["participant_id"] = self.a.id
+        session.save()
+        resp = self.client.get(reverse("app_mercato"))
+        self.assertContains(resp, 'data-refund="9"')

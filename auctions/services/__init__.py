@@ -97,9 +97,13 @@ from .queue import (
 from .market import (
     delete_market_bid,
     get_participant_market_bids,
+    market_release_refund,
     place_market_bid,
     plan_market_resolution,
     resolve_market_session,
+    settle_market_tie,
+    sync_market_schedule,
+    undo_market_resolution,
 )
 from .scoring import (
     _serialisable_lines,
@@ -168,8 +172,12 @@ __all__ = [
     "place_market_bid",
     "delete_market_bid",
     "get_participant_market_bids",
+    "market_release_refund",
     "plan_market_resolution",
     "resolve_market_session",
+    "settle_market_tie",
+    "sync_market_schedule",
+    "undo_market_resolution",
     # queue
     "_ROLE_RANK_PDCA",
     "_ROLE_RANK_ACDP",

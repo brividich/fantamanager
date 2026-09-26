@@ -53,7 +53,9 @@ from .admin_market import (
     admin_market_dashboard,
     admin_market_delete,
     admin_market_resolve,
+    admin_market_settle_tie,
     admin_market_status,
+    admin_market_undo,
 )
 from .admin_fantapazz import (
     _fp_collect_synced_cookie,
@@ -333,6 +335,8 @@ __all__ = [
     "admin_market_status",
     "admin_market_resolve",
     "admin_market_delete",
+    "admin_market_settle_tie",
+    "admin_market_undo",
     # home
     "home_portal",
     "version_status_api",
