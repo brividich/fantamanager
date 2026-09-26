@@ -41,6 +41,8 @@ layer in-memory, processo singolo).
 | `/join/` | Ingresso partecipante: nome + PIN opzionale → sessione → pagina offerta. |
 | `/bid/<auction_id>/` | Pagina partecipante: titolo, timer, stato, prezzo, miglior offerente, 4 pulsanti rilancio. |
 | `/screen/<auction_id>/` | Maxischermo: prezzo grande, timer grande, stato, ultimo offerente, log ultime offerte. |
+| `/admin-auction/market/` | Mercato a buste e scambi (admin): sessioni, anteprima e spoglio, pareggi, annullamento, ratifica scambi. |
+| `/app/` | App del fantallenatore: home, rosa, formazione, lega, **mercato** (`/app/mercato/`) e **scambi** (`/app/scambi/`). |
 | `/django-admin/` | Admin Django nativo (accesso dati grezzi / debug). |
 
 ---
@@ -139,18 +141,53 @@ le connessioni in entrata sulla porta 8000).
 
 ---
 
+## Mercato a buste e scambi
+
+**Buste (mercato di riparazione).** L'admin crea una sessione per la lega:
+apertura subito o programmata, chiusura automatica opzionale, taglio
+condizionato (con modalità di rimborso) e tetti di acquisto per ruolo. I
+fantallenatori inviano dall'app buste segrete con importo e priorità
+(1 = obiettivo principale), eventualmente legate al taglio di un proprio
+giocatore.
+
+Lo spoglio (`auctions/services/market.py`):
+
+- ogni calciatore va all'offerta più alta **valida**; a parità d'importo vince
+  la priorità più bassa, a parità anche di priorità è pari merito;
+- le buste di ciascuno entrano in gioco in ordine di priorità, così crediti e
+  slot vengono spesi prima sugli obiettivi principali;
+- al momento dell'assegnazione si ricontrollano calciatore ancora libero,
+  crediti, slot della rosa (Classic e Mantra), tetti per ruolo e taglio ancora
+  possibile.
+
+Prima di confermare l'admin può vedere l'**anteprima** dell'esito. I **pari
+merito** si risolvono scegliendo il vincitore o con un sorteggio. Uno spoglio
+si può **annullare** finché i calciatori coinvolti non sono stati toccati.
+
+**Scambi.** Dall'app un fantallenatore propone calciatori e/o crediti a
+un'altra squadra; chi riceve accetta o rifiuta. Per ogni lega l'admin decide se
+gli scambi sono attivi e se serve la sua **ratifica**. Rose, crediti e slot
+vengono ricontrollati quando lo scambio viene eseguito.
+
+---
+
 ## Test
 
 ```bash
 python manage.py test
 ```
 
-Copre (21 test): offerta accettata in `LIVE`, rifiuto se chiusa / timer scaduto
+Tra le altre cose copre: offerta accettata in `LIVE`, rifiuto se chiusa / timer scaduto
 / partecipante inattivo / incremento non valido, ricalcolo del prezzo su due
 offerte ravvicinate, log delle offerte rifiutate, rate limit, lifecycle
 pause/resume/auto-close, **anti-sniping** (estende / non estende), le view
-principali, e il **flusso end-to-end via WebSocket** (offerta accettata e
-broadcast, rifiuto senza sessione).
+principali, il **flusso end-to-end via WebSocket** (offerta accettata e
+broadcast, rifiuto senza sessione), lo **spoglio delle buste**
+(`test_market.py`) e gli **scambi** (`test_trades.py`).
+
+Con `whitenoise` installato le view renderizzano gli static dal manifest:
+esegui prima `python manage.py collectstatic --noinput`, altrimenti i test che
+aprono pagine falliscono con *Missing staticfiles manifest entry*.
 
 ---
 
@@ -197,13 +234,12 @@ Asta live/
 │   ├── asgi.py             # routing HTTP + WebSocket
 │   └── wsgi.py
 └── auctions/               # app principale
-    ├── models.py           # Auction, Participant, Bid
-    ├── services.py         # logica bid/lifecycle (atomica, server-side)
+    ├── models/             # Auction, Participant, Player, League, MarketSession/MarketBid, Trade, …
+    ├── services/           # logica server-side: bidding, lifecycle, queue, market, trade, …
+    ├── views/              # console (admin_*), app del fantallenatore (app.py), bidder, screen
     ├── consumers.py        # WebSocket consumer (gruppo per asta + timer sync)
     ├── routing.py          # rotte WebSocket
-    ├── views.py            # dashboard, join, bid, screen, control endpoints
     ├── urls.py
-    ├── admin.py
-    ├── tests.py
-    └── templates/auctions/ # base, admin_dashboard, join, bid, screen
+    ├── tests/
+    └── templates/auctions/ # console (dashboard/ = parti della regia), app_*, bid, screen
 ```
