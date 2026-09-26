@@ -10,7 +10,7 @@ from .. import services
 from ..models import ContractEvent, Participant, Player
 from ..providers.apifootball import is_configured as apifootball_configured
 from ..providers.uefa import RANKING_PAGE as UEFA_RANKING_PAGE
-from ..services.abroad import UEFA_MAX_AGE_DAYS, uefa_ranking_date, uefa_ranking_stale
+from ..services.abroad import UEFA_MAX_AGE_DAYS, roster_check_state, uefa_ranking_date, uefa_ranking_stale
 from .common import current_league, manageable_leagues, staff_member_required, target_league, user_can_manage_league
 
 _FORBIDDEN = "Non hai i permessi per gestire i contratti di questa lega."
@@ -79,6 +79,7 @@ def admin_contracts(request):
         "uefa_ranking_page": UEFA_RANKING_PAGE,
         "apifootball": apifootball_configured() if league is not None else False,
         "to_detect": sum(1 for p in left if not p.left_club) if league is not None else 0,
+        "roster_check": roster_check_state(league) if league is not None else None,
         "contract_faces": sorted(set(services.contract_faces(league))) if league else [1, 2, 3],
         "crules": services.contract_rules(league) if league else None,
         "roles": [("P", "Portieri"), ("D", "Difensori"), ("C", "Centrocampisti"), ("A", "Attaccanti")],
@@ -127,6 +128,17 @@ def admin_contracts_action(request):
             pass
         league.save(update_fields=["contracts_enabled", "contract_rules", "gk_max_clubs", "updated_at"])
         messages.success(request, "Impostazioni contratti salvate.")
+        return redirect(_url(league))
+
+    if action == "left_check_all":
+        from ..services import abroad
+        if not apifootball_configured():
+            messages.error(request, "API-Football non configurata: imposta APIFOOTBALL_KEY sul server e riavvia.")
+        elif abroad.start_roster_check(league):
+            messages.success(request, "Controllo di tutte le rose avviato: ci vuole qualche minuto, "
+                                      "la pagina si aggiorna da sola.")
+        else:
+            messages.warning(request, "Il controllo delle rose è già in corso.")
         return redirect(_url(league))
 
     if action in ("left_flag", "left_detect", "left_detect_all", "left_resolve", "list_release",
