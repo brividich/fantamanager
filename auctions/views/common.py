@@ -1,4 +1,5 @@
 """Shared helpers, decorators, and context builders for HTTP views."""
+import re
 from functools import wraps
 
 from asgiref.sync import async_to_sync
@@ -7,6 +8,7 @@ from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.urls import reverse
+from django.utils.http import url_has_allowed_host_and_scheme
 
 from .. import remote, services
 from ..models import Auction, League, Participant, Player
@@ -31,6 +33,45 @@ def staff_member_required(view):
             return redirect(f"{reverse('regia_unlock')}?next={request.get_full_path()}")
         return view(request, *args, **kwargs)
     return wrapped
+
+
+def regia_pin_lockout_error():
+    """The message to show while PIN attempts are locked out, else ""."""
+    remaining = remote.regia_pin_lockout_remaining()
+    return f"Troppi tentativi. Riprova tra {int(remaining)} secondi." if remaining > 0 else ""
+
+
+def try_regia_pin(request):
+    """Check the posted ``pin`` against the one minted for the tunnel.
+
+    Returns "" once the session is unlocked, else the error to show. Every PIN
+    form goes through here so they all share the process-wide lockout (see
+    ``regia_unlock``). There is no fallback PIN: until a tunnel has minted one,
+    nothing unlocks.
+    """
+    error = regia_pin_lockout_error()
+    if error:
+        return error
+    given = re.sub(r"\D", "", request.POST.get("pin", ""))
+    if given and given == remote.regia_pin():
+        remote.regia_pin_register_success()
+        request.session["regia_unlocked"] = True
+        return ""
+    remote.regia_pin_register_failure()
+    return regia_pin_lockout_error() or "PIN errato."
+
+
+def safe_next(request, fallback):
+    """The ``next`` target from GET or POST, or ``fallback`` if it leaves this site.
+
+    Stops a crafted link (``?next=https://evil.example/`` or the protocol-relative
+    ``//evil.example/``) from bouncing someone off-site right after they log in.
+    """
+    target = request.GET.get("next") or request.POST.get("next") or ""
+    if target and url_has_allowed_host_and_scheme(
+            target, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+        return target
+    return fallback
 
 
 # --- Shared helpers ---------------------------------------------------------
