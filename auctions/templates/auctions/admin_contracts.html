@@ -159,6 +159,27 @@
         {% if apifootball %}API-Football cerca subito il club di destinazione, con la sua posizione nel ranking UEFA (che se manca si scarica da uefa.com){% else %}con API-Football attiva il club di destinazione e il ranking UEFA si cercherebbero da soli{% endif %}.
         Si può anche segnalare a mano qui sotto. «Conferma» chiude il caso con il compenso della tabella coefficienti introiti.
     </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+        <form method="post" action="{% url 'admin_contracts_action' %}">
+            {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="left_check_all">
+            <button type="submit" class="ct-btn go"{% if not apifootball or roster_check.status == "running" %} disabled{% endif %}>Controlla tutte le rose</button>
+        </form>
+        <span class="muted" style="font-size:11.5px">cerca su API-Football chi dei giocatori di tutte le squadre ha lasciato la Serie A, senza aspettare il listone (circa una richiesta per club di Serie A)</span>
+    </div>
+    {% if roster_check %}
+    <div id="roster-check" data-status="{{ roster_check.status }}" style="font-size:12px;margin:-4px 0 10px;padding:8px 10px;border-radius:8px;border:1px solid var(--line);{% if roster_check.status == 'done' and roster_check.found %}background:rgba(234,179,8,0.10){% endif %}">
+        {% if roster_check.status == "running" %}
+            <b>Controllo delle rose in corso</b>{% if roster_check.total %}: {{ roster_check.done }}/{{ roster_check.total }} club{% endif %} · avviato alle {{ roster_check.started_at|date:"H:i" }}. La pagina si aggiorna da sola.
+        {% elif roster_check.status == "interrupted" %}
+            <b>Controllo delle rose interrotto</b> (avviato il {{ roster_check.started_at|date:"d/m H:i" }}): rilancialo.
+        {% else %}
+            <b>Ultimo controllo delle rose</b> ({{ roster_check.finished_at|date:"d/m H:i" }}): {{ roster_check.summary }}
+        {% endif %}
+    </div>
+    {% if roster_check.status == "running" %}
+    <script>setTimeout(function () { location.reload(); }, 10000);</script>
+    {% endif %}
+    {% endif %}
     {% if to_detect %}
     <form method="post" action="{% url 'admin_contracts_action' %}" style="margin-bottom:10px">
         {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="left_detect_all">
