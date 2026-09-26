@@ -42,7 +42,9 @@ layer in-memory, processo singolo).
 | `/bid/<auction_id>/` | Pagina partecipante: titolo, timer, stato, prezzo, miglior offerente, 4 pulsanti rilancio. |
 | `/screen/<auction_id>/` | Maxischermo: prezzo grande, timer grande, stato, ultimo offerente, log ultime offerte. |
 | `/admin-auction/market/` | Mercato a buste e scambi (admin): sessioni, anteprima e spoglio, pareggi, annullamento, ratifica scambi. |
-| `/app/` | App del fantallenatore: home, rosa, formazione, lega, **mercato** (`/app/mercato/`) e **scambi** (`/app/scambi/`). |
+| `/app/` | App del fantallenatore: home, rosa, formazione, lega, **mercato** (`/app/mercato/`) e **scambi** (`/app/scambi/`). Per chi gestisce una lega c'è anche la **Regia** (`/app/regia/`). |
+| `/admin-auction/setup/` | **Nuova lega** guidata: listone e rose → lega e squadre → asta, con riepilogo dal vivo. |
+| `/admin-auction/config/` | **Impostazioni** delle leghe che gestisci (nome, crediti, rosa, Classic/Mantra, regole) e pulizia di aste e salvataggi. |
 | `/django-admin/` | Admin Django nativo (accesso dati grezzi / debug). |
 
 ---
@@ -141,6 +143,37 @@ le connessioni in entrata sulla porta 8000).
 
 ---
 
+## Console e app: una lega sola
+
+Console (`/dashboard/`) e app (`/app/`) lavorano sulla **stessa lega**: la
+lega scelta da una parte è già selezionata dall'altra. In alto nella console
+il selettore **Console | App** apre la stessa lega nell'app; nell'app il tasto
+**Console** fa il viaggio inverso.
+
+Chi gestisce una lega (proprietario o superadmin) nell'app trova la scheda
+**Regia**: le cose da fare (asta in corso, scambi da ratificare, spoglio delle
+buste, listone o squadre mancanti, squadre senza accesso), i numeri della lega,
+tutte le squadre con la loro rosa, le aste, le buste e i collegamenti agli
+strumenti della console. Gli scambi si ratificano direttamente da lì.
+
+Con **Vedi come** l'admin apre l'app come una qualunque squadra delle sue leghe
+(per controllare cosa vede un allenatore o agire per chi non può): un banner lo
+ricorda sempre e riporta alla Regia. Un admin senza squadra propria non passa
+più dal login dell'app: entra direttamente in Regia.
+
+## Nuova lega e impostazioni
+
+La **Nuova lega** (`/admin-auction/setup/`) riconosce da solo il formato del
+file rose, ne prende squadre e budget, suggerisce Mantra se il listone ha la
+colonna RM, propone preset per rosa e ritmo dell'asta, accetta un elenco di
+squadre incollato, e tiene una bozza se la pagina viene ricaricata.
+
+Le **Impostazioni** (`/admin-auction/config/`) mostrano una scheda per lega con
+la lista di controllo (listone, squadre, accessi, prima asta) e un editor per
+nome, crediti, sistema di gioco, rosa e regole (scambi, ratifica, contratti,
+tetto salariale). Un admin di lega vede e modifica solo le sue leghe; per
+eliminarne una bisogna scriverne il nome.
+
 ## Mercato a buste e scambi
 
 **Buste (mercato di riparazione).** L'admin crea una sessione per la lega:
@@ -236,7 +269,7 @@ Asta live/
 └── auctions/               # app principale
     ├── models/             # Auction, Participant, Player, League, MarketSession/MarketBid, Trade, …
     ├── services/           # logica server-side: bidding, lifecycle, queue, market, trade, …
-    ├── views/              # console (admin_*), app del fantallenatore (app.py), bidder, screen
+    ├── views/              # console (admin_*), app del fantallenatore (app.py, app_admin.py = Regia), bidder, screen
     ├── consumers.py        # WebSocket consumer (gruppo per asta + timer sync)
     ├── routing.py          # rotte WebSocket
     ├── urls.py

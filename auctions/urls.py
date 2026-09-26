@@ -153,6 +153,10 @@ urlpatterns = [
     path("app/scambi/<int:trade_id>/rispondi/", views.app_trade_respond, name="app_trade_respond"),
     path("app/scambi/<int:trade_id>/ritira/", views.app_trade_cancel, name="app_trade_cancel"),
     path("app/altro/", views.app_altro, name="app_altro"),
+    # The league admin's Regia inside the app (+ "Vedi come" a team).
+    path("app/regia/", views.app_regia, name="app_regia"),
+    path("app/regia/vedi/<int:participant_id>/", views.app_view_as, name="app_view_as"),
+    path("app/regia/vedi/esci/", views.app_view_as_exit, name="app_view_as_exit"),
     path("app/altro/pin/", views.app_update_pin, name="app_update_pin"),
 
     # Big screen.

@@ -8,6 +8,7 @@ from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from ..models import Auction, League, MarketBid, MarketSession, Participant, Player, Trade, TradeWindow
@@ -354,6 +355,11 @@ def admin_trade_decide(request, trade_id):
         messages.success(request, "Scambio ratificato ed eseguito." if approve else "Scambio bocciato.")
     else:
         messages.error(request, res["message"])
+    # The Regia in the app ratifies from its own page and wants to stay there.
+    nxt = request.POST.get("next") or ""
+    if nxt and url_has_allowed_host_and_scheme(nxt, allowed_hosts={request.get_host()},
+                                               require_https=request.is_secure()):
+        return redirect(nxt)
     return redirect(_dashboard_url(request, league_id=trade.league_id))
 
 

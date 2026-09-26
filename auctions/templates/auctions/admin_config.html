@@ -1,273 +1,588 @@
 {% extends "auctions/base.html" %}
-{% block title %}Configurazione — FantaManager{% endblock %}
+{% comment %}
+Impostazioni — every league the user runs, as a card with its health
+checklist (what is missing before the next auction, with the link that fixes
+it) and an editor for name, budget, game system, roster shape and the league
+rules (trades, contracts, salary cap). Auctions, saved sessions and the
+clean-up of empty leagues sit in their own tabs. Deleting a league asks for
+its name to be typed: it takes teams, listone, auctions and sessions with it.
+{% endcomment %}
+{% block title %}Impostazioni — FantaManager{% endblock %}
 {% block bodyclass %}role-admin{% endblock %}
 {% block wrapclass %}wrap-wide{% endblock %}
 
 {% block content %}
 <style>
-    .pg-head { display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap; margin:6px 0 14px; }
-    .pg-head h1 { margin:0; font-size:26px; letter-spacing:.02em; }
-    .pg-head .sub { font-size:12.5px; color:var(--fm-text-secondary); }
-    .pg-head .spacer { flex:1 1 auto; }
+    .cf { max-width: 1280px; margin: 0 auto; }
+    .cf-head { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin: 8px 0 14px; }
+    .cf-head h1 { margin: 0; font-size: 28px; }
+    .cf-head .sub { font-size: 13px; color: var(--fm-text-secondary); margin-top: 4px; max-width: 70ch; }
+    .cf-head .spacer { flex: 1 1 auto; }
+    .cf-search { position: relative; width: 240px; max-width: 100%; }
+    .cf-search .ic { position: absolute; left: 11px; top: 12px; width: 16px; height: 16px; color: var(--fm-text-muted); }
+    .cf-search input { padding-left: 34px; }
 
-    .msg { padding:11px 14px; border-radius:var(--fm-radius-sm); font-size:13px; margin-bottom:10px; }
-    .msg.success { background:rgba(22,217,104,.10); border:1px solid rgba(22,217,104,.35); color:#8df0b6; }
-    .msg.error   { background:rgba(255,61,80,.10); border:1px solid rgba(255,61,80,.40); color:#ffb3bb; }
+    .msg { padding: 11px 14px; border-radius: var(--fm-radius-sm); font-size: 13px; margin-bottom: 10px; }
+    .msg.success { background: rgba(22,217,104,.10); border: 1px solid rgba(22,217,104,.35); color: #8df0b6; }
+    .msg.error   { background: rgba(255,61,80,.10); border: 1px solid rgba(255,61,80,.40); color: #ffb3bb; }
+    .msg.info    { background: rgba(8,124,240,.10); border: 1px solid var(--fm-border-active); color: var(--fm-text); }
 
-    .cfg-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; }
-    @media (max-width:1180px) { .cfg-grid { grid-template-columns:minmax(0,1fr); } }
+    /* Tabs */
+    .cf-tabs { display: flex; gap: 6px; margin: 0 0 16px; overflow-x: auto; padding-bottom: 2px; border-bottom: 1px solid var(--fm-border); }
+    .cf-tabs button { height: 40px; border-radius: 8px 8px 0 0; border: 1px solid transparent; border-bottom: 0;
+                      background: transparent; color: var(--fm-text-secondary); font-size: 13px; }
+    .cf-tabs button[aria-selected="true"] { color: #fff; background: var(--fm-card); border-color: var(--fm-border); }
+    .cf-tabs .cnt { font-size: 11px; font-weight: 800; padding: 1px 7px; border-radius: 999px; background: rgba(255,255,255,.07); color: var(--fm-text-secondary); }
+    .cf-tabs .cnt.warn { background: rgba(255,181,38,.16); color: var(--fm-warning); }
+    .js .cf-pane { display: none; }
+    .js .cf-pane.on { display: block; }
 
-    .lg-row td { vertical-align:middle; }
-    .lg-name { font-weight:700; }
-    .lg-id { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11px; color:var(--fm-text-muted); }
-    .warn-tag {
-        display:inline-flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700;
-        letter-spacing:.08em; text-transform:uppercase; color:var(--fm-warning);
-        border:1px solid rgba(255,181,38,.35); border-radius:4px; padding:2px 7px;
-    }
-    .ok-tag { color:var(--fm-success); border-color:rgba(22,217,104,.30); }
-    .row-btns { display:flex; gap:6px; justify-content:flex-end; }
-    .row-btns .fm-btn { height:28px; padding:0 10px; font-size:11.5px; }
+    /* League cards */
+    .lg-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+    @media (min-width: 1180px) { .lg-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; } }
+    .lg-card { padding: 16px; scroll-margin-top: 90px; }
+    .lg-card.is-current { box-shadow: inset 0 0 0 1px var(--fm-border-active), var(--fm-shadow); }
+    .lg-card[hidden] { display: none; }
+    .lg-top { display: flex; align-items: flex-start; gap: 12px; }
+    .lg-av { width: 42px; height: 42px; border-radius: 11px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+             font-family: var(--fm-display); font-weight: 800; font-size: 16px; color: #fff; background: var(--fm-gradient); }
+    .lg-top .nm { flex: 1; min-width: 0; }
+    .lg-top .nm h2 { margin: 0; font-size: 20px; line-height: 1.1; overflow-wrap: anywhere; }
+    .lg-top .nm .meta { font-size: 12px; color: var(--fm-text-secondary); margin-top: 3px; }
+    .lg-pills { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+    .tag { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 5px;
+           font-size: 10.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; border: 1px solid var(--fm-border); color: var(--fm-text-secondary); white-space: nowrap; }
+    .tag.ok { color: var(--fm-success); border-color: rgba(22,217,104,.32); }
+    .tag.warn { color: var(--fm-warning); border-color: rgba(255,181,38,.35); }
+    .tag.live { color: var(--fm-danger); border-color: rgba(255,61,80,.40); background: rgba(255,61,80,.08); }
+    .tag.here { color: var(--fm-primary-light); border-color: var(--fm-border-active); background: rgba(8,124,240,.10); }
 
-    .edit-form { display:none; background:rgba(255,255,255,.03); }
-    .edit-form.open { display:table-row; }
-    .edit-grid { display:grid; grid-template-columns:1.4fr .8fr .8fr repeat(4,.5fr) auto; gap:8px; align-items:end; padding:10px 4px; }
-    .edit-grid label { margin:0 0 4px; }
-    @media (max-width:1180px) { .edit-grid { grid-template-columns:1fr 1fr; } }
+    .lg-stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin: 14px 0 12px; }
+    .lg-stats div { padding: 8px 6px; border-radius: 8px; background: rgba(255,255,255,.03); border: 1px solid rgba(85,160,230,.10); text-align: center; }
+    .lg-stats b { display: block; font-family: var(--fm-display); font-size: 20px; color: #fff; line-height: 1.1; }
+    .lg-stats span { font-size: 9.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--fm-text-muted); }
+    @media (max-width: 520px) { .lg-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); } .lg-stats div:nth-child(n+4) { display: none; } }
 
-    .danger-zone {
-        margin-top:14px; padding:12px 14px; border-radius:var(--fm-radius-md);
-        border:1px solid rgba(255,61,80,.30); background:rgba(255,61,80,.05);
-        display:flex; align-items:center; gap:12px; flex-wrap:wrap; font-size:12.5px;
-    }
-    .danger-zone .spacer { flex:1 1 auto; }
+    .lg-check { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 6px; }
+    .lg-check li { display: flex; align-items: center; gap: 8px; font-size: 12.5px; padding: 7px 10px; border-radius: 8px; background: rgba(255,255,255,.025); }
+    .lg-check .dot { width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+                     font-size: 11px; font-weight: 900; }
+    .lg-check .ok .dot { background: rgba(22,217,104,.16); color: var(--fm-success); }
+    .lg-check .todo .dot { background: rgba(255,181,38,.16); color: var(--fm-warning); }
+    .lg-check li > span:not(.dot) { flex: 1; min-width: 0; }
+    .lg-check a { font-weight: 700; font-size: 12px; white-space: nowrap; }
+
+    .lg-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    .lg-actions .fm-btn { height: 34px; font-size: 12.5px; }
+    .lg-actions .push { margin-left: auto; }
+
+    /* Editor */
+    .lg-edit { margin-top: 12px; border-top: 1px solid var(--fm-border); padding-top: 14px; }
+    .lg-edit[hidden] { display: none; }
+    .ed-sec { margin-bottom: 16px; }
+    .ed-sec > .t { font-size: 10.5px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--fm-text-secondary); margin: 0 0 8px; }
+    .ed-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .ed-grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    @media (max-width: 560px) { .ed-grid2 { grid-template-columns: 1fr; } .ed-grid4 { grid-template-columns: repeat(2, 1fr); } }
+    .ed-sec label:not(.sw-row) { margin: 0 0 4px; }
+    .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+    .chip { height: 28px; padding: 0 11px; font-size: 12px; border-radius: 999px; background: rgba(255,255,255,.04); border: 1px solid var(--fm-border); color: var(--fm-text-secondary); }
+    .chip:hover { color: #fff; filter: none; }
+    .seg { display: inline-flex; flex-wrap: wrap; gap: 3px; padding: 3px; border-radius: 9px; background: rgba(255,255,255,.04); border: 1px solid var(--fm-border); }
+    .seg label { position: relative; cursor: pointer; }
+    .seg input { position: absolute; opacity: 0; pointer-events: none; }
+    .seg span { display: inline-flex; align-items: center; height: 30px; padding: 0 12px; border-radius: 6px; font-size: 12.5px; font-weight: 700; color: var(--fm-text-secondary); }
+    .seg input:checked + span { background: rgba(8,124,240,.16); color: var(--fm-primary-light); box-shadow: inset 0 0 0 1px var(--fm-border-active); }
+    .seg input:focus-visible + span { outline: 2px solid var(--fm-primary-light); outline-offset: 1px; }
+    .hint { font-size: 12px; color: var(--fm-text-secondary); margin-top: 6px; line-height: 1.45; }
+    .hint.warn { color: var(--fm-warning); }
+
+    .sw-row { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; border-bottom: 1px solid rgba(85,160,230,.08); cursor: pointer;
+              text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 500; color: var(--fm-text); margin: 0; }
+    .sw-row:last-of-type { border-bottom: 0; }
+    .sw-row .txt { flex: 1; min-width: 0; }
+    .sw-row .txt b { display: block; font-size: 13.5px; }
+    .sw-row .txt span { font-size: 12px; color: var(--fm-text-secondary); }
+    .sw-row .txt a { font-size: 12px; font-weight: 700; }
+    .sw-row.off { opacity: .5; }
+    /* Switch */
+    .sw { position: relative; width: 40px; height: 22px; flex-shrink: 0; margin-top: 2px; }
+    .sw input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; z-index: 1; }
+    .sw i { position: absolute; inset: 0; border-radius: 999px; background: rgba(255,255,255,.12); transition: background .15s; }
+    .sw i::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .15s; }
+    .sw input:checked + i { background: var(--fm-primary); }
+    .sw input:checked + i::after { transform: translateX(18px); }
+    .sw input:focus-visible + i { outline: 2px solid var(--fm-primary-light); outline-offset: 2px; }
+    .sw input:disabled + i { opacity: .5; }
+
+    .ed-foot { position: sticky; bottom: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+               margin: 4px -16px -16px; padding: 12px 16px; border-radius: 0 0 var(--fm-radius-md) var(--fm-radius-md);
+               background: rgba(4,20,41,.96); border-top: 1px solid var(--fm-border); }
+    .ed-foot .dirty { flex: 1; font-size: 12px; color: var(--fm-warning); visibility: hidden; }
+    .ed-foot .dirty.on { visibility: visible; }
+
+    /* Lists (aste, sessioni) */
+    .cf-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+    .cf-toolbar select { width: auto; min-width: 200px; }
+    .li { display: flex; align-items: center; gap: 12px; padding: 11px 4px; border-bottom: 1px solid rgba(85,160,230,.09); }
+    .li:last-child { border-bottom: 0; }
+    .li[hidden] { display: none; }
+    .li .main { flex: 1; min-width: 0; }
+    .li .main b { display: block; font-size: 14px; overflow-wrap: anywhere; }
+    .li .main small { font-size: 11.5px; color: var(--fm-text-secondary); }
+    .li .num { font-family: var(--fm-display); font-weight: 800; font-size: 16px; color: #fff; min-width: 48px; text-align: right; }
+    .li .num small { display: block; font-family: var(--fm-sans); font-size: 9.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--fm-text-muted); }
+    .li .btns { display: flex; gap: 6px; }
+    .li .btns form { margin: 0; display: contents; }
+    .li .btns .fm-btn { height: 32px; padding: 0 11px; font-size: 12px; }
+    @media (max-width: 620px) { .li { flex-wrap: wrap; } .li .btns { width: 100%; justify-content: flex-end; } .li .num { display: none; } }
+
+    .empty { text-align: center; padding: 30px 16px; color: var(--fm-text-secondary); }
+    .empty b { display: block; color: #fff; font-size: 16px; margin-bottom: 4px; }
+
+    /* Delete dialog */
+    dialog.cf-dlg { width: min(460px, calc(100vw - 32px)); padding: 0; border-radius: var(--fm-radius-lg);
+                    border: 1px solid rgba(255,61,80,.45); background: var(--fm-surface); color: var(--fm-text); }
+    dialog.cf-dlg::backdrop { background: rgba(1,7,18,.72); }
+    .cf-dlg .in { padding: 20px; }
+    .cf-dlg h3 { margin: 0 0 8px; font-family: var(--fm-display); font-size: 22px; color: #fff; }
+    .cf-dlg p { font-size: 13px; color: var(--fm-text-secondary); line-height: 1.5; margin: 0 0 10px; }
+    .cf-dlg ul { margin: 0 0 12px; padding-left: 18px; font-size: 13px; }
+    .cf-dlg .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
 </style>
 
 {% include "auctions/_console_head.html" %}
 
-<div class="pg-head">
+<div class="cf">
+<div class="cf-head">
     <div>
-        <h1>Configurazione</h1>
-        <div class="sub">Leghe, aste e sessioni salvate: rinomina, ripulisci, elimina.</div>
+        <h1>Impostazioni</h1>
+        <div class="sub">Le regole di ogni lega che gestisci — nome, crediti, rosa, sistema di gioco, scambi, contratti — e la manutenzione di aste e salvataggi.</div>
     </div>
     <span class="spacer"></span>
-    <a class="fm-btn fm-btn-secondary" href="{% url 'admin_dashboard' %}">
-        <svg class="ic"><use href="#i-gavel"/></svg> Torna alla regia</a>
+    {% if rows|length > 3 %}
+    <div class="cf-search">
+        <svg class="ic"><use href="#i-search"/></svg>
+        <input type="search" id="lg-search" placeholder="Cerca una lega…" aria-label="Cerca una lega">
+    </div>
+    {% endif %}
+    <a class="fm-btn fm-btn-primary" href="{% url 'admin_setup' %}"><svg class="ic"><use href="#i-plus"/></svg> Nuova lega</a>
 </div>
 
 {% for m in messages %}
-<div class="msg {% if m.tags %}{{ m.tags }}{% endif %}">{{ m }}</div>
+<div class="msg {% if m.tags %}{{ m.tags }}{% endif %}" role="status">{{ m }}</div>
 {% endfor %}
 
-<details class="howto">
-    <summary><svg class="ic"><use href="#i-info"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
-    <div class="howto-body">
-        Il banco di manutenzione dei dati.
-        <ol>
-            <li><b>Leghe</b>: ogni riga dice quante squadre, quanti giocatori nel listone e quante aste ci girano. <b>Modifica</b> cambia nome, budget e composizione della rosa; <b>Elimina</b> porta via la lega <i>con</i> le sue squadre, il suo listone, le sue aste e le sue sessioni.</li>
-            <li><b>Aste</b>: elimina un'asta sbagliata senza toccare la lega — squadre e listone restano al loro posto.</li>
-            <li><b>Sessioni salvate</b>: la colonna <b>Listone</b> dice se il salvataggio se lo porta dietro. Se è 0 è un salvataggio vecchio: alla ripresa il listone viene recuperato dalla lega di origine, se esiste ancora.</li>
-        </ol>
-        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> <b>Ripulisci leghe vuote</b> rimuove in un colpo le leghe senza listone e senza aste — quelle che restavano dietro alle riprese di sessione fallite.</div>
-    </div>
-</details>
+<div class="cf-tabs" role="tablist" aria-label="Sezioni">
+    <button type="button" role="tab" id="t-leghe" aria-controls="leghe" data-tab="leghe">
+        <svg class="ic"><use href="#i-trophy"/></svg> Leghe <span class="cnt">{{ rows|length }}</span></button>
+    <button type="button" role="tab" id="t-aste" aria-controls="aste" data-tab="aste">
+        <svg class="ic"><use href="#i-gavel"/></svg> Aste <span class="cnt">{{ auctions|length }}</span></button>
+    <button type="button" role="tab" id="t-sessioni" aria-controls="sessioni" data-tab="sessioni">
+        <svg class="ic"><use href="#i-folder"/></svg> Salvataggi <span class="cnt">{{ sessions|length }}</span></button>
+    <button type="button" role="tab" id="t-pulizia" aria-controls="pulizia" data-tab="pulizia">
+        <svg class="ic"><use href="#i-trash"/></svg> Pulizia <span class="cnt {% if empties %}warn{% endif %}">{{ empties|length }}</span></button>
+</div>
 
-<div class="fm-card">
-    <div class="fm-section-title"><svg class="ic"><use href="#i-trophy"/></svg> Leghe <span class="sep"></span>
-        <span class="muted" style="font-weight:500;letter-spacing:0;text-transform:none">{{ rows|length }}</span>
-    </div>
-    <div class="table-scroll">
-        <table>
-            <thead><tr>
-                <th style="width:44px">ID</th>
-                <th>Lega</th>
-                <th class="num">Squadre</th>
-                <th class="num">Listone</th>
-                <th class="num">Svincolati</th>
-                <th class="num">Aste</th>
-                <th class="num">Sessioni</th>
-                <th>Stato</th>
-                <th></th>
-            </tr></thead>
-            <tbody>
-            {% for r in rows %}
-                <tr class="lg-row">
-                    <td class="lg-id">#{{ r.league.id }}</td>
-                    <td>
-                        <div class="lg-name">{{ r.league.name }}</div>
-                        <div class="muted" style="font-size:11px">
-                            {{ r.league.budget|floatformat:0 }} FM ·
-                            {% if r.league.slot_limits %}slot {{ r.league.slots_label }}{% else %}nessun limite slot{% endif %}
-                        </div>
-                    </td>
-                    <td class="num">{{ r.teams }}</td>
-                    <td class="num">{{ r.pool }}</td>
-                    <td class="num">{{ r.free }}</td>
-                    <td class="num">{{ r.auctions }}</td>
-                    <td class="num">{{ r.sessions }}</td>
-                    <td>
-                        {% if r.playable %}<span class="warn-tag ok-tag">Pronta</span>
-                        {% else %}<span class="warn-tag">Senza listone</span>{% endif %}
-                    </td>
-                    <td>
-                        <div class="row-btns">
-                            <button type="button" class="fm-btn fm-btn-secondary"
-                                    onclick="toggleEdit({{ r.league.id }})">Modifica</button>
-                            <form method="post" action="{% url 'admin_config_action' %}" style="display:contents"
-                                  onsubmit="return confirm('Eliminare la lega «{{ r.league.name|escapejs }}»?\n\nVengono rimosse anche {{ r.auctions }} aste, {{ r.teams }} squadre, {{ r.pool }} giocatori e {{ r.sessions }} sessioni salvate.\n\nL\'azione è irreversibile.')">
-                                {% csrf_token %}
-                                <input type="hidden" name="action" value="delete_league">
-                                <input type="hidden" name="league_id" value="{{ r.league.id }}">
-                                <button type="submit" class="fm-btn fm-btn-danger">
-                                    <svg class="ic"><use href="#i-trash"/></svg></button>
-                            </form>
-                        </div>
-                    </td>
-                </tr>
-                <tr class="edit-form" id="edit-{{ r.league.id }}">
-                    <td colspan="9">
-                        <form method="post" action="{% url 'admin_config_action' %}">
-                            {% csrf_token %}
-                            <input type="hidden" name="action" value="rename_league">
-                            <input type="hidden" name="league_id" value="{{ r.league.id }}">
-                            <div class="edit-grid">
-                                <div><label>Nome lega</label>
-                                    <input name="name" value="{{ r.league.name }}"></div>
-                                <div><label>Budget</label>
-                                    <input name="budget" value="{{ r.league.budget|floatformat:0 }}" inputmode="decimal"></div>
-                                <div><label>Slot</label>
-                                    <select name="slot_limits">
-                                        <option value="1" {% if r.league.slot_limits %}selected{% endif %}>Limite per ruolo</option>
-                                        <option value="0" {% if not r.league.slot_limits %}selected{% endif %}>Nessun limite</option>
-                                    </select></div>
-                                <div><label>P</label><input name="slots_p" value="{{ r.league.slots_p }}" inputmode="numeric"></div>
-                                <div><label>D</label><input name="slots_d" value="{{ r.league.slots_d }}" inputmode="numeric"></div>
-                                <div><label>C</label><input name="slots_c" value="{{ r.league.slots_c }}" inputmode="numeric"></div>
-                                <div><label>A</label><input name="slots_a" value="{{ r.league.slots_a }}" inputmode="numeric"></div>
-                                <div><button type="submit" class="fm-btn fm-btn-primary">Salva</button></div>
-                            </div>
-                        </form>
-                    </td>
-                </tr>
-            {% empty %}
-                <tr><td colspan="9" class="fm-empty">Nessuna lega.</td></tr>
-            {% endfor %}
-            </tbody>
-        </table>
-    </div>
+<!-- ================================================================ LEGHE -->
+<section class="cf-pane" id="leghe" role="tabpanel" aria-labelledby="t-leghe">
+    <div class="lg-grid">
+    {% for r in rows %}
+    {% with lg=r.league %}
+    <article class="fm-card lg-card {% if r.is_current %}is-current{% endif %}" id="lg-{{ lg.id }}" data-name="{{ lg.name|lower }}">
+        <div class="lg-top">
+            <div class="lg-av">{{ lg.name|slice:":2"|upper }}</div>
+            <div class="nm">
+                <h2>{{ lg.name }}</h2>
+                <div class="meta">#{{ lg.id }} · {{ lg.get_game_mode_display }} · {{ lg.budget|floatformat:0 }} FM a squadra · {% if lg.slot_limits %}rosa {{ lg.slots_label }}{% else %}rosa senza limiti{% endif %}{% if lg.owner %} · {{ lg.owner.username }}{% endif %}</div>
+            </div>
+            <div class="lg-pills">
+                {% if r.is_current %}<span class="tag here">In uso</span>{% endif %}
+                {% if r.live %}<span class="tag live">Live</span>
+                {% elif r.playable %}<span class="tag ok">Pronta</span>
+                {% else %}<span class="tag warn">Senza listone</span>{% endif %}
+            </div>
+        </div>
 
-    <div class="danger-zone">
-        <span class="muted">
-            {% if empties %}
-            <b style="color:var(--fm-text)">{{ empties|length }} leghe</b> non hanno né listone né aste:
-            sono gli scarti delle riprese di sessione andate a vuoto.
-            {% else %}
-            Nessuna lega vuota: i dati sono in ordine.
+        <div class="lg-stats">
+            <div><b>{{ r.teams }}</b><span>Squadre</span></div>
+            <div><b>{{ r.pool }}</b><span>Listone</span></div>
+            <div><b>{{ r.free }}</b><span>Svincolati</span></div>
+            <div><b>{{ r.auctions }}</b><span>Aste</span></div>
+            <div><b>{{ r.sessions }}</b><span>Salvataggi</span></div>
+        </div>
+
+        <ul class="lg-check" aria-label="Stato della lega">
+            <li class="{% if r.pool %}ok{% else %}todo{% endif %}"><span class="dot">{% if r.pool %}✓{% else %}!{% endif %}</span>
+                <span>{% if r.pool %}Listone caricato{% else %}Manca il listone{% endif %}</span>
+                {% if not r.pool %}<a href="{% url 'admin_players' %}?league={{ lg.id }}&need_listone=1">Carica</a>{% endif %}</li>
+            <li class="{% if r.teams %}ok{% else %}todo{% endif %}"><span class="dot">{% if r.teams %}✓{% else %}!{% endif %}</span>
+                <span>{% if r.teams %}{{ r.teams }} squadr{{ r.teams|pluralize:"a,e" }} iscritt{{ r.teams|pluralize:"a,e" }}{% else %}Nessuna squadra{% endif %}</span>
+                {% if not r.teams %}<a href="{% url 'admin_participants' %}?league={{ lg.id }}">Aggiungi</a>{% endif %}</li>
+            {% if r.teams %}
+            <li class="{% if r.locked_out %}todo{% else %}ok{% endif %}"><span class="dot">{% if r.locked_out %}!{% else %}✓{% endif %}</span>
+                <span>{% if r.locked_out %}{{ r.locked_out }} senza accesso{% else %}Accessi a posto{% endif %}</span>
+                {% if r.locked_out %}<a href="{% url 'admin_participants' %}?league={{ lg.id }}">Sistema</a>{% endif %}</li>
             {% endif %}
-        </span>
-        <span class="spacer"></span>
-        <form method="post" action="{% url 'admin_config_action' %}" style="display:contents"
-              onsubmit="return confirm('Eliminare tutte le leghe senza listone e senza aste?')">
+            <li class="{% if r.auctions %}ok{% else %}todo{% endif %}"><span class="dot">{% if r.auctions %}✓{% else %}•{% endif %}</span>
+                <span>{% if r.auctions %}{{ r.auctions }} ast{{ r.auctions|pluralize:"a,e" }}{% else %}Nessuna asta{% endif %}</span>
+                {% if not r.auctions and r.pool %}<a href="{% url 'admin_auction_wizard' %}?league={{ lg.id }}">Crea</a>{% endif %}</li>
+        </ul>
+
+        <div class="lg-actions">
+            <button type="button" class="fm-btn fm-btn-primary" data-edit="{{ lg.id }}" aria-expanded="false" aria-controls="ed-{{ lg.id }}">
+                <svg class="ic"><use href="#i-gear"/></svg> Modifica</button>
+            <a class="fm-btn fm-btn-secondary" href="{% url 'dashboard_league' lg.id %}"><svg class="ic"><use href="#i-table"/></svg> Console</a>
+            <a class="fm-btn fm-btn-secondary" href="{% url 'app_regia' %}?league={{ lg.id }}"><svg class="ic"><use href="#i-shirt"/></svg> App</a>
+            {% if r.can_delete %}
+            <button type="button" class="fm-btn fm-btn-danger push" data-delete="{{ lg.id }}" data-name="{{ lg.name }}"
+                    data-teams="{{ r.teams }}" data-pool="{{ r.pool }}" data-auctions="{{ r.auctions }}" data-sessions="{{ r.sessions }}">
+                <svg class="ic"><use href="#i-trash"/></svg> Elimina</button>
+            {% endif %}
+        </div>
+
+        <form class="lg-edit" id="ed-{{ lg.id }}" method="post" action="{% url 'admin_config_action' %}" hidden data-league="{{ lg.id }}">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="update_league">
+            <input type="hidden" name="league_id" value="{{ lg.id }}">
+            <input type="hidden" name="rules_present" value="1">
+
+            <div class="ed-sec">
+                <div class="t">Generale</div>
+                <div class="ed-grid2">
+                    <div><label for="n-{{ lg.id }}">Nome della lega</label>
+                        <input id="n-{{ lg.id }}" name="name" value="{{ lg.name }}" maxlength="120" required></div>
+                    <div><label for="b-{{ lg.id }}">Crediti per squadra (FM)</label>
+                        <input id="b-{{ lg.id }}" name="budget" value="{{ lg.budget|floatformat:0 }}" inputmode="numeric">
+                        <div class="chips">
+                            <button type="button" class="chip" data-set="b-{{ lg.id }}" data-v="250">250</button>
+                            <button type="button" class="chip" data-set="b-{{ lg.id }}" data-v="500">500</button>
+                            <button type="button" class="chip" data-set="b-{{ lg.id }}" data-v="1000">1000</button>
+                        </div>
+                        <div class="hint">Vale per le squadre nuove: i crediti di quelle esistenti si regolano dalla console.</div></div>
+                </div>
+            </div>
+
+            <div class="ed-sec">
+                <div class="t">Sistema di gioco</div>
+                <div class="seg" role="radiogroup" aria-label="Sistema di gioco">
+                    {% for value, label in game_modes %}
+                    <label><input type="radio" name="game_mode" value="{{ value }}" {% if lg.game_mode == value %}checked{% endif %}><span>{{ label }}</span></label>
+                    {% endfor %}
+                </div>
+                {% if r.pool %}<div class="hint warn gm-warn" style="display:none">Cambiare sistema a lega avviata cambia ruoli e quotazioni che contano: fallo prima dell'asta.</div>{% endif %}
+            </div>
+
+            <div class="ed-sec">
+                <div class="t">Rosa</div>
+                <div class="seg" role="radiogroup" aria-label="Limiti della rosa">
+                    <label><input type="radio" name="slot_limits" value="1" {% if lg.slot_limits %}checked{% endif %}><span>Posti per ruolo</span></label>
+                    <label><input type="radio" name="slot_limits" value="0" {% if not lg.slot_limits %}checked{% endif %}><span>Nessun limite</span></label>
+                </div>
+                <div class="slots" style="margin-top:10px">
+                    <div class="ed-grid4 slots-classic">
+                        <div><label for="sp-{{ lg.id }}">Portieri</label><input id="sp-{{ lg.id }}" name="slots_p" value="{{ lg.slots_p }}" inputmode="numeric"></div>
+                        <div><label for="sd-{{ lg.id }}">Difensori</label><input id="sd-{{ lg.id }}" name="slots_d" value="{{ lg.slots_d }}" inputmode="numeric"></div>
+                        <div><label for="sc-{{ lg.id }}">Centrocamp.</label><input id="sc-{{ lg.id }}" name="slots_c" value="{{ lg.slots_c }}" inputmode="numeric"></div>
+                        <div><label for="sa-{{ lg.id }}">Attaccanti</label><input id="sa-{{ lg.id }}" name="slots_a" value="{{ lg.slots_a }}" inputmode="numeric"></div>
+                    </div>
+                    <div class="ed-grid2 slots-mantra">
+                        <div><label for="sg-{{ lg.id }}">Portieri</label><input id="sg-{{ lg.id }}" name="slots_gk" value="{{ lg.slots_gk }}" inputmode="numeric"></div>
+                        <div><label for="so-{{ lg.id }}">Movimento</label><input id="so-{{ lg.id }}" name="slots_out" value="{{ lg.slots_out }}" inputmode="numeric"></div>
+                    </div>
+                    <div class="hint slots-total"></div>
+                </div>
+            </div>
+
+            <div class="ed-sec">
+                <div class="t">Regole</div>
+                <label class="sw-row">
+                    <span class="sw"><input type="checkbox" name="trades_enabled" value="1" data-master="trades" {% if lg.trades_enabled %}checked{% endif %}><i></i></span>
+                    <span class="txt"><b>Scambi tra squadre</b><span>Le squadre si propongono giocatori e crediti dall'app.</span></span>
+                </label>
+                <label class="sw-row" data-dep="trades">
+                    <span class="sw"><input type="checkbox" name="trades_need_approval" value="1" {% if lg.trades_need_approval %}checked{% endif %}><i></i></span>
+                    <span class="txt"><b>Gli scambi li ratifico io</b><span>Uno scambio accettato aspetta il tuo sì prima di spostare i giocatori.</span></span>
+                </label>
+                <label class="sw-row" data-dep="trades">
+                    <span class="sw"><input type="checkbox" name="trades_same_roles" value="1" {% if lg.trades_same_roles %}checked{% endif %}><i></i></span>
+                    <span class="txt"><b>Stessi ruoli da una parte e dall'altra</b><span>Ogni scambio sposta lo stesso numero di giocatori per ruolo (reg. 5.3).</span></span>
+                </label>
+                <label class="sw-row">
+                    <span class="sw"><input type="checkbox" name="contracts_enabled" value="1" {% if lg.contracts_enabled %}checked{% endif %}><i></i></span>
+                    <span class="txt"><b>Contratti di permanenza</b><span>Dadi dei contratti e rinnovi a fine stagione. <a href="{% url 'admin_contracts' %}?league={{ lg.id }}">Dadi e soglie ›</a></span></span>
+                </label>
+                <label class="sw-row">
+                    <span class="sw"><input type="checkbox" name="salary_cap_enabled" value="1" {% if lg.salary_cap_enabled %}checked{% endif %}><i></i></span>
+                    <span class="txt"><b>Tetto salariale e Decreto</b><span>Limite di spesa per stagione. <a href="{% url 'admin_season' %}?league={{ lg.id }}">Tabelle ›</a></span></span>
+                </label>
+                <p class="hint">Regole delle buste e finestre degli scambi: <a href="{% url 'admin_market_dashboard' %}?league={{ lg.id }}">Mercato ›</a></p>
+            </div>
+
+            <div class="ed-foot">
+                <span class="dirty" aria-live="polite">Modifiche non salvate</span>
+                <button type="button" class="fm-btn fm-btn-ghost" data-cancel="{{ lg.id }}">Annulla</button>
+                <button type="submit" class="fm-btn fm-btn-primary"><svg class="ic"><use href="#i-save"/></svg> Salva</button>
+            </div>
+        </form>
+    </article>
+    {% endwith %}
+    {% empty %}
+    <div class="fm-card empty" style="grid-column:1/-1">
+        <b>Non gestisci ancora nessuna lega</b>
+        Creane una: listone, squadre e prima asta in tre passi.
+        <div style="margin-top:14px"><a class="fm-btn fm-btn-primary" href="{% url 'admin_setup' %}"><svg class="ic"><use href="#i-plus"/></svg> Nuova lega</a></div>
+    </div>
+    {% endfor %}
+    </div>
+    <p class="hint" id="lg-none" style="display:none">Nessuna lega corrisponde alla ricerca.</p>
+</section>
+
+<!-- ================================================================= ASTE -->
+<section class="cf-pane" id="aste" role="tabpanel" aria-labelledby="t-aste">
+    <div class="fm-card">
+        {% if auctions %}
+        <div class="cf-toolbar">
+            {% if rows|length > 1 %}
+            <select id="au-league" aria-label="Filtra per lega">
+                <option value="">Tutte le leghe</option>
+                {% for r in rows %}<option value="{{ r.league.id }}">{{ r.league.name }}</option>{% endfor %}
+            </select>
+            {% endif %}
+            <span class="hint" style="margin:0">Eliminare un'asta non tocca lega, squadre e listone.</span>
+        </div>
+        {% for a in auctions %}
+        <div class="li" data-league="{{ a.league_id|default:'' }}">
+            <div class="main"><b>{{ a.title }}</b>
+                <small>{% if a.league %}{{ a.league.name }}{% else %}Senza lega{% endif %} · {{ a.get_mode_display }} · {{ a.get_flow_mode_display }} · #{{ a.id }}</small></div>
+            <span class="status-pill s-{{ a.status }}">{{ a.get_status_display }}</span>
+            <div class="num">{{ a.bid_count }}<small>offerte</small></div>
+            <div class="btns">
+                <a class="fm-btn fm-btn-secondary" href="{% url 'regia_auction' a.id %}">Apri</a>
+                <form method="post" action="{% url 'admin_config_action' %}"
+                      onsubmit="return confirm('Eliminare l\'asta «{{ a.title|escapejs }}» e le sue {{ a.bid_count }} offerte?\n\nLega, squadre e listone restano.')">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="delete_auction">
+                    <input type="hidden" name="auction_id" value="{{ a.id }}">
+                    <input type="hidden" name="tab" value="aste">
+                    <button type="submit" class="fm-btn fm-btn-danger" aria-label="Elimina {{ a.title }}"><svg class="ic"><use href="#i-trash"/></svg></button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="empty"><b>Nessuna asta</b>Le aste create dalle tue leghe compaiono qui.</div>
+        {% endif %}
+    </div>
+</section>
+
+<!-- ============================================================= SESSIONI -->
+<section class="cf-pane" id="sessioni" role="tabpanel" aria-labelledby="t-sessioni">
+    <div class="fm-card">
+        {% if sessions %}
+        <p class="hint" style="margin:0 0 8px">Un salvataggio è un'istantanea di rose e crediti: «Riprendi» ricrea un'asta pronta da lì. Se il listone è 0 è un salvataggio vecchio: alla ripresa lo recupero dalla lega di origine.</p>
+        {% for s in sessions %}
+        <div class="li">
+            <div class="main"><b>{{ s.name }}</b>
+                <small>{% if s.league %}{{ s.league.name }}{% else %}Senza lega{% endif %} · {{ s.created_at|date:"d/m/Y H:i" }}</small></div>
+            <div class="num">{{ s.n_teams }}<small>squadre</small></div>
+            <div class="num">{% if s.n_pool %}{{ s.n_pool }}{% else %}<span style="color:var(--fm-warning)">0</span>{% endif %}<small>listone</small></div>
+            <div class="btns">
+                <form method="post" action="{% url 'admin_resume_session' s.id %}">
+                    {% csrf_token %}
+                    <button type="submit" class="fm-btn fm-btn-secondary"><svg class="ic"><use href="#i-play"/></svg> Riprendi</button>
+                </form>
+                <form method="post" action="{% url 'admin_config_action' %}"
+                      onsubmit="return confirm('Eliminare il salvataggio «{{ s.name|escapejs }}»?')">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="delete_session">
+                    <input type="hidden" name="session_id" value="{{ s.id }}">
+                    <input type="hidden" name="tab" value="sessioni">
+                    <button type="submit" class="fm-btn fm-btn-danger" aria-label="Elimina {{ s.name }}"><svg class="ic"><use href="#i-trash"/></svg></button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="empty"><b>Nessun salvataggio</b>Dalla regia di un'asta, «Salva sessione» crea un'istantanea da riprendere più tardi.</div>
+        {% endif %}
+    </div>
+</section>
+
+<!-- ============================================================== PULIZIA -->
+<section class="cf-pane" id="pulizia" role="tabpanel" aria-labelledby="t-pulizia">
+    <div class="fm-card">
+        {% if empties %}
+        <p style="margin:0 0 10px"><b>{{ empties|length }} leg{{ empties|length|pluralize:"a,he" }}</b> non ha{{ empties|length|pluralize:",nno" }} né listone né aste: di solito sono gli scarti di una ripresa di sessione andata a vuoto.</p>
+        <ul style="margin:0 0 14px;padding-left:18px;font-size:13px">
+            {% for r in rows %}{% if r.league.id in empties %}<li>{{ r.league.name }} <span class="muted">· #{{ r.league.id }} · {{ r.teams }} squadre</span></li>{% endif %}{% endfor %}
+        </ul>
+        <form method="post" action="{% url 'admin_config_action' %}"
+              onsubmit="return confirm('Eliminare {{ empties|length }} leghe senza listone e senza aste?')">
             {% csrf_token %}
             <input type="hidden" name="action" value="clean_empty">
-            <button type="submit" class="fm-btn fm-btn-danger" {% if not empties %}disabled{% endif %}>
-                <svg class="ic"><use href="#i-trash"/></svg> Ripulisci leghe vuote</button>
+            <input type="hidden" name="tab" value="pulizia">
+            <button type="submit" class="fm-btn fm-btn-danger"><svg class="ic"><use href="#i-trash"/></svg> Ripulisci leghe vuote</button>
         </form>
+        {% else %}
+        <div class="empty"><b>✓ Tutto in ordine</b>Nessuna lega vuota da ripulire.</div>
+        {% endif %}
     </div>
+</section>
 </div>
 
-<div class="cfg-grid">
-    <div class="fm-card">
-        <div class="fm-section-title"><svg class="ic"><use href="#i-gavel"/></svg> Aste <span class="sep"></span>
-            <span class="muted" style="font-weight:500;letter-spacing:0;text-transform:none">{{ auctions|length }}</span>
+<dialog class="cf-dlg" id="del-dlg" aria-labelledby="del-h">
+    <form method="post" action="{% url 'admin_config_action' %}" class="in">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="delete_league">
+        <input type="hidden" name="league_id" id="del-id">
+        <h3 id="del-h">Eliminare «<span id="del-name"></span>»?</h3>
+        <p>Se ne vanno insieme alla lega, e non si torna indietro:</p>
+        <ul id="del-list"></ul>
+        <label for="del-confirm">Per confermare scrivi il nome della lega</label>
+        <input id="del-confirm" autocomplete="off" spellcheck="false">
+        <div class="row">
+            <button type="button" class="fm-btn fm-btn-ghost" id="del-cancel">Annulla</button>
+            <button type="submit" class="fm-btn fm-btn-danger" id="del-go" disabled><svg class="ic"><use href="#i-trash"/></svg> Elimina per sempre</button>
         </div>
-        <div class="table-scroll" style="max-height:340px">
-            <table>
-                <thead><tr>
-                    <th style="width:44px">ID</th><th>Asta</th><th>Lega</th>
-                    <th>Stato</th><th class="num">Offerte</th><th></th>
-                </tr></thead>
-                <tbody>
-                {% for a in auctions %}
-                    <tr>
-                        <td class="lg-id">#{{ a.id }}</td>
-                        <td style="font-weight:600">{{ a.title }}
-                            <div class="muted" style="font-size:11px">{{ a.get_mode_display }} · {{ a.get_flow_mode_display }}</div></td>
-                        <td class="muted">{% if a.league %}{{ a.league.name }}{% else %}—{% endif %}</td>
-                        <td><span class="status-pill s-{{ a.status }}">{{ a.get_status_display }}</span></td>
-                        <td class="num">{{ a.bid_count }}</td>
-                        <td>
-                            <div class="row-btns">
-                                <a class="fm-btn fm-btn-secondary" href="{% url 'admin_dashboard' %}?auction={{ a.id }}">Apri</a>
-                                <form method="post" action="{% url 'admin_config_action' %}" style="display:contents"
-                                      onsubmit="return confirm('Eliminare l\'asta «{{ a.title|escapejs }}» e le sue {{ a.bid_count }} offerte?\n\nLega, squadre e listone restano.')">
-                                    {% csrf_token %}
-                                    <input type="hidden" name="action" value="delete_auction">
-                                    <input type="hidden" name="auction_id" value="{{ a.id }}">
-                                    <button type="submit" class="fm-btn fm-btn-danger">
-                                        <svg class="ic"><use href="#i-trash"/></svg></button>
-                                </form>
-                            </div>
-                        </td>
-                    </tr>
-                {% empty %}
-                    <tr><td colspan="6" class="fm-empty">Nessuna asta.</td></tr>
-                {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <div class="fm-card">
-        <div class="fm-section-title"><svg class="ic"><use href="#i-folder"/></svg> Sessioni salvate <span class="sep"></span>
-            <span class="muted" style="font-weight:500;letter-spacing:0;text-transform:none">{{ sessions|length }}</span>
-        </div>
-        <div class="table-scroll" style="max-height:340px">
-            <table>
-                <thead><tr>
-                    <th>Sessione</th><th>Lega</th>
-                    <th class="num">Squadre</th><th class="num">Listone</th><th></th>
-                </tr></thead>
-                <tbody>
-                {% for s in sessions %}
-                    <tr>
-                        <td style="font-weight:600">{{ s.name }}
-                            <div class="muted" style="font-size:11px">{{ s.created_at|date:"d/m/Y H:i" }}</div></td>
-                        <td class="muted">{% if s.league %}{{ s.league.name }}{% else %}—{% endif %}</td>
-                        <td class="num">{{ s.n_teams }}</td>
-                        <td class="num">
-                            {% if s.n_pool %}{{ s.n_pool }}
-                            {% else %}<span class="warn-tag" title="Salvataggio precedente: il listone verrà recuperato dalla lega d'origine">0</span>{% endif %}
-                        </td>
-                        <td>
-                            <div class="row-btns">
-                                <form method="post" action="{% url 'admin_resume_session' s.id %}" style="display:contents">
-                                    {% csrf_token %}
-                                    <button type="submit" class="fm-btn fm-btn-secondary">Riprendi</button>
-                                </form>
-                                <form method="post" action="{% url 'admin_config_action' %}" style="display:contents"
-                                      onsubmit="return confirm('Eliminare la sessione «{{ s.name|escapejs }}»?')">
-                                    {% csrf_token %}
-                                    <input type="hidden" name="action" value="delete_session">
-                                    <input type="hidden" name="session_id" value="{{ s.id }}">
-                                    <button type="submit" class="fm-btn fm-btn-danger">
-                                        <svg class="ic"><use href="#i-trash"/></svg></button>
-                                </form>
-                            </div>
-                        </td>
-                    </tr>
-                {% empty %}
-                    <tr><td colspan="5" class="fm-empty">Nessuna sessione salvata.</td></tr>
-                {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
+    </form>
+</dialog>
 
 <script>
-    function toggleEdit(id) {
-        document.getElementById("edit-" + id).classList.toggle("open");
+(function () {
+    document.documentElement.classList.add("js");
+    const $ = (s, r = document) => r.querySelector(s);
+    const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+
+    // ---- Tabs (the hash keeps the tab across reloads and form posts) ----
+    const tabs = $$(".cf-tabs [role=tab]");
+    function showTab(name, focus) {
+        if (!tabs.some(t => t.dataset.tab === name)) name = "leghe";
+        tabs.forEach(t => {
+            const on = t.dataset.tab === name;
+            t.setAttribute("aria-selected", on);
+            t.tabIndex = on ? 0 : -1;
+            if (on && focus) t.focus();
+        });
+        $$(".cf-pane").forEach(p => p.classList.toggle("on", p.id === name));
     }
+    tabs.forEach((t, i) => {
+        t.addEventListener("click", () => { showTab(t.dataset.tab); history.replaceState(null, "", "#" + t.dataset.tab); });
+        t.addEventListener("keydown", ev => {
+            const d = ev.key === "ArrowRight" ? 1 : ev.key === "ArrowLeft" ? -1 : 0;
+            if (!d) return;
+            const next = tabs[(i + d + tabs.length) % tabs.length];
+            showTab(next.dataset.tab, true);
+        });
+    });
+    const hash = location.hash.slice(1);
+    if (hash.startsWith("lg-")) {
+        showTab("leghe");
+        const card = document.getElementById(hash);
+        if (card) { card.scrollIntoView({ block: "start" }); }
+    } else {
+        showTab(hash || "leghe");
+    }
+
+    // ---- League editor ----
+    function slotsUi(form) {
+        const mantra = (form.querySelector('input[name="game_mode"]:checked') || {}).value === "MANTRA";
+        const limits = (form.querySelector('input[name="slot_limits"]:checked') || {}).value !== "0";
+        form.querySelector(".slots").style.display = limits ? "" : "none";
+        form.querySelector(".slots-classic").style.display = mantra ? "none" : "";
+        form.querySelector(".slots-mantra").style.display = mantra ? "" : "none";
+        const names = mantra ? ["slots_gk", "slots_out"] : ["slots_p", "slots_d", "slots_c", "slots_a"];
+        const tot = names.reduce((t, n) => t + (Math.max(0, parseInt(form.elements[n].value, 10)) || 0), 0);
+        const budget = parseFloat(String(form.elements.budget.value).replace(",", "."));
+        form.querySelector(".slots-total").textContent = limits && tot
+            ? `= ${tot} giocatori a squadra${budget ? ` · ≈ ${Math.round(budget / tot)} FM a giocatore` : ""}` : "";
+        const master = form.querySelector('[data-master="trades"]');
+        form.querySelectorAll('[data-dep="trades"]').forEach(row => {
+            row.classList.toggle("off", !master.checked);
+            row.querySelector("input").disabled = !master.checked;
+        });
+        const gmWarn = form.querySelector(".gm-warn");
+        if (gmWarn) gmWarn.style.display = form.dataset.gm0 && form.dataset.gm0 !== (mantra ? "MANTRA" : "CLASSIC") ? "" : "none";
+    }
+    const snapshot = form => JSON.stringify([...new FormData(form)].filter(([k]) => k !== "csrfmiddlewaretoken"));
+    const dirty = new Set();
+    $$(".lg-edit").forEach(form => {
+        form.dataset.gm0 = (form.querySelector('input[name="game_mode"]:checked') || {}).value || "";
+        slotsUi(form);  // before the snapshot: it disables the dependent switches
+        form.dataset.snap = snapshot(form);
+        const mark = () => {
+            slotsUi(form);
+            const changed = snapshot(form) !== form.dataset.snap;
+            form.querySelector(".dirty").classList.toggle("on", changed);
+            changed ? dirty.add(form) : dirty.delete(form);
+        };
+        form.addEventListener("input", mark);
+        form.addEventListener("change", mark);
+        form.querySelectorAll(".chip[data-set]").forEach(c => c.addEventListener("click", () => {
+            document.getElementById(c.dataset.set).value = c.dataset.v; mark();
+        }));
+        form.addEventListener("submit", () => {
+            dirty.delete(form);
+            // Disabled boxes are not posted: re-enable so their state is kept.
+            form.querySelectorAll("input:disabled").forEach(i => { i.disabled = false; });
+        });
+    });
+    function toggleEditor(id, open) {
+        const form = document.getElementById("ed-" + id);
+        const btn = $(`[data-edit="${id}"]`);
+        open = open == null ? form.hidden : open;
+        form.hidden = !open;
+        btn.setAttribute("aria-expanded", open);
+        if (open) form.querySelector("input[name=name]").focus();
+    }
+    $$("[data-edit]").forEach(b => b.addEventListener("click", () => toggleEditor(b.dataset.edit)));
+    $$("[data-cancel]").forEach(b => b.addEventListener("click", () => {
+        const form = document.getElementById("ed-" + b.dataset.cancel);
+        form.reset();
+        form.dispatchEvent(new Event("change"));
+        toggleEditor(b.dataset.cancel, false);
+    }));
+    window.addEventListener("beforeunload", ev => { if (dirty.size) { ev.preventDefault(); ev.returnValue = ""; } });
+    // Coming back from a save of this league: reopen nothing, but land on it.
+    // A single league: open its editor straight away, there's nothing to pick.
+    const editors = $$(".lg-edit");
+    if (editors.length === 1 && !hash) toggleEditor(editors[0].dataset.league, true);
+
+    // ---- Search ----
+    const search = $("#lg-search");
+    if (search) search.addEventListener("input", () => {
+        const q = search.value.trim().toLowerCase();
+        let shown = 0;
+        $$(".lg-card").forEach(c => { const on = !q || c.dataset.name.includes(q); c.hidden = !on; shown += on; });
+        $("#lg-none").style.display = shown ? "none" : "";
+    });
+
+    // ---- Auctions filter ----
+    const auFilter = $("#au-league");
+    if (auFilter) auFilter.addEventListener("change", () => {
+        $$("#aste .li").forEach(li => { li.hidden = !!auFilter.value && li.dataset.league !== auFilter.value; });
+    });
+
+    // ---- Delete a league: type its name to confirm ----
+    const dlg = $("#del-dlg"), confirmIn = $("#del-confirm"), go = $("#del-go");
+    let expected = "";
+    $$("[data-delete]").forEach(b => b.addEventListener("click", () => {
+        expected = b.dataset.name.trim();
+        $("#del-id").value = b.dataset.delete;
+        $("#del-name").textContent = expected;
+        const n = (k, one, many) => `${b.dataset[k]} ${b.dataset[k] === "1" ? one : many}`;
+        $("#del-list").innerHTML = [
+            n("teams", "squadra", "squadre"), n("pool", "giocatore del listone", "giocatori del listone"),
+            n("auctions", "asta", "aste"), n("sessions", "salvataggio", "salvataggi"),
+        ].map(t => `<li>${t}</li>`).join("");
+        confirmIn.value = ""; go.disabled = true;
+        if (dlg.showModal) dlg.showModal(); else if (confirm(`Eliminare «${expected}» e tutto quello che contiene?`)) dlg.querySelector("form").submit();
+        confirmIn.focus();
+    }));
+    confirmIn.addEventListener("input", () => {
+        go.disabled = confirmIn.value.trim().toLowerCase() !== expected.toLowerCase();
+    });
+    $("#del-cancel").addEventListener("click", () => dlg.close());
+})();
 </script>
 {% endblock %}

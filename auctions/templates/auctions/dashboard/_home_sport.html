@@ -516,13 +516,13 @@
                             </div>
                         </a>
 
-                        <a class="sport-tool-tile" href="{% url 'app_home' %}" target="_blank">
+                        <a class="sport-tool-tile" href="{% url 'app_regia' %}?league={{ current_league.id }}">
                             <div class="tool-icon icon-emerald"><svg class="ic">
                                     <use href="#i-shirt" />
                                 </svg></div>
                             <div class="tool-content">
-                                <div class="tool-title">App Allenatori (/app/)</div>
-                                <div class="tool-desc">Portale mobile manager</div>
+                                <div class="tool-title">Vista App</div>
+                                <div class="tool-desc">La lega dal telefono</div>
                             </div>
                         </a>
                     </div>
@@ -672,6 +672,12 @@
                                 <use href="#i-plus" />
                             </svg> Assegna Calciatore
                         </button>
+                        <form method="post" action="{% url 'app_view_as' p.id %}" style="display:contents">
+                            {% csrf_token %}
+                            <button type="submit" class="fm-btn fm-btn-secondary fm-btn-sm" title="Apri l'app come questa squadra">
+                                <svg class="ic"><use href="#i-eye" /></svg> Vedi in App
+                            </button>
+                        </form>
                         <button type="button" class="fm-btn fm-btn-ghost fm-btn-sm" style="color:var(--fm-danger)"
                             onclick="confirmDeleteTeam({{ p.id }}, '{{ p.display_name|escapejs }}')">
                             🗑️

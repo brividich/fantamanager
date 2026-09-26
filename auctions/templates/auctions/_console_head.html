@@ -38,6 +38,14 @@ Keeping this in one file is what makes the pages look like one product.
             <span>ASGI 8001</span>
         </div>
 
+        {# Same league, other half of the product: the app's Regia (phone-sized). #}
+        <nav class="fm-view-switch" aria-label="Vista">
+            <span class="on" aria-current="page" title="Console"><svg class="ic"><use href="#i-table"/></svg><span class="l">Console</span></span>
+            <a href="{% url 'app_regia' %}{% if current_league %}?league={{ current_league.id }}{% endif %}"
+               title="Apri la stessa lega nell'app: da fare, squadre, «vedi come» una squadra">
+                <svg class="ic"><use href="#i-shirt"/></svg> App</a>
+        </nav>
+
         {% if leagues %}
         <div class="fm-field">
             <div class="k">Lega</div>
@@ -131,7 +139,7 @@ Keeping this in one file is what makes the pages look like one product.
             {% elif active_auction %}
             <a class="fm-nav-link" href="{% url 'screen' active_auction.id %}?t={{ active_auction.public_token }}" target="_blank"><svg class="ic"><use href="#i-tv"/></svg> Apri maxischermo</a>
             {% endif %}
-            <a class="fm-nav-link" href="{% url 'app_home' %}" target="_blank" style="color:var(--fm-success)"><svg class="ic"><use href="#i-shirt"/></svg> App Allenatori (/app/)</a>
+            <a class="fm-nav-link" href="{% url 'app_regia' %}{% if current_league %}?league={{ current_league.id }}{% endif %}" style="color:var(--fm-success)"><svg class="ic"><use href="#i-shirt"/></svg> App (vista telefono)</a>
             <button type="button" class="fm-nav-link" onclick="if(typeof openSystemLogs==='function')openSystemLogs();else window.open('{% url 'admin_logs_tail' %}','_blank');"><svg class="ic"><use href="#i-info"/></svg> Log di sistema</button>
         </div>
     </details>
