@@ -31,9 +31,9 @@ from .. import services
 from .common import (
     SESSION_LEAGUE_KEY,
     _ROLE_LABELS,
+    app_admin_leagues,
     _app_ctx,
     _app_standings,
-    _session_participant,
 )
 
 
@@ -53,9 +53,9 @@ def _cap_ctx(participant):
 
 @require_POST
 def app_extra_cap(request):
-    participant, _ = _app_ctx(request, "mercato")
+    participant, ctx = _app_ctx(request, "mercato")
     if participant is None:
-        return _redirect_login(request)
+        return _redirect_login(request, ctx)
     from ..services import salary
 
     res = salary.convert_budget(participant.id, request.POST.get("blocks"))
@@ -66,14 +66,22 @@ def app_extra_cap(request):
     return redirect("app_mercato")
 
 
-def _redirect_login(request):
+def _redirect_login(request, ctx=None):
+    """Nobody's team on a team page. A league admin without a team of their own
+    goes to the Regia — the console's dashboard inside the app — where "Vedi
+    come" opens any team; everyone else goes to the login."""
+    if ctx is not None and ctx.get("is_app_admin"):
+        messages.info(request, "Questa pagina è di una squadra: in Regia scegli «Vedi come» su quella che vuoi aprire.")
+        return redirect("app_regia")
     return redirect(f"{reverse('app_login')}?next={request.path}")
 
 
 def app_home(request):
     participant, ctx = _app_ctx(request, "home")
     if participant is None:
-        return _redirect_login(request)
+        if ctx is not None and ctx.get("is_app_admin"):
+            return redirect("app_regia")
+        return _redirect_login(request, ctx)
     plan = services.roster_plan(participant)
     fstate = services.formation_state(participant)
     ctx.update({
@@ -97,13 +105,19 @@ def app_home(request):
         "incoming_trades": Trade.objects.filter(receiver=participant, status=Trade.Status.PENDING).count(),
         "cap": _cap_ctx(participant),
     })
+    if ctx.get("manages_app_league"):
+        # The admin's own team lives in a league they run: the home also says
+        # what the league needs from them, with a door to the Regia.
+        from .app_admin import league_admin_digest
+
+        ctx["admin_todo"] = [t for t in league_admin_digest(league) if t["level"] != "ok"]
     return render(request, "auctions/app_home.html", ctx)
 
 
 def app_rosa(request):
     participant, ctx = _app_ctx(request, "rosa")
     if participant is None:
-        return _redirect_login(request)
+        return _redirect_login(request, ctx)
     roster = list(Player.objects.filter(owner=participant, abroad_list=False).select_related("loan_from")
                   .order_by("role", "-cost", "name"))
     league = participant.league
@@ -140,7 +154,7 @@ def app_rosa(request):
 def app_live(request):
     participant, ctx = _app_ctx(request, "live")
     if participant is None:
-        return _redirect_login(request)
+        return _redirect_login(request, ctx)
     league = participant.league
 
     season = Season.objects.filter(league=league, is_current=True).first() if league else None
@@ -190,14 +204,15 @@ def app_live(request):
 
 def app_lega(request):
     participant, ctx = _app_ctx(request, "lega")
-    if participant is None:
-        return _redirect_login(request)
-    league = participant.league
+    if ctx is None:
+        return _redirect_login(request, ctx)
+    # A league admin without a team still reads the league they run.
+    league = ctx["app_league"]
     auctions = Auction.objects.all()
     auctions = auctions.filter(league=league) if league is not None else auctions.filter(league__isnull=True)
     auctions = [a for a in auctions.order_by("-id") if a.status != Auction.Status.DRAFT]
     ctx.update({
-        "standings": _app_standings(league, participant.id),
+        "standings": _app_standings(league, participant.id if participant else None),
         "auctions": auctions,
     })
     return render(request, "auctions/app_lega.html", ctx)
@@ -206,7 +221,7 @@ def app_lega(request):
 def app_mercato(request):
     participant, ctx = _app_ctx(request, "mercato")
     if participant is None:
-        return _redirect_login(request)
+        return _redirect_login(request, ctx)
     league = participant.league
     q = (request.GET.get("q") or "").strip()
     role = (request.GET.get("role") or "").strip().upper()[:1]
@@ -382,7 +397,7 @@ def _trade_rows(trades, me):
 def app_scambi(request):
     participant, ctx = _app_ctx(request, "mercato")
     if participant is None:
-        return _redirect_login(request)
+        return _redirect_login(request, ctx)
     league = participant.league
     mine = Trade.objects.filter(Q(proposer=participant) | Q(receiver=participant)).select_related(
         "proposer", "receiver"
@@ -425,9 +440,9 @@ def _trade_feedback(request, res, ok_message):
 
 @require_POST
 def app_trade_propose(request):
-    participant, _ = _app_ctx(request, "mercato")
+    participant, ctx = _app_ctx(request, "mercato")
     if participant is None:
-        return _redirect_login(request)
+        return _redirect_login(request, ctx)
     res = services.propose_trade(
         participant.id,
         request.POST.get("receiver_id"),
@@ -445,9 +460,9 @@ def app_trade_propose(request):
 
 @require_POST
 def app_trade_respond(request, trade_id):
-    participant, _ = _app_ctx(request, "mercato")
+    participant, ctx = _app_ctx(request, "mercato")
     if participant is None:
-        return _redirect_login(request)
+        return _redirect_login(request, ctx)
     accept = request.POST.get("action") == "accept"
     res = services.respond_trade(trade_id, participant.id, accept)
     if not accept:
@@ -461,9 +476,9 @@ def app_trade_respond(request, trade_id):
 
 @require_POST
 def app_trade_cancel(request, trade_id):
-    participant, _ = _app_ctx(request, "mercato")
+    participant, ctx = _app_ctx(request, "mercato")
     if participant is None:
-        return _redirect_login(request)
+        return _redirect_login(request, ctx)
     return _trade_feedback(request, services.cancel_trade(trade_id, participant.id), "Proposta ritirata.")
 
 
@@ -477,9 +492,9 @@ def _contract_feedback(request, res, ok_message):
 
 @require_POST
 def app_contract_roll(request, player_id):
-    participant, _ = _app_ctx(request, "rosa")
+    participant, ctx = _app_ctx(request, "rosa")
     if participant is None:
-        return _redirect_login(request)
+        return _redirect_login(request, ctx)
     res = services.roll_contract(player_id, participant_id=participant.id)
     return _contract_feedback(request, res, lambda r: (
         f"🎲 Dado contratti per {r['player_name']}: {r['face']} "
@@ -489,9 +504,9 @@ def app_contract_roll(request, player_id):
 
 @require_POST
 def app_contract_u21(request, player_id):
-    participant, _ = _app_ctx(request, "rosa")
+    participant, ctx = _app_ctx(request, "rosa")
     if participant is None:
-        return _redirect_login(request)
+        return _redirect_login(request, ctx)
     res = services.declare_u21(player_id, participant_id=participant.id)
     return _contract_feedback(request, res, lambda r: (
         f"Scommessa Under 21 dichiarata: {r['player_name']} ha {r['years']} anni di contratto."))
@@ -502,7 +517,7 @@ def app_list_release(request, player_id):
     """5.09: in sede d'asta si svincola un giocatore dalla lista ceduti e si incassa."""
     participant, ctx = _app_ctx(request, "rosa")
     if participant is None:
-        return _redirect_login(request)
+        return _redirect_login(request, ctx)
     if ctx.get("active_auction") is None:
         messages.error(request, "Dalla lista ceduti si svincola solo in sede d'asta (estiva o invernale).")
         return redirect("app_rosa")
@@ -514,9 +529,9 @@ def app_list_release(request, player_id):
 
 @require_POST
 def app_renewals_declare(request):
-    participant, _ = _app_ctx(request, "rosa")
+    participant, ctx = _app_ctx(request, "rosa")
     if participant is None:
-        return _redirect_login(request)
+        return _redirect_login(request, ctx)
     res = services.declare_renewals(participant.id, request.POST.getlist("renew"))
     return _contract_feedback(request, res, lambda r: (
         f"Rinnovi dichiarati: {r['renewing']} da rinnovare"
@@ -525,9 +540,9 @@ def app_renewals_declare(request):
 
 @require_POST
 def app_renewal_roll(request, player_id):
-    participant, _ = _app_ctx(request, "rosa")
+    participant, ctx = _app_ctx(request, "rosa")
     if participant is None:
-        return _redirect_login(request)
+        return _redirect_login(request, ctx)
     res = services.roll_renewal(player_id, participant_id=participant.id)
     return _contract_feedback(request, res, lambda r: (
         f"🟢 Dado rinnovo verde: {r['player_name']} rinnova per {r['years']} ann{'o' if r['years'] == 1 else 'i'}."
@@ -536,17 +551,17 @@ def app_renewal_roll(request, player_id):
 
 def app_altro(request):
     participant, ctx = _app_ctx(request, "altro")
-    if participant is None:
-        return _redirect_login(request)
+    if ctx is None:
+        return _redirect_login(request, ctx)
     return render(request, "auctions/app_altro.html", ctx)
 
 
 @require_POST
 def app_update_pin(request):
     """Allow manager to update their team's access_code (PIN)."""
-    participant, _ = _app_ctx(request, "altro")
+    participant, ctx = _app_ctx(request, "altro")
     if participant is None:
-        return _redirect_login(request)
+        return _redirect_login(request, ctx)
 
     new_code = (request.POST.get("access_code") or "").strip().upper()[:20]
     if len(new_code) < 3:
@@ -570,14 +585,13 @@ def app_update_pin(request):
 def app_formazione(request):
     """Lineup builder (inside Rosa): pick a module, assign starters per role,
     save. Reuses the roster; no Giornata yet, so it's a single current lineup."""
-    participant = _session_participant(request)
+    participant, ctx = _app_ctx(request, "rosa")
     if participant is None:
-        return _redirect_login(request)
+        return _redirect_login(request, ctx)
     if request.method == "POST":
         module = request.POST.get("module", "")
         services.save_formation(participant, module, request.POST.getlist("starter"))
         return redirect("app_formazione")
-    _, ctx = _app_ctx(request, "rosa")
     ctx.update(services.formation_state(participant))
     return render(request, "auctions/app_formazione.html", ctx)
 
@@ -617,6 +631,10 @@ def app_login(request):
             if participant.league_id is not None:
                 request.session[SESSION_LEAGUE_KEY] = participant.league_id
             return redirect(next_url)
+        # A league admin with no team of their own: the app opens on the
+        # Regia, not on a login form they have nothing to type into.
+        if app_admin_leagues(request.user):
+            return redirect("app_regia")
 
     if request.method == "POST":
         login_mode = request.POST.get("login_mode", "")
@@ -656,17 +674,15 @@ def app_login(request):
                     teams = Participant.objects.filter(user=user, is_active=True)
                     if teams.exists():
                         participant = teams.first()
+                    elif app_admin_leagues(user):
+                        # No team, but a league to run: straight to the Regia,
+                        # where "Vedi come" opens any team on purpose instead
+                        # of dropping the admin into an arbitrary one.
+                        request.session.pop("participant_id", None)
+                        request.session.pop("display_name", None)
+                        return redirect("app_regia")
                     else:
-                        # User has no linked team: check if superuser or league owner
-                        owned = League.objects.filter(owner=user).first()
-                        if user.is_superuser or owned:
-                            target_l = owned or League.objects.first()
-                            p_cand = Participant.objects.filter(league=target_l, is_active=True).first() or Participant.objects.filter(is_active=True).first()
-                            if p_cand:
-                                participant = p_cand
-                                messages.info(request, f"Accesso come amministratore. Visualizzazione con la squadra {participant.display_name}.")
-                        if not participant:
-                            error = "Nessuna squadra associata a questo account. Usa la scheda 'Codice Squadra' per collegare la tua rosa."
+                        error = "Nessuna squadra associata a questo account. Usa la scheda 'Codice Squadra' per collegare la tua rosa."
 
         elif login_mode == "code" or (access_code and not participant_id):
             if not access_code:

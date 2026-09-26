@@ -6,6 +6,17 @@
     <p>{% if app_league %}{{ app_league.name }}{% else %}La tua area FantaManager{% endif %}</p>
 </div>
 
+{% if manages_app_league %}
+<a class="a-cta" href="{% url 'app_regia' %}?league={{ app_league.id }}" style="background:rgba(255,181,38,.08);border-color:rgba(255,181,38,.35)">
+    <svg class="ic" style="color:var(--paused)"><use href="#i-gavel"/></svg>
+    <span class="t">
+        <b>Regia di {{ app_league.name }}</b>
+        <span>{% if admin_todo %}{{ admin_todo|length }} cos{{ admin_todo|length|pluralize:"a,e" }} da fare: {{ admin_todo.0.title }}{% else %}Tutto in ordine · squadre, aste e buste della lega{% endif %}</span>
+    </span>
+    <span class="go" style="color:var(--paused)">›</span>
+</a>
+{% endif %}
+
 {% if active_auction %}
 <a class="a-cta" href="{% url 'bid' active_auction.id %}">
     <svg class="ic"><use href="#i-gavel"/></svg>

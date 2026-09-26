@@ -186,22 +186,7 @@ def admin_create_league(request):
     cfg.slots_gk, cfg.slots_out = league.slots_gk, league.slots_out
     cfg.save()
 
-    try:
-        manual = json.loads(request.POST.get("participants_json") or "[]")
-    except (ValueError, TypeError):
-        manual = []
-    for p in manual:
-        name = (p.get("name") or "").strip()[:80]
-        if not name:
-            continue
-        try:
-            credits = Decimal(str(p.get("credits"))) if p.get("credits") not in (None, "") else budget
-        except (InvalidOperation, ValueError):
-            credits = budget
-        Participant.objects.create(
-            league=league, display_name=name,
-            access_code=_sec.token_hex(4), credits=credits, is_active=True,
-        )
+    _create_manual_teams(request, league, budget)
 
     attach_ids = [i for i in request.POST.getlist("attach_ids") if i.isdigit()]
     if attach_ids:
@@ -212,6 +197,29 @@ def admin_create_league(request):
 
 # --- Unified setup wizard ---------------------------------------------------
 
+def _create_manual_teams(request, league, budget):
+    """The teams typed (or pasted) into the wizard. A name typed twice makes
+    one team, not two twins nobody can tell apart at the auction."""
+    try:
+        manual = json.loads(request.POST.get("participants_json") or "[]")
+    except (ValueError, TypeError):
+        manual = []
+    seen = set()
+    for p in manual if isinstance(manual, list) else []:
+        name = (str(p.get("name") or "") if isinstance(p, dict) else "").strip()[:80]
+        if not name or name.lower() in seen:
+            continue
+        seen.add(name.lower())
+        try:
+            credits = Decimal(str(p.get("credits"))) if p.get("credits") not in (None, "") else budget
+        except (InvalidOperation, ValueError):
+            credits = budget
+        Participant.objects.create(
+            league=league, display_name=name,
+            access_code=_sec.token_hex(4), credits=max(Decimal("0"), credits), is_active=True,
+        )
+
+
 def _fp_rose_ready(request):
     token = request.session.get("fp_sync_token", "")
     if not token:
@@ -221,8 +229,13 @@ def _fp_rose_ready(request):
 
 
 def _setup_wizard_context(request, error=""):
+    user = request.user
+    mine = League.objects.all() if user.is_superuser else League.objects.filter(owner=user)
     return {
         "cfg": LeagueConfig.get(),
+        # Names already taken by the user's leagues: the wizard warns before a
+        # second "Lega" is born next to the first one.
+        "existing_names": list(mine.values_list("name", flat=True)),
         "free_teams": Participant.objects.filter(league__isnull=True).order_by("display_name"),
         "modes": [(v, l) for v, l in Auction.Mode.choices if v != Auction.Mode.RESUME_SAVED],
         "flow_modes": Auction.FlowMode.choices,
@@ -345,22 +358,7 @@ def admin_setup_create(request):
     cfg.slots_gk, cfg.slots_out = league.slots_gk, league.slots_out
     cfg.save()
 
-    try:
-        manual = json.loads(request.POST.get("participants_json") or "[]")
-    except (ValueError, TypeError):
-        manual = []
-    for p in manual:
-        name = (p.get("name") or "").strip()[:80]
-        if not name:
-            continue
-        try:
-            credits = Decimal(str(p.get("credits"))) if p.get("credits") not in (None, "") else budget
-        except (InvalidOperation, ValueError):
-            credits = budget
-        Participant.objects.create(
-            league=league, display_name=name,
-            access_code=_sec.token_hex(4), credits=credits, is_active=True,
-        )
+    _create_manual_teams(request, league, budget)
     attach_ids = [i for i in request.POST.getlist("attach_ids") if i.isdigit()]
     if attach_ids:
         Participant.objects.filter(pk__in=attach_ids).update(league=league)
@@ -474,9 +472,13 @@ def admin_setup_analyze(request):
         roles = {"P": 0, "D": 0, "C": 0, "A": 0}
         for r in rows:
             roles[r.get("role", "A")] = roles.get(r.get("role", "A"), 0) + 1
+        # Does the file carry the Mantra roles (column RM)? The wizard uses it
+        # to suggest Mantra, or to warn when Mantra is picked on a Classic file.
+        with_mantra = sum(1 for r in rows if r.get("mantra_roles"))
         return JsonResponse({
             "ok": True, "kind": "listone",
             "total_players": len(rows), "roles": roles,
+            "mantra": with_mantra * 2 >= len(rows),
         })
 
     return JsonResponse({"ok": False, "error": "Nessun file caricato."})
