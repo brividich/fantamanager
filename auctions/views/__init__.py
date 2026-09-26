@@ -80,6 +80,7 @@ from .admin_participants import (
     admin_create_participant,
     admin_delete_participant,
     admin_edit_participant,
+    admin_participant_account,
     admin_participant_roster,
     admin_participants,
     admin_quick_assign_player,
@@ -316,6 +317,7 @@ __all__ = [
     "admin_quick_assign_player",
     "participant_qr",
     "admin_participant_roster",
+    "admin_participant_account",
     # bidder
     "participant_release_player",
     "_auction_for_join",

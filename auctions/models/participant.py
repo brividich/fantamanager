@@ -40,6 +40,27 @@ class Participant(models.Model):
         return max(Decimal("0"), self.credits - self.spent_credits)
 
 
+class ManagedAccount(models.Model):
+    """A portal login the league admin created for a coach from the Squadre page.
+
+    The record is the admin's licence to keep managing the account later
+    (password, username, email, on/off): an account the coach registered on
+    their own carries no such record, so a league admin cannot link somebody
+    else's login to a team of theirs and then reset its password. Superusers
+    manage every account and do not need it.
+    """
+    user       = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="managed_account"
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user} (creato da {self.created_by or '—'})"
+
+
 class Watch(models.Model):
     """A player a manager is tracking pre-auction ("obiettivo") + a mental cap.
 

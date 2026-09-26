@@ -33,6 +33,7 @@ from .market import (
     MarketSession,
 )
 from .participant import (
+    ManagedAccount,
     Participant,
     Watch,
 )
@@ -53,6 +54,7 @@ __all__ = [
     "AuctionQueueItem",
     "AuctionCycleResult",
     "Participant",
+    "ManagedAccount",
     "Watch",
     "Bid",
     "SealedBid",
