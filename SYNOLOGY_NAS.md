@@ -46,6 +46,25 @@ Container Manager eseguirà il download dell'immagine base Python, installerà l
 
 ---
 
+### 3. Chiave API-Football (facoltativa)
+Serve solo al pulsante «Rileva» dei giocatori usciti dalla Serie A (pagina Contratti).
+1. In **File Station** apri `/docker/fantasy-contracts/` (la cartella del progetto,
+   quella con `docker-compose.yml`).
+2. Se non c'è ancora un file **`.env`**, crealo (tasto destro → *Crea* → file di testo
+   chiamato `.env`, oppure copia `.env.docker.example` e rinominalo in `.env`).
+   Con *Impostazioni → Mostra file nascosti* lo vedi anche dopo.
+3. Aggiungi la riga (senza spazi né virgolette):
+   ```text
+   APIFOOTBALL_KEY=la_tua_chiave
+   ```
+   La chiave la trovi nella dashboard di api-sports.io (*Account → My Access*).
+4. In **Container Manager → Progetto → fantasy-contracts** premi **Azione → Compila**
+   (o *Arresta* e poi *Avvia*): Docker rilegge il `.env` solo ricreando il container.
+
+Le migrazioni del database partono da sole a ogni avvio del container.
+
+---
+
 ## 💻 Metodo 2: Installazione Rapida tramite SSH
 
 Se preferisci usare il terminale:
