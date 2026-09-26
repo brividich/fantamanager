@@ -109,15 +109,23 @@
 </a>
 {% endif %}
 
-<!-- Sessione di mercato a buste aperta -->
+<!-- Sessione di mercato a buste (aperta, oppure l'ultima chiusa/scrutinata) -->
 {% if market_session %}
 <div class="market-banner">
     <div class="mb-head">
         <div class="mb-title">{{ market_session.title }}</div>
+        {% if market_open %}
         <span class="mb-badge">Buste Aperte</span>
+        {% elif market_session.status == "resolved" %}
+        <span class="mb-badge" style="background:#3b82f6;color:#fff">Spoglio eseguito</span>
+        {% else %}
+        <span class="mb-badge" style="background:var(--muted);color:#0a1108">Consegna chiusa</span>
+        {% endif %}
     </div>
     <div class="mb-meta">
-        {% if market_session.closes_at %}
+        {% if not market_open %}
+        {% if market_session.status == "resolved" %}Ecco com'è andata: l'esito di ogni busta è qui sotto.{% else %}Consegna chiusa: in attesa dello spoglio da parte dell'admin.{% endif %}
+        {% elif market_session.closes_at %}
         Chiusura consegna buste: <b>{{ market_session.closes_at|date:"d/m/Y H:i" }}</b>
         {% else %}
         Finestra di mercato aperta · Consegna le tue offerte prima dello spoglio
@@ -141,6 +149,7 @@
     <div class="a-label">
         <svg class="ic"><use href="#i-shield"/></svg>
         Le tue buste consegnate (<span id="bids-count">{{ my_bids|length }}</span>)
+        {% if market_open and my_bids %}<span style="margin-left:auto;font-size:11px;color:var(--muted);font-weight:600">Impegnati: <b id="bids-total" style="color:var(--ink)">{{ my_bids_total }}</b> / {{ participant.remaining_credits|floatformat:0 }} FM</span>{% endif %}
     </div>
     <div id="my-bids-list">
     {% for b in my_bids %}
@@ -158,13 +167,18 @@
                     · <span style="color:#ef4444">Taglio: {{ b.release_player_name }} (+{{ b.refund }} FM)</span>
                     {% endif %}
                 </div>
+                {% if b.status != "pending" %}
+                <div style="font-size:11px;font-weight:700;color:{% if b.status == 'won' %}#22c55e{% elif b.status == 'tied' %}#eab308{% else %}#ef4444{% endif %}">
+                    {{ b.status_label }}{% if b.note %} · <span style="font-weight:600;color:var(--muted)">{{ b.note }}</span>{% endif %}
+                </div>
+                {% endif %}
             </div>
         </div>
         <div style="display:flex;align-items:center;gap:8px">
             <div style="text-align:right">
                 <span style="font-family:var(--display);font-weight:900;font-size:15px;color:var(--accent)">{{ b.amount }} FM</span>
             </div>
-            <button type="button" class="bid-del-btn" onclick="deleteBid({{ b.id }})">✕</button>
+            {% if market_open %}<button type="button" class="bid-del-btn" onclick="deleteBid({{ b.id }})">✕</button>{% endif %}
         </div>
     </div>
     {% empty %}
@@ -215,7 +229,8 @@
             <div class="fa-quota">
                 {{ pl.initial_price|floatformat:0 }} <small>FM</small>
             </div>
-            {% if market_session %}
+            {% if market_open %}
+            {% if pl.id in my_bid_player_ids %}<span style="font-size:11px;font-weight:800;color:var(--accent)" title="Hai già una busta: inviarne un'altra la aggiorna">✉ Busta inviata</span>{% endif %}
             <button type="button" class="role-chip on" style="cursor:pointer;border:none;padding:6px 10px;font-size:11.5px"
                     onclick="openBidModal({{ pl.id }}, '{{ pl.name|escapejs }}', '{{ pl.role }}', '{{ pl.team|escapejs }}', {{ pl.initial_price|floatformat:0 }})">
                 Invia busta
@@ -233,7 +248,7 @@
 </div>
 
 <!-- Modal Invia Busta -->
-{% if market_session %}
+{% if market_open %}
 <div class="modal-overlay" id="bid-modal" onclick="if(event.target===this) closeBidModal()">
     <div class="modal-sheet">
         <h2>Invia Busta di Mercato</h2>
@@ -275,9 +290,9 @@
                 <select name="release_player_id" id="bid-release-player" onchange="updateBudgetCalc()">
                     <option value="">-- Nessun taglio (mantieni rosa) --</option>
                     {% for rp in my_roster %}
-                    <option value="{{ rp.id }}" data-refund="{% if market_session.release_refund_mode == 'current' %}{{ rp.initial_price|floatformat:0 }}{% elif market_session.release_refund_mode == 'none' %}0{% else %}{{ rp.cost|floatformat:0|default:1 }}{% endif %}">
+                    <option value="{{ rp.id }}" data-refund="{{ rp.market_refund }}">
                         Taglia {{ rp.name }} ({{ rp.role }} - {{ rp.team }})
-                        [+{% if market_session.release_refund_mode == 'current' %}{{ rp.initial_price|floatformat:0 }}{% elif market_session.release_refund_mode == 'none' %}0{% else %}{{ rp.cost|floatformat:0|default:1 }}{% endif %} FM]
+                        [+{{ rp.market_refund }} FM]
                     </option>
                     {% endfor %}
                 </select>

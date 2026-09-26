@@ -19,6 +19,11 @@ from ..models import (
 logger = logging.getLogger("auctions.market")
 
 
+def market_release_refund(session, player):
+    """Crediti restituiti tagliando ``player`` in questa sessione (anche per l'app)."""
+    return _calc_release_refund(session, player)
+
+
 def _calc_release_refund(session, player):
     """Calculate credits returned when a player is released in a market session."""
     if player is None:
@@ -218,13 +223,15 @@ def get_participant_market_bids(session_id, participant_id):
 class _Plan:
     """Stato in memoria dello spoglio: nessuna scrittura sul database."""
 
-    def __init__(self, session):
+    def __init__(self, session, bids=None):
         self.session = session
         self.league = session.league
-        self.bids = list(
-            session.bids.filter(status=MarketBid.Status.PENDING)
-            .select_related("participant", "player", "release_player")
-        )
+        if bids is None:
+            bids = (
+                session.bids.filter(status=MarketBid.Status.PENDING)
+                .select_related("participant", "player", "release_player")
+            )
+        self.bids = list(bids)
         self.participants = {
             p.id: p for p in Participant.objects.filter(league=self.league)
         }
@@ -243,6 +250,10 @@ class _Plan:
         ).values_list("owner_id", "role"):
             self.owned[owner_id][role] += 1
         self.role_acquisitions = defaultdict(lambda: defaultdict(int))
+        for pid, role in session.bids.filter(status=MarketBid.Status.WON).values_list(
+            "participant_id", "player__role"
+        ):
+            self.role_acquisitions[pid][role] += 1
 
         # bid.id -> (status, note)
         self.outcome = {}
@@ -329,6 +340,7 @@ class _Plan:
             "released_player": release.name if release else None,
             "released_player_cost": str(release.cost) if release else None,
             "refund": int(refund),
+            "refund_exact": str(refund),
         })
 
     def _resolve_player(self, player_id, bids):
@@ -377,7 +389,9 @@ class _Plan:
                 "player_team": player.team,
                 "amount": int(w.amount),
                 "contenders": names,
-                "contender_ids": [b.participant_id for b in group],
+                "contender_list": [
+                    {"id": b.participant_id, "name": b.participant.display_name} for b in group
+                ],
             })
         else:
             self._award(w, release, refund, note)
@@ -446,12 +460,53 @@ def _summary(plan, preview=False):
         "lost": lost,
         "total_acquisitions": len(plan.won),
         "total_ties": len(plan.tied),
+        "open_ties": len(plan.tied),
     }
     if preview:
         summary["preview"] = True
     else:
         summary["resolved_at"] = timezone.now().isoformat()
     return summary
+
+
+def _apply_award(session, participant, player, amount, release, refund):
+    """Write one acquisition: ownership, optional cut, credits and roster log."""
+    player.owner = participant
+    player.cost = amount
+    player.save(update_fields=["owner", "cost"])
+
+    if release is not None:
+        release.owner = None
+        release.cost = Decimal("0")
+        release.save(update_fields=["owner", "cost"])
+        RosterLog.objects.create(
+            participant=participant,
+            participant_name=participant.display_name,
+            player_name=release.name,
+            player_role=release.role,
+            action=RosterLog.Action.RELEASE,
+            credits_delta=-refund,
+            by_admin=True,
+            note=f"Taglio mercato: {session.title}",
+        )
+
+    Participant.objects.filter(pk=participant.id).update(
+        spent_credits=F("spent_credits") + (amount - refund)
+    )
+    RosterLog.objects.create(
+        participant=participant,
+        participant_name=participant.display_name,
+        player_name=player.name,
+        player_role=player.role,
+        action=RosterLog.Action.ASSIGN,
+        credits_delta=amount,
+        by_admin=True,
+        note=f"Acquisto mercato: {session.title}",
+    )
+    logger.info(
+        f"Market bid won: player='{player.name}' ({player.role}), winner='{participant.display_name}', "
+        f"amount={amount:.0f} FM, release={release.name if release else None}"
+    )
 
 
 @transaction.atomic
@@ -481,47 +536,8 @@ def resolve_market_session(session_id):
 
     for w in plan.won:
         bid = bids_by_id[w["bid_id"]]
-        participant = plan.participants[w["winner_id"]]
-        player = plan.players[w["player_id"]]
-        amount = bid.amount
-        rel, refund = plan.awards[bid.id]
-
-        player.owner = participant
-        player.cost = amount
-        player.save(update_fields=["owner", "cost"])
-
-        if rel is not None:
-            rel.owner = None
-            rel.cost = Decimal("0")
-            rel.save(update_fields=["owner", "cost"])
-            RosterLog.objects.create(
-                participant=participant,
-                participant_name=participant.display_name,
-                player_name=rel.name,
-                player_role=rel.role,
-                action=RosterLog.Action.RELEASE,
-                credits_delta=-refund,
-                by_admin=True,
-                note=f"Taglio mercato: {session.title}",
-            )
-
-        Participant.objects.filter(pk=participant.id).update(
-            spent_credits=F("spent_credits") + (amount - refund)
-        )
-        RosterLog.objects.create(
-            participant=participant,
-            participant_name=participant.display_name,
-            player_name=player.name,
-            player_role=player.role,
-            action=RosterLog.Action.ASSIGN,
-            credits_delta=amount,
-            by_admin=True,
-            note=f"Acquisto mercato: {session.title}",
-        )
-        logger.info(
-            f"Market bid won: player='{player.name}' ({player.role}), winner='{participant.display_name}', "
-            f"amount={amount:.0f} FM, release={w['released_player']}"
-        )
+        release, refund = plan.awards[bid.id]
+        _apply_award(session, plan.participants[w["winner_id"]], bid.player, bid.amount, release, refund)
 
     summary = _summary(plan)
     session.results_summary = summary
@@ -532,3 +548,206 @@ def resolve_market_session(session_id):
         f"{summary['total_acquisitions']} acquisitions, {summary['total_ties']} ties"
     )
     return summary
+
+
+# --- Dopo lo spoglio: pareggi e annullamento ---------------------------------
+
+
+@transaction.atomic
+def settle_market_tie(session_id, player_id, winner_id=None, rng=None):
+    """Risolve un pari merito: vincitore scelto dall'admin o sorteggiato.
+
+    ``winner_id`` None = sorteggio tra i contendenti ancora in regola (crediti,
+    slot, tetti). Il calciatore va al vincitore al prezzo del pareggio.
+    """
+    import random
+
+    session = (
+        MarketSession.objects.select_for_update().select_related("league").get(pk=session_id)
+    )
+    if session.status != MarketSession.Status.RESOLVED:
+        return {"ok": False, "message": "Lo spoglio non è ancora stato eseguito."}
+
+    summary = session.results_summary or {}
+    tie = next(
+        (t for t in summary.get("tied", []) if t["player_id"] == player_id and not t.get("settled")),
+        None,
+    )
+    if tie is None:
+        return {"ok": False, "message": "Nessun pareggio aperto per questo calciatore."}
+
+    bids = list(
+        session.bids.filter(player_id=player_id, status=MarketBid.Status.TIED)
+        .select_related("participant", "player", "release_player")
+    )
+    plan = _Plan(session, bids=bids)
+    eligible = []
+    reasons = {}
+    for b in bids:
+        if plan.owner.get(player_id) is not None:
+            return {"ok": False, "message": "Il calciatore non è più svincolato."}
+        ok, note, release, refund = plan._check(b)
+        if ok:
+            eligible.append((b, release, refund))
+        else:
+            reasons[b.participant.display_name] = note
+
+    if winner_id is not None:
+        chosen = next((e for e in eligible if e[0].participant_id == int(winner_id)), None)
+        if chosen is None:
+            name = next((b.participant.display_name for b in bids if b.participant_id == int(winner_id)), None)
+            why = reasons.get(name, "non è tra i contendenti")
+            return {"ok": False, "message": f"Impossibile assegnare a {name or 'questa squadra'}: {why}."}
+        method = "admin"
+    else:
+        if not eligible:
+            return {"ok": False, "message": "Nessun contendente può più permettersi il calciatore."}
+        chosen = (rng or random.SystemRandom()).choice(eligible)
+        method = "draw"
+
+    win_bid, release, refund = chosen
+    participant = plan.participants[win_bid.participant_id]
+    _apply_award(session, participant, win_bid.player, win_bid.amount, release, refund)
+
+    how = "sorteggio" if method == "draw" else "scelta admin"
+    for b in bids:
+        if b.id == win_bid.id:
+            b.status = MarketBid.Status.WON
+            b.note = f"Aggiudicato allo spareggio ({how})"
+        else:
+            b.status = MarketBid.Status.LOST
+            b.note = f"Spareggio perso ({how})"
+        b.save(update_fields=["status", "note", "updated_at"])
+
+    tie["settled"] = {
+        "winner_id": participant.id,
+        "winner_name": participant.display_name,
+        "method": method,
+        "at": timezone.now().isoformat(),
+    }
+    summary.setdefault("won", []).append({
+        "bid_id": win_bid.id,
+        "player_id": win_bid.player_id,
+        "player_name": win_bid.player.name,
+        "player_role": win_bid.player.role,
+        "player_team": win_bid.player.team,
+        "winner_id": participant.id,
+        "winner_name": participant.display_name,
+        "amount": int(win_bid.amount),
+        "released_player_id": release.id if release else None,
+        "released_player": release.name if release else None,
+        "released_player_cost": str(release.cost) if release else None,
+        "refund": int(refund),
+        "refund_exact": str(refund),
+        "tie_break": method,
+    })
+    summary["total_acquisitions"] = len(summary["won"])
+    summary["open_ties"] = sum(1 for t in summary.get("tied", []) if not t.get("settled"))
+    session.results_summary = summary
+    session.save(update_fields=["results_summary", "updated_at"])
+    logger.info(
+        f"Market tie settled ({method}): session={session_id}, player='{win_bid.player.name}', "
+        f"winner='{participant.display_name}'"
+    )
+    return {"ok": True, "winner_id": participant.id, "winner_name": participant.display_name, "method": method}
+
+
+@transaction.atomic
+def undo_market_resolution(session_id):
+    """Annulla uno spoglio: rose e crediti tornano come prima, buste in attesa.
+
+    Rifiuta se dopo lo spoglio qualcuno ha toccato i calciatori coinvolti
+    (rivenduti, svincolati, riassegnati): in quel caso l'annullamento
+    automatico non saprebbe più cosa ripristinare.
+    """
+    session = MarketSession.objects.select_for_update().get(pk=session_id)
+    if session.status != MarketSession.Status.RESOLVED:
+        return {"ok": False, "message": "La sessione non risulta scrutinata."}
+
+    won = (session.results_summary or {}).get("won", [])
+    ids = {w["player_id"] for w in won} | {w["released_player_id"] for w in won if w.get("released_player_id")}
+    players = {p.id: p for p in Player.objects.select_for_update().filter(pk__in=ids)}
+
+    conflicts = []
+    for w in won:
+        p = players.get(w["player_id"])
+        if p is None or p.owner_id != w["winner_id"]:
+            conflicts.append(f"{w['player_name']} non è più di {w['winner_name']}")
+        rel_id = w.get("released_player_id")
+        if rel_id:
+            rel = players.get(rel_id)
+            if rel is None or rel.owner_id is not None:
+                conflicts.append(f"{w['released_player']} (tagliato) non è più svincolato")
+    if conflicts:
+        return {
+            "ok": False,
+            "message": "Impossibile annullare, le rose sono cambiate dopo lo spoglio: " + "; ".join(conflicts) + ".",
+        }
+
+    for w in reversed(won):
+        p = players[w["player_id"]]
+        participant = Participant.objects.get(pk=w["winner_id"])
+        refund = Decimal(w.get("refund_exact") or w.get("refund") or 0)
+        amount = Decimal(w["amount"])
+        p.owner = None
+        p.cost = Decimal("0")
+        p.save(update_fields=["owner", "cost"])
+        RosterLog.objects.create(
+            participant=participant,
+            participant_name=participant.display_name,
+            player_name=p.name,
+            player_role=p.role,
+            action=RosterLog.Action.ADMIN_RELEASE,
+            credits_delta=-amount,
+            by_admin=True,
+            note=f"Annullamento spoglio: {session.title}",
+        )
+        rel_id = w.get("released_player_id")
+        if rel_id:
+            rel = players[rel_id]
+            rel.owner = participant
+            rel.cost = Decimal(w.get("released_player_cost") or 0)
+            rel.save(update_fields=["owner", "cost"])
+            RosterLog.objects.create(
+                participant=participant,
+                participant_name=participant.display_name,
+                player_name=rel.name,
+                player_role=rel.role,
+                action=RosterLog.Action.ADMIN_ASSIGN,
+                credits_delta=refund,
+                by_admin=True,
+                note=f"Annullamento spoglio: {session.title}",
+            )
+        Participant.objects.filter(pk=participant.id).update(
+            spent_credits=F("spent_credits") - (amount - refund)
+        )
+
+    session.bids.exclude(status=MarketBid.Status.CANCELLED).update(
+        status=MarketBid.Status.PENDING, note="", updated_at=timezone.now()
+    )
+    session.status = MarketSession.Status.CLOSED
+    session.results_summary = {}
+    session.save(update_fields=["status", "results_summary", "updated_at"])
+    logger.info(f"Market resolution undone: session={session_id} ('{session.title}'), {len(won)} acquisitions reverted")
+    return {"ok": True, "reverted": len(won)}
+
+
+def sync_market_schedule(league=None):
+    """Apre le sessioni programmate e chiude quelle scadute.
+
+    Chiamata in modo pigro dalle pagine mercato (niente scheduler esterno):
+    DRAFT con ``opens_at`` passato → OPEN, OPEN con ``closes_at`` passato → CLOSED.
+    Lo spoglio resta un'azione dell'admin, che può prima vederne l'anteprima.
+    """
+    now = timezone.now()
+    qs = MarketSession.objects.all()
+    if league is not None:
+        qs = qs.filter(league=league)
+    opened = qs.filter(
+        status=MarketSession.Status.DRAFT, opens_at__isnull=False, opens_at__lte=now
+    ).exclude(closes_at__lte=now).update(status=MarketSession.Status.OPEN, updated_at=now)
+    closed = qs.filter(
+        status__in=[MarketSession.Status.OPEN, MarketSession.Status.DRAFT],
+        closes_at__isnull=False, closes_at__lte=now,
+    ).update(status=MarketSession.Status.CLOSED, updated_at=now)
+    return opened, closed

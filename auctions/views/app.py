@@ -171,17 +171,31 @@ def app_mercato(request):
     active_auc = ctx.get("active_auction")
     refund_mode = active_auc.release_refund_mode if active_auc else "purchase"
 
-    # Market session (buste di riparazione)
-    market_session = MarketSession.objects.filter(league=league, status=MarketSession.Status.OPEN).first()
+    # Market session (buste di riparazione): the open one, else the latest
+    # closed/resolved one so the manager can read how their envelopes went.
+    services.sync_market_schedule(league)
+    sessions = MarketSession.objects.filter(league=league).exclude(status=MarketSession.Status.DRAFT)
+    market_session = (
+        sessions.filter(status=MarketSession.Status.OPEN).first()
+        or sessions.order_by("-updated_at").first()
+    )
+    market_open = bool(market_session and market_session.is_open)
     my_bids = []
     if market_session:
         my_bids = services.get_participant_market_bids(market_session.id, participant.id)
+        for rp in my_roster:
+            rp.market_refund = int(services.market_release_refund(market_session, rp))
+    my_bid_player_ids = {b["player_id"] for b in my_bids}
+    my_bids_total = sum(b["amount"] for b in my_bids)
 
     ctx.update({
         "free_agents": free_agents,
         "my_roster": my_roster,
         "market_session": market_session,
+        "market_open": market_open,
         "my_bids": my_bids,
+        "my_bid_player_ids": my_bid_player_ids,
+        "my_bids_total": my_bids_total,
         "role": role,
         "q": q,
         "sort": sort,

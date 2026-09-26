@@ -190,6 +190,8 @@
                         <span class="badge-status status-open"><span style="width:6px;height:6px;border-radius:50%;background:#22c55e"></span>Aperta</span>
                     {% elif s.status == "closed" %}
                         <span class="badge-status status-closed">Chiusa</span>
+                    {% elif s.status == "draft" %}
+                        <span class="badge-status status-closed">Programmata</span>
                     {% else %}
                         <span class="badge-status status-resolved">Scrutinata</span>
                     {% endif %}
@@ -222,6 +224,8 @@
                             <span class="badge-status status-open">Aperta alle offerte</span>
                         {% elif selected_session.status == "closed" %}
                             <span class="badge-status status-closed">Consegna chiusa</span>
+                        {% elif selected_session.status == "draft" %}
+                            <span class="badge-status status-closed">Programmata{% if selected_session.opens_at %} · apre il {{ selected_session.opens_at|date:"d/m/Y H:i" }}{% endif %}</span>
                         {% else %}
                             <span class="badge-status status-resolved">Scrutinio completato</span>
                         {% endif %}
@@ -237,6 +241,9 @@
                 <!-- Azioni sessione -->
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                     {% if selected_session.status == "open" %}
+                        <a href="?league={{ current_league.id }}&session={{ selected_session.id }}&preview=1" class="btn-action btn-reopen" title="Simula lo spoglio senza assegnare nulla">
+                            <svg class="ic"><use href="#i-eye"/></svg> Anteprima spoglio
+                        </a>
                         <form method="post" action="{% url 'admin_market_status' selected_session.id %}" style="display:inline">
                             {% csrf_token %}
                             <input type="hidden" name="status" value="closed">
@@ -251,6 +258,9 @@
                             </button>
                         </form>
                     {% elif selected_session.status == "closed" %}
+                        <a href="?league={{ current_league.id }}&session={{ selected_session.id }}&preview=1" class="btn-action btn-reopen" title="Simula lo spoglio senza assegnare nulla">
+                            <svg class="ic"><use href="#i-eye"/></svg> Anteprima spoglio
+                        </a>
                         <form method="post" action="{% url 'admin_market_status' selected_session.id %}" style="display:inline">
                             {% csrf_token %}
                             <input type="hidden" name="status" value="open">
@@ -264,10 +274,24 @@
                                 <svg class="ic"><use href="#i-play"/></svg> Scrutina Buste
                             </button>
                         </form>
+                    {% elif selected_session.status == "draft" %}
+                        <form method="post" action="{% url 'admin_market_status' selected_session.id %}" style="display:inline">
+                            {% csrf_token %}
+                            <input type="hidden" name="status" value="open">
+                            <button type="submit" class="btn-action btn-reopen" title="Apri subito la consegna buste">
+                                <svg class="ic"><use href="#i-play"/></svg> Apri ora
+                            </button>
+                        </form>
                     {% else %}
                         <div class="stat-pill" style="background:rgba(59,130,246,0.1);color:#3b82f6">
                             ✓ Spoglio eseguito
                         </div>
+                        <form method="post" action="{% url 'admin_market_undo' selected_session.id %}" style="display:inline" onsubmit="return confirm('Annullare lo spoglio? Acquisti e tagli verranno stornati e le buste torneranno in attesa.');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn-action btn-close-sess" title="Storna acquisti e tagli dello spoglio">
+                                <svg class="ic"><use href="#i-refresh"/></svg> Annulla spoglio
+                            </button>
+                        </form>
                     {% endif %}
 
                     <form method="post" action="{% url 'admin_market_delete' selected_session.id %}" style="display:inline" onsubmit="return confirm('Attenzione: eliminando la sessione cancellerai tutte le offerte associate. Procedere?');">
@@ -287,29 +311,35 @@
             </div>
         </div>
 
-        {% if selected_session.status == "resolved" and selected_session.results_summary %}
-        <!-- Risultati Spoglio -->
-        <div class="section-label"><span class="dot"></span>Esito dello spoglio</div>
+        {% if results %}
+        <!-- Risultati Spoglio (o anteprima) -->
+        {% if is_preview %}
+        <div class="panel" style="margin-bottom:14px;border-color:rgba(59,130,246,0.4);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+            <div style="font-size:13px"><b style="color:#3b82f6">Anteprima:</b> questo è l'esito che produrrebbe lo spoglio adesso. Nulla è stato assegnato.</div>
+            <a href="?league={{ current_league.id }}&session={{ selected_session.id }}" class="btn btn-secondary" style="font-size:12px">Chiudi anteprima</a>
+        </div>
+        {% endif %}
+        <div class="section-label"><span class="dot"></span>{% if is_preview %}Esito previsto dello spoglio{% else %}Esito dello spoglio{% endif %}</div>
         <div class="results-hero">
             <div class="results-card">
-                <div class="results-num" style="color:#22c55e">{{ selected_session.results_summary.total_acquisitions|default:0 }}</div>
+                <div class="results-num" style="color:#22c55e">{{ results.total_acquisitions|default:0 }}</div>
                 <div class="results-label">Acquisti assegnati</div>
             </div>
             <div class="results-card">
-                <div class="results-num" style="color:{% if selected_session.results_summary.total_ties %}#eab308{% else %}var(--muted){% endif %}">
-                    {{ selected_session.results_summary.total_ties|default:0 }}
+                <div class="results-num" style="color:{% if results.total_ties %}#eab308{% else %}var(--muted){% endif %}">
+                    {{ results.total_ties|default:0 }}
                 </div>
                 <div class="results-label">Pareggi / Ballottaggi</div>
             </div>
         </div>
 
-        {% if selected_session.results_summary.tied %}
+        {% if results.tied %}
         <div class="panel" style="margin-bottom:20px;border-color:rgba(234,179,8,0.4)">
             <h3 style="margin:0 0 10px;font-size:15px;color:#eab308;display:flex;align-items:center;gap:8px">
                 <svg class="ic"><use href="#i-info"/></svg> Pareggi riscontrati (Ballottaggio)
             </h3>
             <p class="muted" style="font-size:13px;margin:0 0 10px">
-                I seguenti giocatori hanno ricevuto la medesima offerta massima a parità di priorità da più partecipanti. Il giocatore non è stato assegnato automaticamente.
+                I seguenti giocatori hanno ricevuto la medesima offerta massima a parità di priorità da più partecipanti. Il giocatore non è stato assegnato automaticamente: risolvi il pareggio scegliendo il vincitore o con un sorteggio.
             </p>
             <div class="table-scroll">
                 <table>
@@ -318,10 +348,11 @@
                             <th>Giocatore</th>
                             <th>Offerta</th>
                             <th>Partecipanti in parità</th>
+                            {% if not is_preview %}<th>Spareggio</th>{% endif %}
                         </tr>
                     </thead>
                     <tbody>
-                        {% for t in selected_session.results_summary.tied %}
+                        {% for t in results.tied %}
                         <tr>
                             <td>
                                 <span class="role-badge role-{{ t.player_role }}">{{ t.player_role }}</span>
@@ -333,6 +364,23 @@
                                     <span class="stat-pill" style="background:rgba(234,179,8,0.15);color:#eab308">{{ c }}</span>
                                 {% endfor %}
                             </td>
+                            {% if not is_preview %}
+                            <td>
+                                {% if t.settled %}
+                                    <span style="color:#22c55e;font-weight:700;font-size:12px">✓ {{ t.settled.winner_name }} ({% if t.settled.method == "draw" %}sorteggio{% else %}scelta admin{% endif %})</span>
+                                {% else %}
+                                <form method="post" action="{% url 'admin_market_settle_tie' selected_session.id %}" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap" onsubmit="return confirm('Confermi lo spareggio? Il calciatore verrà assegnato subito.');">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="player_id" value="{{ t.player_id }}">
+                                    <select name="winner_id" style="padding:6px;border-radius:6px;border:1px solid var(--line);background:rgba(0,0,0,0.2);color:inherit;font-size:12px">
+                                        <option value="draw">🎲 Sorteggio</option>
+                                        {% for c in t.contender_list %}<option value="{{ c.id }}">Assegna a {{ c.name }}</option>{% endfor %}
+                                    </select>
+                                    <button type="submit" class="btn-action btn-resolve" style="padding:6px 10px;font-size:12px">Risolvi</button>
+                                </form>
+                                {% endif %}
+                            </td>
+                            {% endif %}
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -341,7 +389,7 @@
         </div>
         {% endif %}
 
-        {% if selected_session.results_summary.won %}
+        {% if results.won %}
         <div class="panel" style="margin-bottom:20px">
             <h3 style="margin:0 0 10px;font-size:15px">Aggiudicazioni effettuate</h3>
             <div class="table-scroll">
@@ -356,13 +404,13 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for w in selected_session.results_summary.won %}
+                        {% for w in results.won %}
                         <tr>
                             <td>
                                 <span class="role-badge role-{{ w.player_role }}">{{ w.player_role }}</span>
                                 <b>{{ w.player_name }}</b> <span class="muted">({{ w.player_team }})</span>
                             </td>
-                            <td><b>{{ w.winner_name }}</b></td>
+                            <td><b>{{ w.winner_name }}</b>{% if w.tie_break %} <span class="muted" style="font-size:11px">(spareggio)</span>{% endif %}</td>
                             <td><b style="color:var(--accent-bright)">{{ w.amount }} FM</b></td>
                             <td>
                                 {% if w.released_player %}
@@ -384,6 +432,27 @@
                 </table>
             </div>
         </div>
+        {% endif %}
+
+        {% if results.lost %}
+        <details class="panel" style="margin-bottom:20px">
+            <summary style="cursor:pointer;font-size:15px;font-weight:700">Buste non aggiudicate ({{ results.lost|length }})</summary>
+            <div class="table-scroll" style="margin-top:10px">
+                <table>
+                    <thead><tr><th>Giocatore</th><th>Squadra</th><th>Offerta</th><th>Motivo</th></tr></thead>
+                    <tbody>
+                        {% for l in results.lost %}
+                        <tr>
+                            <td><span class="role-badge role-{{ l.player_role }}">{{ l.player_role }}</span> <b>{{ l.player_name }}</b></td>
+                            <td>{{ l.participant_name }}</td>
+                            <td>{{ l.amount }} FM</td>
+                            <td class="muted" style="font-size:12px">{{ l.note }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </details>
         {% endif %}
 
         {% else %}
@@ -510,9 +579,15 @@
             </div>
 
             <div>
+                <label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Data e ora di apertura (opzionale)</label>
+                <input type="datetime-local" name="opens_at" class="input" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);background:rgba(0,0,0,0.2);color:inherit">
+                <div class="muted" style="font-size:11px;margin-top:4px">Vuoto = apre subito. Se nel futuro, la sessione resta programmata e si apre da sola.</div>
+            </div>
+
+            <div>
                 <label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Data e ora di chiusura (opzionale)</label>
                 <input type="datetime-local" name="closes_at" class="input" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);background:rgba(0,0,0,0.2);color:inherit">
-                <div class="muted" style="font-size:11px;margin-top:4px">Oltre questo orario i partecipanti non potranno più inviare o modificare offerte.</div>
+                <div class="muted" style="font-size:11px;margin-top:4px">Oltre questo orario la consegna si chiude da sola; lo spoglio resta a te (con anteprima).</div>
             </div>
 
             <div style="padding:12px;background:rgba(255,255,255,0.03);border:1px solid var(--line);border-radius:8px">
