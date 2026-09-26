@@ -14,7 +14,9 @@ from .common import (
     current_league,
     league_scope_or_403,
     manageable_leagues,
+    league_mismatch_json,
     managed_or_403,
+    mixed_leagues,
     staff_member_required,
     target_league,
     user_can_manage_scope,
@@ -331,7 +333,7 @@ def admin_clear_players(request):
 @require_POST
 def admin_release_player(request, player_id):
     """Admin svincolo: free any owned player, refunding per the auction policy."""
-    _player, denied = managed_or_403(request, Player, player_id)
+    player, denied = managed_or_403(request, Player, player_id)
     if denied:
         return denied
     auction_id = request.POST.get("auction_id") or None
@@ -340,6 +342,8 @@ def admin_release_player(request, player_id):
         auction, denied = managed_or_403(request, Auction, auction_id)
         if denied:
             return denied
+    if mixed_leagues(player, auction):
+        return league_mismatch_json()
     result = services.release_player(player_id, auction_id=auction_id, by_admin=True)
     if result.get("ok") and auction is not None:
         broadcast_state(auction)
@@ -357,16 +361,20 @@ def admin_assign_player(request, player_id):
     participant_id = request.POST.get("participant_id")
     if not participant_id:
         return JsonResponse({"ok": False, "error": "Nessuna squadra selezionata"}, status=400)
-    for model, pk in ((Player, player_id), (Participant, participant_id)):
-        _obj, denied = managed_or_403(request, model, pk)
-        if denied:
-            return denied
+    player, denied = managed_or_403(request, Player, player_id)
+    if denied:
+        return denied
+    team, denied = managed_or_403(request, Participant, participant_id)
+    if denied:
+        return denied
     auction_id = request.POST.get("auction_id") or None
     auction = None
     if auction_id:
         auction, denied = managed_or_403(request, Auction, auction_id)
         if denied:
             return denied
+    if mixed_leagues(player, team, auction):
+        return league_mismatch_json()
     price = request.POST.get("price") or None
     result = services.assign_player(
         player_id, participant_id, price=price, by_admin=True,
