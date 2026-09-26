@@ -75,17 +75,27 @@ def app_rosa(request):
     if participant is None:
         return _redirect_login(request)
     roster = list(Player.objects.filter(owner=participant).order_by("role", "-cost", "name"))
-    groups = [
-        {"code": code, "label": label, "list": [p for p in roster if p.role == code]}
-        for code, label in _ROLE_LABELS
-    ]
-    stats_covered = sum(1 for p in roster if p.fanta_avg is not None or p.avg_vote is not None)
+    league = participant.league
+    is_mantra = bool(league and league.is_mantra)
+    groups = []
+    for code, label in _ROLE_LABELS:
+        players = [p for p in roster if p.role == code]
+        # Mantra counts slots per bucket (POR / movimento), not per role: the
+        # per-role cap would be misleading there, so only the count is shown.
+        slots = league.slots_for(code) if league is not None and not is_mantra else 0
+        groups.append({
+            "code": code, "label": label, "list": players,
+            "slots": slots, "cost": sum(p.cost for p in players),
+        })
+    fms = [p.fanta_avg for p in roster if p.fanta_avg is not None]
     ctx.update({
         "roster": roster,
         "roster_count": len(roster),
-        "roster_groups": [g for g in groups if g["list"]],
-        "stats_covered": stats_covered,
-        "is_mantra": participant.league.is_mantra if participant.league else False,
+        "roster_groups": groups,
+        "roster_value": sum(p.cost for p in roster),
+        "roster_fm": (sum(fms) / len(fms)) if fms else None,
+        "plan": services.roster_plan(participant),
+        "is_mantra": is_mantra,
     })
     return render(request, "auctions/app_rosa.html", ctx)
 
