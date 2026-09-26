@@ -210,16 +210,21 @@
     {% endfor %}
     {% endif %}
 
-    <details style="margin-top:12px">
-        <summary style="cursor:pointer;font-size:12.5px;font-weight:800">Ranking UEFA club</summary>
+    <details id="uefa-ranking" style="margin-top:12px"{% if not uefa_count %} open{% endif %}>
+        <summary style="cursor:pointer;font-size:12.5px;font-weight:800">Ranking UEFA club{% if uefa_count %} · {{ uefa_count }} club{% endif %}</summary>
+        <p class="muted" style="font-size:12px;margin:8px 0 0;line-height:1.5">
+            Serve a calcolare il compenso di chi va all'estero. Prova prima «Scarica da uefa.com»; se il sito non risponde,
+            apri la <a href="{{ uefa_ranking_page }}" target="_blank" rel="noopener">classifica club su uefa.com</a>,
+            seleziona la tabella, copiala e incollala qui sotto: posizione e nome del club li riconosco da soli
+            (vanno bene anche righe tipo <code>1;Real Madrid</code>).</p>
         <div style="display:flex;gap:10px;align-items:flex-start;margin-top:8px;flex-wrap:wrap">
             <form method="post" action="{% url 'admin_contracts_action' %}">
                 {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="uefa_fetch">
                 <button type="submit" class="ct-btn go">Scarica da uefa.com</button>
             </form>
-            <form method="post" action="{% url 'admin_contracts_action' %}" style="display:flex;gap:6px;align-items:flex-start">
+            <form method="post" action="{% url 'admin_contracts_action' %}" style="display:flex;gap:6px;align-items:flex-start;flex:1 1 320px">
                 {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="uefa_paste">
-                <textarea name="ranking" rows="3" cols="40" placeholder="1;Real Madrid&#10;2;Manchester City&#10;…" style="font-size:12px;border-radius:6px;border:1px solid var(--line);background:rgba(0,0,0,0.2);color:inherit"></textarea>
+                <textarea name="ranking" rows="5" aria-label="Ranking UEFA da incollare" placeholder="Incolla qui la tabella copiata da uefa.com&#10;oppure una riga per club:&#10;1;Real Madrid&#10;2;Bayern München&#10;…" style="flex:1;min-width:0;font-size:12px;border-radius:6px;border:1px solid var(--line);background:rgba(0,0,0,0.2);color:inherit;padding:8px"></textarea>
                 <button type="submit" class="ct-btn">Salva incollato</button>
             </form>
         </div>
