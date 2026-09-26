@@ -53,6 +53,9 @@ def place_bid(auction_id, participant_id, increment, *, user_agent="", ip_addres
     if not participates_in(participant, auction):
         return _reject(Reject.WRONG_LEAGUE)
 
+    if auction.player_id and auction.player.rescinded_from_id == participant.id:
+        return _reject(Reject.RESCINDED_REBUY)
+
     if auction.status != Auction.Status.LIVE:
         return _reject(Reject.NOT_LIVE)
 

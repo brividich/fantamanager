@@ -26,6 +26,9 @@ class Reject:
     SEALED_CLOSED         = "sealed_closed"
     SEALED_TOO_LOW        = "sealed_too_low"
     SEALED_NOT_CONTENDER  = "sealed_not_contender"
+    # Contratti (regolamento 4.1): chi ha perso il giocatore col dado rinnovo
+    # non può ricomprarlo all'asta successiva.
+    RESCINDED_REBUY       = "rescinded_rebuy"
 
 
 # Italian labels for every code the UI can receive — rejected bids plus the
@@ -33,6 +36,7 @@ class Reject:
 # page and the regia console render from this map, so a new code can never show
 # up on screen as a bare identifier.
 ERROR_LABELS = {
+    "rescinded_rebuy": "Hai perso questo giocatore al rinnovo: non puoi ricomprarlo in questo mercato",
     Reject.AUCTION_NOT_FOUND:     "Asta non trovata",
     Reject.PARTICIPANT_NOT_FOUND: "Squadra non trovata",
     Reject.PARTICIPANT_INACTIVE:  "Squadra disattivata",

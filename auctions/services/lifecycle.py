@@ -655,6 +655,7 @@ def _record_winner_spend(auction, *, assigned_by="auto"):
         Player.objects.filter(pk=auction.player_id).update(
             owner=best.participant, cost=best.amount
         )
+        _contracts_after_sale(auction.player_id, best.participant, best.amount, auction)
 
     RosterLog.objects.create(
         participant=best.participant,
@@ -672,6 +673,27 @@ def _record_winner_spend(auction, *, assigned_by="auto"):
         best.participant.display_name, best.amount,
     )
     return result
+
+
+def _contracts_after_sale(player_id, winner, amount, auction):
+    """Regolamento 4: contratto da tirare per chi compra; se il giocatore era
+    stato rescisso al rinnovo, l'incasso dell'asta va alla squadra che lo aveva."""
+    from .contracts import on_player_acquired
+
+    player = Player.objects.select_related("owner", "owner__league", "rescinded_from").get(pk=player_id)
+    on_player_acquired(player)
+    former = player.rescinded_from
+    if former is None:
+        return
+    if former.id != winner.id:
+        Participant.objects.filter(pk=former.id).update(credits=F("credits") + amount)
+        RosterLog.objects.create(
+            participant=former, participant_name=former.display_name,
+            player_name=player.name, player_role=player.role,
+            action=RosterLog.Action.EDIT, credits_delta=-amount, by_admin=False,
+            note=f"Incasso asta di {player.name} (rescisso al rinnovo) · asta #{auction.id}",
+        )
+    Player.objects.filter(pk=player_id).update(rescinded_from=None)
 
 
 def _record_unsold(auction):
@@ -854,6 +876,8 @@ def assign_player(player_id, participant_id, *, price=None, by_admin=True, note=
     player.owner = new_owner
     player.cost = price
     player.save(update_fields=["owner", "cost"])
+    from .contracts import on_player_acquired
+    on_player_acquired(player)
 
     RosterLog.objects.create(
         participant=new_owner, participant_name=new_owner.display_name,

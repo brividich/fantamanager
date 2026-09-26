@@ -96,6 +96,9 @@ def app_rosa(request):
         "roster_fm": (sum(fms) / len(fms)) if fms else None,
         "plan": services.roster_plan(participant),
         "is_mantra": is_mantra,
+        "contracts_on": bool(league and league.contracts_enabled),
+        "renewals_open": bool(league and league.contracts_enabled and league.renewals_open),
+        "expiring": services.expiring_contracts(participant) if league and league.contracts_enabled else [],
     })
     return render(request, "auctions/app_rosa.html", ctx)
 
@@ -424,6 +427,48 @@ def app_trade_cancel(request, trade_id):
     if participant is None:
         return _redirect_login(request)
     return _trade_feedback(request, services.cancel_trade(trade_id, participant.id), "Proposta ritirata.")
+
+
+def _contract_feedback(request, res, ok_message):
+    if res.get("ok"):
+        messages.success(request, ok_message(res))
+    else:
+        messages.error(request, res.get("message") or "Operazione non riuscita.")
+    return redirect("app_rosa")
+
+
+@require_POST
+def app_contract_roll(request, player_id):
+    participant, _ = _app_ctx(request, "rosa")
+    if participant is None:
+        return _redirect_login(request)
+    res = services.roll_contract(player_id, participant_id=participant.id)
+    return _contract_feedback(request, res, lambda r: (
+        f"🎲 Dado contratti per {r['player_name']}: {r['face']} "
+        + (f"→ {r['years']} anni (minimo {r['floor']} per la clausola)" if r["years"] != r["face"] else
+           f"ann{'o' if r['years'] == 1 else 'i'} di contratto")))
+
+
+@require_POST
+def app_renewals_declare(request):
+    participant, _ = _app_ctx(request, "rosa")
+    if participant is None:
+        return _redirect_login(request)
+    res = services.declare_renewals(participant.id, request.POST.getlist("renew"))
+    return _contract_feedback(request, res, lambda r: (
+        f"Rinnovi dichiarati: {r['renewing']} da rinnovare"
+        + (f", svincolati {', '.join(r['released'])}" if r["released"] else "") + "."))
+
+
+@require_POST
+def app_renewal_roll(request, player_id):
+    participant, _ = _app_ctx(request, "rosa")
+    if participant is None:
+        return _redirect_login(request)
+    res = services.roll_renewal(player_id, participant_id=participant.id)
+    return _contract_feedback(request, res, lambda r: (
+        f"🟢 Dado rinnovo verde: {r['player_name']} rinnova per {r['years']} ann{'o' if r['years'] == 1 else 'i'}."
+        if r["green"] else f"🔴 Dado rinnovo rosso: {r['player_name']} rescinde e torna svincolato."))
 
 
 def app_altro(request):

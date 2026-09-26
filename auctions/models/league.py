@@ -56,6 +56,16 @@ class League(models.Model):
     # gli stessi ruoli da una parte all'altra.
     trades_same_roles = models.BooleanField(default=False)
 
+    # Contratti di permanenza (regolamento 4). Disattivi di default: le leghe
+    # che non li usano non vedono né dadi né scadenze.
+    contracts_enabled = models.BooleanField(default=False)
+    # Soglie clausola (4.3): pagato almeno X → contratto di almeno 2 / 3 anni.
+    contract_min2_price = models.PositiveIntegerField(default=500)
+    contract_min3_price = models.PositiveIntegerField(default=800)
+    # Stagione corrente (contatore) e finestra dei rinnovi aperta.
+    season_number = models.PositiveIntegerField(default=1)
+    renewals_open = models.BooleanField(default=False)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

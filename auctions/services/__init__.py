@@ -94,6 +94,16 @@ from .queue import (
     postpone_queue_item,
     prioritize_queue_item,
 )
+from .contracts import (
+    close_renewals,
+    declare_renewals,
+    expiring as expiring_contracts,
+    min_years as contract_min_years,
+    new_season,
+    roll_contract,
+    roll_renewal,
+    set_contract,
+)
 from .trade import (
     cancel_trade,
     decide_trade,
@@ -175,6 +185,15 @@ __all__ = [
     "sealed_tick",
     "open_sealed_now",
     "sealed_status",
+    # contracts
+    "roll_contract",
+    "set_contract",
+    "new_season",
+    "declare_renewals",
+    "roll_renewal",
+    "close_renewals",
+    "expiring_contracts",
+    "contract_min_years",
     # trade
     "propose_trade",
     "respond_trade",

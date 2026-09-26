@@ -1,0 +1,155 @@
+{% extends "auctions/base.html" %}
+{% block title %}Contratti — FantaManager{% endblock %}
+{% block bodyclass %}role-admin{% endblock %}
+{% block wrapclass %}wrap-wide{% endblock %}
+
+{% block content %}
+<style>
+    .ct-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+    .ct-bar { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; font-size: 13px; }
+    .ct-bar label { display: flex; gap: 6px; align-items: center; }
+    .ct-in { padding: 7px 9px; border-radius: 7px; border: 1px solid var(--line); background: rgba(0,0,0,0.2); color: inherit; width: 90px; }
+    .ct-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 14px; }
+    .ct-team h3 { margin: 0 0 8px; font-size: 15px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .ct-pill { font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 999px; background: rgba(255,255,255,0.06); color: var(--muted); }
+    .ct-pill.warn { background: rgba(234,179,8,0.15); color: #eab308; }
+    .ct-pill.bad { background: rgba(239,68,68,0.15); color: #f87171; }
+    .ct-row { display: grid; grid-template-columns: 18px minmax(0,1fr) 54px 88px auto; gap: 8px; align-items: center;
+              padding: 3px 0; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+    .ct-row:last-child { border-bottom: none; }
+    .ct-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 700; }
+    .ct-years { font-weight: 800; text-align: center; }
+    .ct-years.pending { color: #3b82f6; }
+    .ct-years.exp { color: #f87171; }
+    .ct-years.last { color: #eab308; }
+    .ct-act { display: flex; gap: 4px; justify-content: flex-end; }
+    .ct-act form { display: flex; gap: 4px; }
+    .ct-act select, .ct-act input { height: 26px; box-sizing: border-box; padding: 2px 5px; font-size: 11.5px; border-radius: 6px; border: 1px solid var(--line); background: rgba(0,0,0,0.2); color: inherit; }
+    .ct-btn { height: 26px; line-height: 1; box-sizing: border-box; padding: 0 9px; font-size: 11.5px; font-weight: 800; border-radius: 6px; cursor: pointer;
+              border: 1px solid var(--line); background: var(--panel-2, rgba(255,255,255,0.05)); color: inherit; }
+    .ct-btn.go { background: var(--accent); color: #0a1108; border-color: var(--accent); }
+    .ct-log { font-size: 12px; }
+    .ct-log li { padding: 3px 0; }
+</style>
+
+{% include "auctions/_console_head.html" %}
+
+<div class="ct-head">
+    <div>
+        <h1 style="margin:0;font-size:26px">Contratti di permanenza</h1>
+        <div class="muted" style="margin-top:4px;font-size:13px">
+            Dado contratti (1-2-2-3-3-4 anni) all'acquisto, rinnovi col dado verde/rosso a fine contratto. Regolamento §4.
+        </div>
+    </div>
+    {% if current_league and current_league.contracts_enabled %}
+    <div class="ct-bar">
+        <span>Stagione <b>{{ current_league.season_number }}</b></span>
+        {% if current_league.renewals_open %}<span class="ct-pill warn">Rinnovi aperti</span>{% endif %}
+        <form method="post" action="{% url 'admin_contracts_action' %}" onsubmit="return confirm('Iniziare una nuova stagione? Tutti i contratti scalano di un anno e si aprono i rinnovi per quelli scaduti.');">
+            {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}">
+            <input type="hidden" name="action" value="new_season">
+            <button type="submit" class="ct-btn go">Nuova stagione</button>
+        </form>
+        {% if current_league.renewals_open %}
+        <form method="post" action="{% url 'admin_contracts_action' %}">
+            {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}">
+            <input type="hidden" name="action" value="close_renewals">
+            <button type="submit" class="ct-btn">Chiudi rinnovi</button>
+        </form>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+{% if messages %}
+<div style="margin-bottom:14px">
+    {% for msg in messages %}
+    <div class="saved-flash" style="{% if msg.tags == 'error' %}background:rgba(239,68,68,0.15);color:#ef4444;border-color:rgba(239,68,68,0.3){% else %}background:var(--accent-soft);color:var(--accent-bright);border-color:var(--accent-line){% endif %}">{{ msg }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if not current_league %}
+<div class="panel muted" style="padding:24px;text-align:center">Seleziona una lega dal menu in alto.</div>
+{% else %}
+<div class="panel" style="margin-bottom:16px">
+    <form method="post" action="{% url 'admin_contracts_action' %}" class="ct-bar">
+        {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}">
+        <input type="hidden" name="action" value="settings">
+        <label><input type="checkbox" name="contracts_enabled" value="1"{% if current_league.contracts_enabled %} checked{% endif %}> Contratti attivi in questa lega</label>
+        <label>Almeno 2 anni da <input class="ct-in" type="number" min="0" name="contract_min2_price" value="{{ current_league.contract_min2_price }}"> FM</label>
+        <label>Almeno 3 anni da <input class="ct-in" type="number" min="0" name="contract_min3_price" value="{{ current_league.contract_min3_price }}"> FM</label>
+        <button type="submit" class="ct-btn">Salva</button>
+    </form>
+</div>
+
+{% if current_league.contracts_enabled %}
+<div class="ct-grid">
+    {% for t in teams %}
+    <section class="panel ct-team">
+        <h3>{{ t.team.display_name }}
+            {% if t.pending %}<span class="ct-pill" style="color:#3b82f6">{{ t.pending }} da tirare</span>{% endif %}
+            {% if t.expired %}<span class="ct-pill bad">{{ t.expired }} scadut{{ t.expired|pluralize:"o,i" }}</span>{% endif %}
+            {% if t.last_year %}<span class="ct-pill warn">{{ t.last_year }} all'ultimo anno</span>{% endif %}
+        </h3>
+        {% for p in t.players %}
+        <div class="ct-row">
+            <span class="role-badge role-{{ p.role }}" style="width:18px;height:18px;font-size:10px">{{ p.role }}</span>
+            <span class="ct-name" title="{{ p.name }}">{{ p.name }}</span>
+            <span class="muted" style="text-align:right">{{ p.cost|floatformat:0 }} FM</span>
+            <span class="ct-years{% if p.contract_years is None %} pending{% elif p.contract_years == 0 %} exp{% elif p.contract_years == 1 %} last{% endif %}">
+                {% if p.contract_years is None %}da tirare{% if p.min_years > 1 %} (min {{ p.min_years }}){% endif %}
+                {% elif p.contract_years == 0 %}scaduto{% if p.renewal_declared %} · rinnovo{% endif %}
+                {% else %}{{ p.contract_years }} ann{{ p.contract_years|pluralize:"o,i" }}{% endif %}
+            </span>
+            <span class="ct-act">
+                {% if p.contract_years is None %}
+                <form method="post" action="{% url 'admin_contracts_action' %}">
+                    {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}">
+                    <input type="hidden" name="action" value="roll"><input type="hidden" name="player_id" value="{{ p.id }}">
+                    <select name="manual_face" title="Lascia 🎲 per il dado virtuale o scegli il risultato del dado vero">
+                        <option value="">🎲</option>{% for f in contract_faces %}<option value="{{ f }}">{{ f }}</option>{% endfor %}
+                    </select>
+                    <button type="submit" class="ct-btn go">Tira</button>
+                </form>
+                {% elif p.contract_years == 0 and p.renewal_declared and current_league.renewals_open %}
+                <form method="post" action="{% url 'admin_contracts_action' %}">
+                    {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}">
+                    <input type="hidden" name="action" value="renew"><input type="hidden" name="player_id" value="{{ p.id }}">
+                    <select name="manual_outcome" title="Dado rinnovo"><option value="">🎲</option><option value="green">🟢</option><option value="red">🔴</option></select>
+                    <select name="manual_face" title="Dado contratti (se verde inserito a mano)"><option value="">🎲</option>{% for f in contract_faces %}<option value="{{ f }}">{{ f }}</option>{% endfor %}</select>
+                    <button type="submit" class="ct-btn go">Rinnovo</button>
+                </form>
+                {% else %}
+                <form method="post" action="{% url 'admin_contracts_action' %}">
+                    {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}">
+                    <input type="hidden" name="action" value="set"><input type="hidden" name="player_id" value="{{ p.id }}">
+                    <input type="number" name="years" min="0" max="4" value="{{ p.contract_years|default_if_none:'' }}" style="width:44px" title="Anni di contratto">
+                    <button type="submit" class="ct-btn">Imposta</button>
+                </form>
+                {% endif %}
+            </span>
+        </div>
+        {% empty %}
+        <div class="muted" style="font-size:12px">Rosa vuota.</div>
+        {% endfor %}
+    </section>
+    {% endfor %}
+</div>
+
+<div class="panel" style="margin-top:16px">
+    <h3 style="margin:0 0 8px;font-size:15px">Registro dadi e contratti</h3>
+    <ul class="ct-log" style="margin:0;padding-left:18px">
+        {% for e in events %}
+        <li><span class="muted">{{ e.created_at|date:"d/m H:i" }} · stag. {{ e.season }}</span> —
+            <b>{{ e.get_kind_display }}</b>{% if e.player_name %}: {{ e.player_name }}{% endif %}{% if e.participant_name %} ({{ e.participant_name }}){% endif %}
+            {% if e.roll is not None and e.kind != "rescinded" %} · dado {{ e.roll }}{% endif %}{% if e.years is not None %} → {{ e.years }} anni{% endif %}
+            {% if e.manual %} · <i>inserito a mano</i>{% endif %}{% if e.note %} · <span class="muted">{{ e.note }}</span>{% endif %}</li>
+        {% empty %}
+        <li class="muted">Nessun evento.</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}
