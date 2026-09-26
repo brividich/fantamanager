@@ -19,6 +19,7 @@ from .common import (
     current_auction,
     manageable_leagues,
     managed_or_403,
+    mixed_leagues,
     participant_join_url,
     participant_lan_join_url,
     safe_next,
@@ -267,10 +268,13 @@ def admin_quick_assign_player(request):
     p, denied = managed_or_403(request, Participant, participant_id)
     if denied:
         return denied
-    _player, denied = managed_or_403(request, Player, player_id)
+    player, denied = managed_or_403(request, Player, player_id)
     if denied:
         return denied
-    res = services.assign_player(player_id, participant_id, price=price, by_admin=True)
+    if mixed_leagues(p, player):
+        res = {"ok": False, "error": services.ERROR_LABELS["league_mismatch"]}
+    else:
+        res = services.assign_player(player_id, participant_id, price=price, by_admin=True)
     if res.get("ok"):
         messages.success(request, f"Calciatore assegnato a «{p.display_name}».")
     else:

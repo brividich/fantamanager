@@ -9,7 +9,7 @@ from decimal import Decimal
 from django.contrib.auth.models import User
 from django.test import Client, TestCase
 
-from ..models import Auction, Bid, League, Participant, Player
+from ..models import Auction, AuctionQueueItem, Bid, League, Participant, Player
 from .common import make_live_auction
 
 
@@ -376,3 +376,99 @@ class AdminObjectRbacTests(TestCase):
                                 {"mode": "add", "amount": "1",
                                  "next": f"/dashboard/{self.league.id}/?tab=rose#rose"})
         self.assertEqual(resp["Location"], f"/dashboard/{self.league.id}/?tab=rose#rose")
+
+    # --- One league at a time --------------------------------------------------
+
+    def _second_league_of_owner(self):
+        """Another league the same admin runs, with a free player and a team."""
+        league = League.objects.create(name="Lega Alfa Due", owner=self.owner)
+        player = Player.objects.create(
+            league=league, name="Second Pool Striker", role="A", initial_price=Decimal("8"))
+        team = Participant.objects.create(league=league, display_name="Alfa Due FC")
+        return league, player, team
+
+    def test_queue_rejects_a_player_from_another_league(self):
+        """The queue services look players up in every league: the view keeps
+        the auction on its own pool."""
+        _league, own_other_pool, _team = self._second_league_of_owner()
+        self._as(self.owner)
+        for verb in ("prioritize", "postpone"):
+            url = f"/admin-auction/{self.auction.id}/queue/{verb}/"
+            resp = self.client.post(url, {"player_id": self.foreign_player.id})
+            self.assertEqual(resp.status_code, 403, verb)
+            resp = self.client.post(url, {"player_id": own_other_pool.id})
+            self.assertEqual(resp.status_code, 400, verb)
+            self.assertEqual(resp.json()["error"], "league_mismatch")
+        self.assertFalse(AuctionQueueItem.objects.filter(auction=self.auction).exists())
+
+        resp = self.client.post(f"/admin-auction/{self.auction.id}/queue/prioritize/",
+                                {"player_id": self.free_player.id})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(AuctionQueueItem.objects.filter(
+            auction=self.auction, player=self.free_player, done=False).exists())
+
+    def test_call_player_rejects_a_player_of_another_league_of_the_same_admin(self):
+        _league, own_other_pool, _team = self._second_league_of_owner()
+        self._as(self.owner)
+        resp = self.client.post(f"/admin-auction/{self.auction.id}/call-player/",
+                                {"player_id": own_other_pool.id})
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(resp.json()["error"], "league_mismatch")
+        self.auction.refresh_from_db()
+        self.assertNotEqual(self.auction.player_id, own_other_pool.id)
+
+    def test_same_admin_cannot_mix_two_of_their_leagues(self):
+        """Managing both leagues is not enough to move a player between them."""
+        _league, own_other_pool, other_team = self._second_league_of_owner()
+        other_auction = make_live_auction(league=other_team.league)
+        self._as(self.owner)
+
+        resp = self.client.post(f"/admin-auction/players/{own_other_pool.id}/assign/",
+                                {"participant_id": self.team.id, "price": "1"})
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(resp.json()["error"], "league_mismatch")
+        resp = self.client.post(f"/admin-auction/players/{self.free_player.id}/assign/",
+                                {"participant_id": self.team.id, "price": "1",
+                                 "auction_id": other_auction.id})
+        self.assertEqual(resp.status_code, 400)
+        resp = self.client.post(f"/admin-auction/players/{self.owned_player.id}/release/",
+                                {"auction_id": other_auction.id})
+        self.assertEqual(resp.status_code, 400)
+
+        resp = self.client.post("/dashboard/team/assign-player/", {
+            "participant_id": other_team.id, "player_id": self.free_player.id, "price": "1",
+        }, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        self.assertFalse(resp.json()["ok"])
+
+        for player in (own_other_pool, self.free_player):
+            player.refresh_from_db()
+            self.assertIsNone(player.owner_id)
+        self.owned_player.refresh_from_db()
+        self.assertEqual(self.owned_player.owner_id, self.team.id)
+        for team in (self.team, other_team):
+            team.refresh_from_db()
+            self.assertEqual(team.spent_credits, Decimal("0"))
+
+    # --- Legacy /admin-auction/create/ ----------------------------------------
+
+    def test_legacy_create_puts_the_auction_in_a_league_its_creator_runs(self):
+        self._as(self.owner)
+        resp = self.client.post("/admin-auction/create/", {"player_id": self.free_player.id})
+        auction = Auction.objects.exclude(pk=self.auction.pk).get()
+        self.assertEqual(auction.league_id, self.league.id)
+        self.assertEqual(self.client.get(resp["Location"]).status_code, 200)
+
+        # No player: the league the console is on (the owner's only league).
+        self.client.post("/admin-auction/create/", {"title": "Riparazione"})
+        self.assertEqual(Auction.objects.get(title="Riparazione").league_id, self.league.id)
+
+    def test_legacy_create_refuses_an_auction_nobody_but_a_superuser_could_open(self):
+        self._as(self.manager)
+        resp = self.client.post("/admin-auction/create/", {"title": "Orfana"})
+        self.assertEqual(resp.status_code, 403)
+        self.assertFalse(Auction.objects.filter(title="Orfana").exists())
+
+        self._as(self.foreign_admin)
+        resp = self.client.post("/admin-auction/create/", {"player_id": self.free_player.id})
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(Auction.objects.count(), 1)
