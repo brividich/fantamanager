@@ -219,6 +219,16 @@ Identity = the session participant (join via league code) — no separate login.
 </header>
 
 <main class="app-main">
+    {% if messages %}
+    <div style="margin-bottom:14px">
+        {% for msg in messages %}
+        <div role="status" style="padding:10px 14px;border-radius:8px;font-size:13px;font-weight:700;margin-bottom:6px;
+                    {% if msg.tags == 'error' %}background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3){% else %}background:rgba(34,197,94,0.15);color:#22c55e;border:1px solid rgba(34,197,94,0.3){% endif %}">
+            {{ msg }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
     {% block app %}{% endblock %}
 </main>
 

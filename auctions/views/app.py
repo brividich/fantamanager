@@ -23,6 +23,7 @@ from ..models import (
     Player,
     PlayerPerformance,
     Season,
+    Trade,
 )
 from .. import services
 from .common import (
@@ -196,6 +197,8 @@ def app_mercato(request):
         "my_bids": my_bids,
         "my_bid_player_ids": my_bid_player_ids,
         "my_bids_total": my_bids_total,
+        "trades_enabled": bool(league and league.trades_enabled),
+        "incoming_trades": Trade.objects.filter(receiver=participant, status=Trade.Status.PENDING).count(),
         "role": role,
         "q": q,
         "sort": sort,
@@ -263,6 +266,103 @@ def app_market_delete_bid(request):
     if res.get("ok") and session_id:
         res["my_bids"] = services.get_participant_market_bids(session_id, participant.id)
     return JsonResponse(res)
+
+
+def _trade_rows(trades, me):
+    rows = []
+    for t in trades:
+        mine_out = t.proposer_id == me.id
+        rows.append({
+            "trade": t,
+            "other": t.receiver if mine_out else t.proposer,
+            "give": list(t.proposer_players.all() if mine_out else t.receiver_players.all()),
+            "get": list(t.receiver_players.all() if mine_out else t.proposer_players.all()),
+            "give_credits": t.proposer_credits if mine_out else t.receiver_credits,
+            "get_credits": t.receiver_credits if mine_out else t.proposer_credits,
+            "outgoing": mine_out,
+        })
+    return rows
+
+
+def app_scambi(request):
+    participant, ctx = _app_ctx(request, "mercato")
+    if participant is None:
+        return _redirect_login(request)
+    league = participant.league
+    mine = Trade.objects.filter(Q(proposer=participant) | Q(receiver=participant)).select_related(
+        "proposer", "receiver"
+    ).prefetch_related("proposer_players", "receiver_players")
+
+    teams = []
+    partner = None
+    if league is not None:
+        teams = list(league.participants.filter(is_active=True).exclude(pk=participant.pk).order_by("display_name"))
+        raw = request.GET.get("with") or ""
+        if raw.isdigit():
+            partner = next((t for t in teams if t.id == int(raw)), None)
+
+    ctx.update({
+        "trades_enabled": bool(league and league.trades_enabled),
+        "trades_need_approval": bool(league and league.trades_need_approval),
+        "incoming": _trade_rows(mine.filter(receiver=participant, status=Trade.Status.PENDING), participant),
+        "outgoing": _trade_rows(mine.filter(proposer=participant, status__in=Trade.OPEN_STATUSES), participant),
+        "awaiting": _trade_rows(mine.filter(receiver=participant, status=Trade.Status.ACCEPTED), participant),
+        "history": _trade_rows(mine.exclude(status__in=Trade.OPEN_STATUSES)[:20], participant),
+        "teams": teams,
+        "partner": partner,
+        "my_roster": list(Player.objects.filter(owner=participant).order_by("role", "name")),
+        "partner_roster": list(Player.objects.filter(owner=partner).order_by("role", "name")) if partner else [],
+    })
+    return render(request, "auctions/app_scambi.html", ctx)
+
+
+def _trade_feedback(request, res, ok_message):
+    if res.get("ok"):
+        messages.success(request, ok_message)
+    else:
+        messages.error(request, res.get("message") or "Operazione non riuscita.")
+    return redirect("app_scambi")
+
+
+@require_POST
+def app_trade_propose(request):
+    participant, _ = _app_ctx(request, "mercato")
+    if participant is None:
+        return _redirect_login(request)
+    res = services.propose_trade(
+        participant.id,
+        request.POST.get("receiver_id"),
+        give_ids=request.POST.getlist("give"),
+        get_ids=request.POST.getlist("get"),
+        give_credits=request.POST.get("give_credits") or 0,
+        get_credits=request.POST.get("get_credits") or 0,
+        message=request.POST.get("message") or "",
+    )
+    return _trade_feedback(request, res, "Proposta di scambio inviata.")
+
+
+@require_POST
+def app_trade_respond(request, trade_id):
+    participant, _ = _app_ctx(request, "mercato")
+    if participant is None:
+        return _redirect_login(request)
+    accept = request.POST.get("action") == "accept"
+    res = services.respond_trade(trade_id, participant.id, accept)
+    if not accept:
+        msg = "Scambio rifiutato."
+    elif res.get("status") == Trade.Status.ACCEPTED:
+        msg = "Scambio accettato: ora serve la ratifica dell'admin."
+    else:
+        msg = "Scambio completato: le rose sono aggiornate."
+    return _trade_feedback(request, res, msg)
+
+
+@require_POST
+def app_trade_cancel(request, trade_id):
+    participant, _ = _app_ctx(request, "mercato")
+    if participant is None:
+        return _redirect_login(request)
+    return _trade_feedback(request, services.cancel_trade(trade_id, participant.id), "Proposta ritirata.")
 
 
 def app_altro(request):

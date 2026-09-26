@@ -1,0 +1,131 @@
+{% extends "auctions/app_base.html" %}
+{% block title %}Scambi — FantaManager{% endblock %}
+{% block app %}
+<style>
+    .tr-row { padding: 12px 14px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+    .tr-row:last-child { border-bottom: none; }
+    .tr-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; }
+    .tr-head b { color: var(--ink); }
+    .tr-sides { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 12.5px; }
+    .tr-side { background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; min-width: 0; }
+    .tr-side h4 { margin: 0 0 6px; font-size: 10px; letter-spacing: .15em; text-transform: uppercase; color: var(--muted); }
+    .tr-pl { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tr-cr { font-weight: 800; color: var(--accent); }
+    .tr-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+    .tr-btn { padding: 7px 12px; border-radius: 8px; font-size: 12px; font-weight: 800; cursor: pointer; border: 1px solid var(--line); background: var(--panel-2); color: var(--ink); }
+    .tr-btn.ok { background: var(--accent); color: #0a1108; border-color: var(--accent); }
+    .tr-btn.no { color: #ef4444; border-color: rgba(239,68,68,.35); }
+    .tr-status { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+    .tr-status.completed { color: #22c55e; }
+    .tr-status.rejected, .tr-status.vetoed, .tr-status.failed { color: #ef4444; }
+    .pick-list { max-height: 280px; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; }
+    .pick { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--line); font-size: 13px; cursor: pointer; }
+    .pick:last-child { border-bottom: none; }
+    .pick input { width: 16px; height: 16px; accent-color: var(--accent); }
+    .pick .cost { margin-left: auto; color: var(--muted); font-size: 11.5px; white-space: nowrap; }
+    .tr-form { display: flex; flex-direction: column; gap: 12px; padding: 12px 14px; }
+    .tr-form label { font-size: 12px; font-weight: 700; color: var(--muted); display: block; margin-bottom: 6px; }
+    .tr-input { width: 100%; padding: 9px 12px; border-radius: 10px; background: var(--panel-2); border: 1px solid var(--line); color: var(--ink); font-family: var(--sans); font-size: 14px; font-weight: 600; box-sizing: border-box; }
+    .tr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 560px) { .tr-grid, .tr-sides { grid-template-columns: 1fr; } }
+</style>
+
+<div class="tab-head">
+    <h1>Scambi</h1>
+    <p><a href="{% url 'app_mercato' %}" style="color:var(--accent);text-decoration:none">‹ Mercato</a> · Proponi scambi di calciatori e crediti alle altre squadre</p>
+</div>
+
+{% if not trades_enabled %}
+<div class="a-card"><div class="soon" style="border:none;background:none;padding:24px 10px">
+    <b>Scambi non attivi</b>
+    <span>L'admin della lega non ha abilitato gli scambi tra squadre.</span>
+</div></div>
+{% else %}
+
+{% if incoming %}
+<div class="a-card">
+    <div class="a-label"><svg class="ic"><use href="#i-swap"/></svg> Proposte ricevute ({{ incoming|length }})</div>
+    {% for r in incoming %}{% include "auctions/_trade_row.html" with r=r %}{% endfor %}
+</div>
+{% endif %}
+
+{% if outgoing or awaiting %}
+<div class="a-card">
+    <div class="a-label"><svg class="ic"><use href="#i-clock"/></svg> In corso</div>
+    {% for r in outgoing %}{% include "auctions/_trade_row.html" with r=r %}{% endfor %}
+    {% for r in awaiting %}{% include "auctions/_trade_row.html" with r=r %}{% endfor %}
+</div>
+{% endif %}
+
+<div class="a-card">
+    <div class="a-label"><svg class="ic"><use href="#i-plus"/></svg> Nuovo scambio</div>
+    <form method="get" class="tr-form" style="padding-bottom:0">
+        <div>
+            <label for="with">Con quale squadra?</label>
+            <div style="display:flex;gap:8px">
+                <select name="with" id="with" class="tr-input" onchange="this.form.submit()">
+                    <option value="">— Scegli una squadra —</option>
+                    {% for t in teams %}<option value="{{ t.id }}"{% if partner and partner.id == t.id %} selected{% endif %}>{{ t.display_name }}</option>{% endfor %}
+                </select>
+                <noscript><button type="submit" class="tr-btn">Vai</button></noscript>
+            </div>
+        </div>
+    </form>
+    {% if partner %}
+    <form method="post" action="{% url 'app_trade_propose' %}" class="tr-form">
+        {% csrf_token %}
+        <input type="hidden" name="receiver_id" value="{{ partner.id }}">
+        <div class="tr-grid">
+            <div>
+                <label>Cedi (la tua rosa)</label>
+                <div class="pick-list">
+                    {% for pl in my_roster %}
+                    <label class="pick"><input type="checkbox" name="give" value="{{ pl.id }}">
+                        <span class="role-badge role-{{ pl.role }}">{{ pl.role }}</span> {{ pl.name }}
+                        <span class="cost">{{ pl.cost|floatformat:0 }} FM</span></label>
+                    {% empty %}<div class="pick muted">Rosa vuota</div>{% endfor %}
+                </div>
+            </div>
+            <div>
+                <label>Ricevi (rosa di {{ partner.display_name }})</label>
+                <div class="pick-list">
+                    {% for pl in partner_roster %}
+                    <label class="pick"><input type="checkbox" name="get" value="{{ pl.id }}">
+                        <span class="role-badge role-{{ pl.role }}">{{ pl.role }}</span> {{ pl.name }}
+                        <span class="cost">{{ pl.cost|floatformat:0 }} FM</span></label>
+                    {% empty %}<div class="pick muted">Rosa vuota</div>{% endfor %}
+                </div>
+            </div>
+        </div>
+        <div class="tr-grid">
+            <div>
+                <label for="give_credits">Crediti che dai (hai {{ participant.remaining_credits|floatformat:0 }} FM)</label>
+                <input type="number" min="0" name="give_credits" id="give_credits" value="0" class="tr-input">
+            </div>
+            <div>
+                <label for="get_credits">Crediti che chiedi (ne ha {{ partner.remaining_credits|floatformat:0 }} FM)</label>
+                <input type="number" min="0" name="get_credits" id="get_credits" value="0" class="tr-input">
+            </div>
+        </div>
+        <div>
+            <label for="message">Messaggio (opzionale)</label>
+            <input type="text" maxlength="200" name="message" id="message" class="tr-input" placeholder="Es. ti serve un difensore?">
+        </div>
+        <div class="muted" style="font-size:11.5px">
+            Rose e crediti vengono ricontrollati quando lo scambio viene eseguito.
+            {% if trades_need_approval %}Dopo l'accettazione serve la ratifica dell'admin.{% endif %}
+        </div>
+        <div class="tr-actions"><button type="submit" class="tr-btn ok">Invia proposta</button></div>
+    </form>
+    {% endif %}
+</div>
+
+{% endif %}
+
+{% if history %}
+<div class="a-card">
+    <div class="a-label"><svg class="ic"><use href="#i-list"/></svg> Storico</div>
+    {% for r in history %}{% include "auctions/_trade_row.html" with r=r %}{% endfor %}
+</div>
+{% endif %}
+{% endblock %}

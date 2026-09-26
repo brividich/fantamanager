@@ -1,0 +1,47 @@
+<div class="tr-row">
+    <div class="tr-head">
+        <span>{% if r.outgoing %}A <b>{{ r.other.display_name }}</b>{% else %}Da <b>{{ r.other.display_name }}</b>{% endif %}
+            <span class="muted" style="font-size:11px">· {{ r.trade.created_at|date:"d/m H:i" }}</span></span>
+        <span class="tr-status {{ r.trade.status }}">{{ r.trade.get_status_display }}</span>
+    </div>
+    <div class="tr-sides">
+        <div class="tr-side">
+            <h4>Cedi</h4>
+            {% for pl in r.give %}<div class="tr-pl"><span class="role-badge role-{{ pl.role }}">{{ pl.role }}</span> {{ pl.name }}</div>{% endfor %}
+            {% if r.give_credits %}<div class="tr-cr">{{ r.give_credits|floatformat:0 }} FM</div>{% endif %}
+            {% if not r.give and not r.give_credits %}<span class="muted">—</span>{% endif %}
+        </div>
+        <div class="tr-side">
+            <h4>Ricevi</h4>
+            {% for pl in r.get %}<div class="tr-pl"><span class="role-badge role-{{ pl.role }}">{{ pl.role }}</span> {{ pl.name }}</div>{% endfor %}
+            {% if r.get_credits %}<div class="tr-cr">{{ r.get_credits|floatformat:0 }} FM</div>{% endif %}
+            {% if not r.get and not r.get_credits %}<span class="muted">—</span>{% endif %}
+        </div>
+    </div>
+    {% if r.trade.message %}<div class="muted" style="font-size:12px">“{{ r.trade.message }}”</div>{% endif %}
+    {% if r.trade.status_note %}<div class="muted" style="font-size:12px">{{ r.trade.status_note }}</div>{% endif %}
+    {% if r.trade.status == "pending" %}
+    <div class="tr-actions">
+        {% if r.outgoing %}
+        <form method="post" action="{% url 'app_trade_cancel' r.trade.id %}" onsubmit="return confirm('Ritirare la proposta?');">
+            {% csrf_token %}<button type="submit" class="tr-btn no">Ritira</button>
+        </form>
+        {% else %}
+        <form method="post" action="{% url 'app_trade_respond' r.trade.id %}">
+            {% csrf_token %}<input type="hidden" name="action" value="reject">
+            <button type="submit" class="tr-btn no">Rifiuta</button>
+        </form>
+        <form method="post" action="{% url 'app_trade_respond' r.trade.id %}" onsubmit="return confirm('Accettare lo scambio?');">
+            {% csrf_token %}<input type="hidden" name="action" value="accept">
+            <button type="submit" class="tr-btn ok">Accetta</button>
+        </form>
+        {% endif %}
+    </div>
+    {% elif r.trade.status == "accepted" and r.outgoing %}
+    <div class="tr-actions">
+        <form method="post" action="{% url 'app_trade_cancel' r.trade.id %}" onsubmit="return confirm('Ritirare lo scambio prima della ratifica?');">
+            {% csrf_token %}<button type="submit" class="tr-btn no">Ritira</button>
+        </form>
+    </div>
+    {% endif %}
+</div>

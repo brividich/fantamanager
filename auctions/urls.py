@@ -86,6 +86,8 @@ urlpatterns = [
     path("admin-auction/market/<int:session_id>/delete/", views.admin_market_delete, name="admin_market_delete"),
     path("admin-auction/market/<int:session_id>/tie/", views.admin_market_settle_tie, name="admin_market_settle_tie"),
     path("admin-auction/market/<int:session_id>/undo/", views.admin_market_undo, name="admin_market_undo"),
+    path("admin-auction/trades/settings/", views.admin_trade_settings, name="admin_trade_settings"),
+    path("admin-auction/trades/<int:trade_id>/decide/", views.admin_trade_decide, name="admin_trade_decide"),
     # Internet access (Cloudflare quick tunnel) + the remote console PIN gate.
     path("admin-auction/remote/", views.admin_remote_status, name="admin_remote_status"),
     path("admin-auction/remote/console/", views.admin_remote_page, name="admin_remote_page"),
@@ -132,6 +134,10 @@ urlpatterns = [
     path("app/mercato/", views.app_mercato, name="app_mercato"),
     path("app/mercato/bid/", views.app_market_bid, name="app_market_bid"),
     path("app/mercato/bid/delete/", views.app_market_delete_bid, name="app_market_delete_bid"),
+    path("app/scambi/", views.app_scambi, name="app_scambi"),
+    path("app/scambi/proponi/", views.app_trade_propose, name="app_trade_propose"),
+    path("app/scambi/<int:trade_id>/rispondi/", views.app_trade_respond, name="app_trade_respond"),
+    path("app/scambi/<int:trade_id>/ritira/", views.app_trade_cancel, name="app_trade_cancel"),
     path("app/altro/", views.app_altro, name="app_altro"),
     path("app/altro/pin/", views.app_update_pin, name="app_update_pin"),
 

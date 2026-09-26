@@ -3,6 +3,7 @@ import json
 from decimal import Decimal, InvalidOperation
 
 from django.conf import settings
+from django.contrib import messages
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
@@ -33,7 +34,32 @@ def participant_release_player(request, player_id):
         auction = Auction.objects.filter(pk=auction_id).first()
         if auction is not None:
             broadcast_state(auction)
+    if _wants_html(request):
+        # Plain form post from the Rosa page: go back there with a message
+        # instead of leaving the manager on a raw JSON page.
+        if result.get("ok"):
+            messages.success(
+                request,
+                f"{result['player_name']} svincolato: +{Decimal(result['refund']):.0f} FM.",
+            )
+        else:
+            messages.error(request, _RELEASE_ERRORS.get(result.get("error"), "Svincolo non riuscito."))
+        return redirect("app_rosa")
     return JsonResponse(result, status=200 if result.get("ok") else 400)
+
+
+_RELEASE_ERRORS = {
+    "player_not_found": "Calciatore non trovato.",
+    "not_owned": "Il calciatore è già svincolato.",
+    "forbidden": "Puoi svincolare solo i calciatori della tua rosa.",
+}
+
+
+def _wants_html(request):
+    return (
+        request.headers.get("X-Requested-With") != "XMLHttpRequest"
+        and "text/html" in request.headers.get("Accept", "")
+    )
 
 
 def _auction_for_join(participant, wanted_id, joinable):

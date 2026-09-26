@@ -10,7 +10,8 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.views.decorators.http import require_POST
 
-from ..models import Auction, League, MarketBid, MarketSession, Participant, Player
+from ..models import Auction, League, MarketBid, MarketSession, Participant, Player, Trade
+from ..services.trade import decide_trade
 from ..services.market import (
     plan_market_resolution,
     resolve_market_session,
@@ -109,6 +110,15 @@ def admin_market_dashboard(request):
                 .order_by("player__role", "player__name", "-amount", "priority")
             )
 
+    trades_pending = []
+    trades_recent = []
+    if league:
+        trades = Trade.objects.filter(league=league).select_related("proposer", "receiver").prefetch_related(
+            "proposer_players", "receiver_players"
+        )
+        trades_pending = list(trades.filter(status=Trade.Status.ACCEPTED))
+        trades_recent = list(trades.exclude(status=Trade.Status.ACCEPTED)[:10])
+
     results = None
     is_preview = False
     if selected_session:
@@ -129,6 +139,8 @@ def admin_market_dashboard(request):
             "participants_stats": participants_stats,
             "bids_list": bids_list,
             "results": results,
+            "trades_pending": trades_pending,
+            "trades_recent": trades_recent,
             "is_preview": is_preview,
             "console_section": "Mercato Buste",
             "console_active": "market",
@@ -281,3 +293,33 @@ def admin_market_undo(request, session_id):
     else:
         messages.error(request, res["message"])
     return redirect(_dashboard_url(request, session))
+
+
+@staff_member_required
+@require_POST
+def admin_trade_settings(request):
+    """Enable/disable trades for the league and whether they need ratification."""
+    league = target_league(request) or current_league(request)
+    if league is None or not user_can_manage_league(request.user, league):
+        return HttpResponseForbidden(_FORBIDDEN_MSG)
+    league.trades_enabled = request.POST.get("trades_enabled") == "1"
+    league.trades_need_approval = request.POST.get("trades_need_approval") == "1"
+    league.save(update_fields=["trades_enabled", "trades_need_approval", "updated_at"])
+    messages.success(request, "Impostazioni scambi salvate.")
+    return redirect(_dashboard_url(request, league_id=league.id))
+
+
+@staff_member_required
+@require_POST
+def admin_trade_decide(request, trade_id):
+    """Ratify (execute) or veto a trade both teams accepted."""
+    trade = get_object_or_404(Trade.objects.select_related("league"), pk=trade_id)
+    if not user_can_manage_league(request.user, trade.league):
+        return HttpResponseForbidden(_FORBIDDEN_MSG)
+    approve = request.POST.get("action") == "approve"
+    res = decide_trade(trade.id, approve, note=(request.POST.get("note") or "").strip())
+    if res["ok"]:
+        messages.success(request, "Scambio ratificato ed eseguito." if approve else "Scambio bocciato.")
+    else:
+        messages.error(request, res["message"])
+    return redirect(_dashboard_url(request, league_id=trade.league_id))

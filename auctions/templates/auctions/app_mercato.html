@@ -109,6 +109,17 @@
 </a>
 {% endif %}
 
+{% if trades_enabled %}
+<a class="a-cta" href="{% url 'app_scambi' %}" style="margin-bottom:14px">
+    <svg class="ic"><use href="#i-swap"/></svg>
+    <span class="t">
+        <b>Scambi{% if incoming_trades %} · {{ incoming_trades }} da valutare{% endif %}</b>
+        <span>Proponi calciatori e crediti alle altre squadre</span>
+    </span>
+    <span class="go">›</span>
+</a>
+{% endif %}
+
 <!-- Sessione di mercato a buste (aperta, oppure l'ultima chiusa/scrutinata) -->
 {% if market_session %}
 <div class="market-banner">
