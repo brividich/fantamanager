@@ -49,6 +49,10 @@ class League(models.Model):
     slots_gk  = models.PositiveIntegerField(default=3)
     slots_out = models.PositiveIntegerField(default=22)
 
+    # Scambi tra squadre: ammessi? e, se sì, serve la ratifica dell'admin?
+    trades_enabled = models.BooleanField(default=True)
+    trades_need_approval = models.BooleanField(default=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

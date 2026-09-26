@@ -170,9 +170,10 @@
     <summary><svg class="ic"><use href="#i-info"/></svg> Come funziona il Mercato a Buste <span class="chev">▼</span></summary>
     <div class="howto-body">
         <ol>
-            <li><b>Crea una sessione</b> impostando la data/ora di chiusura, l'opzione per il taglio condizionato (svincolo contestuale per fare spazio e recuperare crediti) ed eventuali limiti d'acquisto per ruolo.</li>
-            <li>I partecipanti accedono da <b>App &rarr; Mercato &rarr; Buste di Riparazione</b>, consultano gli svincolati e inviano le loro buste segrete con importo e priorità di scelta.</li>
-            <li>Al termine, premi <b>▶ Scrutina Buste</b>: l'algoritmo valuta tutte le offerte atomicamente, assegna i giocatori all'offerta più alta, esegue i tagli condizionati, deduce i crediti e genera lo storico completo dei movimenti.</li>
+            <li><b>Crea una sessione</b>: apertura (subito o programmata), chiusura automatica, taglio condizionato e limiti d'acquisto per ruolo.</li>
+            <li>I partecipanti accedono da <b>App &rarr; Mercato</b>, consultano gli svincolati e inviano le buste segrete con importo e priorità (1 = obiettivo principale).</li>
+            <li>Usa <b>Anteprima spoglio</b> per vedere l'esito senza assegnare nulla, poi <b>▶ Scrutina Buste</b>. Ogni calciatore va all'offerta più alta valida; le buste di ciascuno vengono valutate in ordine di priorità, ricontrollando crediti, slot della rosa, tetti per ruolo e tagli.</li>
+            <li>I <b>pari merito</b> si risolvono scegliendo il vincitore o con un sorteggio. Uno spoglio sbagliato si può <b>annullare</b> finché le rose coinvolte non sono cambiate.</li>
         </ol>
     </div>
 </details>
@@ -561,6 +562,65 @@
         {% endif %}
     </div>
 </div>
+
+<!-- Scambi tra squadre -->
+<div class="section-label" style="margin-top:28px"><span class="dot"></span>Scambi tra squadre</div>
+{% if current_league %}
+<div class="panel" style="margin-bottom:20px">
+    <form method="post" action="{% url 'admin_trade_settings' %}" style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;font-size:13px">
+        {% csrf_token %}
+        <input type="hidden" name="league_id" value="{{ current_league.id }}">
+        <label style="display:flex;gap:8px;align-items:center;cursor:pointer">
+            <input type="checkbox" name="trades_enabled" value="1"{% if current_league.trades_enabled %} checked{% endif %}> Scambi attivi
+        </label>
+        <label style="display:flex;gap:8px;align-items:center;cursor:pointer">
+            <input type="checkbox" name="trades_need_approval" value="1"{% if current_league.trades_need_approval %} checked{% endif %}> Richiedi la ratifica dell'admin
+        </label>
+        <button type="submit" class="btn btn-secondary" style="font-size:12px">Salva</button>
+    </form>
+
+    <h3 style="margin:18px 0 10px;font-size:15px">Da ratificare ({{ trades_pending|length }})</h3>
+    {% if trades_pending %}
+    <div class="table-scroll">
+        <table>
+            <thead><tr><th>Scambio</th><th>Cede</th><th>Riceve</th><th></th></tr></thead>
+            <tbody>
+            {% for t in trades_pending %}
+                <tr>
+                    <td><b>{{ t.proposer.display_name }}</b> ⇄ <b>{{ t.receiver.display_name }}</b><div class="muted" style="font-size:11px">{{ t.created_at|date:"d/m H:i" }}{% if t.message %} · “{{ t.message }}”{% endif %}</div></td>
+                    <td style="font-size:12px">{% for p in t.proposer_players.all %}{{ p.role }} {{ p.name }}<br>{% endfor %}{% if t.proposer_credits %}<b>{{ t.proposer_credits|floatformat:0 }} FM</b>{% endif %}</td>
+                    <td style="font-size:12px">{% for p in t.receiver_players.all %}{{ p.role }} {{ p.name }}<br>{% endfor %}{% if t.receiver_credits %}<b>{{ t.receiver_credits|floatformat:0 }} FM</b>{% endif %}</td>
+                    <td style="white-space:nowrap">
+                        <form method="post" action="{% url 'admin_trade_decide' t.id %}" style="display:inline">
+                            {% csrf_token %}<input type="hidden" name="action" value="approve">
+                            <button type="submit" class="btn-action btn-resolve" style="padding:6px 10px;font-size:12px">Ratifica</button>
+                        </form>
+                        <form method="post" action="{% url 'admin_trade_decide' t.id %}" style="display:inline" onsubmit="return confirm('Bocciare lo scambio?');">
+                            {% csrf_token %}<input type="hidden" name="action" value="veto">
+                            <button type="submit" class="btn-action btn-danger" style="padding:6px 10px;font-size:12px">Boccia</button>
+                        </form>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="muted" style="font-size:13px">Nessuno scambio in attesa di ratifica.</div>
+    {% endif %}
+
+    {% if trades_recent %}
+    <details style="margin-top:14px">
+        <summary style="cursor:pointer;font-size:13px;font-weight:700">Ultimi scambi</summary>
+        <ul style="font-size:12.5px;margin:8px 0 0;padding-left:18px">
+            {% for t in trades_recent %}
+            <li><b>{{ t.proposer.display_name }}</b> ⇄ <b>{{ t.receiver.display_name }}</b> · {{ t.get_status_display }} <span class="muted">({{ t.created_at|date:"d/m H:i" }}){% if t.status_note %} — {{ t.status_note }}{% endif %}</span></li>
+            {% endfor %}
+        </ul>
+    </details>
+    {% endif %}
+</div>
+{% endif %}
 
 <!-- Modal Creazione Nuova Sessione -->
 <dialog id="modal-new-session" style="border:1px solid var(--line);border-radius:14px;background:var(--card-bg,#181d28);color:var(--ink);padding:24px;max-width:540px;width:90%">

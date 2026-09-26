@@ -94,6 +94,12 @@ from .queue import (
     postpone_queue_item,
     prioritize_queue_item,
 )
+from .trade import (
+    cancel_trade,
+    decide_trade,
+    propose_trade,
+    respond_trade,
+)
 from .market import (
     delete_market_bid,
     get_participant_market_bids,
@@ -168,6 +174,11 @@ __all__ = [
     "sealed_tick",
     "open_sealed_now",
     "sealed_status",
+    # trade
+    "propose_trade",
+    "respond_trade",
+    "cancel_trade",
+    "decide_trade",
     # market
     "place_market_bid",
     "delete_market_bid",

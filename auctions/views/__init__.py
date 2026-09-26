@@ -56,6 +56,8 @@ from .admin_market import (
     admin_market_settle_tie,
     admin_market_status,
     admin_market_undo,
+    admin_trade_decide,
+    admin_trade_settings,
 )
 from .admin_fantapazz import (
     _fp_collect_synced_cookie,
@@ -130,6 +132,10 @@ from .app import (
     app_market_bid,
     app_market_delete_bid,
     app_mercato,
+    app_scambi,
+    app_trade_cancel,
+    app_trade_propose,
+    app_trade_respond,
     app_rosa,
     app_update_pin,
 )
@@ -324,6 +330,10 @@ __all__ = [
     "app_mercato",
     "app_market_bid",
     "app_market_delete_bid",
+    "app_scambi",
+    "app_trade_propose",
+    "app_trade_respond",
+    "app_trade_cancel",
     "app_altro",
     "app_formazione",
     "app_login",
@@ -337,6 +347,8 @@ __all__ = [
     "admin_market_delete",
     "admin_market_settle_tie",
     "admin_market_undo",
+    "admin_trade_settings",
+    "admin_trade_decide",
     # home
     "home_portal",
     "version_status_api",
