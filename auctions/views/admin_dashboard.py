@@ -12,7 +12,7 @@ from django.template.loader import render_to_string
 from django.views.decorators.http import require_POST
 
 from .. import remote, services
-from ..models import Auction, AuctionCycleResult, League, MarketSession, Participant, Player
+from ..models import Auction, AuctionCycleResult, Bid, League, MarketSession, Participant, Player
 from .common import (
     SESSION_AUCTION_KEY,
     SESSION_LEAGUE_KEY,
@@ -24,10 +24,13 @@ from .common import (
     _within_role,
     broadcast_state,
     current_auction,
+    forbidden_json,
+    managed_or_403,
     participant_join_url,
     participant_lan_join_url,
     staff_member_required,
     target_league,
+    user_can_manage,
 )
 
 
@@ -108,7 +111,7 @@ def admin_dashboard(request, league_id=None, hub=False, auction_id=None):
         selected = get_object_or_404(Auction, pk=selected_id)
         current_league = selected.league
         if not user.is_superuser:
-            if current_league and current_league.owner_id != user.id:
+            if current_league is None or current_league.owner_id != user.id:
                 return HttpResponseForbidden("Non hai i permessi per gestire le aste di questa lega.")
         if current_league is not None:
             request.session[SESSION_LEAGUE_KEY] = current_league.id
@@ -323,7 +326,9 @@ def admin_classifica_partial(request, auction_id):
     credit/roster figures and the table used to sit frozen at whatever it
     showed on the last full page load.
     """
-    auction = get_object_or_404(Auction, pk=auction_id)
+    auction, denied = managed_or_403(request, Auction, auction_id)
+    if denied:
+        return denied
     league = auction.league
     participants = Participant.objects.filter(league=league) if league else Participant.objects.all()
     players = Player.objects.filter(league=league) if league else Player.objects.all()
@@ -340,7 +345,9 @@ def admin_storico_partial(request, auction_id):
     JS whenever a round concludes, and by its manual "Aggiorna" button, so a
     knock-down or an admin svincolo/rifai-asta shows up without a full page
     reload (see refreshStorico() / applyState's cycle tracking)."""
-    auction = get_object_or_404(Auction, pk=auction_id)
+    auction, denied = managed_or_403(request, Auction, auction_id)
+    if denied:
+        return denied
     storico = list(
         auction.cycle_results.select_related("winner").order_by("-cycle")[:300]
     )
@@ -360,7 +367,9 @@ def admin_create_auction(request):
             return Decimal(default)
 
     player_id = request.POST.get("player_id")
-    player    = Player.objects.filter(pk=player_id).first() if player_id else None
+    player    = Player.objects.select_related("league").filter(pk=player_id).first() if player_id else None
+    if player is not None and not user_can_manage(request.user, player):
+        return forbidden_json()
     sp        = dec("starting_price", str(player.initial_price) if player else "1")
 
     mode = request.POST.get("mode", "").strip()
@@ -414,7 +423,9 @@ def _break_seconds(raw, fallback):
 @staff_member_required
 @require_POST
 def admin_edit_auction(request, auction_id):
-    auction = get_object_or_404(Auction, pk=auction_id)
+    auction, denied = managed_or_403(request, Auction, auction_id)
+    if denied:
+        return denied
 
     def dec(name, fallback):
         try:
@@ -481,11 +492,13 @@ def admin_control(request, auction_id, action):
         "resume": services.resume_auction,
         "close":  services.close_auction,
     }
+    auction, denied = managed_or_403(request, Auction, auction_id)
+    if denied:
+        return denied
     handler = handlers.get(action)
     if handler is None:
         return JsonResponse({"ok": False, "error": "unknown_action"}, status=400)
     if action == "start":
-        auction = get_object_or_404(Auction, pk=auction_id)
         if not services.listone_loaded(auction):
             return JsonResponse(
                 {"ok": False,
@@ -509,7 +522,9 @@ def admin_control(request, auction_id, action):
 @require_POST
 def admin_build_queue(request, auction_id):
     """(Re)build the running order from the current free-agent pool."""
-    auction = get_object_or_404(Auction, pk=auction_id)
+    auction, denied = managed_or_403(request, Auction, auction_id)
+    if denied:
+        return denied
     count = services.build_queue(auction)
     broadcast_state(auction)
     return JsonResponse({"ok": True, "pending": count,
@@ -520,7 +535,9 @@ def admin_build_queue(request, auction_id):
 @staff_member_required
 def admin_queue_preview(request, auction_id):
     """Get real-time pending queue items."""
-    auction = get_object_or_404(Auction, pk=auction_id)
+    auction, denied = managed_or_403(request, Auction, auction_id)
+    if denied:
+        return denied
     limit = int(request.GET.get("limit") or 20)
     items = services.get_queue_preview(auction, limit=limit)
     pending = auction.queue_items.filter(done=False).count()
@@ -531,7 +548,9 @@ def admin_queue_preview(request, auction_id):
 @require_POST
 def admin_queue_prioritize(request, auction_id):
     """Move a player to the very front of the pending queue."""
-    auction = get_object_or_404(Auction, pk=auction_id)
+    auction, denied = managed_or_403(request, Auction, auction_id)
+    if denied:
+        return denied
     player_id = request.POST.get("player_id")
     if not player_id:
         return JsonResponse({"ok": False, "error": "missing_player_id"}, status=400)
@@ -551,7 +570,9 @@ def admin_queue_prioritize(request, auction_id):
 @require_POST
 def admin_queue_postpone(request, auction_id):
     """Postpone a player to the end of their role band."""
-    auction = get_object_or_404(Auction, pk=auction_id)
+    auction, denied = managed_or_403(request, Auction, auction_id)
+    if denied:
+        return denied
     player_id = request.POST.get("player_id")
     if not player_id:
         return JsonResponse({"ok": False, "error": "missing_player_id"}, status=400)
@@ -571,7 +592,9 @@ def admin_queue_postpone(request, auction_id):
 @require_POST
 def admin_queue_exclude(request, auction_id):
     """Exclude a player from the queue."""
-    auction = get_object_or_404(Auction, pk=auction_id)
+    auction, denied = managed_or_403(request, Auction, auction_id)
+    if denied:
+        return denied
     player_id = request.POST.get("player_id")
     if not player_id:
         return JsonResponse({"ok": False, "error": "missing_player_id"}, status=400)
@@ -591,7 +614,14 @@ def admin_queue_exclude(request, auction_id):
 @require_POST
 def admin_call_player(request, auction_id):
     """CALL mode: put a specific free agent on the block."""
+    _auction, denied = managed_or_403(request, Auction, auction_id)
+    if denied:
+        return denied
     player_id = request.POST.get("player_id")
+    player = Player.objects.select_related("league").filter(pk=player_id).first() \
+        if str(player_id or "").isdigit() else None
+    if player is not None and not user_can_manage(request.user, player):
+        return forbidden_json()
     auction = services.call_player(auction_id, player_id)
     if auction is None:
         return JsonResponse({"ok": False, "error": "player_unavailable"}, status=400)
@@ -603,6 +633,9 @@ def admin_call_player(request, auction_id):
 @require_POST
 def admin_manual_step(request, auction_id):
     """MANUAL flow: step the running order forward / backward."""
+    _auction, denied = managed_or_403(request, Auction, auction_id)
+    if denied:
+        return denied
     direction = request.POST.get("direction", "next")
     if direction not in ("next", "prev", "next_role", "prev_role"):
         return JsonResponse({"ok": False, "error": "bad_direction"}, status=400)
@@ -621,6 +654,9 @@ def admin_manual_step(request, auction_id):
 @require_POST
 def admin_set_auto_advance(request, auction_id):
     """Regia toggle: in MANUAL, let un-bid lots expire and roll on by themselves."""
+    _auction, denied = managed_or_403(request, Auction, auction_id)
+    if denied:
+        return denied
     auction = services.set_auto_advance(auction_id, request.POST.get("on") == "1")
     broadcast_state(auction)
     return JsonResponse({"ok": True, "state": services.serialize_state(auction)})
@@ -630,6 +666,9 @@ def admin_set_auto_advance(request, auction_id):
 @require_POST
 def admin_confirm_advance(request, auction_id):
     """Regia gives the OK after a knocked-down lot closes on an auto-advancing flow."""
+    _auction, denied = managed_or_403(request, Auction, auction_id)
+    if denied:
+        return denied
     auction = services.reset_if_closed(auction_id)
     if auction is None:
         return JsonResponse({"ok": False, "error": "nothing_to_advance"}, status=400)
@@ -641,6 +680,9 @@ def admin_confirm_advance(request, auction_id):
 @require_POST
 def admin_force_close_lot(request, auction_id):
     """Regia: skip a lot nobody is bidding on, without waiting it out."""
+    _auction, denied = managed_or_403(request, Auction, auction_id)
+    if denied:
+        return denied
     auction = services.force_close_lot(auction_id)
     if auction.force_close_error:
         return JsonResponse({"ok": False, "error": auction.force_close_error}, status=409)
@@ -652,6 +694,9 @@ def admin_force_close_lot(request, auction_id):
 @require_POST
 def admin_open_sealed(request, auction_id):
     """Regia: manda il lotto in corso alle buste senza aspettare la soglia."""
+    _auction, denied = managed_or_403(request, Auction, auction_id)
+    if denied:
+        return denied
     auction = services.open_sealed_now(auction_id)
     if getattr(auction, "sealed_error", None):
         return JsonResponse({"ok": False, "error": auction.sealed_error}, status=409)
@@ -663,6 +708,9 @@ def admin_open_sealed(request, auction_id):
 @require_POST
 def admin_resolve_sealed(request, auction_id):
     """Regia: spoglio immediato delle buste, senza aspettare il tempo."""
+    _auction, denied = managed_or_403(request, Auction, auction_id)
+    if denied:
+        return denied
     auction = services.resolve_sealed(auction_id, force=True)
     if auction is None:
         return JsonResponse({"ok": False, "error": "sealed_not_open"}, status=409)
@@ -678,6 +726,9 @@ def admin_resolve_sealed(request, auction_id):
 @require_POST
 def admin_adjust_timer(request, auction_id):
     """Regista control: add/remove seconds from the running lot timer."""
+    _auction, denied = managed_or_403(request, Auction, auction_id)
+    if denied:
+        return denied
     try:
         delta = int(request.POST.get("delta", "0"))
     except (TypeError, ValueError):
@@ -695,6 +746,9 @@ def admin_adjust_timer(request, auction_id):
 @require_POST
 def admin_bid_for(request, auction_id):
     """Regista control: place a bid on behalf of a participant (absent bidder)."""
+    _auction, denied = managed_or_403(request, Auction, auction_id)
+    if denied:
+        return denied
     participant_id = request.POST.get("participant_id")
     increment = request.POST.get("increment")
     if not participant_id:
@@ -718,7 +772,9 @@ def admin_bid_for(request, auction_id):
 @require_POST
 def admin_announce(request, auction_id):
     """Push a short announcement banner to everyone in the auction room."""
-    auction = get_object_or_404(Auction, pk=auction_id)
+    auction, denied = managed_or_403(request, Auction, auction_id)
+    if denied:
+        return denied
     text = (request.POST.get("text") or "").strip()[:140]
     if not text:
         return JsonResponse({"ok": False, "error": "empty"}, status=400)
@@ -737,6 +793,9 @@ def admin_announce(request, auction_id):
 @staff_member_required
 @require_POST
 def admin_cancel_bid(request, bid_id):
+    bid = Bid.objects.select_related("auction__league").filter(pk=bid_id).first()
+    if bid is not None and not user_can_manage(request.user, bid.auction):
+        return forbidden_json()
     reason = request.POST.get("reason", "cancelled_by_admin")
     result = services.cancel_bid(bid_id, reason=reason)
     if not result["ok"]:
@@ -769,12 +828,11 @@ def admin_logs_tail(request):
 @require_POST
 def admin_auction_turns(request, auction_id):
     """Regia: chiamata a turno (5.02) — attiva con l'ordine di classifica, passa il turno, disattiva."""
-    from .common import user_can_manage_league
     from ..services.turns import default_order
 
-    auction = get_object_or_404(Auction.objects.select_related("league"), pk=auction_id)
-    if auction.league is not None and not user_can_manage_league(request.user, auction.league):
-        return JsonResponse({"ok": False, "error": "forbidden"}, status=403)
+    auction, denied = managed_or_403(request, Auction, auction_id)
+    if denied:
+        return denied
     action = request.POST.get("action")
     if action == "enable":
         auction.turn_order = default_order(auction.league) if auction.league else []

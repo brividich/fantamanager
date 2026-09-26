@@ -12,6 +12,7 @@ from .common import (
     broadcast_state,
     current_auction,
     current_league,
+    managed_or_403,
     staff_member_required,
     target_league,
 )
@@ -279,7 +280,10 @@ def admin_import_rose(request):
 @staff_member_required
 @require_POST
 def admin_delete_player(request, player_id):
-    Player.objects.filter(pk=player_id).delete()
+    player, denied = managed_or_403(request, Player, player_id)
+    if denied:
+        return denied
+    player.delete()
     return JsonResponse({"ok": True})
 
 
@@ -299,12 +303,18 @@ def admin_clear_players(request):
 @require_POST
 def admin_release_player(request, player_id):
     """Admin svincolo: free any owned player, refunding per the auction policy."""
+    _player, denied = managed_or_403(request, Player, player_id)
+    if denied:
+        return denied
     auction_id = request.POST.get("auction_id") or None
+    auction = None
+    if auction_id:
+        auction, denied = managed_or_403(request, Auction, auction_id)
+        if denied:
+            return denied
     result = services.release_player(player_id, auction_id=auction_id, by_admin=True)
-    if result.get("ok") and auction_id:
-        auction = Auction.objects.filter(pk=auction_id).first()
-        if auction is not None:
-            broadcast_state(auction)
+    if result.get("ok") and auction is not None:
+        broadcast_state(auction)
     return JsonResponse(result, status=200 if result.get("ok") else 400)
 
 
@@ -319,16 +329,23 @@ def admin_assign_player(request, player_id):
     participant_id = request.POST.get("participant_id")
     if not participant_id:
         return JsonResponse({"ok": False, "error": "Nessuna squadra selezionata"}, status=400)
+    for model, pk in ((Player, player_id), (Participant, participant_id)):
+        _obj, denied = managed_or_403(request, model, pk)
+        if denied:
+            return denied
+    auction_id = request.POST.get("auction_id") or None
+    auction = None
+    if auction_id:
+        auction, denied = managed_or_403(request, Auction, auction_id)
+        if denied:
+            return denied
     price = request.POST.get("price") or None
     result = services.assign_player(
         player_id, participant_id, price=price, by_admin=True,
         note=request.POST.get("note", ""),
     )
-    auction_id = request.POST.get("auction_id") or None
-    if result.get("ok") and auction_id:
-        auction = Auction.objects.filter(pk=auction_id).first()
-        if auction is not None:
-            broadcast_state(auction)
+    if result.get("ok") and auction is not None:
+        broadcast_state(auction)
     return JsonResponse(result, status=200 if result.get("ok") else 400)
 
 
