@@ -16,7 +16,6 @@ from .sealed import _SEALED_FIELDS, _sealed_triggered, _open_sealed
 logger = logging.getLogger("auctions.bidding")
 
 
-@transaction.atomic
 def gk_clubs_problem(participant, player):
     """Portieri (2.02): al massimo ``gk_max_clubs`` squadre di Serie A diverse."""
     league = participant.league
@@ -27,6 +26,7 @@ def gk_clubs_problem(participant, player):
     return player.team not in clubs and len(clubs) >= limit
 
 
+@transaction.atomic
 def place_bid(auction_id, participant_id, increment, *, user_agent="", ip_address=None):
     """Register a rilancio, or reject it with a single, predictable reason."""
     now = timezone.now()

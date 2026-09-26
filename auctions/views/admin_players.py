@@ -3,6 +3,7 @@ from django.core.paginator import Paginator
 from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from ..models import Auction, League, LeagueConfig, Participant, Player
@@ -206,8 +207,25 @@ def admin_import_players(request):
         "matched_owned": report["matched_owned"],
         "pruned": report["pruned"],
         "owned_not_in_listone": report["owned_not_in_listone"][:50],
+        "left_serie_a": _left_serie_a(league, report),
         "errors": errors[:10],
     })
+
+
+def _left_serie_a(league, report):
+    """Chi è in rosa ma non è più nel listone ufficiale (5.05) e, con API-Football
+    attiva, dove è andato: la ricerca parte da sola, per i primi segnalati."""
+    if league is None or not report.get("flagged_left_serie_a"):
+        return None
+    from ..services import abroad
+
+    detection = abroad.detect_all(league, limit=abroad.AUTO_DETECT_LIMIT)
+    return {
+        "flagged": report["flagged_left_serie_a"],
+        "found": len(detection["found"]),
+        "summary": abroad.detect_summary(detection),
+        "url": f"{reverse('admin_contracts')}?league={league.id}",
+    }
 
 
 _ROSE_SOURCE_LABELS = {

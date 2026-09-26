@@ -262,3 +262,183 @@ class UefaRankingTests(TestCase):
         body = resp.content.decode()
         self.assertIn("rifiutato la richiesta (403)", body)
         self.assertIn(uefa.RANKING_PAGE, body)
+
+
+class ApiFootballLookupTests(TestCase):
+    """Ricerca della destinazione: stagione in Serie A, ripiego sull'anagrafica, errori."""
+
+    def setUp(self):
+        apifootball._refused_seasons.clear()
+        self.addCleanup(apifootball._refused_seasons.clear)
+        patcher = mock.patch.dict(os.environ, {"APIFOOTBALL_KEY": "test", "APIFOOTBALL_SEASON": "2026"})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    GALATASARAY = {"response": [{"transfers": [
+        {"date": "2022-07-01", "teams": {"in": {"name": "Juventus"}, "out": {"name": "Fiorentina"}}},
+        {"date": "2026-08-20", "teams": {"in": {"name": "Galatasaray"}, "out": {"name": "Juventus"}}}]}]}
+
+    def test_search_term_from_listone_names(self):
+        self.assertEqual(apifootball._search_term("Martinez L."), ("Martinez", "L"))
+        self.assertEqual(apifootball._search_term("De Ketelaere"), ("Ketelaere", ""))
+        self.assertEqual(apifootball._search_term("Esposito F.P."), ("Esposito", "F"))
+        self.assertEqual(apifootball._search_term("Dusan Vlahovic"), ("Vlahovic", ""))
+        self.assertEqual(apifootball._search_term("Pio")[0], "")
+
+    def test_profiles_check_the_club_in_the_transfers(self):
+        def get(url, params=None, **kw):
+            if url.endswith("/players"):
+                return Resp({"response": []})
+            if url.endswith("/profiles"):
+                return Resp({"response": [
+                    {"player": {"id": 2, "firstname": "Marko", "lastname": "Vlahovic", "position": "Attacker"}},
+                    {"player": {"id": 9, "firstname": "Dusan", "lastname": "Vlahovic", "position": "Attacker"}}]})
+            if params == {"player": 2}:
+                return Resp({"response": [{"transfers": [
+                    {"date": "2025-07-01", "teams": {"in": {"name": "Partizan"}, "out": {"name": "OFK"}}}]}]})
+            return Resp(self.GALATASARAY)
+
+        # Senza iniziale si prova prima Marko: i suoi trasferimenti non passano dalla Juventus.
+        found, _ = apifootball.lookup("Vlahovic", "Juventus", "A", get=get)
+        self.assertEqual(found["club"], "Galatasaray")
+        found, reason = apifootball.lookup("Vlahovic", "Roma", "A", get=get)
+        self.assertIsNone(found)
+        self.assertIn("non trovato", reason)
+
+    def test_same_club_by_name_or_code(self):
+        self.assertTrue(apifootball.same_club("AC Milan", "Milan"))
+        self.assertTrue(apifootball.same_club("Hellas Verona", "Verona"))
+        self.assertTrue(apifootball.same_club("Juventus", "JUV"))
+        self.assertFalse(apifootball.same_club("Internacional", "Inter"))
+
+    def test_free_plan_falls_back_to_player_profiles(self):
+        calls = []
+
+        def get(url, params=None, **kw):
+            calls.append((url.rsplit("/", 1)[-1], dict(params)))
+            if url.endswith("/players"):
+                return Resp({"errors": {"plan": "Free plans do not have access to this season, try from 2021 to 2023."}})
+            if url.endswith("/profiles"):
+                return Resp({"response": [
+                    {"player": {"id": 1, "name": "A. Vlahovic", "firstname": "Andrea", "lastname": "Vlahovic",
+                                "position": "Defender"}},
+                    {"player": {"id": 2, "name": "M. Vlahovic", "firstname": "Marko", "lastname": "Vlahovic",
+                                "position": "Attacker"}},
+                    {"player": {"id": 9, "name": "D. Vlahović", "firstname": "Dušan", "lastname": "Vlahović",
+                                "position": "Attacker"}}]})
+            if params == {"player": 2}:
+                return Resp({"response": [{"transfers": [
+                    {"date": "2025-07-01", "teams": {"in": {"name": "Partizan"}, "out": {"name": "OFK"}}}]}]})
+            return Resp(self.GALATASARAY)
+
+        found, reason = apifootball.lookup("Vlahovic D.", "Juventus", "A", get=get)
+        self.assertEqual((found["club"], reason), ("Galatasaray", ""))
+        # Il difensore omonimo è scartato dal ruolo; si prova per primo chi ha l'iniziale giusta.
+        self.assertEqual([p for u, p in calls if u == "transfers"], [{"player": 9}])
+
+        # Le stagioni rifiutate non si richiedono più.
+        calls.clear()
+        apifootball.lookup("Vlahovic D.", "Juventus", "A", get=get)
+        self.assertNotIn("players", [u for u, _ in calls])
+
+    def test_player_still_at_his_club_is_not_a_departure(self):
+        def get(url, params=None, **kw):
+            if url.endswith("/players"):
+                return Resp({"response": [{"player": {"id": 7}, "statistics": [{"team": {"name": "Juventus"}}]}]})
+            return Resp({"response": [{"transfers": [
+                {"date": "2024-07-01", "teams": {"in": {"name": "Juventus"}, "out": {"name": "Fiorentina"}}}]}]})
+
+        found, reason = apifootball.lookup("Vlahovic", "Juventus", "A", get=get)
+        self.assertIsNone(found)
+        self.assertIn("Juventus", reason)
+
+    def test_bad_key_and_quota_stop_everything(self):
+        for errors in ({"token": "Error/Missing application key."}, {"requests": "You have reached the limit."}):
+            with self.assertRaises(apifootball.ApiFootballError):
+                apifootball.lookup("Vlahovic", "JUV", get=lambda *a, **k: Resp({"errors": errors}))
+
+    def test_unreachable_api_stops_everything(self):
+        import requests
+
+        def get(*a, **k):
+            raise requests.ConnectionError("no route")
+        with self.assertRaises(apifootball.ApiFootballError):
+            apifootball.lookup("Vlahovic", "JUV", get=get)
+        self.assertIsNone(apifootball.find_destination("Vlahovic", "JUV", get=get))
+
+
+class AutoDetectTests(TestCase):
+    """Dopo l'import del listone la destinazione si cerca da sola."""
+
+    def setUp(self):
+        self.admin = User.objects.create_user("adm", password="pw")
+        self.league = League.objects.create(name="L", owner=self.admin)
+        self.team = Participant.objects.create(display_name="A", league=self.league, credits=Decimal("1000"))
+        self.gone = Player.objects.create(name="Vlahovic", role="A", team="JUV", league=self.league,
+                                          owner=self.team, cost=Decimal("80"))
+        self.kept = Player.objects.create(name="Kean", role="A", team="FIO", league=self.league, owner=self.team)
+        patcher = mock.patch.dict(os.environ, {"APIFOOTBALL_KEY": "test"})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _ranking(self):
+        return [("Real Madrid", 1, "ESP"), ("Galatasaray", 25, "TUR")], ""
+
+    def test_detect_all_fills_club_and_downloads_the_ranking(self):
+        abroad.flag_player(self.gone.id)
+        report = abroad.detect_all(self.league, finder=lambda n, t: {"club": "Galatasaray SK"},
+                                   fetcher=self._ranking)
+        self.assertEqual([r["player_name"] for r in report["found"]], ["Vlahovic"])
+        self.gone.refresh_from_db()
+        self.assertEqual((self.gone.left_club, self.gone.left_rank_kind, self.gone.left_rank_pos),
+                         ("Galatasaray SK", "uefa", 25))
+        self.assertIn("ranking UEFA 25", abroad.detect_summary(report))
+
+    def test_detect_all_stops_when_the_api_is_down(self):
+        from ..providers.apifootball import ApiFootballError
+        abroad.flag_player(self.gone.id)
+        abroad.flag_player(self.kept.id)
+        calls = []
+
+        def finder(name, team):
+            calls.append(name)
+            raise ApiFootballError("limite di richieste API-Football raggiunto")
+        report = abroad.detect_all(self.league, finder=finder, fetcher=self._ranking)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(report["left"], 2)
+        self.assertIn("limite", abroad.detect_summary(report))
+
+    def test_without_key_nothing_is_called(self):
+        abroad.flag_player(self.gone.id)
+        with mock.patch.dict(os.environ, {"APIFOOTBALL_KEY": ""}):
+            report = abroad.detect_all(self.league, fetcher=lambda: 1 / 0)
+        self.assertIn("APIFOOTBALL_KEY", report["error"])
+
+    def test_listone_import_detects_departures(self):
+        import io
+        self.client.force_login(self.admin)
+        csv = io.BytesIO("Nome;Ruolo;Squadra;Quotazione\nKean;A;Fiorentina;20\n".encode())
+        csv.name = "listone.csv"
+        with mock.patch("auctions.providers.apifootball.lookup",
+                        return_value=({"club": "Galatasaray", "date": "2026-08-20"}, "")), \
+                mock.patch("auctions.providers.uefa.fetch", side_effect=lambda: self._ranking()):
+            resp = self.client.post(reverse("admin_import_players"),
+                                    {"league_id": self.league.id, "csv_file": csv, "prune": "0"})
+        data = resp.json()
+        self.assertEqual(data["left_serie_a"]["flagged"], 1)
+        self.assertEqual(data["left_serie_a"]["found"], 1)
+        self.assertIn(reverse("admin_contracts"), data["left_serie_a"]["url"])
+        self.gone.refresh_from_db()
+        self.assertEqual((self.gone.left_club, self.gone.left_rank_pos), ("Galatasaray", 25))
+
+    def test_contracts_page_detect_all_and_regia_todo(self):
+        from ..views.app_admin import league_admin_digest
+        abroad.flag_player(self.gone.id)
+        self.assertTrue(any("fuori dal listone" in t["title"] for t in league_admin_digest(self.league)))
+        self.client.force_login(self.admin)
+        url = reverse("admin_contracts") + f"?league={self.league.id}"
+        self.assertContains(self.client.get(url), "Rileva tutti (1)")
+        with mock.patch("auctions.providers.apifootball.lookup", return_value=(None, "giocatore non trovato")):
+            resp = self.client.post(reverse("admin_contracts_action"),
+                                    {"league_id": self.league.id, "action": "left_detect_all"}, follow=True)
+        self.assertContains(resp, "non trovati: Vlahovic")
