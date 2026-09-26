@@ -3,12 +3,14 @@ from django.contrib import messages
 from django.http import HttpResponseForbidden
 from django.shortcuts import redirect, render
 from django.urls import reverse
+from django.utils.text import capfirst
 from django.views.decorators.http import require_POST
 
 from .. import services
 from ..models import ContractEvent, Participant, Player
 from ..providers.apifootball import is_configured as apifootball_configured
 from ..providers.uefa import RANKING_PAGE as UEFA_RANKING_PAGE
+from ..services.abroad import UEFA_MAX_AGE_DAYS, uefa_ranking_date, uefa_ranking_stale
 from .common import current_league, manageable_leagues, staff_member_required, target_league, user_can_manage_league
 
 _FORBIDDEN = "Non hai i permessi per gestire i contratti di questa lega."
@@ -21,7 +23,7 @@ def _url(league):
 def _detected(res):
     where = (f" (ranking UEFA {res['position']}°)" if res.get("position")
              else " — posizione nel ranking da indicare")
-    extra = f" Ranking UEFA da caricare: {res['ranking_problem']}." if res.get("ranking_problem") else ""
+    extra = f" {capfirst(res['ranking_problem'])}." if res.get("ranking_problem") else ""
     return f"{res.get('player_name')}: destinazione {res.get('club')}{where}.{extra}"
 
 
@@ -32,6 +34,7 @@ def admin_contracts(request):
         return HttpResponseForbidden(_FORBIDDEN)
     teams = []
     events = []
+    uefa_saved_at = uefa_ranking_date() if league is not None else None
     if league is not None:
         players = sorted(
             Player.objects.filter(owner__league=league).select_related("owner"),
@@ -70,6 +73,9 @@ def admin_contracts(request):
         "listed": listed if league is not None else [],
         "flaggable": flaggable if league is not None else [],
         "uefa_count": UefaClubRank.objects.count() if league is not None else 0,
+        "uefa_saved_at": uefa_saved_at,
+        "uefa_stale": uefa_ranking_stale(uefa_saved_at),
+        "uefa_max_age": UEFA_MAX_AGE_DAYS,
         "uefa_ranking_page": UEFA_RANKING_PAGE,
         "apifootball": apifootball_configured() if league is not None else False,
         "to_detect": sum(1 for p in left if not p.left_club) if league is not None else 0,
