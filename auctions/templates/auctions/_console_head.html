@@ -104,7 +104,7 @@ Keeping this in one file is what makes the pages look like one product.
     <a class="fm-nav-link {% if console_active == 'teams' %}is-active{% endif %}" href="{% url 'admin_participants' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
         <svg class="ic"><use href="#i-shield"/></svg> Squadre</a>
     <a class="fm-nav-link {% if console_active == 'market' %}is-active{% endif %}" href="{% url 'admin_market_dashboard' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
-        <svg class="ic"><use href="#i-mail"/></svg> Buste</a>
+        <svg class="ic"><use href="#i-swap"/></svg> Mercato</a>
     <a class="fm-nav-link {% if console_active == 'contracts' %}is-active{% endif %}" href="{% url 'admin_contracts' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
         <svg class="ic"><use href="#i-doc"/></svg> Contratti</a>
     <a class="fm-nav-link {% if console_active == 'season' %}is-active{% endif %}" href="{% url 'admin_season' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">

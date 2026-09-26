@@ -1,9 +1,8 @@
-"""Admin views for Market Sessions (Buste di Mercato)."""
-from datetime import datetime
-from decimal import Decimal
+"""Admin views for the Mercato hub: sealed-envelope sessions, trades, repair auctions."""
+from datetime import datetime, timedelta
 
 from django.contrib import messages
-from django.db.models import Count, Q
+from django.db.models import Count
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -11,7 +10,9 @@ from django.utils.dateparse import parse_datetime
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
-from ..models import Auction, League, MarketBid, MarketSession, Participant, Player, Trade, TradeWindow
+from ..models import (
+    Auction, MarketBid, MarketSession, Participant, Player, RosterLog, Trade, TradeWindow,
+)
 from ..services.trade import decide_trade
 from ..services.market import (
     plan_market_resolution,
@@ -40,11 +41,17 @@ def _managed_session_or_403(request, session_id):
     return session, None
 
 
-def _dashboard_url(request, session=None, league_id=None):
+# The markets the hub switches between, in the order of its cards.
+MARKET_TABS = ("buste", "scambi", "asta", "movimenti")
+
+
+def _dashboard_url(request, session=None, league_id=None, tab=None):
     base = request.build_absolute_uri("/admin-auction/market/")
     if session is not None:
-        return f"{base}?league={session.league_id}&session={session.id}"
-    return f"{base}?league={league_id}"
+        url = f"{base}?league={session.league_id}&session={session.id}"
+    else:
+        url = f"{base}?league={league_id}"
+    return f"{url}&tab={tab}" if tab else url
 
 
 def _parse_local_datetime(raw):
@@ -63,14 +70,52 @@ def _parse_local_datetime(raw):
     return value
 
 
+# RosterLog actions grouped the way the «Movimenti» filter chips read them.
+_MOVE_KIND = {
+    RosterLog.Action.ASSIGN: "acquisti", RosterLog.Action.ADMIN_ASSIGN: "acquisti",
+    RosterLog.Action.RELEASE: "svincoli", RosterLog.Action.ADMIN_RELEASE: "svincoli",
+    RosterLog.Action.TRADE: "scambi", RosterLog.Action.EDIT: "altro",
+}
+
+
+def _pick_tab(request):
+    """The market shown under the cards: ?tab= when it names one, else Buste."""
+    tab = (request.GET.get("tab") or "").strip().lower()
+    return tab if tab in MARKET_TABS else "buste"
+
+
+def _buste_summary(sessions):
+    """One line for the Buste card: what needs the admin's eye first."""
+    by_status = {}
+    for s in sessions:
+        by_status.setdefault(s.status, s)  # sessions come newest first
+    S = MarketSession.Status
+    if S.OPEN in by_status:
+        s = by_status[S.OPEN]
+        return {"tone": "live", "label": "Aperta",
+                "text": f"{s.title}" + (f" · chiude il {timezone.localtime(s.closes_at):%d/%m %H:%M}" if s.closes_at else "")}
+    if S.CLOSED in by_status:
+        s = by_status[S.CLOSED]
+        return {"tone": "warn", "label": "Da scrutinare", "text": s.title}
+    if S.DRAFT in by_status:
+        s = by_status[S.DRAFT]
+        return {"tone": "info", "label": "Programmata",
+                "text": s.title + (f" · apre il {timezone.localtime(s.opens_at):%d/%m %H:%M}" if s.opens_at else "")}
+    if sessions:
+        return {"tone": "off", "label": "Chiuse", "text": f"Ultima: {sessions[0].title}"}
+    return {"tone": "off", "label": "Nessuna", "text": "Nessuna sessione creata"}
+
+
 @staff_member_required
 def admin_market_dashboard(request):
-    """Dashboard to manage market sessions, inspect submitted bids, and resolve envelopes."""
+    """The Mercato hub: one card per market (buste, scambi, asta di riparazione,
+    movimenti) and, below, the tools of the market that is selected."""
     leagues = manageable_leagues(request.user)
     league = current_league(request)
     if league is not None and not user_can_manage_league(request.user, league):
         return HttpResponseForbidden(_FORBIDDEN_MSG)
 
+    now = timezone.now()
     sessions = []
     selected_session = None
     participants_stats = []
@@ -78,17 +123,29 @@ def admin_market_dashboard(request):
 
     if league:
         sync_market_schedule(league)
-        sessions = MarketSession.objects.filter(league=league).order_by("-created_at")
+        sessions = list(
+            MarketSession.objects.filter(league=league)
+            .annotate(n_bids=Count("bids"))
+            .order_by("-created_at")
+        )
         sess_id = request.GET.get("session")
         if sess_id and sess_id.isdigit():
-            selected_session = sessions.filter(pk=int(sess_id)).first()
+            selected_session = next((s for s in sessions if s.id == int(sess_id)), None)
         if not selected_session:
             # Default to the most recent open session, or latest session
-            selected_session = sessions.filter(status=MarketSession.Status.OPEN).first() or sessions.first()
+            selected_session = (
+                next((s for s in sessions if s.status == MarketSession.Status.OPEN), None)
+                or (sessions[0] if sessions else None)
+            )
 
+    delivered = 0
     if selected_session:
-        # Build participant submission stats
-        participants = Participant.objects.filter(league=league).order_by("display_name")
+        # Build participant submission stats (with roster size for the Rosa column)
+        participants = (
+            Participant.objects.filter(league=league)
+            .annotate(roster_n=Count("roster"))
+            .order_by("display_name")
+        )
         bid_counts = dict(
             MarketBid.objects.filter(session=selected_session)
             .values("participant_id")
@@ -97,6 +154,7 @@ def admin_market_dashboard(request):
         )
         for p in participants:
             cnt = bid_counts.get(p.id, 0)
+            delivered += cnt > 0
             participants_stats.append({
                 "participant": p,
                 "bids_count": cnt,
@@ -106,7 +164,7 @@ def admin_market_dashboard(request):
         # Load bids: all bids if resolved or admin requested reveal
         show_all = request.GET.get("reveal") == "1" or selected_session.status == MarketSession.Status.RESOLVED
         if show_all:
-            bids_list = (
+            bids_list = list(
                 selected_session.bids.select_related("participant", "player", "release_player")
                 .order_by("player__role", "player__name", "-amount", "priority")
             )
@@ -114,6 +172,8 @@ def admin_market_dashboard(request):
     trades_pending = []
     trades_recent = []
     trade_windows = []
+    trades_proposed = trades_done = 0
+    window_now = window_next = None
     if league:
         trades = Trade.objects.filter(league=league).select_related("proposer", "receiver").prefetch_related(
             "proposer_players", "receiver_players"
@@ -121,6 +181,10 @@ def admin_market_dashboard(request):
         trades_pending = list(trades.filter(status=Trade.Status.ACCEPTED))
         trade_windows = list(TradeWindow.objects.filter(league=league))
         trades_recent = list(trades.exclude(status=Trade.Status.ACCEPTED)[:10])
+        trades_proposed = trades.filter(status=Trade.Status.PENDING).count()
+        trades_done = trades.filter(status=Trade.Status.COMPLETED).count()
+        window_now = next((w for w in trade_windows if w.opens_at <= now <= w.closes_at), None)
+        window_next = next((w for w in trade_windows if w.opens_at > now), None)
 
     results = None
     is_preview = False
@@ -131,23 +195,68 @@ def admin_market_dashboard(request):
             results = plan_market_resolution(selected_session.id)
             is_preview = True
 
+    # Asta di riparazione: the league's live auctions and the free agents left.
+    league_auctions = []
+    active_auction = None
+    free_by_role = []
+    free_total = 0
+    if league:
+        league_auctions = list(Auction.objects.filter(league=league).order_by("-created_at")[:12])
+        active_auction = next(
+            (a for a in league_auctions if a.status in (Auction.Status.LIVE, Auction.Status.PAUSED)), None
+        )
+        free = dict(
+            Player.objects.filter(league=league, owner__isnull=True)
+            .values("role").annotate(n=Count("id")).values_list("role", "n")
+        )
+        free_by_role = [(r, free.get(r, 0)) for r in "PDCA"]
+        free_total = sum(free.values())
+    repair_auctions = [a for a in league_auctions if a.mode == Auction.Mode.REPAIR_AUCTION]
+
+    # Movimenti: the roster log of this league's teams, newest first.
+    moves = []
+    moves_recent = 0
+    if league:
+        log = RosterLog.objects.filter(participant__league=league)
+        moves_recent = log.filter(created_at__gte=now - timedelta(days=30)).count()
+        for m in log[:80]:
+            m.kind = _MOVE_KIND.get(m.action, "altro")
+            # credits_delta is what the team spent: > 0 a cost, < 0 a refund.
+            m.spent = m.credits_delta if m.credits_delta > 0 else 0
+            m.refund = -m.credits_delta if m.credits_delta < 0 else 0
+            moves.append(m)
+
     return render(
         request,
         "auctions/admin_market.html",
         {
             "leagues": leagues,
             "current_league": league,
+            "tab": _pick_tab(request),
             "sessions": sessions,
             "selected_session": selected_session,
+            "buste_summary": _buste_summary(sessions),
             "participants_stats": participants_stats,
+            "delivered": delivered,
             "bids_list": bids_list,
             "results": results,
             "trades_pending": trades_pending,
             "trades_recent": trades_recent,
+            "trades_proposed": trades_proposed,
+            "trades_done": trades_done,
             "trade_windows": trade_windows,
-            "now": timezone.now(),
+            "window_now": window_now,
+            "window_next": window_next,
+            "league_auctions": league_auctions,
+            "repair_auctions": repair_auctions,
+            "active_auction": active_auction,
+            "free_by_role": free_by_role,
+            "free_total": free_total,
+            "moves": moves,
+            "moves_recent": moves_recent,
+            "now": now,
             "is_preview": is_preview,
-            "console_section": "Mercato Buste",
+            "console_section": "Mercato",
             "console_active": "market",
             "refund_modes": Auction.RefundMode.choices,
             "budget_rules": MarketSession.BudgetRule.choices,
@@ -339,7 +448,7 @@ def admin_trade_settings(request):
     league.trades_same_roles = request.POST.get("trades_same_roles") == "1"
     league.save(update_fields=["trades_enabled", "trades_need_approval", "trades_same_roles", "updated_at"])
     messages.success(request, "Impostazioni scambi salvate.")
-    return redirect(_dashboard_url(request, league_id=league.id))
+    return redirect(_dashboard_url(request, league_id=league.id, tab="scambi"))
 
 
 @staff_member_required
@@ -360,7 +469,7 @@ def admin_trade_decide(request, trade_id):
     if nxt and url_has_allowed_host_and_scheme(nxt, allowed_hosts={request.get_host()},
                                                require_https=request.is_secure()):
         return redirect(nxt)
-    return redirect(_dashboard_url(request, league_id=trade.league_id))
+    return redirect(_dashboard_url(request, league_id=trade.league_id, tab="scambi"))
 
 
 @staff_member_required
@@ -400,13 +509,13 @@ def admin_trade_window_add(request):
     closes_at = _parse_local_datetime(request.POST.get("closes_at"))
     if not opens_at or not closes_at or closes_at <= opens_at:
         messages.error(request, "Indica apertura e chiusura del periodo (la chiusura dopo l'apertura).")
-        return redirect(_dashboard_url(request, league_id=league.id))
+        return redirect(_dashboard_url(request, league_id=league.id, tab="scambi"))
     TradeWindow.objects.create(
         league=league, opens_at=opens_at, closes_at=closes_at,
         name=(request.POST.get("name") or "Periodo scambi").strip()[:80],
     )
     messages.success(request, "Periodo scambi aggiunto: fuori dai periodi gli scambi sono chiusi.")
-    return redirect(_dashboard_url(request, league_id=league.id))
+    return redirect(_dashboard_url(request, league_id=league.id, tab="scambi"))
 
 
 @staff_member_required
@@ -418,4 +527,4 @@ def admin_trade_window_delete(request, window_id):
     league_id = window.league_id
     window.delete()
     messages.info(request, "Periodo scambi eliminato.")
-    return redirect(_dashboard_url(request, league_id=league_id))
+    return redirect(_dashboard_url(request, league_id=league_id, tab="scambi"))

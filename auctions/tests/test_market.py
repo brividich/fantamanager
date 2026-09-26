@@ -594,6 +594,57 @@ class MarketAdminTemplateTests(TestCase):
         self.assertContains(resp, "Retegui")
 
 
+class MarketHubTests(TestCase):
+    """The Mercato page: one card per market, the chosen one shown below."""
+
+    def setUp(self):
+        self.client.force_login(User.objects.create_superuser("root", "root@x.local", "pw"))
+        self.league = League.objects.create(name="Lega H")
+        self.team = Participant.objects.create(display_name="Squadra H", league=self.league, credits=Decimal("100"))
+
+    def _get(self, qs=""):
+        return self.client.get(reverse("admin_market_dashboard") + f"?league={self.league.id}{qs}")
+
+    def _pane_hidden(self, resp, name):
+        tag = resp.content.decode().split(f'id="pane-{name}"', 1)[1].split(">", 1)[0]
+        return "hidden" in tag
+
+    def test_nav_says_mercato_and_buste_is_the_default_market(self):
+        resp = self._get()
+        self.assertContains(resp, "</svg> Mercato</a>")
+        self.assertFalse(self._pane_hidden(resp, "buste"))
+        for other in ("scambi", "asta", "movimenti"):
+            self.assertTrue(self._pane_hidden(resp, other))
+
+    def test_tab_param_picks_the_market_and_unknown_falls_back(self):
+        self.assertFalse(self._pane_hidden(self._get("&tab=asta"), "asta"))
+        self.assertTrue(self._pane_hidden(self._get("&tab=asta"), "buste"))
+        self.assertFalse(self._pane_hidden(self._get("&tab=nope"), "buste"))
+
+    def test_trade_settings_land_back_on_scambi(self):
+        resp = self.client.post(reverse("admin_trade_settings"), {"league_id": self.league.id, "trades_enabled": "1"})
+        self.assertTrue(resp["Location"].endswith("&tab=scambi"))
+
+    def test_movimenti_lists_the_league_roster_log(self):
+        RosterLog.objects.create(participant=self.team, participant_name="Squadra H", player_name="Kean",
+                                 player_role="A", action=RosterLog.Action.ASSIGN, credits_delta=Decimal("18"))
+        other = Participant.objects.create(display_name="Altrove", league=League.objects.create(name="Altra"))
+        RosterLog.objects.create(participant=other, participant_name="Altrove", player_name="Vlahovic",
+                                 player_role="A", action=RosterLog.Action.ASSIGN, credits_delta=Decimal("5"))
+        resp = self._get("&tab=movimenti")
+        self.assertContains(resp, "Kean")
+        self.assertContains(resp, "−18 FM")
+        self.assertNotContains(resp, "Vlahovic")
+
+    def test_asta_offers_a_repair_auction_and_the_wizard_preselects_it(self):
+        Player.objects.create(name="Svincolato", role="C", league=self.league)
+        resp = self._get("&tab=asta")
+        self.assertContains(resp, "mode=REPAIR_AUCTION")
+        self.assertContains(resp, f"status=free&role=C")
+        wizard = self.client.get(reverse("admin_auction_wizard") + f"?league={self.league.id}&mode=REPAIR_AUCTION")
+        self.assertContains(wizard, 'value="REPAIR_AUCTION" checked')
+
+
 class MarketAdminTenantIsolationTests(TestCase):
     """A league admin can only manage the market sessions of leagues they own."""
 
