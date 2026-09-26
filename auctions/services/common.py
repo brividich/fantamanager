@@ -147,7 +147,7 @@ def _check_roster_limits(auction, participant, new_amount):
     if not cfg.slot_limits:
         return None
 
-    owned_total = Player.objects.filter(owner=participant).count()
+    owned_total = Player.objects.filter(owner=participant, abroad_list=False).count()
 
     role = auction.player.role if auction.player_id else ""
     if role:
@@ -155,7 +155,7 @@ def _check_roster_limits(auction, participant, new_amount):
         # si contano tutti i ruoli che condividono lo stesso slot (vedi
         # ``League.slot_roles``). In Classic l'insieme è il singolo ruolo.
         owned_role = Player.objects.filter(
-            owner=participant, role__in=cfg.slot_roles(role)).count()
+            owner=participant, abroad_list=False, role__in=cfg.slot_roles(role)).count()
         if owned_role >= cfg.slots_for(role):
             return Reject.ROSTER_SLOT_FULL
 

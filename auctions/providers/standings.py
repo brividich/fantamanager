@@ -23,23 +23,37 @@ def _norm(s):
     return re.sub(r"[^a-z0-9]+", " ", s).strip()
 
 
+def _order_in(rows, wanted):
+    order = []
+    for row in rows:
+        text = _norm(row.get_text(" "))
+        hits = [pid for pid, name in wanted.items() if name and re.search(rf"(^| ){re.escape(name)}( |$)", text)]
+        # Una riga che nomina più squadre (es. una partita) non è una riga di classifica.
+        if len(hits) == 1 and hits[0] not in order:
+            order.append(hits[0])
+    return order
+
+
 def parse_ranking(html, teams):
-    """``teams`` = {participant_id: display_name}. Ritorna gli id in ordine o None."""
+    """``teams`` = {participant_id: display_name}. Ritorna gli id in ordine o None.
+
+    Prima cerca una tabella con tutte le squadre (una per riga); se la pagina
+    usa liste o div, prova con i figli diretti di ogni contenitore.
+    """
     wanted = {pid: _norm(name) for pid, name in teams.items()}
     soup = BeautifulSoup(html, "html.parser")
-    best = None
     for table in soup.find_all("table"):
-        order = []
-        for tr in table.find_all("tr"):
-            text = _norm(tr.get_text(" "))
-            hits = [pid for pid, name in wanted.items() if name and re.search(rf"(^| ){re.escape(name)}( |$)", text)]
-            # Una riga che nomina più squadre (es. una partita) non è una riga di classifica.
-            if len(hits) == 1 and hits[0] not in order:
-                order.append(hits[0])
+        order = _order_in(table.find_all("tr"), wanted)
         if len(order) == len(wanted):
-            best = order
-            break
-    return best
+            return order
+    for container in soup.find_all(["tbody", "ul", "ol", "div", "section"]):
+        children = [c for c in container.find_all(recursive=False) if getattr(c, "get_text", None)]
+        if len(children) < len(wanted):
+            continue
+        order = _order_in(children, wanted)
+        if len(order) == len(wanted):
+            return order
+    return None
 
 
 def fetch_remote_ranking(league, *, get=requests.get):

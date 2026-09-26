@@ -11,7 +11,7 @@ def lineup_io(participant):
     saved Formation — starters in slot order, bench = the remaining roster (the
     substitution pool, ordered by role then name). Used to feed the engine."""
     module, starter_ids = _formation_saved(participant)
-    owned = {p.id: p for p in Player.objects.filter(owner=participant).order_by("role", "name")}
+    owned = {p.id: p for p in Player.objects.filter(owner=participant, abroad_list=False).order_by("role", "name")}
     starters, seen = [], set()
     for pid in starter_ids:
         p = owned.get(pid) if pid else None      # slot vuoto = None nella lista

@@ -14,6 +14,7 @@ class ContractEvent(models.Model):
         NOT_RENEWED = "not_renewed", "Non rinnovato"
         SET         = "set",         "Durata impostata dall'admin"
         SEASON      = "season",      "Nuova stagione"
+        LEFT        = "left",        "Uscito dalla Serie A"
 
     league = models.ForeignKey(League, on_delete=models.CASCADE, related_name="contract_events")
     player = models.ForeignKey(Player, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")

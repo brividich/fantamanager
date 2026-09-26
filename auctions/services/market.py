@@ -290,7 +290,7 @@ class _Plan:
 
         self.owned = defaultdict(lambda: defaultdict(int))
         for owner_id, role in Player.objects.filter(
-            owner_id__in=list(self.participants)
+            owner_id__in=list(self.participants), abroad_list=False
         ).values_list("owner_id", "role"):
             self.owned[owner_id][role] += 1
         self.role_acquisitions = defaultdict(lambda: defaultdict(int))

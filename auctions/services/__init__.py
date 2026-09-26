@@ -94,6 +94,7 @@ from .queue import (
     postpone_queue_item,
     prioritize_queue_item,
 )
+from .abroad import compensation as abroad_compensation
 from .contracts import (
     close_renewals,
     contract_faces,
@@ -189,6 +190,7 @@ __all__ = [
     "open_sealed_now",
     "sealed_status",
     # contracts
+    "abroad_compensation",
     "roll_contract",
     "contract_faces",
     "contract_rules",

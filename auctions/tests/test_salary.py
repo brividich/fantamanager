@@ -173,6 +173,11 @@ class RemoteStandingsTests(TestCase):
         teams = {1: "Real Seravezza", 2: "Dinamo Viaritta", 3: "Poggio Saint Germain"}
         self.assertEqual(parse_ranking(html, teams), [2, 3, 1])
 
+    def test_parse_div_based_list(self):
+        html = """<div class="classifica"><div class="riga"><span>1</span><a>Real Seravezza</a><b>30</b></div>
+            <div class="riga"><span>2</span><a>Dinamo Viaritta</a><b>28</b></div></div>"""
+        self.assertEqual(parse_ranking(html, {5: "Dinamo Viaritta", 7: "Real Seravezza"}), [7, 5])
+
     def test_unknown_page_returns_none(self):
         self.assertIsNone(parse_ranking("<table><tr><td>Altro</td></tr></table>", {1: "Real Seravezza"}))
 

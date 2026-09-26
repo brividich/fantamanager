@@ -103,6 +103,18 @@ class Player(models.Model):
         "Participant", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
     )
 
+    # --- Usciti dalla Serie A (regolamento 5.05, 5.06, 5.09) --------------
+    # Segnalato quando sparisce dal listone ufficiale mentre è in una rosa.
+    left_serie_a_at = models.DateTimeField(null=True, blank=True)
+    # Destinazione rilevata/indicata e posizione nel ranking (UEFA club o FIFA).
+    left_club = models.CharField(max_length=120, blank=True)
+    left_rank_kind = models.CharField(max_length=5, blank=True)  # "uefa" / "fifa" / "free"
+    left_rank_pos = models.PositiveIntegerField(null=True, blank=True)
+    # Lista ceduti temporanei (5.09): resta della squadra fino a fine contratto,
+    # fuori dagli slot della rosa; alla fine vale una cessione all'estero.
+    abroad_list = models.BooleanField(default=False)
+    abroad_compensation = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+
     class Meta:
         ordering = ["role", "name"]
 

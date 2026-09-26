@@ -38,7 +38,7 @@ def _slot_problem(league, participant, gives, gets):
     """Why ``participant`` can't take this trade for roster slots, or ''."""
     if not league.slot_limits:
         return ""
-    owned = Counter(Player.objects.filter(owner=participant).values_list("role", flat=True))
+    owned = Counter(Player.objects.filter(owner=participant, abroad_list=False).values_list("role", flat=True))
     delta = Counter(p.role for p in gets)
     delta.subtract(Counter(p.role for p in gives))
     checked = set()
