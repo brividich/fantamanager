@@ -30,6 +30,48 @@
     .netlabel .muted { text-transform:none; letter-spacing:0; font-weight:500; }
     .empty-state { text-align:center; padding:34px 20px; color:var(--fm-text-muted); }
 
+    .flash { padding:10px 14px; border-radius:var(--fm-radius-sm); font-size:13px; margin-bottom:8px;
+        border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--fm-text); }
+    .flash.error { border-color:rgba(255,61,80,.45); background:rgba(255,61,80,.10); color:#ff8a95; }
+
+    /* Portal account (the coach's username/password login). */
+    .acccell { min-width:190px; }
+    .acc-user { font-weight:700; display:flex; align-items:center; gap:6px; }
+    .acc-user .ic { width:14px; height:14px; color:var(--fm-primary-light); flex:0 0 auto; }
+    .acc-meta { font-size:11.5px; color:var(--fm-text-muted); margin-top:2px; word-break:break-all; }
+    .acc-off { color:var(--fm-warning); font-weight:700; }
+    .acccell .fm-btn { margin-top:8px; }
+    .secret-box { border-color:rgba(22,217,104,.45); background:rgba(22,217,104,.07); margin-bottom:14px; }
+    .secret-box h3 { margin:0 0 4px; font-size:15px; }
+    .secret-grid { display:grid; grid-template-columns:auto 1fr; gap:6px 14px; align-items:center;
+        margin:12px 0 10px; font-size:13px; }
+    .secret-grid .k { font-size:10px; text-transform:uppercase; letter-spacing:.14em;
+        color:var(--fm-text-muted); font-weight:700; }
+    .secret-grid .code { font-size:14px; padding:4px 10px; user-select:all; justify-self:start; }
+
+    dialog.acc-dlg {
+        background:var(--fm-surface); color:var(--fm-text); border:1px solid var(--fm-border);
+        border-radius:var(--fm-radius-md); padding:0; width:min(480px, calc(100vw - 32px));
+        max-height:calc(100vh - 32px); box-shadow:0 24px 60px -12px rgba(0,0,0,.8);
+    }
+    dialog.acc-dlg::backdrop { background:rgba(2,8,18,.72); }
+    .acc-dlg-head { display:flex; align-items:center; gap:10px; padding:14px 18px;
+        border-bottom:1px solid var(--fm-border); }
+    .acc-dlg-head h3 { margin:0; font-size:16px; flex:1 1 auto; }
+    .acc-dlg-head .x { height:32px; width:32px; padding:0; }
+    .acc-dlg-body { padding:4px 18px 18px; }
+    .acc-sec { padding:14px 0; border-bottom:1px solid var(--fm-border); }
+    .acc-sec:last-child { border-bottom:0; padding-bottom:0; }
+    .acc-sec h4 { margin:0 0 2px; font-size:12px; text-transform:uppercase; letter-spacing:.12em;
+        color:var(--fm-primary-light); }
+    .acc-sec p { margin:4px 0 0; font-size:12.5px; color:var(--fm-text-secondary); line-height:1.5; }
+    .acc-sec label { margin-top:10px; }
+    .acc-sec .row-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+    .acc-lock { display:flex; gap:8px; align-items:flex-start; margin-top:14px; padding:10px 12px;
+        border-radius:var(--fm-radius-sm); background:rgba(255,181,38,.08);
+        border:1px solid rgba(255,181,38,.35); font-size:12.5px; color:var(--fm-text-secondary); }
+    .acc-lock .ic { width:16px; height:16px; color:var(--fm-warning); flex:0 0 auto; margin-top:1px; }
+
     /* Print: paper is white and QR codes need contrast — the dark theme stays
        on screen only. */
     @media print {
@@ -55,6 +97,8 @@
         .qr { width:104px !important; height:104px !important; padding:0 !important;
               background:#fff !important; filter:contrast(1.25); }
         .fm-meter { display:none !important; }
+        .acc-meta { color:#444 !important; }
+        .secret-box { display:none !important; }
         a { color:#000 !important; text-decoration:none; }
     }
 </style>
@@ -75,6 +119,28 @@
         <svg class="ic"><use href="#i-print"/></svg> Stampa</button>
 </div>
 
+{% if messages %}
+<div class="noprint" style="margin-bottom:14px">
+    {% for msg in messages %}<div class="flash {{ msg.tags }}" role="status">{{ msg }}</div>{% endfor %}
+</div>
+{% endif %}
+
+{% if account_secret %}
+<div class="fm-card secret-box noprint" id="account-secret">
+    <h3>Credenziali per «{{ account_secret.team }}»</h3>
+    <div class="muted" style="font-size:12.5px">Consegnale all'allenatore adesso: la password non verrà più mostrata
+        (se si perde, reimpostala da <b>Gestisci account</b>).</div>
+    <div class="secret-grid">
+        <span class="k">Accesso</span><span class="code">{{ portal_login_url }}</span>
+        <span class="k">Nome utente</span><span class="code">{{ account_secret.username }}</span>
+        <span class="k">Password</span><span class="code">{{ account_secret.password }}</span>
+    </div>
+    <button type="button" class="fm-btn fm-btn-secondary fm-btn-sm" id="copy-secret"
+            data-text="Accesso: {{ portal_login_url }}&#10;Nome utente: {{ account_secret.username }}&#10;Password: {{ account_secret.password }}">
+        <svg class="ic"><use href="#i-copy"/></svg> Copia credenziali</button>
+</div>
+{% endif %}
+
 <details class="howto noprint">
     <summary><svg class="ic"><use href="#i-shield"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
     <div class="howto-body">
@@ -84,6 +150,11 @@
                 {% if target_auction %}direttamente nell'asta <b>{{ target_auction.title }}</b>{% else %}già riconosciuto{% endif %}
                 come la sua squadra, senza digitare codici.</li>
             <li><b>Stampa</b> la pagina per avere i QR su carta la sera dell'asta.</li>
+            {% if accounts_ok %}
+            <li>Dalla colonna <b>Account portale</b> dai a ogni allenatore un <b>nome utente e una password</b>
+                per entrare nell'app da qualunque dispositivo: crealo (se lasci vuota la password la genero io),
+                collega quello che ha già, reimposta la password dimenticata o disattivalo.</li>
+            {% endif %}
             {% if remote_on %}
             <li>Con l'<b>accesso da internet</b> attivo ogni squadra ha due link: usa quello
                 <b>wifi di casa</b> per chi è nella stanza (più veloce e non passa da internet)
@@ -106,6 +177,7 @@
                     <th class="num">Spesi</th>
                     <th class="num">Residuo</th>
                     <th>Rosa</th>
+                    {% if accounts_ok %}<th>Account portale</th>{% endif %}
                     <th>Accesso</th>
                     <th class="noprint"></th>
                 </tr>
@@ -129,6 +201,28 @@
                         </div>
                         <div class="roles">P{{ r.counts.P }} D{{ r.counts.D }} C{{ r.counts.C }} A{{ r.counts.A }}</div>
                     </td>
+                    {% if accounts_ok %}
+                    <td class="acccell">
+                        {% if r.account %}
+                        <div class="acc-user"><svg class="ic"><use href="#i-user"/></svg>{{ r.account.username }}</div>
+                        {% if r.account.first_name or r.account.email %}
+                        <div class="acc-meta">{{ r.account.first_name }}{% if r.account.first_name and r.account.email %} · {% endif %}{{ r.account.email }}</div>
+                        {% endif %}
+                        <div class="acc-meta">
+                            {% if not r.account.is_active %}<span class="acc-off">disattivato</span> · {% endif %}
+                            {% if r.account.last_login %}ultimo accesso {{ r.account.last_login|date:"d/m/Y H:i" }}{% else %}mai entrato{% endif %}
+                        </div>
+                        <button type="button" class="fm-btn fm-btn-secondary fm-btn-sm noprint"
+                                data-open-dialog="acc-dlg-{{ r.p.id }}">
+                            <svg class="ic"><use href="#i-gear"/></svg> Gestisci account</button>
+                        {% else %}
+                        <div class="muted" style="font-size:12.5px">Nessun account</div>
+                        <button type="button" class="fm-btn fm-btn-primary fm-btn-sm noprint"
+                                data-open-dialog="acc-dlg-{{ r.p.id }}">
+                            <svg class="ic"><use href="#i-plus"/></svg> Crea account</button>
+                        {% endif %}
+                    </td>
+                    {% endif %}
                     <td class="linkcell">
                         {% if r.lan_join_url %}
                         <div class="netlabel">Wifi di casa <span class="muted">— usalo per chi è nella stanza</span></div>
@@ -163,4 +257,154 @@
     </div>
     {% endif %}
 </div>
+
+{% if accounts_ok %}
+{% for r in rows %}
+{% url 'admin_participant_account' r.p.id as account_url %}
+<dialog class="acc-dlg" id="acc-dlg-{{ r.p.id }}" aria-labelledby="acc-dlg-title-{{ r.p.id }}">
+    <div class="acc-dlg-head">
+        <h3 id="acc-dlg-title-{{ r.p.id }}">Account di «{{ r.p.display_name }}»</h3>
+        <button type="button" class="fm-btn fm-btn-ghost x" data-close-dialog aria-label="Chiudi">
+            <svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="acc-dlg-body">
+    {% if r.account %}
+        {% if r.account_lock %}
+        <div class="acc-lock"><svg class="ic"><use href="#i-lock"/></svg>
+            <span><b>{{ r.account.username }}</b>: {{ r.account_lock }}</span></div>
+        {% else %}
+        <form method="post" action="{{ account_url }}" class="acc-sec">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="update">
+            <h4>Dati di accesso</h4>
+            <label for="acc-u-{{ r.p.id }}">Nome utente</label>
+            <input id="acc-u-{{ r.p.id }}" name="username" value="{{ r.account.username }}" required minlength="3" maxlength="150" autocomplete="off">
+            <label for="acc-n-{{ r.p.id }}">Nome allenatore</label>
+            <input id="acc-n-{{ r.p.id }}" name="first_name" value="{{ r.account.first_name }}" maxlength="150" autocomplete="off">
+            <label for="acc-e-{{ r.p.id }}">Email (facoltativa, vale anche per entrare)</label>
+            <input id="acc-e-{{ r.p.id }}" type="email" name="email" value="{{ r.account.email }}" autocomplete="off">
+            <div class="row-actions"><button type="submit" class="fm-btn fm-btn-primary fm-btn-sm">
+                <svg class="ic"><use href="#i-save"/></svg> Salva</button></div>
+        </form>
+        <form method="post" action="{{ account_url }}" class="acc-sec">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="password">
+            <h4>Password</h4>
+            <p>Per l'allenatore che l'ha dimenticata. Lascia vuoto e ne genero una io, da consegnargli.</p>
+            <label for="acc-p-{{ r.p.id }}">Nuova password</label>
+            <input id="acc-p-{{ r.p.id }}" type="text" name="password" minlength="6" autocomplete="new-password"
+                   placeholder="vuota = la genero io">
+            <div class="row-actions"><button type="submit" class="fm-btn fm-btn-secondary fm-btn-sm">
+                <svg class="ic"><use href="#i-lock"/></svg> Reimposta password</button></div>
+        </form>
+        {% endif %}
+        <div class="acc-sec">
+            <h4>Collegamento</h4>
+            {% if r.account_lock %}
+            <p>Puoi sempre scollegarlo dalla squadra: l'account resta, ma non guida più «{{ r.p.display_name }}».</p>
+            {% else %}
+            <p><b>Disattiva</b> blocca l'accesso con password; <b>Scollega</b> lo toglie dalla squadra ma lo
+               tiene. In entrambi i casi il link e il PIN della squadra restano validi.</p>
+            {% endif %}
+            <div class="row-actions">
+                {% if not r.account_lock and r.account.pk != request.user.pk %}
+                <form method="post" action="{{ account_url }}">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="toggle_active">
+                    {% if r.account.is_active %}
+                    <button type="submit" class="fm-btn btn-warn fm-btn-sm">Disattiva accesso</button>
+                    {% else %}
+                    <button type="submit" class="fm-btn fm-btn-secondary fm-btn-sm">Riattiva accesso</button>
+                    {% endif %}
+                </form>
+                {% endif %}
+                <form method="post" action="{{ account_url }}"
+                      data-confirm="Scollegare l'account «{{ r.account.username }}» da «{{ r.p.display_name }}»?">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="unlink">
+                    <button type="submit" class="fm-btn fm-btn-secondary fm-btn-sm">
+                        <svg class="ic"><use href="#i-link"/></svg> Scollega</button>
+                </form>
+                {% if r.account_deletable %}
+                <form method="post" action="{{ account_url }}"
+                      data-confirm="Eliminare per sempre l'account «{{ r.account.username }}»? L'allenatore non potrà più entrare con quella password.">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="delete">
+                    <button type="submit" class="fm-btn fm-btn-danger fm-btn-sm">
+                        <svg class="ic"><use href="#i-trash"/></svg> Elimina account</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    {% else %}
+        <form method="post" action="{{ account_url }}" class="acc-sec">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create">
+            <h4>Crea un account</h4>
+            <p>L'allenatore entra nell'app con nome utente (o email) e password, da qualunque dispositivo.</p>
+            <label for="acc-cu-{{ r.p.id }}">Nome utente</label>
+            <input id="acc-cu-{{ r.p.id }}" name="username" value="{{ r.p.display_name|slugify }}" required minlength="3" maxlength="150" autocomplete="off">
+            <label for="acc-cn-{{ r.p.id }}">Nome allenatore (facoltativo)</label>
+            <input id="acc-cn-{{ r.p.id }}" name="first_name" maxlength="150" autocomplete="off">
+            <label for="acc-ce-{{ r.p.id }}">Email (facoltativa)</label>
+            <input id="acc-ce-{{ r.p.id }}" type="email" name="email" autocomplete="off">
+            <label for="acc-cp-{{ r.p.id }}">Password</label>
+            <input id="acc-cp-{{ r.p.id }}" type="text" name="password" minlength="6" autocomplete="new-password"
+                   placeholder="vuota = la genero io">
+            <div class="row-actions"><button type="submit" class="fm-btn fm-btn-primary fm-btn-sm">
+                <svg class="ic"><use href="#i-plus"/></svg> Crea e collega</button></div>
+        </form>
+        <form method="post" action="{{ account_url }}" class="acc-sec">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="link">
+            <h4>Oppure collega un account esistente</h4>
+            <p>Se l'allenatore si è già registrato sul portale.</p>
+            <label for="acc-li-{{ r.p.id }}">Nome utente o email</label>
+            <input id="acc-li-{{ r.p.id }}" name="identifier" required autocomplete="off">
+            <div class="row-actions"><button type="submit" class="fm-btn fm-btn-secondary fm-btn-sm">
+                <svg class="ic"><use href="#i-link"/></svg> Collega</button></div>
+        </form>
+    {% endif %}
+    </div>
+</dialog>
+{% endfor %}
+
+<script>
+(function () {
+    document.querySelectorAll("[data-open-dialog]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+            var dlg = document.getElementById(btn.getAttribute("data-open-dialog"));
+            if (dlg && dlg.showModal) dlg.showModal();
+        });
+    });
+    document.querySelectorAll("dialog.acc-dlg").forEach(function (dlg) {
+        dlg.querySelectorAll("[data-close-dialog]").forEach(function (b) {
+            b.addEventListener("click", function () { dlg.close(); });
+        });
+        // A click on the backdrop (outside the box) closes it too.
+        dlg.addEventListener("click", function (e) { if (e.target === dlg) dlg.close(); });
+    });
+    document.querySelectorAll("form[data-confirm]").forEach(function (f) {
+        f.addEventListener("submit", function (e) {
+            if (!window.confirm(f.getAttribute("data-confirm"))) e.preventDefault();
+        });
+    });
+    var copy = document.getElementById("copy-secret");
+    if (copy) {
+        copy.addEventListener("click", function () {
+            var text = copy.getAttribute("data-text");
+            var done = function () { if (window.showToast) showToast("Credenziali copiate", "info"); };
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(done);
+            } else {
+                var ta = document.createElement("textarea");
+                ta.value = text; document.body.appendChild(ta); ta.select();
+                try { document.execCommand("copy"); done(); } catch (err) {}
+                ta.remove();
+            }
+        });
+    }
+})();
+</script>
+{% endif %}
 {% endblock %}
