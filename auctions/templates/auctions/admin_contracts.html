@@ -9,8 +9,14 @@
     .ct-bar { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; font-size: 13px; }
     .ct-bar label { display: flex; gap: 6px; align-items: center; }
     .ct-in { padding: 7px 9px; border-radius: 7px; border: 1px solid var(--line); background: rgba(0,0,0,0.2); color: inherit; width: 90px; }
-    .ct-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 14px; }
-    .ct-team h3 { margin: 0 0 8px; font-size: 15px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .ct-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 14px; align-items: start; }
+    .ct-team h3 { margin: 0; font-size: 15px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .ct-team[open] h3 { margin-bottom: 8px; }
+    .ct-team > summary { cursor: pointer; list-style: none; }
+    .ct-team > summary::-webkit-details-marker { display: none; }
+    .ct-team > summary h3::before { content: "▸"; color: var(--muted); font-size: 12px; width: 10px; }
+    .ct-team[open] > summary h3::before { content: "▾"; }
+    .ct-teams-bar { display: flex; gap: 6px; align-items: center; justify-content: flex-end; margin-bottom: 8px; font-size: 12px; }
     .ct-pill { font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 999px; background: rgba(255,255,255,0.06); color: var(--muted); }
     .ct-pill.warn { background: rgba(234,179,8,0.15); color: #eab308; }
     .ct-pill.bad { background: rgba(239,68,68,0.15); color: #f87171; }
@@ -93,14 +99,20 @@
 </div>
 
 {% if current_league.contracts_enabled %}
+<div class="ct-teams-bar">
+    <span class="muted">Squadre</span>
+    <button type="button" class="ct-btn" data-teams="open">Espandi tutte</button>
+    <button type="button" class="ct-btn" data-teams="close">Comprimi tutte</button>
+</div>
 <div class="ct-grid">
     {% for t in teams %}
-    <section class="panel ct-team">
-        <h3>{{ t.team.display_name }}
+    <details class="panel ct-team" id="team-{{ t.team.id }}">
+        <summary><h3>{{ t.team.display_name }}
+            <span class="ct-pill">{{ t.players|length }} giocator{{ t.players|length|pluralize:"e,i" }}</span>
             {% if t.pending %}<span class="ct-pill" style="color:#3b82f6">{{ t.pending }} da tirare</span>{% endif %}
             {% if t.expired %}<span class="ct-pill bad">{{ t.expired }} scadut{{ t.expired|pluralize:"o,i" }}</span>{% endif %}
             {% if t.last_year %}<span class="ct-pill warn">{{ t.last_year }} all'ultimo anno</span>{% endif %}
-        </h3>
+        </h3></summary>
         {% for p in t.players %}
         <div class="ct-row">
             <span class="role-badge role-{{ p.role }}" style="width:18px;height:18px;font-size:10px">{{ p.role }}</span>
@@ -142,9 +154,36 @@
         {% empty %}
         <div class="muted" style="font-size:12px">Rosa vuota.</div>
         {% endfor %}
-    </section>
+    </details>
     {% endfor %}
 </div>
+<script>
+(function () {
+    // Chiuse all'apertura della pagina; dopo un'azione (Tira, Imposta…) si
+    // riaprono quelle che erano aperte, così non si perde il punto.
+    var teams = Array.prototype.slice.call(document.querySelectorAll("details.ct-team"));
+    var KEY = "ct-open-teams-{{ current_league.id }}";
+    try {
+        JSON.parse(sessionStorage.getItem(KEY) || "[]").forEach(function (id) {
+            var d = document.getElementById(id);
+            if (d) d.open = true;
+        });
+        sessionStorage.removeItem(KEY);
+    } catch (e) {}
+    document.addEventListener("submit", function () {
+        try {
+            sessionStorage.setItem(KEY, JSON.stringify(teams.filter(function (d) { return d.open; })
+                .map(function (d) { return d.id; })));
+        } catch (e) {}
+    }, true);
+    document.querySelectorAll("[data-teams]").forEach(function (b) {
+        b.addEventListener("click", function () {
+            var open = b.getAttribute("data-teams") === "open";
+            teams.forEach(function (d) { d.open = open; });
+        });
+    });
+})();
+</script>
 {% endif %}
 
 <div class="panel" style="margin-top:16px">
@@ -195,6 +234,14 @@
         </select>
         <button type="submit" class="ct-btn">Segnala uscita</button>
     </form>
+    {% if priced %}
+    <form method="post" action="{% url 'admin_contracts_action' %}" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px"
+          onsubmit="return confirm('Confermare {{ priced|length }} uscit{{ priced|length|pluralize:"a,e" }}? Le squadre incassano {{ priced_total|floatformat:0 }} FM in totale e perdono i giocatori.');">
+        {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="left_resolve_priced">
+        <button type="submit" class="ct-btn go">Conferma tutte con compenso ({{ priced|length }} · {{ priced_total|floatformat:0 }} FM)</button>
+        <span class="muted" style="font-size:11.5px">come «Conferma» su ognuna; restano da sistemare a mano quelle senza compenso{% if left|length > priced|length %} ({{ left|length }} segnalate, {{ priced|length }} con compenso){% endif %}</span>
+    </form>
+    {% endif %}
     {% for p in left %}
     <div class="ct-row" style="grid-template-columns:18px minmax(0,1fr) auto">
         <span class="role-badge role-{{ p.role }}" style="width:18px;height:18px;font-size:10px">{{ p.role }}</span>

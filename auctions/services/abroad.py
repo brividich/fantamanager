@@ -466,6 +466,26 @@ def resolve(player_id, outcome, *, club="", position=None):
     return {"ok": True, "amount": int(amount), "outcome": kind}
 
 
+
+def priced_departures(league):
+    """Segnalati con il compenso già calcolabile (tipo di ranking noto)."""
+    return (Player.objects.filter(owner__league=league, left_serie_a_at__isnull=False,
+                                  left_rank_kind__in=("uefa", "fifa", "free"))
+            .select_related("owner").order_by("owner__display_name", "name"))
+
+
+def resolve_priced(league):
+    """Conferma in blocco le uscite con il compenso calcolato, come «Conferma»
+    su ognuna: la squadra incassa e perde il giocatore. Le altre restano."""
+    done, total = [], 0
+    for player in list(priced_departures(league)):
+        team = player.owner.display_name
+        res = resolve(player.id, player.left_rank_kind, club=player.left_club, position=player.left_rank_pos)
+        if res.get("ok"):
+            done.append({"player_name": player.name, "team": team, "amount": res["amount"]})
+            total += res["amount"]
+    return {"ok": True, "done": done, "total": total}
+
 @transaction.atomic
 def release_from_list(player_id, *, participant_id=None):
     """5.09: svincolo dalla lista ceduti in sede d'asta → incassa il compenso."""

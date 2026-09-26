@@ -35,6 +35,7 @@ def admin_contracts(request):
     teams = []
     events = []
     uefa_saved_at = uefa_ranking_date() if league is not None else None
+    priced = []
     if league is not None:
         players = sorted(
             Player.objects.filter(owner__league=league).select_related("owner"),
@@ -61,6 +62,7 @@ def admin_contracts(request):
             p.preview = None
             if p.left_rank_kind:
                 p.preview = services.abroad_compensation(p.role, p.left_rank_kind, p.left_rank_pos)
+        priced = [p for p in left if p.preview is not None]
         listed = list(Player.objects.filter(owner__league=league, abroad_list=True).select_related("owner"))
         flaggable = list(Player.objects.filter(owner__league=league, abroad_list=False, left_serie_a_at__isnull=True)
                          .select_related("owner").order_by("owner__display_name", "role", "name"))
@@ -80,6 +82,8 @@ def admin_contracts(request):
         "apifootball": apifootball_configured() if league is not None else False,
         "to_detect": sum(1 for p in left if not p.left_club) if league is not None else 0,
         "roster_check": roster_check_state(league) if league is not None else None,
+        "priced": priced,
+        "priced_total": sum(p.preview for p in priced),
         "contract_faces": sorted(set(services.contract_faces(league))) if league else [1, 2, 3],
         "crules": services.contract_rules(league) if league else None,
         "roles": [("P", "Portieri"), ("D", "Difensori"), ("C", "Centrocampisti"), ("A", "Attaccanti")],
@@ -139,6 +143,21 @@ def admin_contracts_action(request):
                                       "la pagina si aggiorna da sola.")
         else:
             messages.warning(request, "Il controllo delle rose è già in corso.")
+        return redirect(_url(league))
+
+    if action == "left_resolve_priced":
+        from ..services import abroad
+        res = abroad.resolve_priced(league)
+        if res["done"]:
+            teams = {}
+            for row in res["done"]:
+                teams[row["team"]] = teams.get(row["team"], 0) + row["amount"]
+            n = len(res["done"])
+            messages.success(request, ("Confermata 1 uscita" if n == 1 else f"Confermate {n} uscite")
+                             + f": +{res['total']} FM in totale ("
+                             + ", ".join(f"{team} +{amount}" for team, amount in teams.items()) + ").")
+        else:
+            messages.error(request, "Nessuna uscita con il compenso calcolato da confermare.")
         return redirect(_url(league))
 
     if action in ("left_flag", "left_detect", "left_detect_all", "left_resolve", "list_release",
