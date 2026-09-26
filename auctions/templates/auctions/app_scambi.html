@@ -82,6 +82,12 @@
 
 <div class="a-card">
     <div class="a-label"><svg class="ic"><use href="#i-plus"/></svg> Nuovo scambio</div>
+    {% if not trade_window_open %}
+    <div class="sc-empty" style="color:#eab308">
+        Periodo scambi chiuso.{% if trade_window %} Il prossimo, <b>{{ trade_window.name }}</b>, apre il {{ trade_window.opens_at|date:"d/m/Y \a\l\l\e H:i" }}.{% endif %}
+    </div>
+    {% else %}
+    {% if trade_window %}<div class="sc-empty" style="padding-bottom:0">{{ trade_window.name }}: aperto fino al {{ trade_window.closes_at|date:"d/m/Y H:i" }}.</div>{% endif %}
     <form method="get" class="tr-form" style="padding-bottom:0">
         <div>
             <label for="with">Con quale squadra?</label>
@@ -135,11 +141,12 @@
             <input type="text" maxlength="200" name="message" id="message" class="tr-input" placeholder="Es. ti serve un difensore?">
         </div>
         <div class="muted" style="font-size:11.5px">
-            Rose e crediti vengono ricontrollati quando lo scambio viene eseguito.
+            {% if trades_same_roles %}Regola di lega: stesso numero di giocatori e stessi ruoli da entrambe le parti. {% endif %}Rose e crediti vengono ricontrollati quando lo scambio viene eseguito.
             {% if trades_need_approval %}Dopo l'accettazione serve la ratifica dell'admin.{% endif %}
         </div>
         <div class="tr-actions"><button type="submit" class="tr-btn ok">Invia proposta</button></div>
     </form>
+    {% endif %}
     {% endif %}
 </div>
 </div>

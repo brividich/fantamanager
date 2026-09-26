@@ -888,3 +888,130 @@ class AppMercatoListTests(TestCase):
         resp = self.client.get(reverse("app_home"))
         self.assertContains(resp, "Buste aperte: Buste Gennaio")
         self.assertContains(resp, "1 proposta di scambio")
+
+
+class RegolamentoBusteTests(TestCase):
+    """Regolamento 5.2: max offerte, più offerte sullo stesso giocatore,
+    pari ruolo obbligatorio, totale entro il budget, pari merito al primo."""
+
+    def setUp(self):
+        self.league = League.objects.create(name="Lega Lugnanese", slots_p=3, slots_d=8, slots_c=8, slots_a=6)
+        self.a = Participant.objects.create(display_name="Team A", league=self.league, credits=Decimal("200"))
+        self.b = Participant.objects.create(display_name="Team B", league=self.league, credits=Decimal("200"))
+        self.session = MarketSession.objects.create(
+            league=self.league, title="Buste", status=MarketSession.Status.OPEN,
+            max_bids=5, require_same_role_release=True,
+            budget_rule=MarketSession.BudgetRule.TOTAL, tie_break=MarketSession.TieBreak.FIRST,
+            release_refund_mode=Auction.RefundMode.NONE,
+        )
+        self.free = {n: Player.objects.create(name=n, role=r, league=self.league)
+                     for n, r in (("Boban", "C"), ("Raul", "A"), ("R.Carlos", "D"), ("Iniesta", "C"))}
+        self.cuts = {}
+        for team in (self.a, self.b):
+            for r in "CCADD":
+                pl = Player.objects.create(name=f"{team.display_name} {r}{len(self.cuts)}", role=r,
+                                           league=self.league, owner=team, cost=Decimal("5"))
+                self.cuts.setdefault((team.id, r), []).append(pl)
+
+    def _cut(self, team, role, i=0):
+        return self.cuts[(team.id, role)][i]
+
+    def _bid(self, team, name, amount, cut_index=0):
+        pl = self.free[name]
+        return place_market_bid(self.session.id, team.id, pl.id, amount,
+                                release_player_id=self._cut(team, pl.role, cut_index % len(self.cuts[(team.id, pl.role)])).id)
+
+    def _example(self, team, amounts):
+        for (name, amount), i in zip(amounts, range(5)):
+            res = self._bid(team, name, amount, cut_index=i)
+            self.assertTrue(res["ok"], res)
+
+    def test_example_from_the_rules(self):
+        # Team A: 1 + 10 + 2 + 35 + 100 = 148 (valide)
+        self._example(self.a, [("Boban", 1), ("Raul", 10), ("R.Carlos", 2), ("R.Carlos", 35), ("Iniesta", 100)])
+        # Team B: 99 + 10 + 2 + 35 + 100 = 246 > 200 → si annulla Iniesta (100)
+        self._example(self.b, [("Boban", 99), ("Raul", 10), ("R.Carlos", 2), ("R.Carlos", 35), ("Iniesta", 100)])
+        resolve_market_session(self.session.id)
+
+        b_iniesta = MarketBid.objects.get(participant=self.b, player=self.free["Iniesta"])
+        self.assertEqual(b_iniesta.status, MarketBid.Status.CANCELLED)
+        self.assertIn("superava il budget", b_iniesta.note)
+
+        owner = lambda n: Player.objects.get(pk=self.free[n].pk)
+        self.assertEqual(owner("Iniesta").owner, self.a)        # unica offerta valida
+        self.assertEqual(owner("Boban").owner, self.b)          # 99 > 1
+        self.assertEqual(owner("Boban").cost, Decimal("99"))
+        # R.Carlos: 35 (A) vs 35 (B) → pari merito, vince chi ha inserito prima (A)
+        self.assertEqual(owner("R.Carlos").owner, self.a)
+        self.assertEqual(owner("R.Carlos").cost, Decimal("35"))  # paga l'offerta vincente
+        a_low = MarketBid.objects.get(participant=self.a, player=self.free["R.Carlos"], amount=2)
+        self.assertEqual(a_low.status, MarketBid.Status.LOST)
+        self.assertIn("tua offerta più alta", a_low.note)
+        b_rc = MarketBid.objects.get(participant=self.b, player=self.free["R.Carlos"], amount=35)
+        self.assertIn("inserita prima", b_rc.note)
+        # Raul 10 vs 10 → vince A (prima)
+        self.assertEqual(owner("Raul").owner, self.a)
+
+    def test_every_purchase_replaces_a_same_role_player(self):
+        self._bid(self.a, "Iniesta", 20)
+        resolve_market_session(self.session.id)
+        cut = Player.objects.get(pk=self._cut(self.a, "C").pk)
+        self.assertIsNone(cut.owner)
+        counts = Player.objects.filter(owner=self.a, role="C").count()
+        self.assertEqual(counts, 2)  # 2 C prima, 1 tagliato, 1 acquistato
+
+    def test_max_bids(self):
+        self._example(self.a, [("Boban", 1), ("Raul", 1), ("R.Carlos", 1), ("R.Carlos", 2), ("Iniesta", 1)])
+        res = self._bid(self.a, "Boban", 3)
+        self.assertFalse(res["ok"])
+        self.assertIn("massimo di 5", res["message"])
+
+    def test_cut_is_required_and_same_role(self):
+        res = place_market_bid(self.session.id, self.a.id, self.free["Iniesta"].id, 10)
+        self.assertFalse(res["ok"])
+        self.assertEqual(res["error"], "release_required")
+        res = place_market_bid(self.session.id, self.a.id, self.free["Iniesta"].id, 10,
+                               release_player_id=self._cut(self.a, "A").id)
+        self.assertEqual(res["error"], "release_wrong_role")
+
+    def test_purchase_fails_if_the_cut_left_the_roster(self):
+        self._bid(self.a, "Iniesta", 20)
+        Player.objects.filter(pk=self._cut(self.a, "C").pk).update(owner=self.b)
+        resolve_market_session(self.session.id)
+        bid = MarketBid.objects.get(participant=self.a)
+        self.assertEqual(bid.status, MarketBid.Status.LOST)
+        self.assertIn("pari ruolo", bid.note)
+
+    def test_manual_tie_break_keeps_ties_for_the_admin(self):
+        self.session.tie_break = MarketSession.TieBreak.MANUAL
+        self.session.save()
+        self._bid(self.a, "Raul", 10)
+        self._bid(self.b, "Raul", 10)
+        summary = resolve_market_session(self.session.id)
+        self.assertEqual(summary["total_ties"], 1)
+
+    def test_admin_edits_rules(self):
+        root = User.objects.create_superuser("root", "r@x.local", "pw")
+        self.client.force_login(root)
+        self.client.post(reverse("admin_market_rules", args=[self.session.id]), {
+            "max_bids": "3", "budget_rule": "priority", "tie_break": "manual", "refund_mode": "current",
+        })
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.max_bids, 3)
+        self.assertEqual(self.session.budget_rule, "priority")
+        self.assertEqual(self.session.tie_break, "manual")
+        self.assertFalse(self.session.require_same_role_release)
+        self.assertEqual(self.session.release_refund_mode, "current")
+        page = self.client.get(reverse("admin_market_dashboard") + f"?league={self.league.id}&session={self.session.id}")
+        self.assertContains(page, "max 3 per squadra")
+
+    def test_app_shows_rules_and_same_role_choices(self):
+        s = self.client.session
+        s["participant_id"] = self.a.id
+        s.save()
+        self._bid(self.a, "Boban", 5)
+        resp = self.client.get(reverse("app_mercato"))
+        self.assertContains(resp, "1/5")
+        self.assertContains(resp, "pari ruolo")
+        self.assertContains(resp, 'data-same-role="1"')
+        self.assertNotContains(resp, "Priorità di scelta")

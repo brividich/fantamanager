@@ -52,6 +52,9 @@ class League(models.Model):
     # Scambi tra squadre: ammessi? e, se sì, serve la ratifica dell'admin?
     trades_enabled = models.BooleanField(default=True)
     trades_need_approval = models.BooleanField(default=True)
+    # Regolamento 5.3: ogni scambio sposta lo stesso numero di giocatori e
+    # gli stessi ruoli da una parte all'altra.
+    trades_same_roles = models.BooleanField(default=False)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -164,7 +164,12 @@
         {% endif %}
     </div>
     <div class="mb-rules">
-        <span>Tagli condizionati: <b>{% if market_session.allow_conditional_release %}Sì ({{ market_session.get_release_refund_mode_display }}){% else %}No{% endif %}</b></span>
+        {% if market_session.max_bids %}<span>Offerte: <b>{{ my_bids|length }}/{{ market_session.max_bids }}</b></span>{% endif %}
+        {% if market_session.budget_rule == "total" %}<span>Totale offerte <b>≤ budget</b></span>{% endif %}
+        {% if market_session.require_same_role_release %}<span>Ogni acquisto sostituisce un <b>pari ruolo</b></span>
+        {% else %}<span>Tagli condizionati: <b>{% if market_session.allow_conditional_release %}Sì{% else %}No{% endif %}</b></span>{% endif %}
+        {% if market_session.require_same_role_release or market_session.allow_conditional_release %}<span>Rimborso taglio: <b>{{ market_session.get_release_refund_mode_display|lower }}</b></span>{% endif %}
+        {% if market_session.tie_break == "first" %}<span>Pari merito: <b>vince chi offre prima</b></span>{% endif %}
         {% if market_session.max_acquisitions_p or market_session.max_acquisitions_d or market_session.max_acquisitions_c or market_session.max_acquisitions_a %}
         <span>Tetti acquisti:
             {% if market_session.max_acquisitions_p %}{{ market_session.max_acquisitions_p }}P {% endif %}
@@ -185,7 +190,7 @@
     {% if market_open and my_bids %}
     <div style="padding:0 14px 8px;font-size:12px;color:var(--muted);font-weight:600">
         Offerte totali: <b style="color:{% if my_bids_total > participant.remaining_credits %}#eab308{% else %}var(--ink){% endif %}">{{ my_bids_total }} FM</b>
-        su {{ participant.remaining_credits|floatformat:0 }} FM disponibili{% if my_bids_total > participant.remaining_credits %} — allo spoglio vale l'ordine di priorità{% endif %}
+        su {{ participant.remaining_credits|floatformat:0 }} FM disponibili{% if my_bids_total > participant.remaining_credits %}{% if market_session.budget_rule == "total" %} — oltre il budget: allo spoglio verranno annullate le offerte più alte finché il totale non rientra{% else %} — allo spoglio vale l'ordine di priorità{% endif %}{% endif %}
     </div>
     {% endif %}
     <div id="my-bids-list">
@@ -283,9 +288,9 @@
                 {{ pl.quota|floatformat:0 }} <small>FM</small>
             </div>
             {% if market_open %}
-            <button type="button" class="role-chip on fa-offer" style="cursor:pointer;border:none"
+            <button type="button" class="role-chip on fa-offer" style="cursor:pointer;border:none"{% if bids_left == 0 and not pl.id in my_bid_player_ids %} disabled title="Hai già usato tutte le offerte"{% endif %}
                     onclick="openBidModal({{ pl.id }}, '{{ pl.name|escapejs }}', '{{ pl.role }}', '{{ pl.team|escapejs }}', {{ pl.quota|floatformat:0 }})">
-                {% if pl.id in my_bid_player_ids %}Modifica{% else %}Offri{% endif %}
+                {% if pl.id in my_bid_player_ids and market_session.budget_rule != "total" %}Modifica{% elif bids_left == 0 %}Limite{% else %}Offri{% endif %}
             </button>
             {% endif %}
         </div>
@@ -335,6 +340,9 @@
                 <input type="number" id="bid-amount" name="amount" min="1" required style="font-size:18px;font-weight:900;color:var(--accent)" oninput="updateBudgetCalc()">
             </div>
 
+            {% if market_session.budget_rule == "total" %}
+            <input type="hidden" name="priority" value="1">
+            {% else %}
             <div class="form-group">
                 <label>Priorità di scelta</label>
                 <select name="priority" id="bid-priority">
@@ -345,14 +353,15 @@
                     <option value="5">5ª scelta</option>
                 </select>
             </div>
+            {% endif %}
 
-            {% if market_session.allow_conditional_release %}
+            {% if market_session.allow_conditional_release or market_session.require_same_role_release %}
             <div class="form-group">
-                <label>Taglio condizionato (opzionale)</label>
-                <select name="release_player_id" id="bid-release-player" onchange="updateBudgetCalc()">
-                    <option value="">-- Nessun taglio (mantieni rosa) --</option>
+                <label>{% if market_session.require_same_role_release %}Giocatore da sostituire (stesso ruolo, obbligatorio){% else %}Taglio condizionato (opzionale){% endif %}</label>
+                <select name="release_player_id" id="bid-release-player" onchange="updateBudgetCalc()"{% if market_session.require_same_role_release %} required data-same-role="1"{% endif %}>
+                    <option value="">{% if market_session.require_same_role_release %}-- Scegli chi tagliare --{% else %}-- Nessun taglio (mantieni rosa) --{% endif %}</option>
                     {% for rp in my_roster %}
-                    <option value="{{ rp.id }}" data-refund="{{ rp.market_refund }}">
+                    <option value="{{ rp.id }}" data-refund="{{ rp.market_refund }}" data-role="{{ rp.role }}">
                         Taglia {{ rp.name }} ({{ rp.role }} - {{ rp.team }})
                         [+{{ rp.market_refund }} FM]
                     </option>
@@ -400,8 +409,15 @@
         rEl.textContent = role;
         rEl.className = "role-badge role-" + role;
         document.getElementById("bid-amount").value = Math.max(1, quota);
-        if (document.getElementById("bid-release-player")) {
-            document.getElementById("bid-release-player").value = "";
+        const rel = document.getElementById("bid-release-player");
+        if (rel) {
+            rel.value = "";
+            // Con la sostituzione obbligatoria si può tagliare solo un pari ruolo.
+            if (rel.dataset.sameRole) {
+                Array.from(rel.options).forEach(o => {
+                    if (o.value) o.hidden = o.disabled = o.dataset.role !== role;
+                });
+            }
         }
         updateBudgetCalc();
         document.getElementById("bid-modal").classList.add("open");
