@@ -1,0 +1,26 @@
+{% if plan.slot_limits %}
+<div class="slot-strip" aria-label="Slot della rosa">
+    {% for r in plan.roles %}
+    <div class="slot-cell{% if r.free == 0 %} full{% endif %}">
+        <span class="slot-lbl">{{ r.label }}</span>
+        <b>{{ r.owned }}<small>/{{ r.slots }}</small></b>
+    </div>
+    {% endfor %}
+    {% if not hide_credits %}
+    <div class="slot-cell">
+        <span class="slot-lbl">Crediti</span>
+        <b>{{ plan.remaining_credits|floatformat:0 }}<small> FM</small></b>
+    </div>
+    {% endif %}
+</div>
+<style>
+    .slot-strip { display: flex; gap: 6px; margin-bottom: 14px; overflow-x: auto; }
+    .slot-cell { flex: 1; min-width: 58px; padding: 8px 10px; border-radius: 10px; background: var(--panel-2);
+                 border: 1px solid var(--line); text-align: center; }
+    .slot-cell b { display: block; font-family: var(--display); font-size: 16px; color: var(--ink); }
+    .slot-cell small { font-size: 11px; color: var(--muted); font-weight: 600; }
+    .slot-cell.full { border-color: rgba(234,179,8,.45); }
+    .slot-cell.full b { color: #eab308; }
+    .slot-lbl { font-size: 10px; font-weight: 800; letter-spacing: .12em; color: var(--muted); text-transform: uppercase; }
+</style>
+{% endif %}

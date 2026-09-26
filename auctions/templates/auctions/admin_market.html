@@ -392,7 +392,7 @@
 
         {% if results.won %}
         <div class="panel" style="margin-bottom:20px">
-            <h3 style="margin:0 0 10px;font-size:15px">Aggiudicazioni effettuate</h3>
+            <h3 style="margin:0 0 10px;font-size:15px">{% if is_preview %}Aggiudicazioni previste{% else %}Aggiudicazioni effettuate{% endif %}</h3>
             <div class="table-scroll">
                 <table>
                     <thead>
@@ -400,7 +400,7 @@
                             <th>Giocatore</th>
                             <th>Acquirente</th>
                             <th>Costo</th>
-                            <th>Svincolo effettuato</th>
+                            <th>Taglio</th>
                             <th>Rimborso</th>
                         </tr>
                     </thead>

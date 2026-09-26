@@ -29,6 +29,8 @@
     .fa-sub { font-size: 11.5px; color: var(--muted); font-weight: 600; }
     .fa-quota { font-family: var(--display); font-weight: 900; font-size: 15px; color: var(--ink); text-align: right; white-space: nowrap; }
     .fa-quota small { font-size: 11px; color: var(--muted); font-weight: 600; }
+    .fa-main .role-badge { flex-shrink: 0; }
+    .fa-offer { padding: 6px 10px; font-size: 11px; letter-spacing: .04em; flex-shrink: 0; }
 
     /* Market session card */
     .market-banner {
@@ -109,6 +111,8 @@
 </a>
 {% endif %}
 
+{% include "auctions/_slot_strip.html" %}
+
 {% if trades_enabled %}
 <a class="a-cta" href="{% url 'app_scambi' %}" style="margin-bottom:14px">
     <svg class="ic"><use href="#i-swap"/></svg>
@@ -160,8 +164,13 @@
     <div class="a-label">
         <svg class="ic"><use href="#i-shield"/></svg>
         Le tue buste consegnate (<span id="bids-count">{{ my_bids|length }}</span>)
-        {% if market_open and my_bids %}<span style="margin-left:auto;font-size:11px;color:var(--muted);font-weight:600">Impegnati: <b id="bids-total" style="color:var(--ink)">{{ my_bids_total }}</b> / {{ participant.remaining_credits|floatformat:0 }} FM</span>{% endif %}
     </div>
+    {% if market_open and my_bids %}
+    <div style="padding:0 14px 8px;font-size:12px;color:var(--muted);font-weight:600">
+        Offerte totali: <b style="color:{% if my_bids_total > participant.remaining_credits %}#eab308{% else %}var(--ink){% endif %}">{{ my_bids_total }} FM</b>
+        su {{ participant.remaining_credits|floatformat:0 }} FM disponibili{% if my_bids_total > participant.remaining_credits %} — allo spoglio vale l'ordine di priorità{% endif %}
+    </div>
+    {% endif %}
     <div id="my-bids-list">
     {% for b in my_bids %}
     <div class="bid-row" id="bid-row-{{ b.id }}">
@@ -195,7 +204,7 @@
     {% empty %}
     <div class="soon" style="border:none;background:none;padding:18px 10px" id="bids-empty">
         <b>Nessuna busta consegnata</b>
-        <span>Scegli uno svincolato dall'elenco sotto e premi “Invia Busta”.</span>
+        <span>Scegli uno svincolato dall'elenco sotto e premi “Offri”.</span>
     </div>
     {% endfor %}
     </div>
@@ -203,17 +212,29 @@
 {% endif %}
 
 <!-- Filtri ricerca svincolati -->
-<form method="get" class="market-filters">
+<form method="get" class="market-filters" id="fa-filters">
     <div class="search-row">
-        <input type="text" name="q" value="{{ q }}" placeholder="Cerca calciatore o squadra..." class="search-input">
+        <input type="search" name="q" value="{{ q }}" placeholder="Cerca calciatore o squadra..." class="search-input" aria-label="Cerca calciatore o squadra">
         <button type="submit" class="role-chip on" style="cursor:pointer;border:none;padding:0 16px;font-size:13px">Cerca</button>
     </div>
-    <div class="role-chips">
-        <a href="?{% if q %}q={{ q }}&{% endif %}sort={{ sort }}" class="role-chip {% if not role %}on{% endif %}">Tutti</a>
-        <a href="?role=P{% if q %}&q={{ q }}{% endif %}&sort={{ sort }}" class="role-chip {% if role == 'P' %}on{% endif %}">Portieri</a>
-        <a href="?role=D{% if q %}&q={{ q }}{% endif %}&sort={{ sort }}" class="role-chip {% if role == 'D' %}on{% endif %}">Difensori</a>
-        <a href="?role=C{% if q %}&q={{ q }}{% endif %}&sort={{ sort }}" class="role-chip {% if role == 'C' %}on{% endif %}">Centrocampisti</a>
-        <a href="?role=A{% if q %}&q={{ q }}{% endif %}&sort={{ sort }}" class="role-chip {% if role == 'A' %}on{% endif %}">Attaccanti</a>
+    <div class="role-chips" role="radiogroup" aria-label="Ruolo">
+        {% for code, label in role_filters %}
+        <label class="role-chip {% if role == code %}on{% endif %}" style="cursor:pointer">
+            <input type="radio" name="role" value="{{ code }}" {% if role == code %}checked{% endif %} onchange="this.form.submit()" style="display:none">{{ label }}
+        </label>
+        {% endfor %}
+    </div>
+    <div class="search-row" style="align-items:center;flex-wrap:wrap">
+        <select name="sort" class="search-input" style="flex:0 1 auto;padding:7px 10px;font-size:12.5px" onchange="this.form.submit()" aria-label="Ordina per">
+            <option value="-quota" {% if sort == "-quota" %}selected{% endif %}>Quotazione ↓</option>
+            <option value="quota" {% if sort == "quota" %}selected{% endif %}>Quotazione ↑</option>
+            <option value="-fm" {% if sort == "-fm" %}selected{% endif %}>Fantamedia ↓</option>
+            <option value="name" {% if sort == "name" %}selected{% endif %}>Nome A→Z</option>
+        </select>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--muted);cursor:pointer">
+            <input type="checkbox" name="budget" value="1" {% if in_budget %}checked{% endif %} onchange="this.form.submit()" style="accent-color:var(--accent)">
+            Solo nel mio budget
+        </label>
     </div>
 </form>
 
@@ -221,30 +242,30 @@
 <div class="a-card">
     <div class="a-label">
         <svg class="ic"><use href="#i-users"/></svg>
-        Svincolati (mostrati {{ free_agents|length }})
+        Svincolati ({{ page.paginator.count }}){% if page.paginator.num_pages > 1 %} · pagina {{ page.number }}/{{ page.paginator.num_pages }}{% endif %}
     </div>
     {% for pl in free_agents %}
     <div class="free-agent-row">
         <div class="fa-main">
             <span class="role-badge role-{{ pl.role }}">{{ pl.role }}</span>
             <div class="fa-meta">
-                <span class="fa-name">{{ pl.name }}</span>
+                <span class="fa-name">{% if pl.watched %}<span title="Nei tuoi obiettivi">🎯 </span>{% endif %}{{ pl.name }}</span>
                 <span class="fa-sub">
                     {{ pl.team }}
                     {% if is_mantra and pl.roles_display %} · <span style="color:var(--accent)">{{ pl.roles_display }}</span>{% endif %}
                     {% if pl.fanta_avg %} · Fm: <b>{{ pl.fanta_avg|floatformat:2 }}</b>{% endif %}
+                    {% if market_open and pl.id in my_bid_player_ids %}<br><span style="color:var(--accent);font-weight:800">✉ Busta inviata</span>{% endif %}
                 </span>
             </div>
         </div>
         <div style="display:flex;align-items:center;gap:10px">
             <div class="fa-quota">
-                {{ pl.initial_price|floatformat:0 }} <small>FM</small>
+                {{ pl.quota|floatformat:0 }} <small>FM</small>
             </div>
             {% if market_open %}
-            {% if pl.id in my_bid_player_ids %}<span style="font-size:11px;font-weight:800;color:var(--accent)" title="Hai già una busta: inviarne un'altra la aggiorna">✉ Busta inviata</span>{% endif %}
-            <button type="button" class="role-chip on" style="cursor:pointer;border:none;padding:6px 10px;font-size:11.5px"
-                    onclick="openBidModal({{ pl.id }}, '{{ pl.name|escapejs }}', '{{ pl.role }}', '{{ pl.team|escapejs }}', {{ pl.initial_price|floatformat:0 }})">
-                Invia busta
+            <button type="button" class="role-chip on fa-offer" style="cursor:pointer;border:none"
+                    onclick="openBidModal({{ pl.id }}, '{{ pl.name|escapejs }}', '{{ pl.role }}', '{{ pl.team|escapejs }}', {{ pl.quota|floatformat:0 }})">
+                {% if pl.id in my_bid_player_ids %}Modifica{% else %}Offri{% endif %}
             </button>
             {% endif %}
         </div>
@@ -257,6 +278,13 @@
     </div>
     {% endfor %}
 </div>
+{% if page.has_other_pages %}
+<nav class="search-row" style="justify-content:space-between;align-items:center;margin:-4px 0 14px" aria-label="Pagine svincolati">
+    {% if page.has_previous %}<a class="role-chip" href="?{{ base_query }}&page={{ page.previous_page_number }}">‹ Precedenti</a>{% else %}<span></span>{% endif %}
+    <span style="font-size:12px;color:var(--muted);font-weight:700">{{ page.number }} / {{ page.paginator.num_pages }}</span>
+    {% if page.has_next %}<a class="role-chip" href="?{{ base_query }}&page={{ page.next_page_number }}">Successivi ›</a>{% else %}<span></span>{% endif %}
+</nav>
+{% endif %}
 
 <!-- Modal Invia Busta -->
 {% if market_open %}

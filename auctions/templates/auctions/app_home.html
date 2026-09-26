@@ -42,6 +42,28 @@
         <div class="k">Obiettivi</div>
     </div>
 </div>
+{% include "auctions/_slot_strip.html" with hide_credits=True %}
+
+{% if open_market %}
+<a class="a-cta" href="{% url 'app_mercato' %}" style="margin-bottom:14px">
+    <svg class="ic"><use href="#i-mail"/></svg>
+    <span class="t">
+        <b>Buste aperte: {{ open_market.title }}</b>
+        <span>{% if open_market.closes_at %}Chiude il {{ open_market.closes_at|date:"d/m H:i" }}{% else %}Consegna le tue offerte{% endif %}{% if my_open_bids %} · {{ my_open_bids }} bust{{ my_open_bids|pluralize:"a,e" }} inviat{{ my_open_bids|pluralize:"a,e" }}{% endif %}</span>
+    </span>
+    <span class="go">›</span>
+</a>
+{% endif %}
+{% if incoming_trades %}
+<a class="a-cta" href="{% url 'app_scambi' %}" style="margin-bottom:14px">
+    <svg class="ic"><use href="#i-swap"/></svg>
+    <span class="t">
+        <b>{{ incoming_trades }} propost{{ incoming_trades|pluralize:"a,e" }} di scambio</b>
+        <span>Accetta o rifiuta dalla pagina Scambi</span>
+    </span>
+    <span class="go">›</span>
+</a>
+{% endif %}
 
 <div class="a-card">
     <div class="a-label"><svg class="ic"><use href="#i-trophy"/></svg> Classifica lampo</div>

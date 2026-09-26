@@ -837,3 +837,54 @@ class MarketAfterResolutionTests(TestCase):
         session.save()
         resp = self.client.get(reverse("app_mercato"))
         self.assertContains(resp, 'data-refund="9"')
+
+
+class AppMercatoListTests(TestCase):
+    def setUp(self):
+        self.league = League.objects.create(name="Lega Lista")
+        self.me = Participant.objects.create(display_name="Io", league=self.league, credits=Decimal("40"))
+        s = self.client.session
+        s["participant_id"] = self.me.id
+        s.save()
+
+    def _get(self, **params):
+        from urllib.parse import urlencode
+        return self.client.get(reverse("app_mercato") + "?" + urlencode(params))
+
+    def test_paginates_instead_of_truncating(self):
+        for i in range(45):
+            Player.objects.create(name=f"P{i:02d}", role="C", league=self.league, initial_price=Decimal(i + 1))
+        resp = self._get()
+        self.assertEqual(resp.context["page"].paginator.count, 45)
+        self.assertEqual(len(resp.context["free_agents"]), 30)
+        self.assertContains(resp, "Successivi")
+        resp = self._get(page=2)
+        self.assertEqual(len(resp.context["free_agents"]), 15)
+
+    def test_budget_filter_and_mantra_quota(self):
+        self.league.game_mode = League.GameMode.MANTRA
+        self.league.save()
+        Player.objects.create(name="Cheap", role="A", league=self.league, initial_price=Decimal("10"), price_m=Decimal("60"))
+        Player.objects.create(name="Fair", role="A", league=self.league, initial_price=Decimal("50"), price_m=Decimal("30"))
+        resp = self._get(budget="1")
+        names = [p.name for p in resp.context["free_agents"]]
+        self.assertEqual(names, ["Fair"])  # Mantra price 30 fits 40; 'Cheap' costs 60 in Mantra
+        resp = self._get()
+        self.assertEqual([p.name for p in resp.context["free_agents"]], ["Cheap", "Fair"])
+
+    def test_watched_players_are_marked(self):
+        from ..models import Watch
+        pl = Player.objects.create(name="Obiettivo", role="D", league=self.league)
+        Watch.objects.create(participant=self.me, player=pl)
+        resp = self._get()
+        self.assertContains(resp, "🎯")
+
+    def test_home_reminds_open_market_and_trades(self):
+        other = Participant.objects.create(display_name="Altro", league=self.league)
+        Player.objects.create(name="Suo", role="A", league=self.league, owner=other)
+        MarketSession.objects.create(league=self.league, title="Buste Gennaio", status=MarketSession.Status.OPEN)
+        from ..services.trade import propose_trade
+        propose_trade(other.id, self.me.id, [Player.objects.get(name="Suo").id], [])
+        resp = self.client.get(reverse("app_home"))
+        self.assertContains(resp, "Buste aperte: Buste Gennaio")
+        self.assertContains(resp, "1 proposta di scambio")
