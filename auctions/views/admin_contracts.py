@@ -51,6 +51,8 @@ def admin_contracts(request):
             if p.left_rank_kind:
                 p.preview = services.abroad_compensation(p.role, p.left_rank_kind, p.left_rank_pos)
         listed = list(Player.objects.filter(owner__league=league, abroad_list=True).select_related("owner"))
+        flaggable = list(Player.objects.filter(owner__league=league, abroad_list=False, left_serie_a_at__isnull=True)
+                         .select_related("owner").order_by("owner__display_name", "role", "name"))
     return render(request, "auctions/admin_contracts.html", {
         "leagues": manageable_leagues(request.user),
         "current_league": league,
@@ -58,6 +60,7 @@ def admin_contracts(request):
         "events": events,
         "left": left if league is not None else [],
         "listed": listed if league is not None else [],
+        "flaggable": flaggable if league is not None else [],
         "uefa_count": UefaClubRank.objects.count() if league is not None else 0,
         "apifootball": is_configured() if league is not None else False,
         "contract_faces": sorted(set(services.contract_faces(league))) if league else [1, 2, 3],
@@ -110,10 +113,13 @@ def admin_contracts_action(request):
         messages.success(request, "Impostazioni contratti salvate.")
         return redirect(_url(league))
 
-    if action in ("left_detect", "left_resolve", "list_release", "uefa_fetch", "uefa_paste"):
+    if action in ("left_flag", "left_detect", "left_resolve", "list_release", "uefa_fetch", "uefa_paste"):
         from ..providers import uefa
         from ..services import abroad
-        if action == "left_detect":
+        if action == "left_flag":
+            res = abroad.flag_player(player_id)
+            ok = f"{res.get('player_name')} segnalato come uscito dalla Serie A."
+        elif action == "left_detect":
             res = abroad.detect(player_id)
             ok = f"Destinazione trovata: {res.get('club')}" + (f" (ranking UEFA {res['position']}°)" if res.get("position") else " — posizione nel ranking da indicare")
         elif action == "left_resolve":
