@@ -117,6 +117,7 @@ urlpatterns = [
     path("admin-auction/participants/create/", views.admin_create_participant, name="admin_create_participant"),
     path("admin-auction/participants/<int:participant_id>/edit/", views.admin_edit_participant, name="admin_edit_participant"),
     path("admin-auction/participants/<int:participant_id>/delete/", views.admin_delete_participant, name="admin_delete_participant"),
+    path("admin-auction/participants/<int:participant_id>/account/", views.admin_participant_account, name="admin_participant_account"),
     path("participants/<int:participant_id>/qr.png", views.participant_qr, name="participant_qr"),
 
     # Participant flow.
