@@ -661,7 +661,7 @@
                         <span class="hp-pulse-green"></span>
                         <span>Autenticato come Amministratore</span>
                     </div>
-                    <form method="post" action="{% url 'home' %}" style="display:inline">
+                    <form method="post" action="{% url 'home_portal' %}" style="display:inline">
                         {% csrf_token %}
                         <input type="hidden" name="action" value="logout">
                         <button type="submit" class="fm-btn fm-btn-ghost fm-btn-sm" style="padding:4px 8px;font-size:11px">
@@ -678,7 +678,7 @@
                 {% if error %}
                 <div class="hp-err-flash">{{ error }}</div>
                 {% endif %}
-                <form method="post" action="{% url 'home' %}">
+                <form method="post" action="{% url 'home_portal' %}">
                     {% csrf_token %}
                     <div class="hp-pin-row">
                         <input class="hp-pin-input" type="password" name="pin" maxlength="12" placeholder="PIN REGIA" autofocus autocomplete="current-password">
@@ -687,7 +687,7 @@
                         </button>
                     </div>
                     <div class="hp-pin-hint" style="margin-top:6px">
-                        PIN predefinito: <b>{{ expected_pin }}</b> · Inserisci il PIN per entrare nella Dashboard.
+                        Inserisci il PIN Regia indicato nella pagina <b>Accesso Remoto</b> per entrare nella Dashboard.
                     </div>
                 </form>
                 <a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% if current_league %}{% url 'dashboard_league' current_league.id %}{% else %}{% url 'dashboard' %}{% endif %}" style="justify-content:center;margin-top:4px">

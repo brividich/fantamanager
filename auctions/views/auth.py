@@ -11,7 +11,7 @@ from django.shortcuts import redirect, render
 from django.urls import reverse
 
 from ..models import Auction, League, Participant
-from .common import SESSION_LEAGUE_KEY, target_league
+from .common import SESSION_LEAGUE_KEY, safe_next, target_league
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +69,7 @@ def login_view(request):
         return redirect("home")
 
     error = None
-    next_url = request.GET.get("next") or request.POST.get("next") or ""
+    next_url = safe_next(request, "")
 
     if request.method == "POST":
         identifier = (request.POST.get("identifier") or "").strip()

@@ -231,6 +231,83 @@ class RegiaPinThrottleTests(TestCase):
         self.assertNotIn("Troppi tentativi", r.content.decode())
 
 
+class PortalPinGateTests(TestCase):
+    """The PIN box on /portal/ sets the same ``regia_unlocked`` flag the tunnel
+    gate checks, so it must be exactly as strict as /regia/unlock/: only the
+    minted PIN, the shared lockout, and the PIN never printed on the page."""
+
+    def setUp(self):
+        from .. import remote
+        self.remote = remote
+        remote.stop()
+        self.addCleanup(remote.stop)
+        self.addCleanup(remote._set, pin="")
+        self.host = "abc-def.trycloudflare.com"
+
+    def _mint(self, pin):
+        self.remote._set(status="on", url=f"https://{self.host}", host=self.host, pin=pin)
+
+    def _post(self, pin, **extra):
+        return self.client.post("/portal/", {"pin": pin, **extra})
+
+    def test_admin_and_123456_are_not_backdoors(self):
+        self._mint("424242")
+        for pin in ("admin", "ADMIN", "123456"):
+            with self.subTest(pin=pin):
+                r = self._post(pin)
+                self.assertEqual(r.status_code, 200)
+                self.assertFalse(self.client.session.get("regia_unlocked"))
+                self.assertContains(r, "PIN errato")
+                self.assertNotContains(r, "424242")
+
+    def test_nothing_unlocks_before_a_tunnel_mints_a_pin(self):
+        self.remote._set(pin="")
+        for pin in ("admin", "123456", ""):
+            with self.subTest(pin=pin):
+                self._post(pin)
+                self.assertFalse(self.client.session.get("regia_unlocked"))
+
+    def test_the_minted_pin_unlocks(self):
+        self._mint("424242")
+        r = self._post("424242")
+        self.assertRedirects(r, "/dashboard/", fetch_redirect_response=False)
+        self.assertTrue(self.client.session.get("regia_unlocked"))
+
+        r = self.client.post("/portal/", {"action": "logout"})
+        self.assertRedirects(r, "/portal/", fetch_redirect_response=False)
+        self.assertFalse(self.client.session.get("regia_unlocked"))
+
+    def test_123456_works_only_when_it_is_the_minted_pin(self):
+        self._mint("123456")
+        r = self._post("123456")
+        self.assertEqual(r.status_code, 302)
+        self.assertTrue(self.client.session.get("regia_unlocked"))
+
+    def test_the_page_never_shows_the_pin(self):
+        self._mint("424242")
+        r = self.client.get("/portal/")
+        self.assertEqual(r.status_code, 200)
+        self.assertNotContains(r, "424242")
+        self.assertNotContains(r, "PIN predefinito")
+        self.assertNotIn("expected_pin", r.context)
+
+    def test_the_form_posts_back_to_the_portal(self):
+        r = self.client.get("/portal/")
+        self.assertContains(r, 'action="/portal/"')
+
+    def test_shares_the_lockout_with_the_tunnel_gate(self):
+        self._mint("424242")
+        for _ in range(5):
+            self._post("000000")
+        r = self._post("424242")
+        self.assertContains(r, "Troppi tentativi")
+        self.assertFalse(self.client.session.get("regia_unlocked"))
+        # ...and the lockout it tripped holds on /regia/unlock/ as well.
+        r = self.client.post("/regia/unlock/", {"pin": "424242"}, HTTP_HOST=self.host)
+        self.assertEqual(r.status_code, 401)
+        self.assertIn("Troppi tentativi", r.content.decode())
+
+
 class LocalAddressTests(TestCase):
     """Links handed to other people must not point at 'localhost'."""
 
