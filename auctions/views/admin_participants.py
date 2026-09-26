@@ -1,5 +1,7 @@
-"""Admin participant management: roster listing, participant creation/edit, QR codes."""
+"""Admin participant management: roster listing, participant creation/edit, QR codes,
+and the coaches' portal accounts."""
 import io
+import secrets
 from decimal import Decimal, InvalidOperation
 
 try:
@@ -8,11 +10,16 @@ except ImportError:
     qrcode = None
 
 from django.contrib import messages
+from django.contrib.auth import get_user_model, update_session_auth_hash
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
+from django.db import transaction
 from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from ..models import Auction, League, Participant, Player
+from ..models import Auction, League, ManagedAccount, Participant, Player
 from .. import remote
 from .common import (
     FORBIDDEN_LEAGUE_MSG,
@@ -62,6 +69,9 @@ def admin_participants(request):
     target = (auctions.filter(status=Auction.Status.LIVE).first()
               or auctions.filter(status=Auction.Status.READY).first())
 
+    accounts_ok = current_league is not None and can_manage_accounts(request.user, current_league)
+    participants = participants.select_related("user", "user__managed_account")
+
     rows = []
     for p in participants:
         owned = Player.objects.filter(owner=p)
@@ -77,12 +87,22 @@ def admin_participants(request):
             "counts": counts,
             "join_url": participant_join_url(request, p, target),
             "lan_join_url": participant_lan_join_url(request, p, target),
+            "account": p.user if accounts_ok else None,
+            "account_lock": account_lock_reason(request.user, p.user) if accounts_ok and p.user else "",
+            "account_deletable": accounts_ok and p.user is not None and account_deletable(request.user, p.user),
         })
+
+    # A password the server generated is shown once, on the page the action
+    # lands on, and then forgotten: only the login's hash is stored.
+    secret = request.session.pop(SESSION_ACCOUNT_SECRET_KEY, None) if accounts_ok else None
 
     return render(request, "auctions/admin_participants.html", {
         "leagues": leagues,
         "current_league": current_league,
         "rows": rows,
+        "accounts_ok": accounts_ok,
+        "account_secret": secret,
+        "portal_login_url": remote.best_base_url(request).rstrip("/") + reverse("app_login"),
         "target_auction": target,
         "remote_on": remote.is_on(),
         "console_section": "Squadre",
@@ -358,3 +378,273 @@ def admin_participant_roster(request, participant_id):
         for pl in Player.objects.filter(owner=p).order_by("role", "name")
     ]
     return JsonResponse({"ok": True, "team": p.display_name, "roster": roster})
+
+
+# --- Coaches' portal accounts -------------------------------------------------
+#
+# A team may be tied to a portal login (``Participant.user``): username or email
+# plus password, the way into the app from any device. The league's president
+# hands those logins out from the Squadre page — create one for a coach, link
+# one the coach already has, reset a forgotten password, switch it off.
+
+SESSION_ACCOUNT_SECRET_KEY = "fm_account_secret"
+MIN_PASSWORD_LENGTH = 6          # the same floor the registration form asks for
+ACCOUNTS_FORBIDDEN_MSG = (
+    "Gli account degli allenatori li gestisce il presidente della lega (o il superadmin)."
+)
+# No 0/O, 1/l/I: the password is read off a screen and typed on a phone.
+_PASSWORD_ALPHABET = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789"
+
+
+def can_manage_accounts(user, league):
+    """True when ``user`` may handle the portal accounts of ``league``'s coaches.
+
+    Stricter than ``user_can_manage_league``: an ownerless legacy league lets
+    any logged-in user into its console, but an account is a person's login,
+    not a team setting — only the league's owner or a superuser touch those.
+    """
+    if user is None or not user.is_authenticated:
+        return False
+    if user.is_superuser:
+        return True
+    return league is not None and league.owner_id == user.id
+
+
+def _is_managed(account):
+    try:
+        return account.managed_account is not None
+    except ManagedAccount.DoesNotExist:
+        return False
+
+
+def account_lock_reason(actor, account):
+    """Why ``actor`` may not change ``account``'s credentials, "" when they may.
+
+    Superusers change any account. A league president changes only an account
+    created from this page (``ManagedAccount``) whose teams are all in leagues
+    they own, and that holds no power of its own: otherwise linking somebody
+    else's login to one of their teams and resetting its password would be a
+    way to take it over.
+    """
+    if actor.is_superuser:
+        return ""
+    if account.pk == actor.pk:
+        return "È il tuo account."
+    if account.is_superuser or account.is_staff:
+        return "È l'account di un amministratore della piattaforma."
+    if League.objects.filter(owner=account).exists():
+        return "È l'account del presidente di una lega."
+    if not _is_managed(account):
+        return ("L'allenatore se l'è registrato da solo: password, nome utente ed email "
+                "li può cambiare solo il superadmin.")
+    if Participant.objects.filter(user=account).exclude(league__owner=actor).exists():
+        return "Guida anche squadre di leghe che non gestisci."
+    return ""
+
+
+def account_deletable(actor, account):
+    """An account may be deleted when it can be edited and deleting it strands
+    nothing: never your own, never an admin's, never a league president's —
+    their leagues would be left without an owner, open to any logged-in user."""
+    if account_lock_reason(actor, account) or account.pk == actor.pk:
+        return False
+    if account.is_superuser or account.is_staff:
+        return False
+    return not League.objects.filter(owner=account).exists()
+
+
+def generate_password(length=10):
+    return "".join(secrets.choice(_PASSWORD_ALPHABET) for _ in range(length))
+
+
+def _clean_username(raw, exclude=None):
+    """``(username, error)`` for a posted username, checked like Django's own."""
+    User = get_user_model()
+    username = (raw or "").strip()
+    if len(username) < 3:
+        return username, "Il nome utente deve contenere almeno 3 caratteri."
+    field = User._meta.get_field(User.USERNAME_FIELD)
+    try:
+        field.run_validators(username)
+    except ValidationError:
+        return username, ("Nome utente non valido: usa lettere, numeri e i simboli @ . + - _ "
+                          f"(massimo {field.max_length} caratteri).")
+    taken = User.objects.filter(username__iexact=username)
+    if exclude is not None:
+        taken = taken.exclude(pk=exclude.pk)
+    if taken.exists():
+        return username, f"Il nome utente «{username}» è già in uso."
+    return username, ""
+
+
+def _clean_email(raw, exclude=None):
+    """``(email, error)``: optional, but valid and not someone else's."""
+    email = (raw or "").strip()
+    if not email:
+        return "", ""
+    try:
+        validate_email(email)
+    except ValidationError:
+        return email, "Indirizzo email non valido."
+    taken = get_user_model().objects.filter(email__iexact=email)
+    if exclude is not None:
+        taken = taken.exclude(pk=exclude.pk)
+    if taken.exists():
+        return email, "Questa email è già associata a un altro account."
+    return email, ""
+
+
+def _participants_url(p):
+    url = reverse("admin_participants")
+    return f"{url}?league={p.league_id}" if p.league_id else url
+
+
+def _remember_secret(request, p, account, password):
+    request.session[SESSION_ACCOUNT_SECRET_KEY] = {
+        "team": p.display_name,
+        "username": account.username,
+        "password": password,
+    }
+
+
+@staff_member_required
+@require_POST
+def admin_participant_account(request, participant_id):
+    """Handle the portal account of one team (``action`` in the POST).
+
+    ``create`` makes a new login for the coach and links it; ``link`` ties an
+    existing login (username or email) to the team; ``unlink`` unties it.
+    ``update`` (username, email, name), ``password``, ``toggle_active`` and
+    ``delete`` change the login itself: see ``account_lock_reason``.
+    """
+    p, denied = managed_or_403(request, Participant, participant_id)
+    if denied:
+        return denied
+    if not can_manage_accounts(request.user, p.league):
+        return HttpResponseForbidden(ACCOUNTS_FORBIDDEN_MSG)
+
+    User = get_user_model()
+    back = safe_next(request, _participants_url(p))
+    action = request.POST.get("action", "")
+    account = p.user
+
+    def fail(msg):
+        messages.error(request, msg)
+        return redirect(back)
+
+    if action == "create":
+        if account is not None:
+            return fail(f"«{p.display_name}» ha già un account: scollegalo prima di crearne un altro.")
+        username, error = _clean_username(request.POST.get("username"))
+        if error:
+            return fail(error)
+        email, error = _clean_email(request.POST.get("email"))
+        if error:
+            return fail(error)
+        password = request.POST.get("password") or ""
+        generated = not password
+        if generated:
+            password = generate_password()
+        elif len(password) < MIN_PASSWORD_LENGTH:
+            return fail(f"La password deve contenere almeno {MIN_PASSWORD_LENGTH} caratteri.")
+        with transaction.atomic():
+            account = User.objects.create_user(
+                username=username, email=email, password=password,
+                first_name=(request.POST.get("first_name") or "").strip()[:150],
+            )
+            ManagedAccount.objects.create(user=account, created_by=request.user)
+            p.user = account
+            p.save(update_fields=["user"])
+        if generated:
+            _remember_secret(request, p, account, password)
+        messages.success(request, f"Account «{account.username}» creato e collegato a «{p.display_name}».")
+        return redirect(back)
+
+    if action == "link":
+        if account is not None:
+            return fail(f"«{p.display_name}» ha già un account: scollegalo prima di collegarne un altro.")
+        ident = (request.POST.get("identifier") or "").strip()
+        found = None
+        if ident:
+            found = User.objects.filter(username__iexact=ident).first()
+            if found is None and "@" in ident:
+                found = User.objects.filter(email__iexact=ident).first()
+        if found is None:
+            return fail("Nessun account con questo nome utente o email.")
+        p.user = found
+        p.save(update_fields=["user"])
+        messages.success(request, f"Account «{found.username}» collegato a «{p.display_name}».")
+        return redirect(back)
+
+    if account is None:
+        return fail(f"«{p.display_name}» non ha un account collegato.")
+
+    if action == "unlink":
+        p.user = None
+        p.save(update_fields=["user"])
+        messages.success(
+            request,
+            f"Account «{account.username}» scollegato da «{p.display_name}»: "
+            "la squadra resta raggiungibile con il suo link e il PIN.")
+        return redirect(back)
+
+    lock = account_lock_reason(request.user, account)
+    if lock:
+        return fail(f"Non puoi modificare l'account «{account.username}». {lock}")
+
+    if action == "update":
+        username, error = _clean_username(request.POST.get("username"), exclude=account)
+        if error:
+            return fail(error)
+        email, error = _clean_email(request.POST.get("email"), exclude=account)
+        if error:
+            return fail(error)
+        account.username = username
+        account.email = email
+        account.first_name = (request.POST.get("first_name") or "").strip()[:150]
+        account.save(update_fields=["username", "email", "first_name"])
+        messages.success(request, f"Account «{account.username}» aggiornato.")
+        return redirect(back)
+
+    if action == "password":
+        password = request.POST.get("password") or ""
+        generated = not password
+        if generated:
+            password = generate_password()
+        elif len(password) < MIN_PASSWORD_LENGTH:
+            return fail(f"La password deve contenere almeno {MIN_PASSWORD_LENGTH} caratteri.")
+        account.set_password(password)
+        account.save(update_fields=["password"])
+        if account.pk == request.user.pk:
+            update_session_auth_hash(request, account)   # don't log yourself out
+        if generated:
+            _remember_secret(request, p, account, password)
+        messages.success(
+            request,
+            f"Password di «{account.username}» reimpostata: i dispositivi già collegati "
+            "con la vecchia password dovranno rientrare.")
+        return redirect(back)
+
+    if action == "toggle_active":
+        if account.pk == request.user.pk:
+            return fail("Non puoi disattivare il tuo stesso account.")
+        account.is_active = not account.is_active
+        account.save(update_fields=["is_active"])
+        if account.is_active:
+            messages.success(request, f"Account «{account.username}» riattivato.")
+        else:
+            messages.success(
+                request,
+                f"Account «{account.username}» disattivato: non entra più con la password "
+                "(il link e il PIN della squadra restano validi).")
+        return redirect(back)
+
+    if action == "delete":
+        if not account_deletable(request.user, account):
+            return fail(f"L'account «{account.username}» non si può eliminare da qui.")
+        username = account.username
+        account.delete()   # every team it guided is unlinked (SET_NULL)
+        messages.success(request, f"Account «{username}» eliminato.")
+        return redirect(back)
+
+    return fail("Azione non riconosciuta.")
