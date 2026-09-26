@@ -100,6 +100,17 @@ def flag_missing(league, names_missing):
     return flagged
 
 
+def flag_player(player_id):
+    """Segnalazione manuale (la notizia arriva prima del nuovo listone)."""
+    player = Player.objects.filter(pk=player_id, owner__isnull=False).first()
+    if player is None:
+        return {"ok": False, "message": "Giocatore non trovato in nessuna rosa."}
+    if player.left_serie_a_at is None:
+        player.left_serie_a_at = timezone.now()
+        player.save(update_fields=["left_serie_a_at"])
+    return {"ok": True, "player_name": player.name}
+
+
 def detect(player_id, *, finder=None):
     """Prova a riempire club di destinazione e posizione ranking (API-Football + UEFA)."""
     from ..providers.apifootball import find_destination
