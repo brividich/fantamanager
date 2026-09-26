@@ -29,6 +29,10 @@ class Reject:
     # Contratti (regolamento 4.1): chi ha perso il giocatore col dado rinnovo
     # non può ricomprarlo all'asta successiva.
     RESCINDED_REBUY       = "rescinded_rebuy"
+    # Tetto salariale (regolamento 1.2).
+    SALARY_CAP            = "salary_cap"
+    # Portieri di troppe squadre di Serie A (regolamento 2.02).
+    GK_CLUBS              = "gk_clubs"
 
 
 # Italian labels for every code the UI can receive — rejected bids plus the
@@ -36,6 +40,8 @@ class Reject:
 # page and the regia console render from this map, so a new code can never show
 # up on screen as a bare identifier.
 ERROR_LABELS = {
+    "gk_clubs": "Hai già portieri di due squadre di Serie A: puoi prendere solo portieri di quelle squadre",
+    "salary_cap": "Tetto salariale raggiunto: non puoi spendere di più in questo mercato",
     "rescinded_rebuy": "Hai perso questo giocatore al rinnovo: non puoi ricomprarlo in questo mercato",
     Reject.AUCTION_NOT_FOUND:     "Asta non trovata",
     Reject.PARTICIPANT_NOT_FOUND: "Squadra non trovata",

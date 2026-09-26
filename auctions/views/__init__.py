@@ -49,6 +49,7 @@ from .admin_exports import (
     admin_export_xlsx,
 )
 from .admin_contracts import admin_contracts, admin_contracts_action
+from .admin_season import admin_season, admin_season_action
 from .admin_market import (
     admin_market_create,
     admin_market_dashboard,
@@ -137,6 +138,8 @@ from .app import (
     app_market_delete_bid,
     app_mercato,
     app_contract_roll,
+    app_contract_u21,
+    app_extra_cap,
     app_renewal_roll,
     app_renewals_declare,
     app_scambi,
@@ -339,10 +342,14 @@ __all__ = [
     "app_market_delete_bid",
     "app_scambi",
     "app_contract_roll",
+    "app_contract_u21",
+    "app_extra_cap",
     "app_renewals_declare",
     "app_renewal_roll",
     "admin_contracts",
     "admin_contracts_action",
+    "admin_season",
+    "admin_season_action",
     "app_trade_propose",
     "app_trade_respond",
     "app_trade_cancel",

@@ -33,14 +33,22 @@ class ContractServiceTests(TestCase):
                                      cost=Decimal(cost), contract_years=years)
 
     def test_contract_die_and_thresholds(self):
-        cases = [(100, 1, 1), (600, 1, 2), (600, 3, 3), (900, 2, 3), (900, 4, 4)]
-        for cost, face, expected in cases:
-            p = self._player(cost, name=f"P{cost}{face}")
+        # Clausola per ruolo (4.03): A 600 → 2 anni, 1000 → 3; P/D 100 → 2, 150 → 3.
+        cases = [("A", 100, 1, 1), ("A", 600, 1, 2), ("A", 600, 3, 3), ("A", 1000, 2, 3),
+                 ("P", 100, 1, 2), ("D", 150, 1, 3), ("C", 299, 1, 1), ("C", 300, 1, 2)]
+        for role, cost, face, expected in cases:
+            p = self._player(cost, name=f"P{role}{cost}{face}")
+            p.role = role
+            p.team = f"T{cost}{face}"
+            p.save()
             res = contracts.roll_contract(p.id, participant_id=self.a.id, rng=Fixed(face))
             self.assertTrue(res["ok"], res)
             p.refresh_from_db()
             self.assertEqual(p.contract_years, expected, (cost, face))
         self.assertEqual(ContractEvent.objects.filter(kind="contract").count(), len(cases))
+
+    def test_default_die_is_one_to_three(self):
+        self.assertEqual(sorted(set(contracts.contract_faces(self.league))), [1, 2, 3])
 
     def test_only_owner_rolls_once_and_manual_is_admin_only(self):
         p = self._player(10)
@@ -103,10 +111,11 @@ class ContractServiceTests(TestCase):
     def test_rescinded_player_auction_proceeds_go_to_former_team(self):
         p = Player.objects.create(name="Ex", role="D", league=self.league, rescinded_from=self.a)
         Player.objects.filter(pk=p.pk).update(owner=self.b, cost=Decimal("120"))
-        _contracts_after_sale(p.id, self.b, Decimal("120"), SimpleNamespace(id=1))
+        _contracts_after_sale(p.id, self.b, Decimal("200"), SimpleNamespace(id=1))
         self.a.refresh_from_db()
         p.refresh_from_db()
-        self.assertEqual(self.a.credits, Decimal("2120"))
+        # Incasso con tetto per ruolo (4.02): difensore massimo 150.
+        self.assertEqual(self.a.credits, Decimal("2150"))
         self.assertIsNone(p.rescinded_from)
         self.assertIsNone(p.contract_years)
 
@@ -185,3 +194,55 @@ class RescindedLiveAuctionTests(TestCase):
         self.assertFalse(r.accepted)
         self.assertEqual(r.reason, "rescinded_rebuy")
         self.assertTrue(svc.place_bid(auction.id, b.id, 1).accepted)
+
+    def test_former_team_can_rebuy_after_an_unsold_first_round(self):
+        from ..models import AuctionCycleResult
+        league = League.objects.create(name="L2", contracts_enabled=True)
+        a = Participant.objects.create(display_name="A", league=league, credits=Decimal("500"))
+        p = Player.objects.create(name="Ex2", role="A", league=league, rescinded_from=a)
+        auction = make_live_auction(
+            league=league, player=p, starting_price=Decimal("1"), current_price=Decimal("1"),
+            min_increment=Decimal("1"), quick_increments="1", enforce_limits=False,
+        )
+        AuctionCycleResult.objects.create(auction=auction, cycle=auction.current_cycle, player=p, assigned=False)
+        auction.current_cycle += 1
+        auction.save(update_fields=["current_cycle"])
+        self.assertTrue(svc.place_bid(auction.id, a.id, 1).accepted)
+
+
+
+class GoalkeeperAndU21Tests(TestCase):
+    def setUp(self):
+        self.league = League.objects.create(name="L", contracts_enabled=True, gk_max_clubs=2)
+        self.a = Participant.objects.create(display_name="A", league=self.league, credits=Decimal("500"))
+
+    def test_goalkeeper_block_shares_contract(self):
+        first = Player.objects.create(name="Sommer", role="P", team="INT", league=self.league, owner=self.a,
+                                      initial_price=Decimal("20"), contract_years=2)
+        second = Player.objects.create(name="Martinez", role="P", team="INT", league=self.league, owner=self.a,
+                                       initial_price=Decimal("5"))
+        res = contracts.roll_contract(second.id, participant_id=self.a.id, rng=Fixed(3))
+        self.assertEqual(res["years"], 2)
+        self.assertEqual(res["block"], "Sommer")
+        contracts.set_contract(first.id, 3)
+        second.refresh_from_db()
+        self.assertEqual(second.contract_years, 3)
+
+    def test_goalkeepers_from_max_two_clubs(self):
+        from ..services.bidding import gk_clubs_problem
+        for team in ("INT", "MIL"):
+            Player.objects.create(name=f"GK {team}", role="P", team=team, league=self.league, owner=self.a)
+        third = Player.objects.create(name="GK JUV", role="P", team="JUV", league=self.league)
+        same = Player.objects.create(name="GK2 INT", role="P", team="INT", league=self.league)
+        self.assertTrue(gk_clubs_problem(self.a, third))
+        self.assertFalse(gk_clubs_problem(self.a, same))
+        session = MarketSession.objects.create(league=self.league, status=MarketSession.Status.OPEN)
+        self.assertEqual(place_market_bid(session.id, self.a.id, third.id, 5)["error"], "gk_clubs")
+
+    def test_under21_bet(self):
+        p = Player.objects.create(name="Esposito", role="A", league=self.league, owner=self.a, cost=Decimal("10"))
+        res = contracts.declare_u21(p.id, participant_id=self.a.id)
+        self.assertEqual(res["years"], 3)
+        other = Player.objects.create(name="Camarda", role="A", league=self.league, owner=self.a)
+        self.assertFalse(contracts.declare_u21(other.id, participant_id=self.a.id)["ok"])  # una per stagione
+

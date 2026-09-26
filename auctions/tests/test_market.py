@@ -952,6 +952,54 @@ class RegolamentoBusteTests(TestCase):
         # Raul 10 vs 10 → vince A (prima)
         self.assertEqual(owner("Raul").owner, self.a)
 
+    def test_example_from_the_august_2026_rules(self):
+        # Team A: Boban 1, Raul 10, R.Carlos 2/35/100 → offerte massime 1+10+100 = 111 (valide)
+        self._example(self.a, [("Boban", 1), ("Raul", 10), ("R.Carlos", 2), ("R.Carlos", 35), ("R.Carlos", 100)])
+        # Team B: Boban 99, Raul 10, R.Carlos 2/35/100 → 209 > 200: si annulla R.Carlos 100
+        self._example(self.b, [("Boban", 99), ("Raul", 10), ("R.Carlos", 2), ("R.Carlos", 35), ("R.Carlos", 100)])
+        resolve_market_session(self.session.id)
+        b100 = MarketBid.objects.get(participant=self.b, player=self.free["R.Carlos"], amount=100)
+        self.assertEqual(b100.status, MarketBid.Status.CANCELLED)
+        a100 = MarketBid.objects.get(participant=self.a, player=self.free["R.Carlos"], amount=100)
+        self.assertEqual(a100.status, MarketBid.Status.WON)
+        rc = Player.objects.get(pk=self.free["R.Carlos"].pk)
+        self.assertEqual((rc.owner, rc.cost), (self.a, Decimal("100")))  # la minima che batte il 35 di B
+        boban = Player.objects.get(pk=self.free["Boban"].pk)
+        self.assertEqual((boban.owner, boban.cost), (self.b, Decimal("99")))
+
+    def test_pays_the_lowest_own_offer_that_wins(self):
+        for amount, i in ((2, 0), (35, 1), (100, 0)):
+            self.assertTrue(self._bid(self.a, "R.Carlos", amount, cut_index=i)["ok"])
+        self._bid(self.b, "R.Carlos", 20)
+        resolve_market_session(self.session.id)
+        rc = Player.objects.get(pk=self.free["R.Carlos"].pk)
+        self.assertEqual((rc.owner, rc.cost), (self.a, Decimal("35")))
+        unused = MarketBid.objects.get(participant=self.a, amount=100)
+        self.assertIn("Non necessaria", unused.note)
+        self.assertEqual(MarketBid.objects.get(participant=self.a, amount=2).status, MarketBid.Status.LOST)
+
+    def test_unopposed_pays_its_minimum_offer(self):
+        self._bid(self.a, "Boban", 1)
+        self._bid(self.a, "Boban", 50, cut_index=1)
+        resolve_market_session(self.session.id)
+        self.assertEqual(Player.objects.get(pk=self.free["Boban"].pk).cost, Decimal("1"))
+
+    def test_tie_second_round(self):
+        from ..services.market import settle_market_tie
+        self.session.tie_break = MarketSession.TieBreak.REBID
+        self.session.save()
+        self._bid(self.a, "Raul", 10)
+        self._bid(self.b, "Raul", 10)
+        summary = resolve_market_session(self.session.id)
+        self.assertEqual(summary["total_ties"], 1)
+        raul = self.free["Raul"]
+        res = settle_market_tie(self.session.id, raul.id, rebids={self.a.id: 12, self.b.id: 12})
+        self.assertFalse(res["ok"])  # nuovo pari merito
+        res = settle_market_tie(self.session.id, raul.id, rebids={self.a.id: 12, self.b.id: 15})
+        self.assertTrue(res["ok"], res)
+        raul.refresh_from_db()
+        self.assertEqual((raul.owner, raul.cost), (self.b, Decimal("15")))
+
     def test_every_purchase_replaces_a_same_role_player(self):
         self._bid(self.a, "Iniesta", 20)
         resolve_market_session(self.session.id)

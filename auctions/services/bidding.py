@@ -7,7 +7,7 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
-from ..models import Auction, Bid, Participant
+from ..models import Auction, Bid, Participant, Player
 from .common import (
     Reject, BidResult, _normalize_increment, _check_roster_limits, participates_in,
 )
@@ -17,6 +17,16 @@ logger = logging.getLogger("auctions.bidding")
 
 
 @transaction.atomic
+def gk_clubs_problem(participant, player):
+    """Portieri (2.02): al massimo ``gk_max_clubs`` squadre di Serie A diverse."""
+    league = participant.league
+    limit = getattr(league, "gk_max_clubs", 0) if league else 0
+    if not limit or player.role != "P" or not player.team:
+        return False
+    clubs = set(Player.objects.filter(owner=participant, role="P").exclude(team="").values_list("team", flat=True))
+    return player.team not in clubs and len(clubs) >= limit
+
+
 def place_bid(auction_id, participant_id, increment, *, user_agent="", ip_address=None):
     """Register a rilancio, or reject it with a single, predictable reason."""
     now = timezone.now()
@@ -54,7 +64,17 @@ def place_bid(auction_id, participant_id, increment, *, user_agent="", ip_addres
         return _reject(Reject.WRONG_LEAGUE)
 
     if auction.player_id and auction.player.rescinded_from_id == participant.id:
-        return _reject(Reject.RESCINDED_REBUY)
+        # 4.02: chi l'ha perso al rinnovo può ricomprarlo solo se al primo giro
+        # di chiamata nessun'altra squadra ha fatto offerte (lotto invenduto).
+        from ..models import AuctionCycleResult
+        passed_unsold = AuctionCycleResult.objects.filter(
+            auction=auction, player_id=auction.player_id, assigned=False,
+        ).exclude(cycle=auction.current_cycle).exists()
+        if not passed_unsold:
+            return _reject(Reject.RESCINDED_REBUY)
+
+    if auction.player_id and gk_clubs_problem(participant, auction.player):
+        return _reject(Reject.GK_CLUBS)
 
     if auction.status != Auction.Status.LIVE:
         return _reject(Reject.NOT_LIVE)
@@ -81,6 +101,10 @@ def place_bid(auction_id, participant_id, increment, *, user_agent="", ip_addres
     new_amount = auction.current_price + inc
     if new_amount > participant.remaining_credits:
         return _reject(Reject.INSUFFICIENT_CREDITS, inc=inc)
+
+    from .salary import check_purchase
+    if check_purchase(participant, new_amount, auction=auction):
+        return _reject(Reject.SALARY_CAP, inc=inc, amount=new_amount)
 
     # Roster slot + budget-reserve limits (league bidders only; admin-overridable).
     roster_reject = _check_roster_limits(auction, participant, new_amount)

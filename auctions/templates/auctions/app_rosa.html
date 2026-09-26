@@ -139,9 +139,14 @@
                 <span class="pl-cost">{{ pl.cost|floatformat:0 }}<small> FM</small></span>
                 {% if contracts_on %}
                 {% if pl.contract_years is None %}
+                <span style="display:flex;gap:3px">
                 <form method="post" action="{% url 'app_contract_roll' pl.id %}">
                     {% csrf_token %}<button type="submit" class="pl-dice" title="Tira il dado contratti">🎲</button>
                 </form>
+                <form method="post" action="{% url 'app_contract_u21' pl.id %}" onsubmit="return confirm('Dichiarare {{ pl.name|escapejs }} come scommessa Under 21? Contratto fisso di 3 anni, una sola per stagione.');">
+                    {% csrf_token %}<button type="submit" class="pl-dice" style="background:var(--panel-2);color:var(--ink);border:1px solid var(--line)" title="Scommessa Under 21 (3 anni)">U21</button>
+                </form>
+                </span>
                 {% else %}
                 <span class="pl-ct{% if pl.contract_years == 1 %} last{% elif pl.contract_years == 0 %} exp{% endif %}"
                       title="{% if pl.contract_years == 0 %}Contratto scaduto{% elif pl.contract_years == 1 %}Ultimo anno di contratto{% else %}{{ pl.contract_years }} anni di contratto{% endif %}">{% if pl.contract_years == 0 %}scad.{% else %}{{ pl.contract_years }}a{% endif %}</span>

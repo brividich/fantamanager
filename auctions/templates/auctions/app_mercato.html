@@ -129,6 +129,19 @@
 {% endif %}
 
 {% include "auctions/_slot_strip.html" %}
+{% if cap and cap.extra_open %}
+<form method="post" action="{% url 'app_extra_cap' %}" class="a-card" style="display:flex;gap:8px;align-items:center;padding:10px 14px;font-size:12.5px;flex-wrap:wrap"
+      onsubmit="return confirm('Convertire budget in tetto salariale? L\'operazione non si annulla.');">
+    {% csrf_token %}
+    <span style="flex:1 1 100%"><b>Extra salary cap</b>: {{ cap.extra_cost }} FM di budget → {{ cap.extra_gain }} FM di tetto</span>
+    <span style="display:flex;gap:8px;align-items:center">
+        <select name="blocks" style="padding:5px 8px;font-size:12px;border-radius:8px;background:var(--panel-2);border:1px solid var(--line);color:var(--ink)">
+            {% for n in "1234" %}<option value="{{ n }}">{{ n }}× (−{% widthratio cap.extra_cost 1 n %} FM, +{% widthratio cap.extra_gain 1 n %} tetto)</option>{% endfor %}
+        </select>
+        <button type="submit" class="role-chip on" style="border:none;cursor:pointer;padding:6px 12px">Converti</button>
+    </span>
+</form>
+{% endif %}
 
 {% if trades_enabled %}
 <a class="a-cta" href="{% url 'app_scambi' %}" style="margin-bottom:14px">
