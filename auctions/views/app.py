@@ -1,6 +1,8 @@
 """Product shell (mobile-first FantaManager app; session-participant identity)."""
 import json
-from django.db.models import Q
+from django.core.paginator import Paginator
+from django.db.models import Case, F, Q, Value, When
+from django.db.models.functions import Coalesce
 from django.shortcuts import redirect, render
 
 from django.contrib import messages
@@ -46,6 +48,7 @@ def app_home(request):
     plan = services.roster_plan(participant)
     fstate = services.formation_state(participant)
     ctx.update({
+        "plan": plan,
         "roster_count": plan["owned"],
         "slots_total": plan["total_slots"],
         "watch_count": participant.watches.count(),
@@ -53,6 +56,16 @@ def app_home(request):
         "lineup_done": fstate["starters_count"],
         "lineup_target": fstate["starters_target"],
         "lineup_incomplete": plan["owned"] > 0 and fstate["starters_count"] < fstate["starters_target"],
+    })
+    league = participant.league
+    open_market = None
+    if league is not None:
+        services.sync_market_schedule(league)
+        open_market = MarketSession.objects.filter(league=league, status=MarketSession.Status.OPEN).first()
+    ctx.update({
+        "open_market": open_market if open_market and open_market.is_open else None,
+        "my_open_bids": MarketBid.objects.filter(session=open_market, participant=participant).count() if open_market else 0,
+        "incoming_trades": Trade.objects.filter(receiver=participant, status=Trade.Status.PENDING).count(),
     })
     return render(request, "auctions/app_home.html", ctx)
 
@@ -152,21 +165,36 @@ def app_mercato(request):
     role = (request.GET.get("role") or "").strip().upper()[:1]
     sort = (request.GET.get("sort") or "-quota").strip()
 
+    in_budget = request.GET.get("budget") == "1"
+    is_mantra = bool(league and league.is_mantra)
+
     free_agents = Player.objects.filter(owner__isnull=True)
     free_agents = free_agents.filter(league=league) if league else free_agents.filter(league__isnull=True)
+    # The quotation the league actually plays with (Mantra price when present).
+    quota = Coalesce("price_m", "initial_price") if is_mantra else F("initial_price")
+    free_agents = free_agents.annotate(quota=quota)
     if role in ("P", "D", "C", "A"):
         free_agents = free_agents.filter(role=role)
     if q:
         free_agents = free_agents.filter(Q(name__icontains=q) | Q(team__icontains=q))
+    if in_budget:
+        free_agents = free_agents.filter(quota__lte=participant.remaining_credits)
 
     orders = {
-        "-quota": ["-initial_price", "name"],
-        "quota": ["initial_price", "name"],
+        "-quota": ["-quota", "name"],
+        "quota": ["quota", "name"],
         "name": ["name"],
-        "-fm": ["-fanta_avg", "-initial_price"],
+        "-fm": [F("fanta_avg").desc(nulls_last=True), "-quota"],
     }
-    free_agents = free_agents.order_by(*orders.get(sort, orders["-quota"]))[:50]
+    if sort not in orders:
+        sort = "-quota"
+    page = Paginator(free_agents.order_by(*orders[sort]), 30).get_page(request.GET.get("page"))
+    watched = set(participant.watches.values_list("player_id", flat=True))
+    for pl in page.object_list:
+        pl.watched = pl.id in watched
 
+    base_query = request.GET.copy()
+    base_query.pop("page", None)
 
     my_roster = list(Player.objects.filter(owner=participant).order_by("role", "-cost", "name"))
     active_auc = ctx.get("active_auction")
@@ -190,7 +218,12 @@ def app_mercato(request):
     my_bids_total = sum(b["amount"] for b in my_bids)
 
     ctx.update({
-        "free_agents": free_agents,
+        "free_agents": page.object_list,
+        "page": page,
+        "base_query": base_query.urlencode(),
+        "in_budget": in_budget,
+        "role_filters": [("", "Tutti"), ("P", "Portieri"), ("D", "Difensori"), ("C", "Centrocampisti"), ("A", "Attaccanti")],
+        "plan": services.roster_plan(participant),
         "my_roster": my_roster,
         "market_session": market_session,
         "market_open": market_open,
@@ -203,7 +236,7 @@ def app_mercato(request):
         "q": q,
         "sort": sort,
         "refund_mode": refund_mode,
-        "is_mantra": league.is_mantra if league else False,
+        "is_mantra": is_mantra,
     })
     return render(request, "auctions/app_mercato.html", ctx)
 
@@ -268,6 +301,16 @@ def app_market_delete_bid(request):
     return JsonResponse(res)
 
 
+_PDCA = Case(
+    When(role="P", then=Value(0)), When(role="D", then=Value(1)),
+    When(role="C", then=Value(2)), default=Value(3),
+)
+
+
+def _roster_pdca(participant):
+    return list(Player.objects.filter(owner=participant).order_by(_PDCA, "name"))
+
+
 def _trade_rows(trades, me):
     rows = []
     for t in trades:
@@ -310,8 +353,8 @@ def app_scambi(request):
         "history": _trade_rows(mine.exclude(status__in=Trade.OPEN_STATUSES)[:20], participant),
         "teams": teams,
         "partner": partner,
-        "my_roster": list(Player.objects.filter(owner=participant).order_by("role", "name")),
-        "partner_roster": list(Player.objects.filter(owner=partner).order_by("role", "name")) if partner else [],
+        "my_roster": _roster_pdca(participant),
+        "partner_roster": _roster_pdca(partner) if partner else [],
     })
     return render(request, "auctions/app_scambi.html", ctx)
 
