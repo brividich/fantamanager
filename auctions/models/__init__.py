@@ -26,6 +26,7 @@ from .league import (
     LeagueConfig,
 )
 from .trade import Trade, TradeWindow
+from .contract import ContractEvent
 from .market import (
     MarketBid,
     MarketSession,
@@ -58,6 +59,7 @@ __all__ = [
     "MarketBid",
     "Trade",
     "TradeWindow",
+    "ContractEvent",
     "Formation",
     "Season",
     "Giornata",

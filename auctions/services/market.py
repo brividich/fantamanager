@@ -71,6 +71,9 @@ def place_market_bid(
 
     if player.owner_id is not None or (player.league_id and player.league_id != session.league_id):
         return {"ok": False, "error": "player_unavailable", "message": "Calciatore non disponibile sul mercato svincolati."}
+    if player.rescinded_from_id == participant.id:
+        return {"ok": False, "error": "rescinded_rebuy",
+                "message": "Hai perso questo giocatore al rinnovo: non puoi ricomprarlo in questo mercato."}
 
     try:
         val = Decimal(str(amount).strip().replace(",", "."))
@@ -547,6 +550,8 @@ def _apply_award(session, participant, player, amount, release, refund):
     player.owner = participant
     player.cost = amount
     player.save(update_fields=["owner", "cost"])
+    from .contracts import on_player_acquired
+    on_player_acquired(player)
 
     if release is not None:
         release.owner = None

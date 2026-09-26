@@ -90,6 +90,19 @@ class Player(models.Model):
     )
     cost  = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("0"))
 
+    # --- Contratto di permanenza (regolamento 4) ---------------------------
+    # Stagioni di contratto rimaste, compresa quella in corso: 1 = ultimo anno,
+    # 0 = scaduto (da rinnovare), None = appena acquistato, dado da tirare.
+    contract_years = models.PositiveSmallIntegerField(null=True, blank=True)
+    # Dichiarazione di rinnovo a contratto scaduto: None = da decidere,
+    # True = da rinnovare (tiro del dado rinnovo), False = lasciato andare.
+    renewal_declared = models.BooleanField(null=True, blank=True)
+    # Rescisso col dado rinnovo: la squadra che l'aveva non può ricomprarlo
+    # alla prossima asta, e l'incasso di quell'asta va a lei (4.1).
+    rescinded_from = models.ForeignKey(
+        "Participant", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+
     class Meta:
         ordering = ["role", "name"]
 
