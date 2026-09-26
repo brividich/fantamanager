@@ -186,9 +186,9 @@
             <a href="?league={{ current_league.id }}&session={{ s.id }}" class="sess-card {% if selected_session.id == s.id %}is-active{% endif %}">
                 <div class="sess-title">
                     <span>{{ s.title }}</span>
-                    {% if s.status == "OPEN" %}
+                    {% if s.status == "open" %}
                         <span class="badge-status status-open"><span style="width:6px;height:6px;border-radius:50%;background:#22c55e"></span>Aperta</span>
-                    {% elif s.status == "CLOSED" %}
+                    {% elif s.status == "closed" %}
                         <span class="badge-status status-closed">Chiusa</span>
                     {% else %}
                         <span class="badge-status status-resolved">Scrutinata</span>
@@ -218,9 +218,9 @@
                 <div>
                     <div style="display:flex;align-items:center;gap:10px">
                         <h2 style="margin:0;font-size:20px">{{ selected_session.title }}</h2>
-                        {% if selected_session.status == "OPEN" %}
+                        {% if selected_session.status == "open" %}
                             <span class="badge-status status-open">Aperta alle offerte</span>
-                        {% elif selected_session.status == "CLOSED" %}
+                        {% elif selected_session.status == "closed" %}
                             <span class="badge-status status-closed">Consegna chiusa</span>
                         {% else %}
                             <span class="badge-status status-resolved">Scrutinio completato</span>
@@ -236,10 +236,10 @@
 
                 <!-- Azioni sessione -->
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                    {% if selected_session.status == "OPEN" %}
+                    {% if selected_session.status == "open" %}
                         <form method="post" action="{% url 'admin_market_status' selected_session.id %}" style="display:inline">
                             {% csrf_token %}
-                            <input type="hidden" name="status" value="CLOSED">
+                            <input type="hidden" name="status" value="closed">
                             <button type="submit" class="btn-action btn-close-sess" title="Chiudi consegna buste">
                                 <svg class="ic"><use href="#i-lock"/></svg> Chiudi finestra
                             </button>
@@ -250,10 +250,10 @@
                                 <svg class="ic"><use href="#i-play"/></svg> Scrutina Buste
                             </button>
                         </form>
-                    {% elif selected_session.status == "CLOSED" %}
+                    {% elif selected_session.status == "closed" %}
                         <form method="post" action="{% url 'admin_market_status' selected_session.id %}" style="display:inline">
                             {% csrf_token %}
-                            <input type="hidden" name="status" value="OPEN">
+                            <input type="hidden" name="status" value="open">
                             <button type="submit" class="btn-action btn-reopen" title="Riapri per permettere modifiche">
                                 <svg class="ic"><use href="#i-refresh"/></svg> Riapri finestra
                             </button>
@@ -287,7 +287,7 @@
             </div>
         </div>
 
-        {% if selected_session.status == "RESOLVED" and selected_session.results_summary %}
+        {% if selected_session.status == "resolved" and selected_session.results_summary %}
         <!-- Risultati Spoglio -->
         <div class="section-label"><span class="dot"></span>Esito dello spoglio</div>
         <div class="results-hero">
@@ -470,11 +470,11 @@
                                 {% endif %}
                             </td>
                             <td>
-                                {% if b.status == "WON" %}
+                                {% if b.status == "won" %}
                                     <span class="badge-status status-open">Vinta</span>
-                                {% elif b.status == "TIED" %}
+                                {% elif b.status == "tied" %}
                                     <span class="badge-status status-closed">Parità</span>
-                                {% elif b.status == "LOST" %}
+                                {% elif b.status == "lost" %}
                                     <span style="color:#ef4444;font-size:12px;font-weight:600">Superata</span>
                                 {% else %}
                                     <span class="muted" style="font-size:12px">In attesa spoglio</span>
@@ -528,10 +528,7 @@
             <div>
                 <label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Modalità di rimborso crediti per lo svincolo</label>
                 <select name="refund_mode" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);background:rgba(0,0,0,0.2);color:inherit">
-                    <option value="PURCHASE" selected>Prezzo d'acquisto (100% dei crediti pagati)</option>
-                    <option value="HALF_PURCHASE">Metà prezzo d'acquisto (50%)</option>
-                    <option value="QUOTAZIONE">Quotazione attuale di listone</option>
-                    <option value="NONE">Nessun rimborso (0 crediti)</option>
+                    {% for value, label in refund_modes %}<option value="{{ value }}"{% if value == "purchase" %} selected{% endif %}>{{ label }}</option>{% endfor %}
                 </select>
             </div>
 
