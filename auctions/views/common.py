@@ -3,6 +3,7 @@ from functools import wraps
 
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
+from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.urls import reverse
@@ -201,6 +202,28 @@ def target_league(request):
         request.session[SESSION_LEAGUE_KEY] = leagues[0].id
         return leagues[0]
     return None
+
+
+def user_can_manage_league(user, league):
+    """True when ``user`` may administer ``league``.
+
+    Superusers manage everything; a league admin manages the leagues they own.
+    Legacy leagues without an owner stay manageable by any staff user, the same
+    rule ``target_league`` applies.
+    """
+    if league is None or user is None or not user.is_authenticated:
+        return False
+    if user.is_superuser:
+        return True
+    return league.owner_id is None or league.owner_id == user.id
+
+
+def manageable_leagues(user):
+    """Leagues listed in the console pickers for ``user``."""
+    qs = League.objects.all()
+    if not user.is_superuser:
+        qs = qs.filter(Q(owner=user) | Q(owner__isnull=True))
+    return qs.order_by("name")
 
 
 def current_league(request):
