@@ -99,6 +99,7 @@ from .trade import (
     decide_trade,
     propose_trade,
     respond_trade,
+    trade_window_status,
 )
 from .market import (
     delete_market_bid,
@@ -179,6 +180,7 @@ __all__ = [
     "respond_trade",
     "cancel_trade",
     "decide_trade",
+    "trade_window_status",
     # market
     "place_market_bid",
     "delete_market_bid",

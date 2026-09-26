@@ -211,3 +211,54 @@ class RosaAndBenchLayoutTests(TestCase):
         from ..services.formation import formation_state
         bench = formation_state(self.p)["bench"]
         self.assertEqual([pl.role for pl in bench], ["P", "D", "C", "A"])
+
+
+class TradeRulesTests(TestCase):
+    """Regolamento 5.3: stessi ruoli e periodi di scambio."""
+
+    def setUp(self):
+        from ..models import TradeWindow
+        self.TradeWindow = TradeWindow
+        self.league = League.objects.create(name="L", trades_need_approval=False, trades_same_roles=True)
+        self.a = Participant.objects.create(display_name="A", league=self.league, credits=Decimal("100"))
+        self.b = Participant.objects.create(display_name="B", league=self.league, credits=Decimal("100"))
+        self.a_d = Player.objects.create(name="aD", role="D", league=self.league, owner=self.a)
+        self.a_c = Player.objects.create(name="aC", role="C", league=self.league, owner=self.a)
+        self.b_d = Player.objects.create(name="bD", role="D", league=self.league, owner=self.b)
+
+    def test_same_roles_required(self):
+        res = propose_trade(self.a.id, self.b.id, [self.a_c.id], [self.b_d.id])
+        self.assertFalse(res["ok"])
+        self.assertIn("stesso numero di giocatori per ruolo", res["message"])
+        self.assertTrue(propose_trade(self.a.id, self.b.id, [self.a_d.id], [self.b_d.id])["ok"])
+
+    def test_windows(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        now = timezone.now()
+        w = self.TradeWindow.objects.create(league=self.league, name="Invernale",
+                                            opens_at=now + timedelta(days=1), closes_at=now + timedelta(days=20))
+        res = propose_trade(self.a.id, self.b.id, [self.a_d.id], [self.b_d.id])
+        self.assertFalse(res["ok"])
+        self.assertIn("Invernale", res["message"])
+        w.opens_at = now - timedelta(days=1)
+        w.save()
+        tid = propose_trade(self.a.id, self.b.id, [self.a_d.id], [self.b_d.id])["trade_id"]
+        w.closes_at = now - timedelta(minutes=1)
+        w.save()
+        res = respond_trade(tid, self.b.id, True)
+        self.assertFalse(res["ok"])
+        self.assertIn("chiuso", res["message"])
+
+    def test_admin_manages_windows(self):
+        root = User.objects.create_superuser("root", "r@x.local", "pw")
+        self.client.force_login(root)
+        self.client.post(reverse("admin_trade_window_add"), {
+            "league_id": self.league.id, "name": "Estivo",
+            "opens_at": "2026-07-01T00:00", "closes_at": "2026-09-02T17:00",
+        })
+        w = self.TradeWindow.objects.get(name="Estivo")
+        page = self.client.get(reverse("admin_market_dashboard") + f"?league={self.league.id}")
+        self.assertContains(page, "Estivo")
+        self.client.post(reverse("admin_trade_window_delete", args=[w.id]))
+        self.assertFalse(self.TradeWindow.objects.exists())

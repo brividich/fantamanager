@@ -226,6 +226,9 @@ def app_mercato(request):
             rp.market_refund = int(services.market_release_refund(market_session, rp))
     my_bid_player_ids = {b["player_id"] for b in my_bids}
     my_bids_total = sum(b["amount"] for b in my_bids)
+    bids_left = None
+    if market_session and market_session.max_bids:
+        bids_left = max(0, market_session.max_bids - len(my_bids))
 
     ctx.update({
         "free_agents": page.object_list,
@@ -240,6 +243,7 @@ def app_mercato(request):
         "my_bids": my_bids,
         "my_bid_player_ids": my_bid_player_ids,
         "my_bids_total": my_bids_total,
+        "bids_left": bids_left,
         "trades_enabled": bool(league and league.trades_enabled),
         "incoming_trades": Trade.objects.filter(receiver=participant, status=Trade.Status.PENDING).count(),
         "role": role,
@@ -346,6 +350,7 @@ def app_scambi(request):
         "proposer", "receiver"
     ).prefetch_related("proposer_players", "receiver_players")
 
+    window_open, window = services.trade_window_status(league) if league is not None else (True, None)
     teams = []
     partner = None
     if league is not None:
@@ -357,6 +362,9 @@ def app_scambi(request):
     ctx.update({
         "trades_enabled": bool(league and league.trades_enabled),
         "trades_need_approval": bool(league and league.trades_need_approval),
+        "trades_same_roles": bool(league and league.trades_same_roles),
+        "trade_window_open": window_open,
+        "trade_window": window,
         "incoming": _trade_rows(mine.filter(receiver=participant, status=Trade.Status.PENDING), participant),
         "outgoing": _trade_rows(mine.filter(proposer=participant, status__in=Trade.OPEN_STATUSES), participant),
         "awaiting": _trade_rows(mine.filter(receiver=participant, status=Trade.Status.ACCEPTED), participant),

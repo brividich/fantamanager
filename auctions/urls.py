@@ -86,7 +86,10 @@ urlpatterns = [
     path("admin-auction/market/<int:session_id>/delete/", views.admin_market_delete, name="admin_market_delete"),
     path("admin-auction/market/<int:session_id>/tie/", views.admin_market_settle_tie, name="admin_market_settle_tie"),
     path("admin-auction/market/<int:session_id>/undo/", views.admin_market_undo, name="admin_market_undo"),
+    path("admin-auction/market/<int:session_id>/rules/", views.admin_market_rules, name="admin_market_rules"),
     path("admin-auction/trades/settings/", views.admin_trade_settings, name="admin_trade_settings"),
+    path("admin-auction/trades/windows/add/", views.admin_trade_window_add, name="admin_trade_window_add"),
+    path("admin-auction/trades/windows/<int:window_id>/delete/", views.admin_trade_window_delete, name="admin_trade_window_delete"),
     path("admin-auction/trades/<int:trade_id>/decide/", views.admin_trade_decide, name="admin_trade_decide"),
     # Internet access (Cloudflare quick tunnel) + the remote console PIN gate.
     path("admin-auction/remote/", views.admin_remote_status, name="admin_remote_status"),

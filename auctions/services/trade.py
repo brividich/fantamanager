@@ -7,7 +7,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from ..models import Participant, Player, RosterLog, Trade
+from ..models import Participant, Player, RosterLog, Trade, TradeWindow
 
 logger = logging.getLogger("auctions.trade")
 
@@ -55,6 +55,32 @@ def _slot_problem(league, participant, gives, gets):
     return ""
 
 
+def trade_window_status(league, now=None):
+    """(open?, current_or_next_window) for the league's trade windows.
+
+    No windows defined = trades allowed all season (open, None).
+    """
+    now = now or timezone.now()
+    windows = list(TradeWindow.objects.filter(league=league))
+    if not windows:
+        return True, None
+    for w in windows:
+        if w.opens_at <= now <= w.closes_at:
+            return True, w
+    upcoming = [w for w in windows if w.opens_at > now]
+    return False, (min(upcoming, key=lambda w: w.opens_at) if upcoming else None)
+
+
+def _window_problem(league):
+    is_open, nxt = trade_window_status(league)
+    if is_open:
+        return ""
+    if nxt is not None:
+        return (f"Il periodo scambi è chiuso: il prossimo ({nxt.name}) apre il "
+                f"{timezone.localtime(nxt.opens_at):%d/%m/%Y alle %H:%M}.")
+    return "Il periodo scambi è chiuso."
+
+
 def _validate(trade, proposer_players, receiver_players):
     """Every rule a trade must satisfy, both when proposed and when executed."""
     league = trade.league
@@ -68,6 +94,14 @@ def _validate(trade, proposer_players, receiver_players):
             return f"{p.display_name} non può partecipare a scambi in questa lega."
     if not proposer_players and not receiver_players:
         return "Lo scambio deve includere almeno un calciatore."
+    if league.trades_same_roles:
+        give = Counter(p.role for p in proposer_players)
+        get = Counter(p.role for p in receiver_players)
+        if give != get:
+            def fmt(c):
+                return " ".join(f"{c[r]}{r}" for r in "PDCA" if c[r]) or "nessuno"
+            return ("Lo scambio deve spostare lo stesso numero di giocatori per ruolo da entrambe le parti "
+                    f"(cedi {fmt(give)}, ricevi {fmt(get)}).")
     for pl in proposer_players:
         if pl.owner_id != proposer.id:
             return f"{pl.name} non è più nella rosa di {proposer.display_name}."
@@ -96,6 +130,10 @@ def propose_trade(proposer_id, receiver_id, give_ids=(), get_ids=(),
     pc, rc = _credits(give_credits), _credits(get_credits)
     if pc is None or rc is None:
         return _err("Importo crediti non valido.")
+
+    window = _window_problem(proposer.league)
+    if window:
+        return _err(window)
 
     give = list(Player.objects.filter(pk__in=_ids(give_ids)))
     get = list(Player.objects.filter(pk__in=_ids(get_ids)))
@@ -200,6 +238,9 @@ def respond_trade(trade_id, participant_id, accept):
     if not accept:
         _close(trade, Trade.Status.REJECTED)
         return {"ok": True, "status": trade.status}
+    window = _window_problem(trade.league)
+    if window:
+        return _err(window)
 
     trade.responded_at = timezone.now()
     if trade.league.trades_need_approval:
