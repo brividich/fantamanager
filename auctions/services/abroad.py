@@ -3,6 +3,8 @@
 Flusso:
 1. All'import del listone ufficiale, chi è in una rosa ma non c'è più viene
    segnalato (``Player.left_serie_a_at``).
+   Oppure «Controlla tutte le rose» li trova prima del listone, dai
+   trasferimenti dei club di Serie A su API-Football.
 2. Subito dopo l'import (e con "Rileva" / "Rileva tutti") si cerca da soli il
    club di destinazione (API-Football) e la sua posizione nel ranking UEFA,
    che si scarica da uefa.com se manca o ha più di un mese; l'admin conferma o
@@ -20,12 +22,14 @@ In ogni caso la perdita conta per le estensioni del tetto salariale (3.02).
 """
 import logging
 import re
+import threading
 import time
 import unicodedata
 from datetime import timedelta
 from decimal import Decimal
 
-from django.db import transaction
+from django.core.cache import cache
+from django.db import connection, transaction
 from django.db.models import Max
 from django.utils import timezone
 
@@ -247,6 +251,156 @@ def detect_summary(report):
         parts.append(report["ranking_problem"])
     return " · ".join(parts)
 
+
+
+# --- Controllo di tutte le rose (API-Football, per club) -----------------------------
+
+ROSTER_CHECK_KEY = "abroad-roster-check:{}"
+# Oltre questo tempo un controllo "in corso" è stato interrotto (riavvio del server).
+ROSTER_CHECK_STALE = timedelta(minutes=20)
+_roster_checks = set()
+_roster_checks_lock = threading.Lock()
+
+
+def check_all_rosters(league, *, get=None, sleep=time.sleep, progress=None, today=None):
+    """Cerca su API-Football chi, fra i giocatori in rosa di tutte le squadre,
+    ha lasciato la Serie A, senza aspettare il nuovo listone.
+
+    Una richiesta per club di Serie A (più una o due per riconoscere i club):
+    chi risulta andato via viene segnalato con club di destinazione e posizione
+    nel ranking UEFA, pronto da confermare come dopo l'import del listone.
+    """
+    import requests
+
+    from ..providers import apifootball as af
+
+    get = get or requests.get
+    report = {"clubs": 0, "players": 0, "found": [], "unmatched": [], "error": "", "ranking_problem": ""}
+    owned = (Player.objects.filter(owner__league=league, abroad_list=False, left_serie_a_at__isnull=True)
+             .exclude(team="").select_related("owner"))
+    by_club = {}
+    for player in owned:
+        by_club.setdefault(player.team, []).append(player)
+    if not by_club:
+        return report
+    if not af.is_configured():
+        report["error"] = "API-Football non configurata: imposta APIFOOTBALL_KEY sul server e riavvia"
+        return report
+    listone_teams = set(Player.objects.filter(league=league).exclude(team="").values_list("team", flat=True))
+    listone_teams |= set(by_club)
+    try:
+        clubs = af.paced(af.italian_clubs, sorted(listone_teams), get=get, sleep=sleep)
+        ids = {tid for tid, _ in clubs.values()}
+        names = {af._norm_club(t) for t in listone_teams}
+
+        def is_serie_a(team):
+            return team.get("id") in ids or af._norm_club(team.get("name") or "") in names
+
+        todo = [club for club in sorted(by_club) if club in clubs]
+        report["unmatched"] = [club for club in sorted(by_club) if club not in clubs]
+        left_today = af._limits["day"]
+        if left_today is not None and left_today < len(todo):
+            raise af.ApiFootballError(
+                f"restano solo {left_today} richieste API-Football per oggi, ne servono {len(todo)}: riprova domani")
+        for i, club in enumerate(todo):
+            if progress:
+                progress(i, len(todo))
+            club_id, _ = clubs[club]
+            entries = af.paced(af.club_transfers, club_id, get=get, sleep=sleep)
+            report["clubs"] += 1
+            report["players"] += len(by_club[club])
+            gone = af.departures(entries, by_club[club], club_id, is_serie_a, today=today)
+            now = timezone.now()
+            for player in by_club[club]:
+                if player.id in gone:
+                    # Segnalato subito: se il controllo si ferma a metà, quel che ha trovato resta.
+                    Player.objects.filter(pk=player.id, left_serie_a_at__isnull=True).update(
+                        left_serie_a_at=now, left_club=gone[player.id]["club"][:120])
+                    report["found"].append({"player_id": player.id, "player_name": player.name,
+                                            "team": player.owner.display_name, "club": gone[player.id]["club"],
+                                            "date": gone[player.id]["date"], "position": None})
+    except af.ApiFootballError as exc:
+        report["error"] = str(exc)
+    if report["found"]:
+        report["ranking_problem"] = ensure_uefa_ranking()
+        for res in report["found"]:
+            pos = uefa_position(res["club"])
+            if pos:
+                res["position"] = pos
+                Player.objects.filter(pk=res["player_id"]).update(left_rank_kind="uefa", left_rank_pos=pos)
+    logger.info("Controllo rose lega %s: %s club, %s giocatori, %s usciti (%s)", league.id, report["clubs"],
+                report["players"], len(report["found"]), report["error"])
+    return report
+
+
+def roster_check_summary(report):
+    """Il resoconto di :func:`check_all_rosters` in una riga per l'admin."""
+    parts = [f"controllati {report['players']} giocatori di {report['clubs']} club di Serie A"]
+    if report["found"]:
+        for res in report["found"]:
+            where = f"ranking UEFA {res['position']}°" if res.get("position") else "posizione nel ranking da indicare"
+            parts.append(f"{res['player_name']} ({res['team']}) → {res['club']} ({where})")
+    elif not report["error"]:
+        parts.append("nessuno ha lasciato la Serie A")
+    if report["unmatched"]:
+        parts.append("club non riconosciuti su API-Football: " + ", ".join(report["unmatched"]))
+    if report["error"]:
+        parts.append(report["error"])
+    if report["ranking_problem"]:
+        parts.append(report["ranking_problem"])
+    return " · ".join(parts)
+
+
+def roster_check_state(league):
+    """Stato dell'ultimo controllo delle rose: None, in corso o concluso."""
+    state = cache.get(ROSTER_CHECK_KEY.format(league.id))
+    if state and state.get("status") == "running" and \
+            timezone.now() - state["started_at"] > ROSTER_CHECK_STALE:
+        state = {**state, "status": "interrupted"}
+    return state
+
+
+def _spawn(fn, *args):
+    def run():
+        try:
+            fn(*args)
+        finally:
+            connection.close()  # la connessione di questo thread
+    threading.Thread(target=run, daemon=True).start()
+
+
+def start_roster_check(league):
+    """Avvia il controllo in background (serve qualche minuto per stare nel
+    limite al minuto del piano gratuito). False se ce n'è già uno in corso."""
+    with _roster_checks_lock:
+        if league.id in _roster_checks:
+            return False
+        _roster_checks.add(league.id)
+    key = ROSTER_CHECK_KEY.format(league.id)
+    started = timezone.now()
+    cache.set(key, {"status": "running", "started_at": started, "done": 0, "total": 0}, 86400)
+
+    def progress(done, total):
+        cache.set(key, {"status": "running", "started_at": started, "done": done, "total": total}, 86400)
+
+    def run(league_id):
+        from ..models import League
+        try:
+            report = check_all_rosters(League.objects.get(pk=league_id), progress=progress)
+            cache.set(key, {"status": "done", "started_at": started, "finished_at": timezone.now(),
+                            "found": len(report["found"]), "error": report["error"],
+                            "summary": roster_check_summary(report)}, 7 * 86400)
+        except Exception:
+            logger.exception("Controllo rose lega %s non riuscito", league_id)
+            cache.set(key, {"status": "done", "started_at": started, "finished_at": timezone.now(),
+                            "found": 0, "error": "errore interno",
+                            "summary": "Controllo non riuscito: errore interno (vedi i log)."}, 7 * 86400)
+        finally:
+            with _roster_checks_lock:
+                _roster_checks.discard(league_id)
+
+    _spawn(run, league.id)
+    return True
 
 def _lose(player, amount, note):
     from .salary import add_credits

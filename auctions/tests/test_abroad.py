@@ -506,3 +506,142 @@ class UefaRankingRefreshTests(TestCase):
         self.assertContains(self.client.get(url), "aggiornato il")
         self._age(abroad.UEFA_MAX_AGE_DAYS + 1)
         self.assertContains(self.client.get(url), "(da aggiornare)")
+
+
+class RosterCheckTests(TestCase):
+    """«Controlla tutte le rose»: i trasferimenti dei club di Serie A dicono chi è uscito."""
+
+    def setUp(self):
+        from datetime import date, timedelta
+        from django.core.cache import cache
+        cache.clear()
+        apifootball._refused_seasons.clear()
+        apifootball._limits.update(minute=None, day=None)
+        self.addCleanup(apifootball._refused_seasons.clear)
+        self.addCleanup(apifootball._limits.update, minute=None, day=None)
+        patcher = mock.patch.dict(os.environ, {"APIFOOTBALL_KEY": "test", "APIFOOTBALL_SEASON": "2026"})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+        self.admin = User.objects.create_user("adm", password="pw")
+        self.league = League.objects.create(name="L", owner=self.admin)
+        a = Participant.objects.create(display_name="Alfa", league=self.league)
+        b = Participant.objects.create(display_name="Beta", league=self.league)
+        mk = lambda name, team, owner: Player.objects.create(name=name, role="A", team=team, league=self.league, owner=owner)
+        self.vlahovic = mk("Vlahovic", "Juventus", a)
+        mk("Yildiz", "Juventus", a)
+        mk("Cambiaso", "Juventus", a)
+        mk("Locatelli", "Juventus", a)
+        mk("Martinez L.", "Inter", b)
+        self.josep = mk("Martinez Jo.", "Inter", b)
+        mk("Tramoni", "Pisa", b)
+        abroad.store_uefa_ranking([("Real Madrid", 1, "ESP"), ("Galatasaray", 25, "TUR")])
+
+        today = date.today()
+        self.recent = (today - timedelta(days=30)).isoformat()
+        self.future = (today + timedelta(days=90)).isoformat()
+        self.calls = []
+
+    def move(self, when, out, into):
+        return {"date": when, "teams": {"out": {"id": out[0], "name": out[1]}, "in": {"id": into[0], "name": into[1]}}}
+
+    def fake_get(self, headers=None):
+        juve, inter = (496, "Juventus"), (505, "Inter")
+        transfers = {
+            496: [
+                {"player": {"name": "D. Vlahović"}, "transfers": [
+                    self.move("2022-01-28", (502, "Fiorentina"), juve),
+                    self.move(self.recent, juve, (645, "Galatasaray"))]},
+                {"player": {"name": "K. Yıldız"}, "transfers": [self.move("2022-07-01", (1, "Bayern II"), juve)]},
+                {"player": {"name": "A. Cambiaso"}, "transfers": [self.move(self.future, juve, (50, "Manchester City"))]},
+                {"player": {"name": "M. Locatelli"}, "transfers": [self.move(self.recent, juve, inter)]},
+            ],
+            505: [
+                {"player": {"name": "Lautaro Martínez"}, "transfers": [self.move("2018-07-04", (1, "Racing"), inter)]},
+                {"player": {"name": "Josep Martínez"}, "transfers": [self.move(self.recent, inter, (9568, "Inter Miami"))]},
+            ],
+        }
+        italy = [{"team": {"id": 496, "name": "Juventus"}}, {"team": {"id": 999, "name": "Juventus W"}},
+                 {"team": {"id": 505, "name": "Inter"}}, {"team": {"id": 9000, "name": "Inter U19"}},
+                 {"team": {"id": 768, "name": "Italy", "national": True}}]
+
+        def get(url, params=None, **kw):
+            self.calls.append((url.rsplit("/", 1)[-1], dict(params)))
+            if url.endswith("/teams") and "league" in params:
+                return Resp({"errors": {"plan": "Free plans do not have access to this season."}})
+            if url.endswith("/teams"):
+                resp = Resp({"response": italy})
+                resp.headers = headers or {}
+                return resp
+            return Resp({"response": transfers.get(params["team"], [])})
+        return get
+
+    def test_finds_who_left_serie_a_across_all_teams(self):
+        report = abroad.check_all_rosters(self.league, get=self.fake_get(), sleep=lambda s: None)
+        found = {r["player_name"]: (r["club"], r["position"]) for r in report["found"]}
+        # Locatelli va all'Inter (resta in Serie A), Cambiaso ha solo un trasferimento futuro,
+        # Lautaro è all'Inter da anni: nessuno dei tre è uscito. L'Inter Miami non è l'Inter.
+        self.assertEqual(found, {"Vlahovic": ("Galatasaray", 25), "Martinez Jo.": ("Inter Miami", None)})
+        self.assertEqual((report["clubs"], report["players"], report["unmatched"]), (2, 6, ["Pisa"]))
+        self.vlahovic.refresh_from_db()
+        self.assertIsNotNone(self.vlahovic.left_serie_a_at)
+        self.assertEqual((self.vlahovic.left_club, self.vlahovic.left_rank_pos), ("Galatasaray", 25))
+        # Una richiesta per club, più il riconoscimento dei club (piano gratuito: country=Italy).
+        self.assertEqual([u for u, _ in self.calls], ["teams", "teams", "teams", "transfers", "transfers"])
+        summary = abroad.roster_check_summary(report)
+        self.assertIn("Vlahovic (Alfa) → Galatasaray (ranking UEFA 25°)", summary)
+        self.assertIn("Pisa", summary)
+
+    def test_names_with_special_letters_are_recognised(self):
+        self.assertEqual(apifootball._ascii("Yıldız Højlund Łukasz Vlahović"), "Yildiz Hojlund Lukasz Vlahovic")
+        gone = apifootball.departures(
+            [{"player": {"name": "K. Yıldız"}, "transfers": [self.move(self.recent, (496, "Juventus"), (1, "Barcelona"))]}],
+            [Player(id=1, name="Yildiz")], 496, lambda team: False)
+        self.assertEqual(gone, {1: {"club": "Barcelona", "date": self.recent}})
+
+    def test_already_flagged_players_are_skipped(self):
+        abroad.flag_player(self.vlahovic.id)
+        report = abroad.check_all_rosters(self.league, get=self.fake_get(), sleep=lambda s: None)
+        self.assertNotIn("Vlahovic", [r["player_name"] for r in report["found"]])
+
+    def test_stops_when_the_daily_quota_is_not_enough(self):
+        report = abroad.check_all_rosters(
+            self.league, get=self.fake_get({"x-ratelimit-requests-remaining": "1"}), sleep=lambda s: None)
+        self.assertIn("restano solo 1", report["error"])
+        self.assertEqual(report["found"], [])
+
+    def test_waits_for_the_per_minute_limit(self):
+        slept = []
+        first = []
+        inner = self.fake_get({"x-ratelimit-remaining": "0"})
+
+        def get(url, params=None, **kw):
+            if url.endswith("/transfers") and not first:
+                first.append(1)
+                return Resp({"errors": {"rateLimit": "Too many requests."}})
+            return inner(url, params, **kw)
+        report = abroad.check_all_rosters(self.league, get=get, sleep=slept.append)
+        self.assertEqual(report["error"], "")
+        self.assertEqual(len(report["found"]), 2)
+        self.assertTrue(slept and all(s >= 60 for s in slept))
+
+    def test_contracts_page_starts_the_check(self):
+        from ..services.abroad import roster_check_state
+        self.client.force_login(self.admin)
+        url = reverse("admin_contracts") + f"?league={self.league.id}"
+        self.assertContains(self.client.get(url), "Controlla tutte le rose")
+        with mock.patch.object(abroad, "_spawn", lambda fn, *args: fn(*args)), \
+                mock.patch("requests.get", self.fake_get()):
+            resp = self.client.post(reverse("admin_contracts_action"),
+                                    {"league_id": self.league.id, "action": "left_check_all"}, follow=True)
+        self.assertContains(resp, "Ultimo controllo delle rose")
+        self.assertContains(resp, "Galatasaray")
+        self.assertEqual(roster_check_state(self.league)["found"], 2)
+
+    def test_a_check_left_running_after_a_restart_shows_as_interrupted(self):
+        from datetime import timedelta
+        from django.core.cache import cache
+        from django.utils import timezone
+        cache.set(abroad.ROSTER_CHECK_KEY.format(self.league.id),
+                  {"status": "running", "started_at": timezone.now() - timedelta(hours=1), "done": 3, "total": 20})
+        self.assertEqual(abroad.roster_check_state(self.league)["status"], "interrupted")
