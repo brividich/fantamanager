@@ -14,6 +14,7 @@ from .admin_wizards import _game_mode
 from .common import (
     current_auction,
     manageable_leagues,
+    managed_or_403,
     staff_member_required,
     target_league,
     user_can_manage_league,
@@ -227,7 +228,9 @@ def admin_sessions(request):
 @require_POST
 def admin_save_session(request, auction_id):
     """Snapshot the current league standings of an auction into a session."""
-    auction = get_object_or_404(Auction, pk=auction_id)
+    auction, denied = managed_or_403(request, Auction, auction_id)
+    if denied:
+        return denied
     session = services.save_session(
         auction.id,
         name=request.POST.get("name", "").strip(),

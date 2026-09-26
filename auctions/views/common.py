@@ -5,8 +5,8 @@ from functools import wraps
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.db.models import Q
-from django.http import JsonResponse
-from django.shortcuts import redirect
+from django.http import Http404, JsonResponse
+from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 
@@ -257,6 +257,37 @@ def user_can_manage_league(user, league):
     if user.is_superuser:
         return True
     return league.owner_id is None or league.owner_id == user.id
+
+
+def user_can_manage(user, obj):
+    """True when ``user`` may administer ``obj`` — an auction, a team, a player:
+    anything that hangs off a league.
+
+    The object's league decides, as in ``user_can_manage_scope``: an object
+    with no league is superuser-only.
+    """
+    return user_can_manage_scope(user, obj.league)
+
+
+def forbidden_json():
+    return JsonResponse({"ok": False, "error": "forbidden"}, status=403)
+
+
+def managed_or_403(request, model, pk):
+    """``(obj, None)`` when the user may administer ``model`` #``pk``, else
+    ``(None, 403 response)``. A missing object (or a junk id) is a 404.
+
+    ``staff_member_required`` only proves the user is logged in; every admin
+    view acting on an object by id goes through this before touching it.
+    """
+    try:
+        pk = int(pk)
+    except (TypeError, ValueError):
+        raise Http404
+    obj = get_object_or_404(model.objects.select_related("league"), pk=pk)
+    if not user_can_manage(request.user, obj):
+        return None, forbidden_json()
+    return obj, None
 
 
 def manageable_leagues(user):
