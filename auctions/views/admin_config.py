@@ -3,6 +3,7 @@ from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.db.models import Count, Q
+from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
@@ -16,6 +17,7 @@ from .common import (
     staff_member_required,
     target_league,
     user_can_manage_league,
+    user_can_manage_scope,
 )
 
 
@@ -197,13 +199,22 @@ def admin_config_action(request):
     return _config_back(request)
 
 
+def _manageable_sessions(user):
+    """Saved sessions ``user`` may browse and resume: those of the leagues they
+    manage, plus — for a superuser — the ones whose league is gone."""
+    scope = Q(league__in=manageable_leagues(user))
+    if user.is_superuser:
+        scope |= Q(league__isnull=True)
+    return AuctionSession.objects.filter(scope)
+
+
 @staff_member_required
 def admin_sessions(request):
     """List saved sessions (GET) for browsing and resuming."""
-    leagues = list(League.objects.all())
+    leagues = list(manageable_leagues(request.user))
     current_league = leagues[0] if leagues else None
     return render(request, "auctions/admin_sessions.html", {
-        "sessions": AuctionSession.objects.select_related("league", "source_auction"),
+        "sessions": _manageable_sessions(request.user).select_related("league", "source_auction"),
         "leagues": leagues,
         "current_league": current_league,
         "selected": current_auction(request, current_league),
@@ -235,21 +246,32 @@ def _after_resume(auction):
     return redirect(f"/admin-auction/?auction={auction.id}")
 
 
+def _resume(request, session):
+    """Rebuild ``session``; the new league keeps the source league's owner, or
+    goes to whoever resumed it — never ownerless, open to every account."""
+    owner = session.league.owner if session.league_id and session.league.owner_id else request.user
+    return services.resume_session(
+        session.id, created_by=request.user.get_username(), owner=owner)
+
+
 @staff_member_required
 @require_POST
 def admin_resume_session(request, session_id):
     """Rebuild a fresh, playable auction from a saved session."""
-    get_object_or_404(AuctionSession, pk=session_id)
-    auction = services.resume_session(session_id, created_by=request.user.get_username())
-    return _after_resume(auction)
+    session = get_object_or_404(AuctionSession.objects.select_related("league"), pk=session_id)
+    # A session whose league is gone (league=None) belongs to superusers only.
+    if not user_can_manage_scope(request.user, session.league):
+        return HttpResponseForbidden("Non hai i permessi per riprendere questa sessione.")
+    return _after_resume(_resume(request, session))
 
 
 @staff_member_required
 @require_POST
 def admin_resume_latest(request):
-    """One-click 'Riprendi sessione' — resume the most recent saved session."""
-    latest = AuctionSession.objects.order_by("-created_at").first()
+    """One-click 'Riprendi sessione' — resume the most recent saved session
+    among those the user may manage."""
+    latest = (_manageable_sessions(request.user).select_related("league")
+              .order_by("-created_at").first())
     if latest is None:
         return redirect("admin_sessions")
-    auction = services.resume_session(latest.id, created_by=request.user.get_username())
-    return _after_resume(auction)
+    return _after_resume(_resume(request, latest))

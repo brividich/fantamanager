@@ -8,41 +8,54 @@ except ImportError:
     qrcode = None
 
 from django.contrib import messages
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from ..models import Auction, League, Participant, Player
 from .. import remote
 from .common import (
+    FORBIDDEN_LEAGUE_MSG,
     current_auction,
+    manageable_leagues,
     participant_join_url,
     participant_lan_join_url,
     staff_member_required,
     target_league,
+    user_can_manage_league,
+    user_can_manage_scope,
 )
 
 
 @staff_member_required
 def admin_participants(request):
-    """Teams of one league: credits, roster size and the join link/QR to hand out."""
-    leagues = League.objects.all().order_by("name")
+    """Teams of one league: credits, roster size and the join link/QR to hand out.
+
+    Every row carries the team's tokenised join link, which signs whoever
+    opens it in as that team: only a user who manages the league sees them.
+    """
+    leagues = manageable_leagues(request.user)
     current_league = None
     raw = (request.GET.get("league") or "").strip()
     if raw.isdigit():
         current_league = League.objects.filter(pk=int(raw)).first()
+        if current_league is not None and not user_can_manage_league(request.user, current_league):
+            return HttpResponseForbidden(FORBIDDEN_LEAGUE_MSG)
     if current_league is None:
         current_league = target_league(request)
 
     participants = Participant.objects.all().order_by("display_name")
+    auctions = Auction.objects.exclude(status=Auction.Status.DRAFT)
     if current_league is not None:
         participants = participants.filter(league=current_league)
+        auctions = auctions.filter(league=current_league)
+    elif not user_can_manage_scope(request.user, None):
+        # No league picked: listing every team of every league is for superusers.
+        participants = participants.none()
+        auctions = auctions.none()
 
     # Bake the league's current auction into the links/QR so scanning drops the
     # manager straight into it. A running auction wins over one still to start.
-    auctions = Auction.objects.exclude(status=Auction.Status.DRAFT)
-    if current_league is not None:
-        auctions = auctions.filter(league=current_league)
     target = (auctions.filter(status=Auction.Status.LIVE).first()
               or auctions.filter(status=Auction.Status.READY).first())
 
@@ -254,25 +267,50 @@ def admin_quick_assign_player(request):
     return redirect(request.POST.get("next", fallback))
 
 
+def _qr_console_ok(request, participant):
+    """The console's pass: the user manages the team's league, and — through
+    the internet tunnel — has unlocked the regia, as ``staff_member_required``
+    asks of every console page."""
+    if not user_can_manage_scope(request.user, participant.league):
+        return False
+    return not remote.request_is_remote(request) or bool(request.session.get("regia_unlocked"))
+
+
+def _qr_screen_token_ok(request, participant, auction):
+    """The big screen's pass: ``?t=`` is the screen token of ``auction``
+    (``?a=``), and the team plays in that auction's league."""
+    token = (request.GET.get("t") or "").strip()
+    return (auction is not None and bool(auction.public_token)
+            and token == auction.public_token
+            and auction.league_id == participant.league_id)
+
+
 def participant_qr(request, participant_id):
     """PNG QR code of a team's tokenised join link.
 
-    Public on purpose: the same code is displayed on the big screen so each
-    manager can scan to join as their team. Returns 404 only when the team is
-    missing; 503 if the optional ``qrcode`` dependency is not installed.
+    The code signs whoever scans it in as the team, so it is not handed out by
+    id alone: the caller either manages the team's league (the console), or
+    shows the screen token of an auction of that league (``?a=<id>&t=<token>``
+    — the big screen, where each manager scans to join as their team). 403
+    otherwise; 404 when the team is missing; 503 if the optional ``qrcode``
+    dependency is not installed.
 
     ``?a=<auction_id>`` bakes the auction into the code, so scanning lands
     directly on that auction's bidding page. ``?net=lan`` encodes the wifi
     address instead of the public one — the code to show the room while the
     internet tunnel is open.
     """
-    p = get_object_or_404(Participant, pk=participant_id)
-    if qrcode is None:
-        return HttpResponse("qrcode non installato", status=503)
+    p = get_object_or_404(Participant.objects.select_related("league"), pk=participant_id)
     auction = None
     wanted = (request.GET.get("a") or "").strip()
     if wanted.isdigit():
         auction = Auction.objects.filter(pk=int(wanted)).first()
+    if not (_qr_console_ok(request, p) or _qr_screen_token_ok(request, p, auction)):
+        return HttpResponseForbidden("Non autorizzato.")
+    if auction is not None and auction.league_id != p.league_id:
+        auction = None   # never point a team at another league's auction
+    if qrcode is None:
+        return HttpResponse("qrcode non installato", status=503)
     url = ""
     if request.GET.get("net") == "lan":
         url = participant_lan_join_url(request, p, auction)
@@ -280,7 +318,8 @@ def participant_qr(request, participant_id):
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     resp = HttpResponse(buf.getvalue(), content_type="image/png")
-    resp["Cache-Control"] = "public, max-age=300"
+    # Private: the image is a credential, no shared cache may keep it.
+    resp["Cache-Control"] = "private, max-age=300"
     return resp
 
 
