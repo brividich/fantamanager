@@ -67,6 +67,7 @@ ERROR_LABELS = {
     "not_owned":          "Giocatore non in rosa",
     "player_unavailable": "Giocatore non disponibile (già assegnato o inesistente)",
     "forbidden":          "Operazione non consentita",
+    "league_mismatch":    "Giocatore, squadra e asta devono essere della stessa lega",
     "bad_direction":      "Comando non valido",
     "bad_delta":          "Valore timer non valido",
     "out_of_range":       "Fuori intervallo (max ±600s)",
