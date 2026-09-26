@@ -1,0 +1,1366 @@
+<style>
+    /* ═══════════ Regia — layout only; every colour comes from base.html ═══ */
+
+    /* 1. Live auction + timer */
+    .fm-live-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 292px;
+        gap: 12px;
+        margin-bottom: 12px;
+    }
+
+    .fm-live-card {
+        padding: 0;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .fm-live-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px 18px;
+        border-bottom: 1px solid var(--fm-border);
+    }
+
+    .fm-live-round {
+        font-size: 11px;
+        letter-spacing: .16em;
+        text-transform: uppercase;
+        color: var(--fm-text-muted);
+        font-weight: 700;
+    }
+
+    /* Ticker health — quiet by default (display:none inline), only shown
+       when serialize_state's ticker_warning says something looks stuck. */
+    .fm-ticker-warn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 11px;
+        border-radius: 8px;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        background: rgba(248, 113, 113, .14);
+        border: 1px solid rgba(248, 113, 113, .4);
+        color: var(--fm-danger, #f87171);
+        cursor: help;
+    }
+
+    .fm-live-round b {
+        font-family: var(--fm-display);
+        font-size: 19px;
+        color: var(--fm-primary-light);
+        margin-left: 6px;
+        letter-spacing: .04em;
+    }
+
+    .fm-live-body {
+        flex: 1 1 auto;
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) 232px;
+        gap: 22px;
+        align-items: center;
+        padding: 20px 22px;
+    }
+
+    .fm-live-player {
+        min-width: 0;
+        animation: fmPlayerIn .18s ease;
+    }
+
+    @keyframes fmPlayerIn {
+        from {
+            opacity: 0;
+            transform: translateY(8px);
+        }
+
+        to {
+            opacity: 1;
+            transform: none;
+        }
+    }
+
+    .fm-live-player .pl-name {
+        font-family: var(--fm-display);
+        font-weight: 800;
+        font-size: clamp(30px, 3.1vw, 46px);
+        line-height: 1.03;
+        color: #fff;
+        letter-spacing: -.005em;
+    }
+
+    .fm-live-player .pl-name.is-empty {
+        color: var(--fm-text-secondary);
+        font-size: clamp(24px, 2.4vw, 34px);
+    }
+
+    .fm-live-player .pl-meta {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--fm-text-secondary);
+    }
+
+    .fm-live-player .pl-note {
+        margin-top: 7px;
+        font-size: 12.5px;
+        color: var(--fm-text-muted);
+        max-width: 42ch;
+        line-height: 1.5;
+    }
+
+    /* Mantra: ruoli reali al posto del badge classico, non accanto. */
+    .pl-meta .mrole-chips {
+        display: inline-flex;
+        gap: 4px;
+    }
+
+    .pl-meta .mrole-chip {
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: .04em;
+        padding: 2px 7px;
+        border-radius: var(--fm-radius-sm);
+        background: rgba(19, 181, 255, .16);
+        color: #8ed8ff;
+        border: 1px solid rgba(19, 181, 255, .3);
+    }
+
+    /* Season stats for the lot on the block: a strip of tiles under the name.
+       Fantamedia is the tile that decides a bid, so it leads at double size;
+       the rest are supporting figures. Tiles render only for imported values,
+       so a pool without a "Statistiche" file simply shows no strip. */
+    .fm-live-player .pl-stats {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+        margin-top: 13px;
+    }
+
+    .fm-live-player .pl-stats:empty {
+        display: none;
+    }
+
+    .fm-live-player .pl-stat {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        min-width: 58px;
+        padding: 6px 11px 5px;
+        border-radius: 4px;
+        background: var(--fm-surface-2);
+        border: 1px solid var(--fm-border);
+        border-top: 2px solid var(--fm-border-active);
+    }
+
+    .fm-live-player .pl-stat b {
+        font-family: var(--fm-display);
+        font-weight: 800;
+        font-size: 23px;
+        line-height: 1;
+        color: #fff;
+        letter-spacing: .01em;
+    }
+
+    .fm-live-player .pl-stat i {
+        font-style: normal;
+        margin-top: 3px;
+        font-size: 9.5px;
+        font-weight: 700;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+        color: var(--fm-text-muted);
+    }
+
+    .fm-live-player .pl-stat.is-key {
+        background: rgba(19, 181, 255, .10);
+        border-color: rgba(19, 181, 255, .30);
+        border-top-color: var(--fm-cyan);
+    }
+
+    .fm-live-player .pl-stat.is-key b {
+        color: var(--fm-cyan);
+        font-size: 30px;
+    }
+
+    .fm-live-player .pl-stat.is-key i {
+        color: var(--fm-primary-light);
+    }
+
+    @media (max-width: 1100px) {
+        .fm-live-player .pl-stat {
+            min-width: 50px;
+            padding: 5px 9px 4px;
+        }
+
+        .fm-live-player .pl-stat b {
+            font-size: 19px;
+        }
+
+        .fm-live-player .pl-stat.is-key b {
+            font-size: 24px;
+        }
+    }
+
+    .fm-live-figures {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        padding-left: 20px;
+        border-left: 1px solid var(--fm-border);
+    }
+
+    .fm-price-row {
+        display: flex;
+        align-items: baseline;
+        gap: 7px;
+    }
+
+    .fm-price-row .fm-kpi-value {
+        font-size: 42px;
+    }
+
+    .fm-price-cur {
+        font-family: var(--fm-display);
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--fm-primary-light);
+    }
+
+    .fm-best {
+        font-family: var(--fm-display);
+        font-size: 21px;
+        font-weight: 700;
+        color: #fff;
+        line-height: 1.2;
+        word-break: break-word;
+        border-radius: 6px;
+        padding: 1px 4px;
+        margin-left: -4px;
+    }
+
+    .fm-best.is-new {
+        animation: leaderGlow .45s ease;
+    }
+
+    @keyframes leaderGlow {
+        0% {
+            background: rgba(24, 213, 255, .30);
+            color: #fff;
+        }
+
+        100% {
+            background: transparent;
+        }
+    }
+
+    .fm-live-status {
+        font-size: 11.5px;
+        display: flex;
+        align-items: baseline;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+
+    .fm-live-status .fm-kpi-label {
+        letter-spacing: .14em;
+    }
+
+    .fm-live-status #stat-status {
+        font-weight: 700;
+        color: var(--fm-text);
+    }
+
+    /* 2. Timer */
+    .fm-timer-card {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 6px;
+        padding: 14px;
+    }
+
+    .fm-timer-card .ring-wrap {
+        width: 176px;
+        height: 176px;
+    }
+
+    .timer-adjust {
+        display: flex;
+        gap: 6px;
+        justify-content: center;
+    }
+
+    .timer-adjust .fm-btn {
+        flex: 1 1 0;
+        min-width: 0;
+    }
+
+    /* 3. Controls + bid-for */
+    .fm-ctrl-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 12px;
+        margin-bottom: 12px;
+    }
+
+    .fm-ctrl-card {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .fm-ctrl-main {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .fm-ctrl-second {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+        padding-top: 10px;
+        border-top: 1px solid var(--fm-border);
+    }
+
+    .fm-ctrl-second input {
+        height: 32px;
+        font-size: 12.5px;
+    }
+
+    .fm-bidfor-card {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .fm-bidfor-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .fm-bidfor-row>select {
+        flex: 1 1 170px;
+        min-width: 150px;
+    }
+
+    .fm-bidfor-row>.fm-btn-primary {
+        flex: 1 1 190px;
+    }
+
+    .fm-stepper {
+        display: flex;
+        align-items: center;
+        flex: 0 0 auto;
+        border: 1px solid var(--fm-border);
+        border-radius: var(--fm-radius-sm);
+        background: rgba(3, 15, 32, .75);
+    }
+
+    .fm-stepper .fm-btn {
+        height: 38px;
+        width: 36px;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        color: var(--fm-text-secondary);
+        box-shadow: none;
+    }
+
+    .fm-stepper .fm-btn:hover {
+        background: rgba(255, 255, 255, .06);
+        color: #fff;
+    }
+
+    .fm-stepper input {
+        width: 58px;
+        height: 38px;
+        border: 0;
+        background: transparent;
+        text-align: right;
+        font-family: var(--fm-display);
+        font-size: 20px;
+        font-weight: 800;
+        padding: 0;
+    }
+
+    .fm-stepper input:focus {
+        box-shadow: none;
+    }
+
+    .fm-stepper input::-webkit-outer-spin-button,
+    .fm-stepper input::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+
+    .fm-stepper-cur {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--fm-text-muted);
+        padding: 0 8px 0 4px;
+    }
+
+    .fm-bidfor-card.is-hit {
+        animation: bidHit .25s ease;
+    }
+
+    @keyframes bidHit {
+        0% {
+            transform: scale(1);
+        }
+
+        50% {
+            transform: scale(1.03);
+            box-shadow: 0 0 0 1px var(--fm-border-active), 0 10px 30px rgba(8, 124, 240, .35);
+        }
+
+        100% {
+            transform: scale(1);
+        }
+    }
+
+    /* 4. Bottom row */
+    .fm-bottom-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.15fr) minmax(0, .95fr) minmax(0, 1.1fr);
+        gap: 12px;
+        margin-bottom: 12px;
+    }
+
+    .fm-two-col {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+
+    .rank-cell {
+        font-family: var(--fm-display);
+        font-weight: 800;
+        font-size: 15px;
+        color: var(--fm-text-muted);
+        text-align: center;
+    }
+
+    .classifica tr.leader .rank-cell {
+        color: var(--fm-primary-light);
+    }
+
+    .classifica tr.is-bidding td {
+        background: rgba(8, 124, 240, .10);
+    }
+
+    .cred-cell {
+        font-weight: 700;
+        color: var(--fm-success);
+    }
+
+    .cred-cell.is-warn {
+        color: var(--fm-warning);
+    }
+
+    .cred-cell.is-low {
+        color: var(--fm-danger);
+    }
+
+    .fm-bottom-grid>.fm-card {
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* Team identity: crest when there is a logo, initials disc otherwise. */
+    .team-cell {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        min-width: 0;
+    }
+
+    .team-cell-txt {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .team-nm {
+        font-weight: 600;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .team-crest {
+        width: 26px;
+        height: 26px;
+        border-radius: 7px;
+        flex-shrink: 0;
+        object-fit: cover;
+        border: 1px solid var(--fm-border);
+    }
+
+    .team-crest.is-initials {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(145deg, rgba(8, 124, 240, .35), rgba(4, 20, 41, .9));
+        color: #dbeeff;
+        font-size: 10.5px;
+        font-weight: 800;
+        letter-spacing: .02em;
+    }
+
+    .team-crest.sm {
+        width: 21px;
+        height: 21px;
+        border-radius: 6px;
+        font-size: 9px;
+    }
+
+    .classifica tr.leader .team-crest.is-initials {
+        background: var(--fm-gradient);
+        color: #fff;
+        border-color: transparent;
+    }
+
+    .unit {
+        font-size: 10px;
+        color: var(--fm-text-muted);
+        font-weight: 600;
+    }
+
+    .classifica td {
+        padding: 8px 10px;
+    }
+
+    .fm-activity {
+        display: flex;
+        flex-direction: column;
+        max-height: 232px;
+        overflow-y: auto;
+        margin-bottom: 8px;
+    }
+
+    .act-row {
+        display: grid;
+        grid-template-columns: 58px auto minmax(0, 1fr) auto auto;
+        gap: 9px;
+        align-items: center;
+        padding: 7px 4px;
+        border-bottom: 1px solid rgba(85, 160, 230, .09);
+        font-size: 12.5px;
+    }
+
+    .act-row:last-child {
+        border-bottom: 0;
+    }
+
+    .act-row.is-new {
+        animation: actIn .4s ease;
+    }
+
+    @keyframes actIn {
+        0% {
+            background: rgba(8, 124, 240, .28);
+            transform: translateX(-6px);
+        }
+
+        100% {
+            background: transparent;
+            transform: none;
+        }
+    }
+
+    .act-t {
+        color: var(--fm-text-muted);
+        font-size: 11px;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .act-w {
+        font-weight: 600;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .act-a {
+        color: var(--fm-text-muted);
+        white-space: nowrap;
+        font-size: 11.5px;
+    }
+
+    .act-amt {
+        font-family: var(--fm-display);
+        font-weight: 800;
+        font-size: 15px;
+        color: var(--fm-primary-light);
+        white-space: nowrap;
+        padding: 2px 9px;
+        border-radius: 999px;
+        background: rgba(8, 124, 240, .14);
+        border: 1px solid rgba(30, 165, 255, .28);
+    }
+
+    .fm-next-card {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .fm-search {
+        position: relative;
+        margin-bottom: 8px;
+    }
+
+    .fm-search .ic {
+        position: absolute;
+        left: 11px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 15px;
+        height: 15px;
+        color: var(--fm-text-muted);
+        pointer-events: none;
+    }
+
+    .fm-search input {
+        padding-left: 33px;
+    }
+
+    .fm-next-list {
+        max-height: 214px;
+        overflow-y: auto;
+        margin-bottom: 10px;
+    }
+
+    /* Search results (call mode): rows, not a table. */
+    #call-results .call-row {
+        display: grid;
+        grid-template-columns: 22px minmax(0, 1fr) auto auto;
+        gap: 9px;
+        align-items: center;
+        padding: 6px 4px;
+        border-bottom: 1px solid rgba(85, 160, 230, .09);
+    }
+
+    #call-results .call-row:last-child {
+        border-bottom: 0;
+    }
+
+    #call-results .call-row.is-active {
+        background: rgba(8, 124, 240, .16);
+        border-radius: var(--fm-radius-sm);
+    }
+
+    .call-nm {
+        font-weight: 600;
+        font-size: 12.5px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .call-nm small {
+        display: block;
+        font-size: 10.5px;
+        color: var(--fm-text-muted);
+        font-weight: 500;
+    }
+
+    .call-q {
+        font-family: var(--fm-display);
+        font-weight: 800;
+        font-size: 14px;
+        color: var(--fm-primary-light);
+    }
+
+    .fm-next-list table {
+        min-width: 0;
+    }
+
+    .fm-next-list td {
+        padding: 7px 6px;
+        font-size: 12.5px;
+    }
+
+    .fm-next-nav {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        gap: 6px;
+        align-items: center;
+    }
+
+    .fm-next-nav .fm-btn {
+        width: 100%;
+    }
+
+    /* Next-player card: one full-width action, then an even 2x2 step grid. */
+    .fm-next-go {
+        width: 100%;
+        margin-top: 10px;
+    }
+
+    .fm-next-steps {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+        margin-top: 6px;
+    }
+
+    .fm-next-steps .fm-btn {
+        width: 100%;
+    }
+
+    .fm-next-meta {
+        margin-top: 8px;
+        text-align: right;
+        font-size: 11.5px;
+        color: var(--fm-text-muted);
+    }
+
+    .fm-next-hint {
+        font-size: 11px;
+        margin: 8px 0 0;
+        line-height: 1.5;
+    }
+
+    .fm-btn-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 20px;
+        height: 20px;
+        border-radius: 4px;
+        border: 1px solid var(--fm-border, rgba(255, 255, 255, .12));
+        background: rgba(255, 255, 255, .05);
+        color: var(--fm-text, #fff);
+        font-size: 10px;
+        cursor: pointer;
+        transition: all .15s;
+        padding: 0;
+    }
+
+    .fm-btn-icon:hover {
+        background: rgba(8, 124, 240, .2);
+        border-color: var(--fm-primary-light, #38bdf8);
+        color: var(--fm-primary-light, #38bdf8);
+    }
+
+    .fm-btn-icon.text-danger:hover {
+        background: rgba(239, 68, 68, .2);
+        border-color: #ef4444;
+        color: #ef4444;
+    }
+
+    .q-actions {
+        margin-left: 6px;
+        display: inline-flex;
+        gap: 3px;
+        vertical-align: middle;
+    }
+
+    /* Random order: the queue is deliberately not shown */
+    .fm-next-hidden {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        text-align: center;
+        padding: 22px 18px;
+        border-radius: var(--fm-radius-sm);
+        border: 1px dashed var(--fm-border);
+        background: rgba(255, 255, 255, .02);
+    }
+
+    .fm-next-hidden .ic {
+        width: 22px;
+        height: 22px;
+        stroke: var(--fm-primary-light);
+    }
+
+    .fm-next-hidden b {
+        font-size: 13px;
+    }
+
+    .fm-next-hidden span {
+        font-size: 11.5px;
+        color: var(--fm-text-muted);
+        line-height: 1.5;
+    }
+
+    /* Manual flow: self-advance switch, right under the avanti/indietro row */
+    .fm-auto-adv {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 8px;
+        padding: 7px 10px;
+        border: 1px solid var(--fm-border);
+        border-radius: var(--fm-radius-sm);
+        background: rgba(255, 255, 255, .03);
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--fm-text);
+        text-transform: none;
+        letter-spacing: 0;
+    }
+
+    .fm-auto-adv:hover {
+        border-color: var(--fm-border-active);
+    }
+
+    .fm-auto-adv input {
+        width: auto;
+        height: auto;
+        margin: 0;
+        flex-shrink: 0;
+    }
+
+    .fm-auto-adv.is-on {
+        border-color: rgba(8, 124, 240, .45);
+        background: rgba(8, 124, 240, .10);
+    }
+
+    /* Bid register */
+    .cycle-group {
+        margin-bottom: 8px;
+    }
+
+    .cycle-group:last-child {
+        margin-bottom: 0;
+    }
+
+    .cycle-group>details>summary {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        padding: 8px 10px;
+        border-radius: var(--fm-radius-sm);
+        background: rgba(255, 255, 255, .03);
+        cursor: pointer;
+        list-style: none;
+        user-select: none;
+        transition: background .12s;
+    }
+
+    .cycle-group>details>summary:hover {
+        background: rgba(8, 124, 240, .10);
+    }
+
+    .cycle-group>details>summary::-webkit-details-marker {
+        display: none;
+    }
+
+    .cycle-group>details[open]>summary {
+        margin-bottom: 6px;
+    }
+
+    .cycle-toggle {
+        margin-left: auto;
+        font-size: 11px;
+        color: var(--fm-text-muted);
+        transition: transform .18s;
+    }
+
+    .cycle-group>details[open] .cycle-toggle {
+        transform: rotate(180deg);
+    }
+
+    .cycle-label {
+        font-family: var(--fm-display);
+        font-weight: 700;
+        font-size: 15px;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--fm-primary-light);
+    }
+
+    .cycle-winner {
+        font-size: 12.5px;
+        font-weight: 600;
+        color: var(--fm-success);
+    }
+
+    .table-scroll {
+        overflow: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .table-scroll table {
+        min-width: 380px;
+    }
+
+    #bidlog-panel .table-scroll,
+    #storico-panel .table-scroll {
+        max-height: 300px;
+    }
+
+    /* Floating reactions from the bidders */
+    .react-layer {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        overflow: hidden;
+        z-index: 60;
+    }
+
+    .react-float {
+        position: absolute;
+        bottom: 80px;
+        font-size: 30px;
+        will-change: transform, opacity;
+        animation: reactUp 2.1s ease-out forwards;
+    }
+
+    @keyframes reactUp {
+        0% {
+            opacity: 0;
+            transform: translateY(0) scale(.6);
+        }
+
+        15% {
+            opacity: 1;
+            transform: translateY(-14px) scale(1.1);
+        }
+
+        100% {
+            opacity: 0;
+            transform: translateY(-180px) scale(1);
+        }
+    }
+
+    /* Participants — one card per team */
+    .team-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+        gap: 10px;
+    }
+
+    .team-card {
+        display: flex;
+        flex-direction: column;
+        gap: 9px;
+        padding: 12px;
+        border-radius: var(--fm-radius-md);
+        border: 1px solid var(--fm-border);
+        background: rgba(255, 255, 255, .03);
+        transition: border-color .12s, background .12s;
+    }
+
+    .team-card:hover {
+        border-color: var(--fm-border-active);
+        background: rgba(8, 124, 240, .06);
+    }
+
+    .team-card.is-off {
+        opacity: .55;
+    }
+
+    .team-card-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .team-crest.lg {
+        width: 38px;
+        height: 38px;
+        border-radius: 9px;
+        font-size: 13px;
+    }
+
+    .team-code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 11px;
+        color: var(--fm-primary-light);
+        letter-spacing: .06em;
+    }
+
+    .team-figs {
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+    }
+
+    .team-figs>div {
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+    }
+
+    .team-figs .k {
+        font-size: 9.5px;
+        letter-spacing: .14em;
+        text-transform: uppercase;
+        color: var(--fm-text-muted);
+        font-weight: 700;
+    }
+
+    .team-figs b {
+        font-family: var(--fm-display);
+        font-size: 19px;
+        font-weight: 800;
+    }
+
+    .team-figs .unit {
+        margin-left: 2px;
+    }
+
+    .team-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr auto auto;
+        gap: 6px;
+        align-items: center;
+    }
+
+    .team-actions .fm-btn {
+        padding: 0 9px;
+        min-width: 0;
+    }
+
+    .team-actions .fm-btn-danger {
+        width: 30px;
+        padding: 0;
+    }
+
+    /* Collapsible tools inside a card (importa rose / aggiungi squadra) */
+    .tools>summary {
+        list-style: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 10px 12px;
+        border-radius: var(--fm-radius-sm);
+        border: 1px solid var(--fm-border);
+        background: rgba(255, 255, 255, .03);
+        font-size: 12.5px;
+        font-weight: 600;
+        color: var(--fm-text-secondary);
+    }
+
+    .tools>summary::-webkit-details-marker {
+        display: none;
+    }
+
+    .tools>summary .ic {
+        color: var(--fm-primary-light);
+    }
+
+    .tools>summary .chev {
+        margin-left: auto;
+        font-size: 11px;
+        transition: transform .18s;
+    }
+
+    .tools[open]>summary .chev {
+        transform: rotate(180deg);
+    }
+
+    /* Settings modal — switch rows */
+    .ea-switch {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        margin: 0 0 8px;
+        padding: 10px 12px;
+        border: 1px solid var(--fm-border);
+        border-radius: var(--fm-radius-sm);
+        background: rgba(255, 255, 255, .03);
+        cursor: pointer;
+        text-transform: none;
+        letter-spacing: 0;
+        font-weight: 500;
+        color: var(--fm-text);
+    }
+
+    .ea-switch:hover {
+        border-color: var(--fm-border-active);
+    }
+
+    .ea-switch input {
+        width: auto;
+        height: auto;
+        margin-top: 2px;
+        flex-shrink: 0;
+    }
+
+    .ea-switch b {
+        font-size: 13px;
+        font-weight: 600;
+        display: block;
+    }
+
+    .ea-switch small {
+        display: block;
+        margin-top: 3px;
+        font-size: 11.5px;
+        color: var(--fm-text-muted);
+        line-height: 1.45;
+    }
+
+    /* Section label kept for the team-management divider */
+    .section-label {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: .16em;
+        text-transform: uppercase;
+        color: var(--fm-text-secondary);
+        margin: 22px 0 12px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .section-label::after {
+        content: "";
+        flex: 1 1 auto;
+        height: 1px;
+        background: var(--fm-border);
+    }
+
+    .section-label .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--fm-primary-light);
+    }
+
+    /* Wide desks: the auction card and the ring grow with the screen. */
+    @media (min-width: 1700px) {
+        .fm-live-grid {
+            grid-template-columns: minmax(0, 1fr) 340px;
+        }
+
+        .fm-timer-card .ring-wrap {
+            width: 208px;
+            height: 208px;
+        }
+
+        .fm-timer-card .timer {
+            font-size: 54px;
+        }
+
+        .fm-live-body {
+            grid-template-columns: auto minmax(0, 1fr) 280px;
+            padding: 26px 26px;
+        }
+
+        .fm-live-body .fm-jersey {
+            width: 132px;
+            height: 132px;
+        }
+
+        .fm-price-row .fm-kpi-value {
+            font-size: 50px;
+        }
+    }
+
+    /* ---- Responsive: 1440 → 1366 → tablet → phone --------------------- */
+    @media (max-width: 1560px) {
+        .fm-live-body {
+            grid-template-columns: auto minmax(0, 1fr) 210px;
+            gap: 16px;
+            padding: 16px 18px;
+        }
+    }
+
+    /* Keep CLASSIFICA | ATTIVITÀ | PROSSIMO on one row as long as it reads:
+       3 columns down to 1180px, then 2, then 1. Below 1400 the columns simply
+       get narrower instead of pushing a whole panel onto a new row. */
+    @media (max-width: 1400px) {
+        .fm-bottom-grid {
+            grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr) minmax(0, 1fr);
+            gap: 10px;
+        }
+    }
+
+    @media (max-width: 1180px) {
+        .fm-bottom-grid {
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        }
+
+        .fm-bottom-grid> :last-child {
+            grid-column: 1 / -1;
+        }
+    }
+
+    @media (max-width: 800px) {
+        .fm-bottom-grid {
+            grid-template-columns: minmax(0, 1fr);
+        }
+
+        .fm-bottom-grid> :last-child {
+            grid-column: auto;
+        }
+    }
+
+    @media (max-width: 1280px) {
+        .fm-live-grid {
+            grid-template-columns: minmax(0, 1fr) 250px;
+        }
+
+        .fm-timer-card .ring-wrap {
+            width: 150px;
+            height: 150px;
+        }
+
+        .fm-timer-card .timer {
+            font-size: 38px;
+        }
+
+        .fm-live-body .fm-jersey {
+            width: 92px;
+            height: 92px;
+        }
+    }
+
+    @media (max-width: 1080px) {
+
+        .fm-live-grid,
+        .fm-ctrl-grid,
+        .fm-two-col {
+            grid-template-columns: minmax(0, 1fr);
+        }
+
+        .fm-live-body {
+            grid-template-columns: auto minmax(0, 1fr);
+        }
+
+        .fm-live-figures {
+            grid-column: 1 / -1;
+            padding-left: 0;
+            padding-top: 14px;
+            border-left: 0;
+            border-top: 1px solid var(--fm-border);
+            flex-direction: row;
+            gap: 28px;
+            flex-wrap: wrap;
+        }
+    }
+
+    /* Desktop compact (1366×768 & co.): squeeze the chrome, keep the type. */
+    @media (max-height: 820px) {
+
+        .fm-bottom-grid,
+        .fm-two-col {
+            gap: 10px;
+        }
+
+        .fm-card,
+        .panel {
+            padding: 12px;
+        }
+
+        .fm-section-title {
+            margin-bottom: 8px;
+        }
+
+        .classifica td,
+        .fm-next-list td {
+            padding: 5px 8px;
+        }
+
+        .act-row {
+            padding: 5px 4px;
+        }
+
+        .team-card {
+            padding: 10px;
+            gap: 7px;
+        }
+
+        .team-figs b {
+            font-size: 17px;
+        }
+
+        .fm-ctrl-second {
+            padding-top: 8px;
+        }
+    }
+
+    @media (max-height: 820px) {
+
+        .fm-live-grid,
+        .fm-ctrl-grid {
+            margin-bottom: 8px;
+        }
+
+        .fm-live-head {
+            padding: 8px 16px;
+        }
+
+        .fm-live-body {
+            padding: 14px 16px;
+            gap: 16px;
+        }
+
+        .fm-live-body .fm-jersey {
+            width: 88px;
+            height: 88px;
+        }
+
+        .fm-live-player .pl-name {
+            font-size: clamp(26px, 2.4vw, 34px);
+        }
+
+        .fm-timer-card {
+            padding: 10px;
+        }
+
+        .fm-timer-card .ring-wrap {
+            width: 138px;
+            height: 138px;
+            margin: 2px auto;
+        }
+
+        .fm-timer-card .timer {
+            font-size: 34px;
+        }
+
+        .fm-price-row .fm-kpi-value {
+            font-size: 34px;
+        }
+
+        .fm-activity,
+        .fm-next-list {
+            max-height: 180px;
+        }
+    }
+
+    @media (max-width: 620px) {
+        .fm-ctrl-main {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .fm-live-body {
+            grid-template-columns: minmax(0, 1fr);
+        }
+
+        .fm-live-body .fm-jersey {
+            display: none;
+        }
+
+        .col-ua {
+            display: none;
+        }
+    }
+</style>

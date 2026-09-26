@@ -1,0 +1,114 @@
+<script>
+    function openEditParticipant(id, name, code, credits, isActive) {
+        const modal = document.getElementById("edit-participant-modal");
+        document.getElementById("ep-name").value = name;
+        document.getElementById("ep-code").value = code;
+        document.getElementById("ep-credits").value = credits;
+        document.getElementById("ep-active").checked = isActive === 1;
+        document.getElementById("edit-participant-form").action =
+            `/admin-auction/participants/${id}/edit/`;
+        document.getElementById("delete-participant-form").action =
+            `/admin-auction/participants/${id}/delete/`;
+        modal.style.display = "flex";
+    }
+    function closeEditParticipant() {
+        document.getElementById("edit-participant-modal").style.display = "none";
+    }
+    function deleteParticipant(id, name) {
+        if (!confirm(`Eliminare la squadra "${name}"? L'azione è irreversibile.`)) return;
+        const form = document.getElementById("delete-participant-form");
+        form.action = `/admin-auction/participants/${id}/delete/`;
+        form.submit();
+    }
+
+    // Importa rose (auto-detect Fantapazz / Fantacalcio.it / generico)
+    function dashRoseMsg(text, color) {
+        const m = document.getElementById("dash-rose-msg");
+        m.style.display = "block"; m.style.color = color; m.textContent = text;
+    }
+    function dashEsc(s) {
+        const d = document.createElement("div"); d.textContent = s == null ? "" : s; return d.innerHTML;
+    }
+    async function dashImportRose(preview) {
+        const file = document.getElementById("dash-rose-file").files[0];
+        if (!file) { dashRoseMsg("Seleziona un file.", "var(--closed)"); return; }
+        const form = new FormData();
+        form.append("rose_file", file);
+        if (preview) form.append("action", "preview");
+        form.append("replace", document.getElementById("dash-rose-replace").checked ? "1" : "0");
+        form.append("import_listone", document.getElementById("dash-rose-listone").checked ? "1" : "0");
+        if (DASH_LEAGUE_ID) form.append("league_id", DASH_LEAGUE_ID);
+
+        document.getElementById("dash-rose-preview").style.display = "none";
+        dashRoseMsg(preview ? "Analisi del file…" : "Importazione…", "var(--muted)");
+        const r = await fetch("{% url 'admin_import_rose' %}", { method: "POST", body: form, headers: { "X-CSRFToken": CSRF } });
+        const data = await r.json();
+        if (!data.ok) { dashRoseMsg("✗ " + data.error, "var(--closed)"); return; }
+
+        if (data.preview) {
+            const rows = data.teams.map(t =>
+                `<tr><td style="font-weight:600">${dashEsc(t.name)}</td>` +
+                `<td style="text-align:right">${t.n_players}</td>` +
+                `<td style="text-align:right" class="muted">${t.credits == null ? "—" : Math.round(t.credits)}</td></tr>`).join("");
+            document.getElementById("dash-rose-preview").innerHTML =
+                `<div class="muted" style="font-size:12px;margin-bottom:8px">Formato rilevato: ` +
+                `<b style="color:var(--gold)">${dashEsc(data.source_label)}</b> · ${data.teams.length} squadre · ` +
+                `${data.total_players} giocatori` + (data.n_listone ? ` · listone ${data.n_listone}` : "") + `</div>` +
+                `<div class="table-scroll"><table><thead><tr><th>Squadra</th>` +
+                `<th style="text-align:right">Giocatori</th><th style="text-align:right">Crediti residui</th>` +
+                `</tr></thead><tbody>${rows}</tbody></table></div>`;
+            document.getElementById("dash-rose-preview").style.display = "block";
+            dashRoseMsg("Anteprima — premi «Importa rose» per confermare." +
+                (data.warning ? " ⚠ " + data.warning : ""), data.warning ? "var(--closed)" : "var(--gold)");
+            return;
+        }
+
+        const parts = [`${data.teams} squadre`, `${data.players} giocatori assegnati`];
+        if (data.listone_created) parts.push(`${data.listone_created} aggiunti al listone`);
+        dashRoseMsg(`✓ ${dashEsc(data.source_label)}: ` + parts.join(" · "), "var(--live)");
+        setTimeout(() => location.reload(), 1600);
+    }
+    document.getElementById("edit-participant-modal")
+        .addEventListener("click", (e) => { if (e.target === e.currentTarget) closeEditParticipant(); });
+
+    // Invite (QR) modal. With the internet tunnel open a team has two doors:
+    // the wifi one for the phones in the room, the public one for everyone
+    // else. Default to wifi — same building is the common case.
+    let inviteTarget = { id: null, wan: "", lan: "" };
+    function openInvite(id, name, joinUrl, lanUrl) {
+        inviteTarget = { id, wan: joinUrl, lan: lanUrl || "" };
+        document.getElementById("inv-name").textContent = name;
+        document.getElementById("inv-net").style.display = lanUrl ? "flex" : "none";
+        setInviteNet(lanUrl ? "lan" : "wan");
+        document.getElementById("invite-modal").style.display = "flex";
+    }
+    function setInviteNet(net) {
+        const lan = net === "lan" && inviteTarget.lan;
+        const url = lan ? inviteTarget.lan : inviteTarget.wan;
+        // Bake the selected auction into the code so scanning lands in it.
+        const params = new URLSearchParams();
+        if (lan) params.set("net", "lan");
+        if (AUCTION_ID) params.set("a", AUCTION_ID);
+        const qs = params.toString();
+        const qr = `/participants/${inviteTarget.id}/qr.png` + (qs ? `?${qs}` : "");
+        document.getElementById("inv-qr").src = qr;
+        document.getElementById("inv-link").value = url;
+        document.getElementById("inv-open").href = url;
+        document.getElementById("inv-print").href = qr;
+        document.getElementById("inv-net-lan").className = lan ? "btn-ok" : "btn-ghost";
+        document.getElementById("inv-net-wan").className = lan ? "btn-ghost" : "btn-ok";
+    }
+    function closeInvite() {
+        document.getElementById("invite-modal").style.display = "none";
+    }
+    function copyInviteLink() {
+        const inp = document.getElementById("inv-link");
+        inp.select(); inp.setSelectionRange(0, 99999);
+        navigator.clipboard?.writeText(inp.value).then(
+            () => showToast("✓ Link copiato", "ok"),
+            () => { document.execCommand("copy"); showToast("✓ Link copiato", "ok"); }
+        );
+    }
+    document.getElementById("invite-modal")
+        .addEventListener("click", (e) => { if (e.target === e.currentTarget) closeInvite(); });
+</script>

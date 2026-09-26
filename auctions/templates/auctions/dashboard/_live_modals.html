@@ -1,0 +1,375 @@
+<!-- ═══════════════════════════════════════════════════════════════ MODALS -->
+
+<!-- System logs modal (available both on home and live auction) -->
+<div id="system-logs-modal" style="display:none; position:fixed; inset:0; z-index:170;
+     background:rgba(0,0,0,.85); align-items:center; justify-content:center; padding:20px">
+    <div class="panel"
+        style="max-width:850px; width:100%; margin:0; max-height:85vh; display:flex; flex-direction:column; background:var(--fm-card, #111a2e); border:1px solid var(--fm-border, #1f2f4e); border-radius:12px; box-shadow:0 20px 50px rgba(0,0,0,.6)">
+        <div
+            style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--fm-border, #1f2f4e)">
+            <div style="display:flex;align-items:center;gap:10px">
+                <span style="font-size:18px">📋</span>
+                <div>
+                    <h3 style="margin:0;font-size:16px;font-weight:700;color:var(--fm-text, #fff)">Log di Sistema
+                        (Console Live)</h3>
+                    <div style="font-size:11px;color:var(--fm-text-muted, #7e8fa6)">Registrazione eventi in tempo reale:
+                        rilanci, aggiudicazioni, timer, mercato</div>
+                </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+                <button type="button" class="fm-btn fm-btn-secondary fm-btn-sm" onclick="fetchSystemLogs()"
+                    title="Aggiorna ora">
+                    ↻ Ricarica
+                </button>
+                <button type="button" class="fm-btn fm-btn-ghost fm-btn-sm" onclick="closeSystemLogs()">✕
+                    Chiudi</button>
+            </div>
+        </div>
+        <div style="padding:14px 20px;flex:1 1 auto;overflow-y:auto;background:rgba(0,0,0,.45);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;line-height:1.6;color:#c0caf5;border-bottom-left-radius:12px;border-bottom-right-radius:12px;"
+            id="system-logs-content">
+            <div class="muted">Caricamento log in corso...</div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit auction modal -->
+<div id="edit-auction-modal" style="display:none; position:fixed; inset:0; z-index:150;
+     background:rgba(0,0,0,.80); align-items:center; justify-content:center; padding:20px">
+    <div class="panel" style="max-width:520px; width:100%; margin:0; max-height:90vh; overflow-y:auto">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+            <h2 style="margin:0">Impostazioni asta</h2>
+            <button type="button" class="btn-ghost" style="padding:8px 14px;font-size:13px"
+                onclick="closeEditAuction()">✕</button>
+        </div>
+
+        <form id="edit-auction-form">
+            {% csrf_token %}
+
+            <label>Titolo</label>
+            <input id="ea-title" name="title" value="{{ selected.title }}">
+
+            <label>Descrizione</label>
+            <textarea id="ea-desc" name="description" rows="2">{{ selected.description }}</textarea>
+
+            <div class="row">
+                <div>
+                    <label>Prezzo base FM <span class="muted">(prossimo ciclo)</span></label>
+                    <input id="ea-starting" name="starting_price" value="{{ selected.starting_price|floatformat:0 }}"
+                        inputmode="decimal">
+                </div>
+                <div>
+                    <label>Rilancio minimo FM</label>
+                    <input id="ea-min-inc" name="min_increment" value="{{ selected.min_increment|floatformat:0 }}"
+                        inputmode="decimal">
+                </div>
+            </div>
+
+            <label>Pulsanti rilancio rapido (virgola)</label>
+            <input id="ea-quick" name="quick_increments" value="{{ selected.quick_increments }}">
+
+            <div class="row">
+                <div>
+                    <label>Durata timer (sec) <span class="muted">(prossimo ciclo)</span></label>
+                    <input id="ea-duration" name="duration_seconds" value="{{ selected.duration_seconds }}"
+                        inputmode="numeric">
+                </div>
+                <div>
+                    <label>Anti-sniping (sec, 0=off)</label>
+                    <input id="ea-antisnipe" name="antisnipe_seconds" value="{{ selected.antisnipe_seconds }}"
+                        inputmode="numeric">
+                    <p style="margin:6px 0 0;font-size:11px;color:var(--muted);line-height:1.5">
+                        Se un'offerta arriva negli ultimi <em>N</em> secondi, il timer viene riportato a <em>N</em>
+                        secondi — impedisce offerte last-second senza possibilità di risposta.
+                    </p>
+                </div>
+            </div>
+
+            <label style="margin-top:16px">Pausa tra un giocatore e l'altro (sec)</label>
+            <input id="ea-break" name="cycle_break_seconds" value="{{ selected.cycle_break_seconds|floatformat:"-1" }}"
+                inputmode="decimal">
+            <p style="margin:6px 0 0;font-size:11px;color:var(--muted);line-height:1.5">
+                Quanto resta a schermo il risultato (&laquo;venduto a…&raquo;) prima che salga il giocatore successivo:
+                il tempo per annunciare e far segnare a tutti. <em>0</em> = si va avanti subito.
+                Accetta i decimali (<em>0,5</em>) e arriva al massimo a 60.
+                Vale nei modi che avanzano da soli — <em>Asta continua</em>, e <em>Manuale</em> con l'avanzamento
+                automatico acceso; in <em>A chiamata</em> il prossimo giocatore lo chiami tu, quindi la pausa la decidi
+                sul momento.
+            </p>
+
+            <label>Rimborso allo svincolo</label>
+            <select id="ea-refund" name="release_refund_mode">
+                {% for value, label in selected.RefundMode.choices %}
+                <option value="{{ value }}" {% if selected.release_refund_mode == value %}selected{% endif %}>{{ label }}
+                </option>
+                {% endfor %}
+            </select>
+            <p style="margin:6px 0 0;font-size:11px;color:var(--muted);line-height:1.5">
+                Crediti restituiti a una squadra quando svincola un giocatore: il prezzo pagato, la quotazione attuale
+                del listone, o niente.
+            </p>
+
+            <label style="margin-top:16px">Prezzo di partenza</label>
+            <select id="ea-opening-price" name="opening_price_mode">
+                {% for value, label in selected.OpeningPriceMode.choices %}
+                <option value="{{ value }}" {% if selected.opening_price_mode == value %}selected{% endif %}>{{ label }}
+                </option>
+                {% endfor %}
+            </select>
+            <p style="margin:6px 0 0;font-size:11px;color:var(--muted);line-height:1.5">
+                Da dove parte l'offerta per ogni giocatore messo all'asta: dalla sua quotazione (valore attuale del
+                listone) oppure da una base fissa di 1 credito.
+            </p>
+
+            <label style="margin-top:16px">Maxischermo</label>
+            <div class="row">
+                <div>
+                    <label class="muted" style="margin-top:0">Timer</label>
+                    <select id="ea-timer-size" name="screen_timer_size">
+                        {% for value, label in selected.ScreenSize.choices %}
+                        <option value="{{ value }}" {% if selected.screen_timer_size == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="muted" style="margin-top:0">Nome giocatore</label>
+                    <select id="ea-name-size" name="screen_name_size">
+                        {% for value, label in selected.ScreenSize.choices %}
+                        <option value="{{ value }}" {% if selected.screen_name_size == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <p style="margin:6px 0 0;font-size:11px;color:var(--muted);line-height:1.5">
+                Grandezza del cerchio del conto alla rovescia e del nome sul maxischermo. Cambiano
+                subito, senza toccare lo schermo collegato: grande per un proiettore in fondo alla sala.
+            </p>
+
+            <label style="margin-top:16px">Modalità d'asta</label>
+            <select id="ea-flow-mode" name="flow_mode" onchange="eaToggleOrder()">
+                {% for value, label in selected.FlowMode.choices %}
+                <option value="{{ value }}" {% if selected.flow_mode == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <div id="ea-order-wrap">
+                <label style="margin-top:10px">Ordine di chiamata</label>
+                <select id="ea-call-order" name="call_order" onchange="eaToggleWithin()">
+                    {% for value, label in selected.CallOrder.choices %}
+                    <option value="{{ value }}" {% if selected.call_order == value %}selected{% endif %}>{{ label }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <div id="ea-within-wrap">
+                    <label style="margin-top:10px">Dentro al ruolo</label>
+                    <select id="ea-within-role" name="within_role_order">
+                        {% for value, label in selected.WithinRole.choices %}
+                        <option value="{{ value }}" {% if selected.within_role_order == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div id="ea-unsold-wrap">
+                    <label style="margin-top:10px">Politica invenduti</label>
+                    <select id="ea-unsold-policy" name="unsold_policy">
+                        {% for value, label in selected.UnsoldPolicy.choices %}
+                        <option value="{{ value }}" {% if selected.unsold_policy == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <p style="margin:6px 0 0;font-size:11px;color:var(--muted);line-height:1.5">
+                A chiamata: scegli tu chi mettere all'asta. Asta continua: la coda avanza da sola con il timer
+                prefissato. Manuale: scorri con i tasti avanti/indietro. L'ordine di chiamata e il criterio dentro al
+                ruolo valgono per le code automatiche e manuali.
+            </p>
+
+            <!-- Only meaningful in manual: continua scorre già da sola, a
+                 chiamata non ha una coda che possa scorrere. -->
+            <div id="ea-auto-advance-wrap" style="display:none">
+                <input type="hidden" name="manual_auto_advance" value="0">
+                <label class="ea-switch" style="margin-top:12px">
+                    <input type="checkbox" name="manual_auto_advance" value="1" {% if selected.manual_auto_advance %}checked{% endif %}>
+                    <span><b>Scorri anche senza rilanci</b>
+                        <small>Ogni giocatore parte col timer già avviato: se nessuno rilancia
+                            va invenduto e si passa al successivo, senza aspettare la regia.
+                            I tasti avanti/indietro restano attivi.</small></span>
+                </label>
+            </div>
+
+            <label style="margin-top:18px">Asta alle buste</label>
+            <input type="hidden" name="sealed_bids" value="0">
+            <label class="ea-switch">
+                <input type="checkbox" name="sealed_bids" value="1" onchange="eaToggleSealed()" id="ea-sealed" {% if selected.sealed_bids %}checked{% endif %}>
+                <span><b>Sopra la soglia si va alle buste</b>
+                    <small>Finché il prezzo resta sotto la soglia del ruolo si rilancia alle grida.
+                        Appena un rilancio la raggiunge il giocatore passa a scrutinio segreto: ognuno
+                        scrive una cifra non inferiore all'ultima dichiarata +1, si aprono tutte insieme
+                        e vince la più alta. A parità si rifà, a oltranza, fra i soli pari merito.</small></span>
+            </label>
+            <div id="ea-sealed-wrap" style="display:none">
+                <label style="margin-top:12px">Soglie per ruolo (crediti, 0 = mai alle buste)</label>
+                <div class="row">
+                    <div>
+                        <label class="muted" style="margin-top:0">Portieri</label>
+                        <input name="sealed_threshold_p" value="{{ selected.sealed_threshold_p }}" inputmode="numeric">
+                    </div>
+                    <div>
+                        <label class="muted" style="margin-top:0">Difensori</label>
+                        <input name="sealed_threshold_d" value="{{ selected.sealed_threshold_d }}" inputmode="numeric">
+                    </div>
+                </div>
+                <div class="row">
+                    <div>
+                        <label class="muted" style="margin-top:0">Centrocampisti</label>
+                        <input name="sealed_threshold_c" value="{{ selected.sealed_threshold_c }}" inputmode="numeric">
+                    </div>
+                    <div>
+                        <label class="muted" style="margin-top:0">Attaccanti</label>
+                        <input name="sealed_threshold_a" value="{{ selected.sealed_threshold_a }}" inputmode="numeric">
+                    </div>
+                </div>
+                <label style="margin-top:12px">Tempo per scrivere una busta (sec)</label>
+                <input name="sealed_seconds" value="{{ selected.sealed_seconds }}" inputmode="numeric">
+                <p style="margin:6px 0 0;font-size:11px;color:var(--muted);line-height:1.5">
+                    Quanto dura ogni giro di scrutinio, spareggi compresi. Dalla regia si può
+                    comunque aprire le buste prima che scada.
+                </p>
+            </div>
+
+            <label style="margin-top:18px">Regole delle offerte</label>
+            <!-- Hidden twin: an unchecked checkbox posts nothing, and the edit
+                 view must be able to tell "off" from "field absent". -->
+            <input type="hidden" name="block_leader_rebid" value="0">
+            <label class="ea-switch">
+                <input type="checkbox" name="block_leader_rebid" value="1" {% if selected.block_leader_rebid %}checked{% endif %}>
+                <span><b>Blocca il rilancio di chi sta già vincendo</b>
+                    <small>Chi è in testa non può rilanciare su se stesso: evita i doppi click che gonfiano il prezzo da
+                        soli.</small></span>
+            </label>
+            <input type="hidden" name="enforce_limits" value="0">
+            <label class="ea-switch">
+                <input type="checkbox" name="enforce_limits" value="1" {% if selected.enforce_limits %}checked{% endif %}>
+                <span><b>Applica limiti rosa e budget</b>
+                    <small>Slot per ruolo e 1 credito riservato per ogni slot ancora vuoto.</small></span>
+            </label>
+
+            <div style="display:flex;gap:10px;margin-top:20px">
+                <button type="submit" class="fm-btn fm-btn-primary" style="flex:1" id="ea-save-btn">Salva</button>
+                <button type="button" class="fm-btn fm-btn-secondary" onclick="closeEditAuction()">Annulla</button>
+            </div>
+            <p id="ea-feedback" style="text-align:center;margin:10px 0 0;font-size:13px;font-weight:700;display:none">
+            </p>
+        </form>
+    </div>
+</div>
+
+<!-- Edit / delete participant modal -->
+<div id="edit-participant-modal" style="display:none; position:fixed; inset:0; z-index:150;
+     background:rgba(0,0,0,0.75); align-items:center; justify-content:center; padding:20px">
+    <div class="panel" style="max-width:480px; width:100%; margin:0">
+        <h2 style="margin-bottom:16px">Modifica squadra</h2>
+        <form id="edit-participant-form" method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <div class="row">
+                <div><label>Nome</label><input name="display_name" id="ep-name"></div>
+                <div><label>Codice</label><input name="access_code" id="ep-code" style="text-transform:uppercase"></div>
+            </div>
+            <label>Crediti FM</label>
+            <input name="credits" id="ep-credits" inputmode="decimal">
+            <label>Logo (lascia vuoto per mantenere)</label>
+            <input type="file" name="logo" accept="image/*" style="padding:10px;font-size:14px">
+            <label style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer">
+                <input type="checkbox" name="clear_logo" value="1"> Rimuovi logo attuale
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;margin-top:8px;cursor:pointer">
+                <input type="checkbox" name="is_active" value="1" id="ep-active"> Squadra attiva
+            </label>
+            <div class="row" style="margin-top:18px">
+                <button type="submit" class="btn-ok">Salva</button>
+                <button type="button" class="btn-ghost" onclick="closeEditParticipant()">Annulla</button>
+            </div>
+        </form>
+        <form id="delete-participant-form" method="post" style="margin-top:10px">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button type="submit" class="btn-bad" style="width:100%"
+                onclick="return confirm('Eliminare questa squadra?')">Elimina squadra</button>
+        </form>
+    </div>
+</div>
+
+<!-- Invite (QR) modal -->
+<div id="invite-modal" style="display:none; position:fixed; inset:0; z-index:160;
+     background:rgba(0,0,0,0.80); align-items:center; justify-content:center; padding:20px">
+    <div class="panel" style="max-width:420px; width:100%; margin:0; text-align:center">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+            <h2 style="margin:0">Invita squadra</h2>
+            <button type="button" class="btn-ghost" style="padding:8px 14px;font-size:13px"
+                onclick="closeInvite()">✕</button>
+        </div>
+        <p id="inv-name" style="margin:0 0 14px;font-family:var(--display);font-weight:800;
+                                font-size:20px;color:var(--gold)"></p>
+        <div id="inv-net" style="display:none;gap:8px;justify-content:center;margin:0 0 14px">
+            <button type="button" class="btn-ghost" id="inv-net-lan" style="margin:0;padding:8px 14px;font-size:12px"
+                onclick="setInviteNet('lan')">Wifi di casa</button>
+            <button type="button" class="btn-ghost" id="inv-net-wan" style="margin:0;padding:8px 14px;font-size:12px"
+                onclick="setInviteNet('wan')">Da internet</button>
+        </div>
+        <div style="background:#fff;border-radius:14px;padding:14px;display:inline-block;line-height:0">
+            <img id="inv-qr" src="" alt="QR iscrizione" style="width:240px;height:240px;display:block">
+        </div>
+        <p class="muted" style="font-size:13px;margin:14px 0 6px">
+            Inquadra il QR o apri il link per entrare già come questa squadra.
+        </p>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
+            <input id="inv-link" readonly style="flex:1;font-size:12px;text-align:center" value="">
+            <button type="button" class="btn-ghost" style="padding:10px 14px;font-size:13px;white-space:nowrap"
+                onclick="copyInviteLink()"><svg class="ic">
+                    <use href="#i-list" />
+                </svg> Copia</button>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:14px">
+            <a id="inv-open" href="#" target="_blank" class="btn-ghost" style="flex:1">↗ Apri link</a>
+            <a id="inv-print" href="#" target="_blank" class="btn-ghost" style="flex:1"><svg class="ic">
+                    <use href="#i-print" />
+                </svg> Stampa QR</a>
+        </div>
+    </div>
+</div>
+
+<!-- Roster / svincoli — one shell, filled on demand.
+     Rendering every team's roster up front cost ~3.000 DOM nodes on a 10-team
+     league; the rows now arrive from admin_participant_roster when opened. -->
+<div id="roster-modal" class="roster-modal" style="display:none; position:fixed; inset:0; z-index:160;
+     background:rgba(0,0,0,0.80); align-items:center; justify-content:center; padding:20px" role="dialog"
+    aria-modal="true" aria-labelledby="roster-title">
+    <div class="fm-card" style="max-width:560px; width:100%; margin:0; max-height:90vh; overflow-y:auto">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px">
+            <h2 id="roster-title" style="margin:0">Rosa</h2>
+            <button type="button" class="fm-btn fm-btn-ghost fm-btn-sm" aria-label="Chiudi"
+                onclick="closeRoster()">✕</button>
+        </div>
+        <p class="muted" style="font-size:12px;margin:0 0 14px">
+            {% if selected %}Rimborso svincolo: <b style="color:var(--fm-primary-light)">{{ selected.get_release_refund_mode_display }}</b> (asta #{{ selected.id }}).
+            {% else %}<span style="color:var(--fm-warning)">Nessuna asta selezionata: il rimborso userà “costo di
+                acquisto”.</span>{% endif %}
+        </p>
+        <div class="table-scroll">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Giocatore</th>
+                        <th>R</th>
+                        <th style="text-align:right">Acquisto</th>
+                        <th style="text-align:right">Quotaz.</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="roster-body">
+                    <tr>
+                        <td colspan="5" class="fm-empty">Caricamento…</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

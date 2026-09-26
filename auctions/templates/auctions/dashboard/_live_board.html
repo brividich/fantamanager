@@ -1,0 +1,145 @@
+<!-- ═══════════════════════════════════════════ 1. LIVE AUCTION + TIMER -->
+<div class="fm-live-grid">
+
+    <section class="fm-card fm-live-card">
+        <div class="fm-live-head">
+            <span class="fm-badge is-live"><span class="dot"></span>Live auction</span>
+            <span style="display:flex;align-items:center;gap:12px">
+                <span id="ticker-warning" class="fm-ticker-warn" style="display:none" title="">
+                    ⚠️ <span id="ticker-warning-text"></span>
+                </span>
+                <span class="fm-live-round">Round <b id="live-round">{{ selected.current_cycle|stringformat:"02d" }}</b></span>
+            </span>
+        </div>
+
+        <div class="fm-live-body">
+            <div class="fm-jersey"><svg class="ic">
+                    <use href="#i-shirt" />
+                </svg></div>
+
+            <!-- #block-player is rewritten by applyState(): keep the id. -->
+            <div id="block-player" class="fm-live-player">
+                {% if selected.player %}
+                <div class="pl-name">{{ selected.player.name }}</div>
+                <div class="pl-meta">{% if selected.league.is_mantra %}{% if selected.player.role_list %}<span
+                        class="mrole-chips">{% for r in selected.player.role_list %}<span class="mrole-chip">{{ r }}</span>{% endfor %}</span>{% endif %}{% else %}<span
+                        class="role-badge role-{{ selected.player.role }}">{{ selected.player.role }}</span>
+                    {{ selected.player.get_role_display|default:selected.player.role }}{% endif %} · {{ selected.player.team }}</div>
+                <div class="pl-note">Base d'asta {{ selected.player.initial_price|floatformat:0 }} FM</div>
+                <div class="pl-stats">
+                    {% if selected.player.fanta_avg is not None %}<span class="pl-stat is-key"><b>{{ selected.player.fanta_avg|floatformat:"-2" }}</b><i>Fantamedia</i></span>{% endif %}
+                    {% if selected.player.avg_vote is not None %}<span class="pl-stat"><b>{{ selected.player.avg_vote|floatformat:"-2" }}</b><i>Media voto</i></span>{% endif %}
+                    {% if selected.player.presences is not None %}<span class="pl-stat"><b>{{ selected.player.presences }}</b><i>Presenze</i></span>{% endif %}
+                    {% if selected.player.goals is not None %}<span class="pl-stat"><b>{{ selected.player.goals }}</b><i>Gol</i></span>{% endif %}
+                    {% if selected.player.assists is not None %}<span class="pl-stat"><b>{{ selected.player.assists }}</b><i>Assist</i></span>{% endif %}
+                    {% if selected.player.fvm is not None %}<span class="pl-stat"><b>{{ selected.player.fvm|floatformat:"-2" }}</b><i>FVM</i></span>{% endif %}
+                </div>
+                {% else %}
+                <div class="pl-name is-empty">Nessun giocatore sul piatto</div>
+                <div class="pl-note">Seleziona o chiama il prossimo giocatore per iniziare l'asta.</div>
+                {% endif %}
+            </div>
+
+            <div class="fm-live-figures">
+                <div>
+                    <div class="fm-kpi-label">Offerta attuale</div>
+                    <div class="fm-price-row" aria-live="polite" aria-atomic="true">
+                        <span class="fm-kpi-value" id="price-val">{{ selected.current_price|floatformat:0 }}</span>
+                        <span class="fm-price-cur">FM</span>
+                    </div>
+                </div>
+                <div>
+                    <div class="fm-kpi-label">Miglior offerente</div>
+                    <div class="fm-best" id="best" aria-live="polite">—</div>
+                </div>
+                <div class="fm-live-status">
+                    <span class="fm-kpi-label">Stato</span>
+                    <span id="stat-status">{{ selected.get_status_display }}</span>
+                    <span class="muted">· {{ selected.get_flow_mode_display }}{% if selected.by_role %} · {{ selected.get_call_order_display }}{% endif %}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="fm-tricolore"></div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════ 2. TIMER -->
+    <aside class="fm-card fm-timer-card">
+        <div class="fm-kpi-label" style="text-align:center">Tempo rimasto</div>
+        <div class="ring-wrap" id="ring-wrap">
+            <svg viewBox="0 0 168 168" aria-hidden="true">
+                <circle class="ring-track" cx="84" cy="84" r="76" stroke-width="9"></circle>
+                <circle class="ring-bar" id="ring-bar" cx="84" cy="84" r="76" stroke-width="9" data-circ="477.52"
+                    stroke-dasharray="477.52" stroke-dashoffset="0"></circle>
+            </svg>
+            <div class="ring-label">
+                <div class="timer" id="timer">--:--</div>
+                <div class="ring-cap">minuti</div>
+            </div>
+        </div>
+        <div class="timer-adjust">
+            <button type="button" class="fm-btn fm-btn-secondary fm-btn-sm" onclick="adjustTimer(-10)">−10s</button>
+            <button type="button" class="fm-btn fm-btn-secondary fm-btn-sm" onclick="adjustTimer(10)">+10s</button>
+            <button type="button" class="fm-btn fm-btn-secondary fm-btn-sm" onclick="adjustTimer(30)">+30s</button>
+        </div>
+        <div class="timer-adjust" style="margin-top:6px">
+            <button type="button" class="fm-btn fm-btn-secondary fm-btn-sm" onclick="openSealed()" id="open-sealed-btn"
+                style="display:none"
+                title="Manda subito questo giocatore allo scrutinio segreto, senza aspettare la soglia del ruolo">
+                <svg class="ic">
+                    <use href="#i-shield" />
+                </svg> Vai alle buste</button>
+        </div>
+        <div class="timer-adjust" style="margin-top:6px">
+            <button type="button" class="fm-btn fm-btn-secondary fm-btn-sm" onclick="forceCloseLot()"
+                title="Salta subito al prossimo giocatore, solo se nessuno ha ancora offerto su questo">
+                <svg class="ic">
+                    <use href="#i-stop" />
+                </svg> Salta (nessuna offerta)</button>
+        </div>
+    </aside>
+</div>
+
+<!-- Asta alle buste: mentre il giro e' aperto la regia vede il minimo e
+     quante buste sono arrivate — mai il contenuto, che il server non manda
+     a nessuno finche' non si spoglia. -->
+<div id="sealed-banner" class="fm-card" style="display:none;margin-bottom:16px;padding:16px 20px;
+     align-items:center;gap:16px;background:rgba(255,181,38,.10);border:1px solid #ffb526">
+    <svg class="ic" style="width:26px;height:26px;flex:none">
+        <use href="#i-shield" />
+    </svg>
+    <div style="flex:1 1 auto">
+        <div style="font-weight:700" id="sealed-banner-title">Asta alle buste</div>
+        <div class="muted" style="font-size:12.5px" id="sealed-banner-sub"></div>
+    </div>
+    <button type="button" class="fm-btn fm-btn-primary" onclick="resolveSealed()">
+        <svg class="ic">
+            <use href="#i-gavel" />
+        </svg> Apri le buste</button>
+</div>
+
+<!-- Lo spoglio dell'ultimo giro, finche' non sale il giocatore dopo. -->
+<div id="sealed-result" class="fm-card" style="display:none;margin-bottom:16px;padding:14px 20px">
+    <div style="font-weight:700;margin-bottom:8px">Buste aperte</div>
+    <div id="sealed-result-rows" style="display:flex;flex-direction:column;gap:4px"></div>
+</div>
+
+<!-- Shown only right after a knock-down on an auto-advancing flow (CONTINUOUS,
+     or MANUAL with lo scorrimento automatico attivo): the running order parks
+     here until the regia clicks "Prosegui" — see awaiting_confirm in
+     services.serialize_state and admin_confirm_advance. -->
+<div id="awaiting-confirm-banner" class="fm-card"
+    style="display:none;margin-bottom:16px;padding:16px 20px;align-items:center;gap:16px;background:var(--fm-primary-soft, rgba(91,191,31,.1));border:1px solid var(--fm-primary-light,#5bbf1f)">
+    <svg class="ic" style="width:26px;height:26px;flex:none">
+        <use href="#i-gavel" />
+    </svg>
+    <div style="flex:1 1 auto">
+        <div style="font-weight:700">Giocatore aggiudicato</div>
+        <div class="muted" style="font-size:12.5px">L'asta resta ferma finché non dai l'ok per passare al prossimo
+            giocatore.</div>
+    </div>
+    <button type="button" class="fm-btn fm-btn-primary" onclick="confirmAdvance()">
+        <svg class="ic">
+            <use href="#i-play" />
+        </svg> Prosegui</button>
+</div>

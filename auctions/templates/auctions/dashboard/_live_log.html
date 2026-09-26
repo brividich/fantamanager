@@ -1,0 +1,162 @@
+<!-- ══════════════════════════ 5. REGISTRO OFFERTE + STORICO LOTTI ─── -->
+<div class="fm-two-col">
+    <div id="bidlog-panel" class="fm-card">
+        <div class="fm-section-title"><svg class="ic">
+                <use href="#i-list" />
+            </svg> Registro offerte <span class="sep"></span></div>
+
+        {% if bids_by_cycle %}
+        {% for group in bids_by_cycle %}
+        <div class="cycle-group" data-cycle="{{ group.cycle }}">
+            <details {% if forloop.first %}open{% endif %}>
+                <summary>
+                    <span class="cycle-label">Round {{ group.cycle }}</span>
+                    {% with winner=group.bids|first %}
+                    {% if winner.accepted and not winner.cancelled %}
+                    <span class="cycle-winner"><svg class="ic">
+                            <use href="#i-gavel" />
+                        </svg> {{ winner.participant.display_name }} — {{ winner.amount|floatformat:0 }} FM</span>
+                    {% endif %}
+                    {% endwith %}
+                    <span class="cycle-toggle">▼</span>
+                </summary>
+                <div class="table-scroll">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Ora</th>
+                                <th>T rimasto</th>
+                                <th>Partecipante</th>
+                                <th style="text-align:right">Importo</th>
+                                <th class="col-ua">Stato</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody {% if forloop.first %}id="bidlog" {% endif %}>
+                            {% for b in group.bids %}
+                            <tr>
+                                <td class="muted" style="white-space:nowrap">{{ b.server_received_at|date:"H:i:s" }}<span style="opacity:.55">.{{ b.server_received_at|date:"u"|slice:":3" }}</span>
+                                </td>
+                                <td class="muted" style="white-space:nowrap;font-variant-numeric:tabular-nums">{% if b.remaining_at_bid is not None %}{{ b.remaining_at_bid|floatformat:1 }}s{% else %}—{% endif %}</td>
+                                <td>{{ b.participant.display_name }}</td>
+                                <td style="text-align:right"><span class="amt">{{ b.amount|floatformat:0 }} FM</span>
+                                </td>
+                                <td class="col-ua">
+                                    {% if b.cancelled %}<span style="color:var(--paused)">annullata</span>
+                                    {% elif b.accepted %}<span style="color:var(--live)">accettata</span>
+                                    {% else %}<span style="color:var(--closed)">{{ b.rejection_reason }}</span>{% endif %}
+                                </td>
+                                <td style="text-align:right">
+                                    {% if forloop.first and b.accepted and not b.cancelled %}
+                                    <button class="btn-ghost" style="padding:7px 12px; font-size:13px"
+                                        onclick="cancelBid({{ b.id }})"
+                                        title="Solo l'offerta vincente del round è annullabile">Annulla</button>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </details>
+        </div>
+        {% endfor %}
+        {% else %}
+        <p class="muted" style="text-align:center; padding:20px 0">Nessuna offerta ancora.</p>
+        {% endif %}
+    </div>
+
+
+
+    <div class="fm-card" id="storico-panel">
+        <div class="fm-section-title">
+            <svg class="ic">
+                <use href="#i-clock" />
+            </svg> Storico lotti
+            <span class="muted" style="font-weight:500;letter-spacing:0;text-transform:none">· <span
+                    id="storico-count">{{ storico|length }}</span> chiamate</span>
+            <span class="sep"></span>
+            <div class="fm-search fm-search-sm">
+                <svg class="ic">
+                    <use href="#i-search" />
+                </svg>
+                <input id="storico-search" type="search" placeholder="Cerca giocatore passato…" autocomplete="off"
+                    oninput="filterStorico(this.value)">
+            </div>
+            <button type="button" class="fm-btn fm-btn-ghost fm-btn-sm" onclick="refreshStorico()">
+                <svg class="ic">
+                    <use href="#i-refresh" />
+                </svg> Aggiorna</button>
+        </div>
+        <div class="table-scroll" style="max-height:340px">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width:48px">Round</th>
+                        <th style="width:34px">R</th>
+                        <th>Giocatore</th>
+                        <th>Esito</th>
+                        <th style="text-align:right">Importo</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="storico-tbody">
+                    {% include "auctions/_storico_rows.html" %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div><!-- /fm-two-col -->
+<style>
+    .storico-row.sel td {
+        background: rgba(8, 124, 240, .16);
+    }
+
+    .storico-row.sel td:first-child {
+        box-shadow: inset 3px 0 0 var(--accent);
+    }
+
+    /* Search box for the Storico panel — a compact variant of the search
+       field pattern used in admin_players.html (that one isn't a shared
+       class, so this is its own scoped copy sized to sit inline in a
+       .fm-section-title bar instead of a full filter row). */
+    .fm-search-sm {
+        position: relative;
+        width: 190px;
+        flex: 0 0 auto;
+    }
+
+    .fm-search-sm .ic {
+        position: absolute;
+        left: 9px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 13px;
+        height: 13px;
+        color: var(--fm-text-muted);
+        pointer-events: none;
+    }
+
+    .fm-search-sm input {
+        width: 100%;
+        height: 28px;
+        padding: 0 8px 0 28px;
+        font-size: 12px;
+        border-radius: var(--fm-radius-sm);
+        border: 1px solid var(--fm-border);
+        background: rgba(255, 255, 255, .03);
+        color: var(--fm-text);
+    }
+
+    .fm-search-sm input:focus {
+        border-color: var(--fm-border-active);
+        outline: none;
+    }
+
+    @media (max-width: 640px) {
+        .fm-search-sm {
+            width: 100%;
+            order: 10;
+        }
+    }
+</style>

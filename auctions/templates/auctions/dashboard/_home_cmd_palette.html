@@ -1,0 +1,193 @@
+<!-- ═══════════════════════════════════════════════════════ COMMAND PALETTE (CMD+K) -->
+<div id="cmd-palette-modal" class="cmd-palette-modal" style="display:none"
+    onclick="if(event.target===this)closeCmdPalette()">
+    <div class="cmd-palette-box">
+        <div class="cmd-palette-search">
+            <svg class="ic">
+                <use href="#i-search" />
+            </svg>
+            <input type="text" id="cmd-palette-input" placeholder="Cerca modulo, calciatore, squadra o comando..."
+                autocomplete="off" oninput="filterCmdPalette(this.value)">
+            <kbd onclick="closeCmdPalette()">ESC</kbd>
+        </div>
+        <div class="cmd-palette-list" id="cmd-palette-list">
+            <div class="cmd-group-title">Moduli Principali</div>
+            <a class="cmd-item" href="{% url 'dashboard' %}">
+                <span class="cmd-icon"><svg class="ic">
+                        <use href="#i-home" />
+                    </svg></span>
+                <div class="cmd-text">
+                    <div class="cmd-name">Dashboard Gestionale Sportivo</div>
+                    <div class="cmd-desc">Cockpit sportivo, bilanci rose, aste e mercato</div>
+                </div>
+                <span class="cmd-tag">Hub</span>
+            </a>
+            {% if active_auction %}
+            <a class="cmd-item" href="{% url 'admin_dashboard' %}?auction={{ active_auction.id }}">
+                <span class="cmd-icon"><svg class="ic">
+                        <use href="#i-gavel" />
+                    </svg></span>
+                <div class="cmd-text">
+                    <div class="cmd-name">Regia Asta Live: {{ active_auction.title }}</div>
+                    <div class="cmd-desc">Gestione lotti, rilanci in sala e timer attivo</div>
+                </div>
+                <span class="cmd-tag is-live">LIVE</span>
+            </a>
+            <a class="cmd-item" href="{% url 'screen' active_auction.id %}?t={{ active_auction.public_token }}"
+                target="_blank">
+                <span class="cmd-icon"><svg class="ic">
+                        <use href="#i-tv" />
+                    </svg></span>
+                <div class="cmd-text">
+                    <div class="cmd-name">Maxischermo Sala (Proiettore)</div>
+                    <div class="cmd-desc">Visualizzazione a tutto schermo per il pubblico</div>
+                </div>
+                <span class="cmd-tag">HDMI</span>
+            </a>
+            {% endif %}
+            <a class="cmd-item" href="{% url 'admin_market_dashboard' %}">
+                <span class="cmd-icon"><svg class="ic">
+                        <use href="#i-mail" />
+                    </svg></span>
+                <div class="cmd-text">
+                    <div class="cmd-name">Buste di Mercato (Riparazione)</div>
+                    <div class="cmd-desc">Sessioni di mercato a rilancio segreto, tagli e spoglio</div>
+                </div>
+                <span class="cmd-tag">Buste</span>
+            </a>
+            <a class="cmd-item" href="{% url 'admin_participants' %}">
+                <span class="cmd-icon"><svg class="ic">
+                        <use href="#i-shield" />
+                    </svg></span>
+                <div class="cmd-text">
+                    <div class="cmd-name">Squadre & Rose</div>
+                    <div class="cmd-desc">Bilanci crediti, rose partecipanti, QR token presidente</div>
+                </div>
+                <span class="cmd-tag">Squadre</span>
+            </a>
+            <a class="cmd-item" href="{% url 'admin_players' %}">
+                <span class="cmd-icon"><svg class="ic">
+                        <use href="#i-users" />
+                    </svg></span>
+                <div class="cmd-text">
+                    <div class="cmd-name">Listone Calciatori & Quotazioni</div>
+                    <div class="cmd-desc">FVM, ruoli Mantra/Classic, statistiche e stato contratti</div>
+                </div>
+                <span class="cmd-tag">Listone</span>
+            </a>
+            <a class="cmd-item" href="{% url 'admin_fantapazz' %}">
+                <span class="cmd-icon"><svg class="ic">
+                        <use href="#i-import" />
+                    </svg></span>
+                <div class="cmd-text">
+                    <div class="cmd-name">Importa da Fantapazz / Excel</div>
+                    <div class="cmd-desc">Sincronizzazione cookie, import rose e file XLSX ufficiali</div>
+                </div>
+                <span class="cmd-tag">Import</span>
+            </a>
+            <a class="cmd-item" href="{% url 'admin_remote_page' %}">
+                <span class="cmd-icon"><svg class="ic">
+                        <use href="#i-globe" />
+                    </svg></span>
+                <div class="cmd-text">
+                    <div class="cmd-name">Accesso Remoto (Cloudflare / ngrok)</div>
+                    <div class="cmd-desc">Tunnel sicuro per partecipanti lontani senza aprire porte</div>
+                </div>
+                <span class="cmd-tag">Tunnel</span>
+            </a>
+            <a class="cmd-item" href="{% url 'app_home' %}" target="_blank">
+                <span class="cmd-icon"><svg class="ic">
+                        <use href="#i-shirt" />
+                    </svg></span>
+                <div class="cmd-text">
+                    <div class="cmd-name">App Allenatore & Squadre (/app/)</div>
+                    <div class="cmd-desc">Area fantallenatori: Rose, Formazioni e Buste di mercato</div>
+                </div>
+                <span class="cmd-tag">App</span>
+            </a>
+            <div class="cmd-group-title">Azioni Rapide & Strumenti</div>
+            <a class="cmd-item" href="{% url 'admin_auction_wizard' %}">
+                <span class="cmd-icon"><svg class="ic">
+                        <use href="#i-plus" />
+                    </svg></span>
+                <div class="cmd-text">
+                    <div class="cmd-name">Nuova Asta Guidata</div>
+                    <div class="cmd-desc">Configura una nuova sessione d'asta con timer personalizzato</div>
+                </div>
+                <span class="cmd-tag">Wizard</span>
+            </a>
+            <a class="cmd-item" href="javascript:void(0)" onclick="closeCmdPalette();openSystemLogs()">
+                <span class="cmd-icon">📋</span>
+                <div class="cmd-text">
+                    <div class="cmd-name">Log di Sistema in Tempo Reale</div>
+                    <div class="cmd-desc">Visualizza gli eventi WebSocket, offerte e diagnostica</div>
+                </div>
+                <span class="cmd-tag">Diagnostica</span>
+            </a>
+            <a class="cmd-item" href="{% url 'admin_config' %}">
+                <span class="cmd-icon"><svg class="ic">
+                        <use href="#i-gear" />
+                    </svg></span>
+                <div class="cmd-text">
+                    <div class="cmd-name">Configurazione & Manutenzione</div>
+                    <div class="cmd-desc">Impostazioni motore d'asta, PIN regia e ripristini</div>
+                </div>
+                <span class="cmd-tag">Config</span>
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+    async function startQuit() {
+        if (!confirm("Chiudere FantaManager?\n\nNessuno potrà più collegarsi finché non riavvii l'app. I dati restano salvati.")) return;
+        const m = document.cookie.match("(^|;)\\s*csrftoken\\s*=\\s*([^;]+)");
+        try {
+            await fetch("{% url 'admin_quit' %}", {
+                method: "POST", headers: { "X-CSRFToken": m ? m.pop() : "" }
+            });
+        } catch (e) { /* la connessione cade perché il server si spegne */ }
+        document.body.innerHTML =
+            "<div style='font:16px/1.7 system-ui,sans-serif;max-width:30em;margin:14vh auto;" +
+            "padding:0 1.5em;text-align:center'><h1 style='font-size:1.3em'>FantaManager è chiuso</h1>" +
+            "<p style='color:#9a938a'>Puoi chiudere questa scheda. Per riprendere, riavvia l'app: " +
+            "i dati e le sessioni salvate sono al loro posto.</p></div>";
+    }
+
+    function openCmdPalette() {
+        const m = document.getElementById("cmd-palette-modal");
+        if (!m) return;
+        m.style.display = "flex";
+        const inp = document.getElementById("cmd-palette-input");
+        if (inp) {
+            inp.value = "";
+            filterCmdPalette("");
+            setTimeout(() => inp.focus(), 50);
+        }
+    }
+
+    function closeCmdPalette() {
+        const m = document.getElementById("cmd-palette-modal");
+        if (m) m.style.display = "none";
+    }
+
+    function filterCmdPalette(q) {
+        const val = (q || "").trim().toLowerCase();
+        const items = document.querySelectorAll("#cmd-palette-list .cmd-item");
+        items.forEach(it => {
+            const txt = (it.innerText || "").toLowerCase();
+            it.style.display = (!val || txt.includes(val)) ? "flex" : "none";
+        });
+    }
+
+    document.addEventListener("keydown", (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+            e.preventDefault();
+            const m = document.getElementById("cmd-palette-modal");
+            if (m && m.style.display !== "none") closeCmdPalette();
+            else openCmdPalette();
+        } else if (e.key === "Escape") {
+            closeCmdPalette();
+        }
+    });
+</script>
