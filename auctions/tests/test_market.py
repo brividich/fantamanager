@@ -13,6 +13,7 @@ from ..services.market import (
     delete_market_bid,
     get_participant_market_bids,
     place_market_bid,
+    plan_market_resolution,
     resolve_market_session,
 )
 
@@ -307,6 +308,157 @@ class MarketSessionTests(TestCase):
         self.assertIn("limite acquisti", b2.note)
 
 
+class MarketResolutionRulesTests(TestCase):
+    """Priority order, availability, ownership and roster-slot checks at resolution."""
+
+    def setUp(self):
+        self.league = League.objects.create(
+            name="Lega Spoglio", budget=Decimal("500"),
+            slots_p=3, slots_d=8, slots_c=8, slots_a=6,
+        )
+        self.a = Participant.objects.create(display_name="Alfa", league=self.league, credits=Decimal("150"))
+        self.b = Participant.objects.create(display_name="Beta", league=self.league, credits=Decimal("500"))
+        self.session = MarketSession.objects.create(
+            league=self.league, title="Buste", status=MarketSession.Status.OPEN,
+        )
+
+    def _player(self, name, role="A", **kw):
+        return Player.objects.create(name=name, role=role, league=self.league, **kw)
+
+    def _bid(self, who, player, amount, priority=1, release=None):
+        res = place_market_bid(
+            session_id=self.session.id, participant_id=who.id, player_id=player.id,
+            amount=Decimal(amount), priority=priority,
+            release_player_id=release.id if release else None,
+        )
+        self.assertTrue(res["ok"], res)
+        return MarketBid.objects.get(pk=res["bid_id"])
+
+    def _status(self, bid):
+        bid.refresh_from_db()
+        return bid.status
+
+    def test_priority_decides_budget_not_player_id(self):
+        """With budget for one of two, the priority-1 target wins even if created later."""
+        low_id = self._player("Primo")
+        high_id = self._player("Secondo")
+        b2 = self._bid(self.a, low_id, 100, priority=2)
+        b1 = self._bid(self.a, high_id, 100, priority=1)
+        resolve_market_session(self.session.id)
+        self.assertEqual(self._status(b1), MarketBid.Status.WON)
+        self.assertEqual(self._status(b2), MarketBid.Status.LOST)
+        self.assertIn("Crediti insufficienti", b2.note)
+
+    def test_losing_top_priority_frees_budget_for_next(self):
+        x = self._player("X")
+        y = self._player("Y")
+        a_x = self._bid(self.a, x, 100, priority=1)
+        a_y = self._bid(self.a, y, 100, priority=2)
+        b_x = self._bid(self.b, x, 120, priority=1)
+        resolve_market_session(self.session.id)
+        self.assertEqual(self._status(b_x), MarketBid.Status.WON)
+        self.assertEqual(self._status(a_x), MarketBid.Status.LOST)
+        self.assertEqual(self._status(a_y), MarketBid.Status.WON)
+
+    def test_highest_offer_wins_even_with_lower_priority(self):
+        """A priority-2 envelope that is the highest offer is not beaten by a priority-1 lower one."""
+        x = self._player("X")
+        z = self._player("Z")
+        a_x = self._bid(self.a, x, 50, priority=1)
+        self._bid(self.b, z, 10, priority=1)
+        b_x = self._bid(self.b, x, 90, priority=2)
+        resolve_market_session(self.session.id)
+        self.assertEqual(self._status(b_x), MarketBid.Status.WON)
+        self.assertEqual(self._status(a_x), MarketBid.Status.LOST)
+
+    def test_crossed_preferences_terminate(self):
+        x = self._player("X")
+        y = self._player("Y")
+        self._bid(self.a, x, 50, priority=1)
+        a_y = self._bid(self.a, y, 100, priority=2)
+        self._bid(self.b, y, 60, priority=1)
+        b_x = self._bid(self.b, x, 90, priority=2)
+        summary = resolve_market_session(self.session.id)
+        self.assertEqual(summary["total_acquisitions"], 2)
+        self.assertEqual(self._status(a_y), MarketBid.Status.WON)
+        self.assertEqual(self._status(b_x), MarketBid.Status.WON)
+
+    def test_player_taken_during_session_is_not_stolen(self):
+        x = self._player("X")
+        bid = self._bid(self.a, x, 30)
+        x.owner = self.b
+        x.cost = Decimal("5")
+        x.save()
+        resolve_market_session(self.session.id)
+        x.refresh_from_db()
+        self.assertEqual(x.owner, self.b)
+        self.assertEqual(self._status(bid), MarketBid.Status.LOST)
+        self.assertIn("non più disponibile", bid.note)
+        self.a.refresh_from_db()
+        self.assertEqual(self.a.spent_credits, Decimal("0"))
+
+    def test_roster_full_falls_to_next_bidder(self):
+        for i in range(6):
+            self._player(f"A{i}", owner=self.a, cost=Decimal("0"))
+        x = self._player("X")
+        a_x = self._bid(self.a, x, 80)
+        b_x = self._bid(self.b, x, 40)
+        resolve_market_session(self.session.id)
+        self.assertEqual(self._status(a_x), MarketBid.Status.LOST)
+        self.assertIn("Rosa piena", a_x.note)
+        self.assertEqual(self._status(b_x), MarketBid.Status.WON)
+
+    def test_conditional_release_makes_room(self):
+        owned = [self._player(f"A{i}", owner=self.a, cost=Decimal("10")) for i in range(6)]
+        x = self._player("X")
+        bid = self._bid(self.a, x, 30, release=owned[0])
+        resolve_market_session(self.session.id)
+        self.assertEqual(self._status(bid), MarketBid.Status.WON)
+        owned[0].refresh_from_db()
+        self.assertIsNone(owned[0].owner)
+        self.a.refresh_from_db()
+        self.assertEqual(self.a.spent_credits, Decimal("20"))
+
+    def test_release_no_longer_owned_is_checked(self):
+        """If the cut player left the roster, the bid is judged without the cut."""
+        owned = [self._player(f"A{i}", owner=self.a, cost=Decimal("10")) for i in range(6)]
+        x = self._player("X")
+        bid = self._bid(self.a, x, 30, release=owned[0])
+        owned[0].owner = self.b
+        owned[0].save()
+        self._player("A-extra", owner=self.a)  # roster back to 6 forwards
+        resolve_market_session(self.session.id)
+        self.assertEqual(self._status(bid), MarketBid.Status.LOST)
+        self.assertIn("taglio condizionato non più possibile", bid.note)
+        owned[0].refresh_from_db()
+        self.assertEqual(owned[0].owner, self.b)
+
+    def test_same_cut_used_twice_only_once(self):
+        cut = self._player("Cut", role="C", owner=self.a, cost=Decimal("10"))
+        x = self._player("X")
+        y = self._player("Y")
+        self._bid(self.a, x, 40, priority=1, release=cut)
+        by = self._bid(self.a, y, 40, priority=2, release=cut)
+        resolve_market_session(self.session.id)
+        self.assertEqual(self._status(by), MarketBid.Status.WON)
+        self.a.refresh_from_db()
+        # 40 - 10 refund + 40 without refund
+        self.assertEqual(self.a.spent_credits, Decimal("70"))
+        self.assertEqual(RosterLog.objects.filter(action=RosterLog.Action.RELEASE).count(), 1)
+
+    def test_preview_writes_nothing(self):
+        x = self._player("X")
+        bid = self._bid(self.a, x, 30)
+        preview = plan_market_resolution(self.session.id)
+        self.assertTrue(preview["preview"])
+        self.assertEqual(preview["total_acquisitions"], 1)
+        self.assertEqual(self._status(bid), MarketBid.Status.PENDING)
+        x.refresh_from_db()
+        self.assertIsNone(x.owner)
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.status, MarketSession.Status.OPEN)
+
+
 class MarketViewsTests(TestCase):
     def setUp(self):
         self.league = League.objects.create(name="Lega Pro")
@@ -409,6 +561,34 @@ class MarketViewsTests(TestCase):
         )
         self.assertEqual(del_resp.status_code, 302)
         self.assertFalse(MarketSession.objects.filter(pk=new_sess.id).exists())
+
+
+class MarketAdminTemplateTests(TestCase):
+    def setUp(self):
+        self.client.force_login(User.objects.create_superuser("root", "root@x.local", "pw"))
+        self.league = League.objects.create(name="Lega T")
+        self.session = MarketSession.objects.create(
+            league=self.league, title="Sessione T", status=MarketSession.Status.OPEN,
+        )
+
+    def _get(self):
+        url = reverse("admin_market_dashboard") + f"?league={self.league.id}&session={self.session.id}"
+        return self.client.get(url)
+
+    def test_open_session_shows_close_and_resolve_actions(self):
+        resp = self._get()
+        self.assertContains(resp, "Chiudi finestra")
+        self.assertContains(resp, 'name="status" value="closed"')
+        self.assertContains(resp, 'value="purchase"')
+
+    def test_resolved_session_shows_results(self):
+        p = Participant.objects.create(display_name="Squadra", league=self.league, credits=Decimal("100"))
+        pl = Player.objects.create(name="Retegui", role="A", league=self.league)
+        place_market_bid(self.session.id, p.id, pl.id, 20)
+        resolve_market_session(self.session.id)
+        resp = self._get()
+        self.assertContains(resp, "Esito dello spoglio")
+        self.assertContains(resp, "Retegui")
 
 
 class MarketAdminTenantIsolationTests(TestCase):

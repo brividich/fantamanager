@@ -98,6 +98,7 @@ from .market import (
     delete_market_bid,
     get_participant_market_bids,
     place_market_bid,
+    plan_market_resolution,
     resolve_market_session,
 )
 from .scoring import (
@@ -167,6 +168,7 @@ __all__ = [
     "place_market_bid",
     "delete_market_bid",
     "get_participant_market_bids",
+    "plan_market_resolution",
     "resolve_market_session",
     # queue
     "_ROLE_RANK_PDCA",
