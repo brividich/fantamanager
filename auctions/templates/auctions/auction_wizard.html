@@ -123,8 +123,8 @@
         <div class="sec-title">Tipo di asta</div>
         <div class="opt-grid" id="mode-grid">
             {% for value, label in modes %}
-            <label class="opt {% if forloop.first %}sel{% endif %}">
-                <input type="radio" name="mode" value="{{ value }}" {% if forloop.first %}checked{% endif %}>
+            <label class="opt {% if value == preselect_mode %}sel{% endif %}">
+                <input type="radio" name="mode" value="{{ value }}" {% if value == preselect_mode %}checked{% endif %}>
                 <div class="opt-t">{{ label }}</div>
                 <div class="opt-d">
                     {% if value == 'NEW_FROM_ZERO' %}Asta iniziale da zero, nessuna rosa preesistente.
