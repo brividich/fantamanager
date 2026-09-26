@@ -94,7 +94,27 @@ def _validate(trade, proposer_players, receiver_players):
             return f"{p.display_name} non può partecipare a scambi in questa lega."
     if not proposer_players and not receiver_players:
         return "Lo scambio deve includere almeno un calciatore."
-    if league.trades_same_roles:
+    for pl in list(proposer_players) + list(receiver_players):
+        if pl.loan_from_id:
+            return f"{pl.name} è in prestito: può trattarlo solo chi ha il cartellino, quando rientra."
+    is_loan = trade.kind == Trade.Kind.LOAN
+    if is_loan:
+        for pl in list(proposer_players) + list(receiver_players):
+            if pl.contract_years is not None and trade.loan_sessions > max(1, pl.contract_years * 2):
+                return f"Il prestito di {pl.name} non può durare oltre il suo contratto ({pl.contract_years} anni)."
+    else:
+        # 5.01: chi è stato comprato in questa sessione non si vende (scambi e
+        # prestiti invece sì): vendere = cederlo per soli crediti.
+        from .contracts import release_problem
+        for sellers, gets in ((proposer_players, receiver_players), (receiver_players, proposer_players)):
+            if sellers and not gets:
+                for pl in sellers:
+                    problem = release_problem(pl)
+                    if problem and "acquistato" in problem:
+                        return problem
+    # 5.04: negli scambi alla pari stesso numero di giocatori e ruoli; le
+    # vendite per crediti (5.08) e i prestiti (5.07) sono liberi.
+    if league.trades_same_roles and not is_loan and proposer_players and receiver_players:
         give = Counter(p.role for p in proposer_players)
         get = Counter(p.role for p in receiver_players)
         if give != get:
@@ -122,7 +142,7 @@ def _validate(trade, proposer_players, receiver_players):
 
 @transaction.atomic
 def propose_trade(proposer_id, receiver_id, give_ids=(), get_ids=(),
-                  give_credits=0, get_credits=0, message=""):
+                  give_credits=0, get_credits=0, message="", kind="definitive", loan_sessions=1):
     proposer = Participant.objects.select_related("league").filter(pk=proposer_id).first()
     receiver = Participant.objects.filter(pk=receiver_id).first()
     if proposer is None or receiver is None or proposer.league is None:
@@ -137,9 +157,16 @@ def propose_trade(proposer_id, receiver_id, give_ids=(), get_ids=(),
 
     give = list(Player.objects.filter(pk__in=_ids(give_ids)))
     get = list(Player.objects.filter(pk__in=_ids(get_ids)))
+    if kind not in Trade.Kind.values:
+        kind = Trade.Kind.DEFINITIVE
+    try:
+        loan_sessions = max(1, min(8, int(loan_sessions or 1)))
+    except (TypeError, ValueError):
+        loan_sessions = 1
     trade = Trade(
         league=proposer.league, proposer=proposer, receiver=receiver,
         proposer_credits=pc, receiver_credits=rc, message=(message or "").strip()[:200],
+        kind=kind, loan_sessions=loan_sessions,
     )
     problem = _validate(trade, give, get)
     if problem:
@@ -186,12 +213,16 @@ def _execute(trade):
         _close(trade, Trade.Status.FAILED, problem)
         return _err(f"Scambio non eseguibile: {problem}")
 
-    note = f"Scambio #{trade.id}"
+    is_loan = trade.kind == Trade.Kind.LOAN
+    note = f"{'Prestito' if is_loan else 'Scambio'} #{trade.id}"
     for pl, new_owner, old_owner in (
         [(p, receiver, proposer) for p in give] + [(p, proposer, receiver) for p in get]
     ):
         pl.owner = new_owner
-        pl.save(update_fields=["owner"])
+        if is_loan:
+            pl.loan_from = old_owner
+            pl.loan_sessions_left = trade.loan_sessions
+        pl.save(update_fields=["owner", "loan_from", "loan_sessions_left"])
         for who, verb in ((old_owner, "ceduto a"), (new_owner, "arrivato da")):
             other = new_owner if who is old_owner else old_owner
             RosterLog.objects.create(

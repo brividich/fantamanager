@@ -7,6 +7,7 @@ from .. import health, mantra
 from ..models import Auction, Player
 from .lifecycle import stuck_closed_lot
 from .sealed import sealed_status
+from .turns import current_turn
 
 
 def roster_plan(participant):
@@ -185,6 +186,7 @@ def serialize_state(auction, now=None):
         },
         "game_mode": "MANTRA" if is_mantra else "CLASSIC",
         "flow_mode": auction.flow_mode,
+        "turn": current_turn(auction),
         "manual_auto_advance": auction.manual_auto_advance,
         "cycle_break_seconds": auction.cycle_break_seconds,
         "interlude_seconds": interlude,

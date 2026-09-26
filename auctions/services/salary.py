@@ -180,6 +180,12 @@ def adjust_cap(league, participant, amount, note=""):
 
 # --- Stato e controlli ---------------------------------------------------------
 
+def current_session_start(league):
+    """Inizio della sessione di mercato in corso (ultima fase aperta), o None."""
+    phase = CapPhase.objects.filter(league=league).order_by("-started_at").first()
+    return phase.started_at if phase else None
+
+
 def _season_start(league):
     first = CapPhase.objects.filter(league=league, season=league.season_number).order_by("started_at").first()
     return first.started_at if first else None

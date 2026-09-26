@@ -745,6 +745,10 @@ def release_player(player_id, *, auction_id=None, by_admin=False, participant_id
     if not by_admin:
         if participant_id is None or int(participant_id) != player.owner_id:
             return {"ok": False, "error": "forbidden"}
+        from .contracts import release_problem
+        problem = release_problem(player)
+        if problem:
+            return {"ok": False, "error": "release_locked", "message": problem}
 
     owner = Participant.objects.select_for_update().get(pk=player.owner_id)
 

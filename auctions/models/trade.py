@@ -42,6 +42,14 @@ class Trade(models.Model):
     proposer_credits = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
     receiver_credits = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
 
+    class Kind(models.TextChoices):
+        DEFINITIVE = "definitive", "Definitivo"
+        LOAN       = "loan",       "Prestito"
+
+    kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.DEFINITIVE)
+    # Prestito: quante sessioni d'asta dura (rientro all'apertura della N-esima).
+    loan_sessions = models.PositiveSmallIntegerField(default=1)
+
     message = models.CharField(max_length=200, blank=True)
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING)
     status_note = models.CharField(max_length=300, blank=True)

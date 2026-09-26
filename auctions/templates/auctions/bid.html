@@ -346,6 +346,10 @@
         </div>
     </div>
 
+    <!-- Chiamata a turno (5.02): avvisa quando tocca a questa squadra chiamare. -->
+    <div id="turn-banner" style="display:none;margin:8px 0;padding:10px 14px;border-radius:12px;font-weight:800;
+         background:var(--accent-soft,rgba(19,181,255,.15));border:1px solid var(--accent-line,rgba(19,181,255,.4));color:var(--ink,#fff)"></div>
+
     <!-- Live announcement banner + floating reactions overlay -->
     <div id="announce-banner" class="announce-banner"></div>
     <div id="react-layer" class="react-layer" aria-hidden="true"></div>
@@ -873,6 +877,13 @@
         const prev = lastPrice;
         const wasLive = state && state.status === "LIVE";
         state = s;
+        const $turn = document.getElementById("turn-banner");
+        if ($turn) {
+            const mine = s.turn && s.turn.participant_id === {{ participant.id|default:"null" }};
+            const waiting = s.status !== "LIVE" && s.status !== "PAUSED";
+            $turn.style.display = s.turn && waiting ? "" : "none";
+            if (s.turn) $turn.textContent = mine ? "📣 Tocca a te chiamare il prossimo giocatore!" : `Tocca a ${s.turn.name} chiamare`;
+        }
         timerBase = { remaining: s.remaining_seconds, at: performance.now() };
 
         $priceVal.textContent = money(s.current_price);

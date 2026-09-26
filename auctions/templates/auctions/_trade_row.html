@@ -2,7 +2,7 @@
     <div class="tr-head">
         <span>{% if r.outgoing %}A <b>{{ r.other.display_name }}</b>{% else %}Da <b>{{ r.other.display_name }}</b>{% endif %}
             <span class="muted" style="font-size:11px">· {{ r.trade.created_at|date:"d/m H:i" }}</span></span>
-        <span class="tr-status {{ r.trade.status }}">{{ r.trade.get_status_display }}</span>
+        <span class="tr-status {{ r.trade.status }}">{% if r.trade.kind == "loan" %}Prestito ({{ r.trade.loan_sessions }} sess.) · {% endif %}{{ r.trade.get_status_display }}</span>
     </div>
     <div class="tr-sides">
         <div class="tr-side">

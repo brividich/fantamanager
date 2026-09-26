@@ -80,7 +80,14 @@ def start_new_season(league_id, final_order=None):
     return report
 
 
+def _tick_loans(league, report):
+    from .loans import tick
+    for name in tick(league):
+        _step(report, f"Fine prestito: {name} rientra alla squadra che ha il cartellino.")
+
+
 def _open_summer(league, final_ranking, report):
+    _tick_loans(league, report)
     if not league.salary_cap_enabled:
         return
     try:
@@ -110,6 +117,7 @@ def midseason(league_id, mid_order=None):
     if ranking is None:
         return {"ok": False, "message": "Serve la classifica di metà stagione.", "steps": [], "warnings": []}
     _step(report, f"Classifica di metà stagione salvata ({ranking.get_source_display()}).")
+    _tick_loans(league, report)
     if league.salary_cap_enabled:
         try:
             award = salary.award_decree(league, LeagueRanking.Kind.MIDSEASON, ranking)
