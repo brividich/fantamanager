@@ -118,6 +118,12 @@ def league_admin_digest(league):
             "info", "plus", "Crea la prima asta",
             "Listone e squadre ci sono: manca solo l'asta.",
             reverse("admin_auction_wizard") + q, "Crea"))
+    left = Player.objects.filter(owner__league=league, left_serie_a_at__isnull=False).count()
+    if left:
+        items.append(_todo(
+            "warn", "doc", f"{left} giocator{'e' if left == 1 else 'i'} fuori dal listone",
+            "In rosa ma non più nel listone ufficiale: conferma destinazione e compenso (5.05).",
+            reverse("admin_contracts") + q, "Gestisci"))
     if league.contracts_enabled and league.renewals_open:
         items.append(_todo(
             "info", "doc", "Finestra rinnovi aperta",

@@ -432,6 +432,20 @@
             if (data.pruned)   parts.push(`${data.pruned} svincolati rimossi`);
             showImportMsg("✓ " + (parts.join(" · ") || "nessuna modifica") +
                 (data.errors.length ? ` · ${data.errors.length} righe ignorate.` : ""), "var(--live)");
+            const left = data.left_serie_a;
+            if (left) {
+                // 5.05: chi è in rosa ma non è più nel listone. Resta il tempo di leggere e aprire Contratti.
+                const msg = document.getElementById("import-msg");
+                const note = document.createElement("span");
+                note.style.cssText = "display:block;margin-top:6px;color:var(--gold)";
+                note.textContent = `⚠ ${left.flagged} giocator${left.flagged === 1 ? "e" : "i"} in rosa non ${left.flagged === 1 ? "è" : "sono"} più nel listone` +
+                    (left.summary ? `: ${left.summary}` : "") + " ";
+                const link = document.createElement("a");
+                link.href = left.url; link.textContent = "Apri Contratti →";
+                note.appendChild(link);
+                msg.appendChild(note);
+                return;
+            }
             setTimeout(() => location.reload(), 1800);
         } else {
             showImportMsg("✗ " + data.error, "var(--closed)");

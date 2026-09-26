@@ -88,7 +88,7 @@ def _log(league, player, kind, *, participant=None, roll=None, years=None, manua
 
 
 def _owned_player(player_id, participant_id=None, by_admin=False):
-    player = Player.objects.select_for_update().select_related("owner", "owner__league").filter(pk=player_id).first()
+    player = Player.objects.select_for_update(of=("self",)).select_related("owner", "owner__league").filter(pk=player_id).first()
     if player is None or player.owner_id is None:
         return None, _err("Giocatore non trovato in nessuna rosa.")
     if not by_admin and (participant_id is None or int(participant_id) != player.owner_id):

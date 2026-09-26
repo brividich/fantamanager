@@ -7,6 +7,7 @@ from django.views.decorators.http import require_POST
 
 from .. import services
 from ..models import ContractEvent, Participant, Player
+from ..providers.apifootball import is_configured as apifootball_configured
 from ..providers.uefa import RANKING_PAGE as UEFA_RANKING_PAGE
 from .common import current_league, manageable_leagues, staff_member_required, target_league, user_can_manage_league
 
@@ -15,6 +16,13 @@ _FORBIDDEN = "Non hai i permessi per gestire i contratti di questa lega."
 
 def _url(league):
     return f"{reverse('admin_contracts')}?league={league.id}" if league else reverse("admin_contracts")
+
+
+def _detected(res):
+    where = (f" (ranking UEFA {res['position']}°)" if res.get("position")
+             else " — posizione nel ranking da indicare")
+    extra = f" Ranking UEFA da caricare: {res['ranking_problem']}." if res.get("ranking_problem") else ""
+    return f"{res.get('player_name')}: destinazione {res.get('club')}{where}.{extra}"
 
 
 @staff_member_required
@@ -44,7 +52,6 @@ def admin_contracts(request):
             })
         events = list(ContractEvent.objects.filter(league=league)[:40])
         from ..models import UefaClubRank
-        from ..providers.apifootball import is_configured
         left = list(Player.objects.filter(owner__league=league, left_serie_a_at__isnull=False)
                     .select_related("owner").order_by("owner__display_name", "name"))
         for p in left:
@@ -64,7 +71,8 @@ def admin_contracts(request):
         "flaggable": flaggable if league is not None else [],
         "uefa_count": UefaClubRank.objects.count() if league is not None else 0,
         "uefa_ranking_page": UEFA_RANKING_PAGE,
-        "apifootball": is_configured() if league is not None else False,
+        "apifootball": apifootball_configured() if league is not None else False,
+        "to_detect": sum(1 for p in left if not p.left_club) if league is not None else 0,
         "contract_faces": sorted(set(services.contract_faces(league))) if league else [1, 2, 3],
         "crules": services.contract_rules(league) if league else None,
         "roles": [("P", "Portieri"), ("D", "Difensori"), ("C", "Centrocampisti"), ("A", "Attaccanti")],
@@ -115,15 +123,26 @@ def admin_contracts_action(request):
         messages.success(request, "Impostazioni contratti salvate.")
         return redirect(_url(league))
 
-    if action in ("left_flag", "left_detect", "left_resolve", "list_release", "uefa_fetch", "uefa_paste"):
+    if action in ("left_flag", "left_detect", "left_detect_all", "left_resolve", "list_release",
+                  "uefa_fetch", "uefa_paste"):
         from ..providers import uefa
         from ..services import abroad
         if action == "left_flag":
             res = abroad.flag_player(player_id)
             ok = f"{res.get('player_name')} segnalato come uscito dalla Serie A."
+            if res.get("ok") and apifootball_configured():
+                # Come dopo l'import del listone: la destinazione si cerca subito.
+                found = abroad.detect(player_id)
+                ok += " " + (_detected(found) if found.get("ok") else found.get("message", ""))
         elif action == "left_detect":
             res = abroad.detect(player_id)
-            ok = f"Destinazione trovata: {res.get('club')}" + (f" (ranking UEFA {res['position']}°)" if res.get("position") else " — posizione nel ranking da indicare")
+            ok = _detected(res)
+        elif action == "left_detect_all":
+            report = abroad.detect_all(league, limit=abroad.DETECT_ALL_LIMIT)
+            summary = abroad.detect_summary(report)
+            res = {"ok": bool(report["found"]) or not (report["missing"] or report["error"]),
+                   "message": summary}
+            ok = ("Rilevamento: " + summary) if summary else "Nessun giocatore da rilevare."
         elif action == "left_resolve":
             res = abroad.resolve(player_id, request.POST.get("outcome"), club=(request.POST.get("club") or "").strip(),
                                  position=request.POST.get("position"))
