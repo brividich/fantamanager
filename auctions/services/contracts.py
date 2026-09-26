@@ -224,17 +224,21 @@ def new_season(league_id):
         p.contract_years = max(0, p.contract_years - 1)
         p.renewal_declared = None
         p.save(update_fields=["contract_years", "renewal_declared"])
-        expired += p.contract_years == 0
+        expired += p.contract_years == 0 and not p.abroad_list
+    # 5.09: chi è nella lista ceduti non si rinnova; a fine contratto si perde
+    # e la squadra incassa il compenso della cessione.
+    from .abroad import expire_listed
+    listed_lost = expire_listed(league)
     ContractEvent.objects.create(
         league=league, kind=ContractEvent.Kind.SEASON, season=league.season_number, by_admin=True,
         note=f"Stagione {league.season_number}: {expired} contratti scaduti da rinnovare",
     )
     logger.info(f"New season {league.season_number} for league {league.id}: {expired} expired contracts")
-    return {"ok": True, "season": league.season_number, "expired": expired}
+    return {"ok": True, "season": league.season_number, "expired": expired, "listed_lost": listed_lost}
 
 
 def expiring(participant):
-    return list(Player.objects.filter(owner=participant, contract_years=0).order_by("role", "name"))
+    return list(Player.objects.filter(owner=participant, contract_years=0, abroad_list=False).order_by("role", "name"))
 
 
 @transaction.atomic
@@ -247,7 +251,7 @@ def declare_renewals(participant_id, renew_ids):
     league = participant.league
     if league is None or not league.contracts_enabled or not league.renewals_open:
         return _err("La finestra dei rinnovi non è aperta.")
-    players = list(Player.objects.select_for_update().filter(owner=participant, contract_years=0))
+    players = list(Player.objects.select_for_update().filter(owner=participant, contract_years=0, abroad_list=False))
     if not players:
         return _err("Non hai contratti scaduti da rinnovare.")
     if any(p.renewal_declared is not None for p in players):

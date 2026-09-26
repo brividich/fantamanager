@@ -20,7 +20,7 @@ def roster_plan(participant):
     remaining = participant.remaining_credits
     league = participant.league
     owned_by_role = {"P": 0, "D": 0, "C": 0, "A": 0}
-    for role in Player.objects.filter(owner=participant).values_list("role", flat=True):
+    for role in Player.objects.filter(owner=participant, abroad_list=False).values_list("role", flat=True):
         if role in owned_by_role:
             owned_by_role[role] += 1
 

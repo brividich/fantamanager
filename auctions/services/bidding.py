@@ -23,7 +23,7 @@ def gk_clubs_problem(participant, player):
     limit = getattr(league, "gk_max_clubs", 0) if league else 0
     if not limit or player.role != "P" or not player.team:
         return False
-    clubs = set(Player.objects.filter(owner=participant, role="P").exclude(team="").values_list("team", flat=True))
+    clubs = set(Player.objects.filter(owner=participant, role="P", abroad_list=False).exclude(team="").values_list("team", flat=True))
     return player.team not in clubs and len(clubs) >= limit
 
 

@@ -64,6 +64,8 @@ def start_new_season(league_id, final_order=None):
         res = contracts.new_season(league.id)
         league.refresh_from_db()
         _step(report, f"Stagione {res['season']}: contratti scalati di un anno, {res['expired']} scaduti.")
+        for name, amount in res.get("listed_lost", []):
+            _step(report, f"{name} lascia la lista ceduti a fine contratto: +{amount} FM alla squadra.")
         if res["expired"]:
             _step(report, "Rinnovi aperti: le squadre dichiarano e tirano il dado rinnovo dalla Rosa. "
                           "Poi premi «Chiudi rinnovi» per aprire la fase estiva.")

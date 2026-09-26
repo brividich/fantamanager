@@ -151,6 +151,16 @@ def admin_season_action(request):
                                                 kind=LeagueRanking.Kind.FINAL).first()
             salary.open_phase(league, CapPhase.Kind.SUMMER, prev)
             messages.success(request, "Fase estiva aperta: tetti calcolati.")
+        elif action == "test_standings":
+            from ..providers.standings import fetch_remote_ranking
+            order = fetch_remote_ranking(league)
+            if order:
+                names = dict((t.id, t.display_name) for t in teams)
+                messages.success(request, "Classifica letta: " + ", ".join(
+                    f"{i}° {names.get(pid, pid)}" for i, pid in enumerate(order, 1)))
+            else:
+                messages.error(request, "Non riesco a leggere la classifica da quel link (pagina irraggiungibile, "
+                                        "serve il login o i nomi delle squadre non corrispondono): inseriscila a mano.")
         elif action == "adjust":
             team = next(t for t in teams if str(t.id) == request.POST.get("participant_id"))
             salary.adjust_cap(league, team, request.POST.get("amount") or 0, request.POST.get("note") or "Rettifica admin")

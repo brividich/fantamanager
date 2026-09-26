@@ -145,13 +145,19 @@
         <div class="muted" style="font-size:12.5px">Nessun decreto assegnato: parte da solo con «Nuova stagione» e «Metà stagione».</div>
         {% endfor %}
 
+        {% if current_league.standings_url %}
+        <form method="post" action="{% url 'admin_season_action' %}" style="margin-top:12px">
+            {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="test_standings">
+            <button type="submit" class="ss-btn ghost">Prova lettura classifica dal sito</button>
+        </form>
+        {% endif %}
         <details style="margin-top:14px"{% if not current_league.salary_cap_enabled %} open{% endif %}>
             <summary style="cursor:pointer;font-weight:800;font-size:13px">Impostazioni economia (comma 3)</summary>
             <form method="post" action="{% url 'admin_season_action' %}" class="ss-set" style="margin-top:10px">
                 {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="settings">
                 <span>Tetto salariale e Decreto</span><label><input type="checkbox" name="salary_cap_enabled" value="1"{% if current_league.salary_cap_enabled %} checked{% endif %}> attivi</label>
                 <span>Spesa conteggiata</span><select name="salary_cap_spend" class="ss-in ss-wide">{% for v, l in spend_modes %}<option value="{{ v }}"{% if current_league.salary_cap_spend == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>
-                <span>Pagina classifica di lega</span><input class="ss-in ss-wide" name="standings_url" value="{{ current_league.standings_url }}" placeholder="https://… (Fantapazz / Fantacalcio)">
+                <span>Pagina classifica di lega</span><input class="ss-in ss-wide" name="standings_url" value="{{ current_league.standings_url }}" placeholder="https://www.fantapazz.com/fantacalcio/fantaclassifiche-competizione/…">
                 {% for key, value in rule_tables %}
                 <span>{% if key == "base_by_rank" %}Tetto base per posizione{% elif key == "winter_by_rank" %}Fondi girone di ritorno{% elif key == "decree_mid" %}Decreto metà stagione{% else %}Decreto fine stagione{% endif %}</span>
                 <input class="ss-in ss-wide" name="{{ key }}" value="{{ value }}">

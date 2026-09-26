@@ -141,6 +141,7 @@ urlpatterns = [
     path("app/mercato/extra-cap/", views.app_extra_cap, name="app_extra_cap"),
     path("app/rosa/contratto/<int:player_id>/dado/", views.app_contract_roll, name="app_contract_roll"),
     path("app/rosa/contratto/<int:player_id>/u21/", views.app_contract_u21, name="app_contract_u21"),
+    path("app/rosa/lista-ceduti/<int:player_id>/svincola/", views.app_list_release, name="app_list_release"),
     path("app/rosa/rinnovi/dichiara/", views.app_renewals_declare, name="app_renewals_declare"),
     path("app/rosa/rinnovi/<int:player_id>/dado/", views.app_renewal_roll, name="app_renewal_roll"),
     path("admin-auction/contracts/", views.admin_contracts, name="admin_contracts"),

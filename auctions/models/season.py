@@ -96,3 +96,16 @@ class DecreeAward(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["league", "season", "kind"], name="uniq_decree_per_season_kind"),
         ]
+
+
+class UefaClubRank(models.Model):
+    """Ranking UEFA per club, scaricato da internet (o caricato a mano)."""
+
+    name = models.CharField(max_length=120)
+    norm_name = models.CharField(max_length=120, db_index=True)
+    country = models.CharField(max_length=60, blank=True)
+    position = models.PositiveIntegerField()
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["position"]

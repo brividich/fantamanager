@@ -109,6 +109,21 @@
 </section>
 {% endif %}
 
+{% if abroad_listed %}
+<section class="a-card" style="padding:0">
+    <div class="a-label" style="padding:10px 12px 0"><svg class="ic"><use href="#i-globe"/></svg> Lista ceduti temporanei ({{ abroad_listed|length }}/3)</div>
+    {% for p in abroad_listed %}
+    <div class="renew-row">
+        <span class="role-badge role-{{ p.role }}">{{ p.role }}</span> <b>{{ p.name }}</b>
+        <span class="muted">{{ p.left_club|default:"estero" }} · {{ p.contract_years|default_if_none:"?" }} anni · vale {{ p.abroad_compensation|floatformat:0 }} FM</span>
+        <form method="post" action="{% url 'app_list_release' p.id %}" style="margin-left:auto" onsubmit="return confirm('Svincolare {{ p.name|escapejs }} e incassare {{ p.abroad_compensation|floatformat:0 }} FM?');">
+            {% csrf_token %}<button type="submit" class="pl-dice">Svincola e incassa</button>
+        </form>
+    </div>
+    {% endfor %}
+</section>
+{% endif %}
+
 {% if not roster %}
 <div class="soon">
     <svg class="ic"><use href="#i-shirt"/></svg>

@@ -104,7 +104,7 @@ def app_rosa(request):
     participant, ctx = _app_ctx(request, "rosa")
     if participant is None:
         return _redirect_login(request)
-    roster = list(Player.objects.filter(owner=participant).order_by("role", "-cost", "name"))
+    roster = list(Player.objects.filter(owner=participant, abroad_list=False).order_by("role", "-cost", "name"))
     league = participant.league
     is_mantra = bool(league and league.is_mantra)
     groups = []
@@ -130,6 +130,7 @@ def app_rosa(request):
         "contracts_on": bool(league and league.contracts_enabled),
         "renewals_open": bool(league and league.contracts_enabled and league.renewals_open),
         "expiring": services.expiring_contracts(participant) if league and league.contracts_enabled else [],
+        "abroad_listed": list(Player.objects.filter(owner=participant, abroad_list=True)),
     })
     return render(request, "auctions/app_rosa.html", ctx)
 
@@ -489,6 +490,21 @@ def app_contract_u21(request, player_id):
     res = services.declare_u21(player_id, participant_id=participant.id)
     return _contract_feedback(request, res, lambda r: (
         f"Scommessa Under 21 dichiarata: {r['player_name']} ha {r['years']} anni di contratto."))
+
+
+@require_POST
+def app_list_release(request, player_id):
+    """5.09: in sede d'asta si svincola un giocatore dalla lista ceduti e si incassa."""
+    participant, ctx = _app_ctx(request, "rosa")
+    if participant is None:
+        return _redirect_login(request)
+    if ctx.get("active_auction") is None:
+        messages.error(request, "Dalla lista ceduti si svincola solo in sede d'asta (estiva o invernale).")
+        return redirect("app_rosa")
+    from ..services.abroad import release_from_list
+
+    res = release_from_list(player_id, participant_id=participant.id)
+    return _contract_feedback(request, res, lambda r: f"Svincolato dalla lista ceduti: +{r['amount']} FM.")
 
 
 @require_POST

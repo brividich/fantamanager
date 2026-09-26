@@ -42,11 +42,24 @@ def admin_contracts(request):
                 "last_year": sum(1 for p in roster if p.contract_years == 1),
             })
         events = list(ContractEvent.objects.filter(league=league)[:40])
+        from ..models import UefaClubRank
+        from ..providers.apifootball import is_configured
+        left = list(Player.objects.filter(owner__league=league, left_serie_a_at__isnull=False)
+                    .select_related("owner").order_by("owner__display_name", "name"))
+        for p in left:
+            p.preview = None
+            if p.left_rank_kind:
+                p.preview = services.abroad_compensation(p.role, p.left_rank_kind, p.left_rank_pos)
+        listed = list(Player.objects.filter(owner__league=league, abroad_list=True).select_related("owner"))
     return render(request, "auctions/admin_contracts.html", {
         "leagues": manageable_leagues(request.user),
         "current_league": league,
         "teams": teams,
         "events": events,
+        "left": left if league is not None else [],
+        "listed": listed if league is not None else [],
+        "uefa_count": UefaClubRank.objects.count() if league is not None else 0,
+        "apifootball": is_configured() if league is not None else False,
         "contract_faces": sorted(set(services.contract_faces(league))) if league else [1, 2, 3],
         "crules": services.contract_rules(league) if league else None,
         "roles": [("P", "Portieri"), ("D", "Difensori"), ("C", "Centrocampisti"), ("A", "Attaccanti")],
@@ -95,6 +108,35 @@ def admin_contracts_action(request):
             pass
         league.save(update_fields=["contracts_enabled", "contract_rules", "gk_max_clubs", "updated_at"])
         messages.success(request, "Impostazioni contratti salvate.")
+        return redirect(_url(league))
+
+    if action in ("left_detect", "left_resolve", "list_release", "uefa_fetch", "uefa_paste"):
+        from ..providers import uefa
+        from ..services import abroad
+        if action == "left_detect":
+            res = abroad.detect(player_id)
+            ok = f"Destinazione trovata: {res.get('club')}" + (f" (ranking UEFA {res['position']}°)" if res.get("position") else " — posizione nel ranking da indicare")
+        elif action == "left_resolve":
+            res = abroad.resolve(player_id, request.POST.get("outcome"), club=(request.POST.get("club") or "").strip(),
+                                 position=request.POST.get("position"))
+            ok = ("Segnalazione archiviata." if res.get("outcome") == "dismiss" else
+                  f"Messo in lista ceduti: incasserà {res.get('deferred')} FM a fine contratto o allo svincolo." if res.get("outcome") == "list"
+                  else f"Giocatore perso: +{res.get('amount')} FM alla squadra.")
+        elif action == "list_release":
+            res = abroad.release_from_list(player_id)
+            ok = f"Svincolato dalla lista ceduti: +{res.get('amount')} FM."
+        elif action == "uefa_fetch":
+            rows = uefa.fetch_club_ranking()
+            res = {"ok": bool(rows), "message": "Ranking UEFA non scaricabile ora: incollalo a mano."}
+            ok = f"Ranking UEFA aggiornato: {abroad.store_uefa_ranking(rows) if rows else 0} club."
+        else:
+            rows = uefa.parse_pasted(request.POST.get("ranking"))
+            res = {"ok": bool(rows), "message": "Nessuna riga valida (formato: posizione;club)."}
+            ok = f"Ranking UEFA salvato: {abroad.store_uefa_ranking(rows) if rows else 0} club."
+        if res.get("ok"):
+            messages.success(request, ok)
+        else:
+            messages.error(request, res.get("message") or "Operazione non riuscita.")
         return redirect(_url(league))
 
     if action in ("new_season", "close_renewals"):

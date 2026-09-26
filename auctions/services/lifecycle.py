@@ -385,7 +385,7 @@ def _role_saturated(auction, role):
         return True
     bucket = league.slot_roles(role)
     for p in participants:
-        if Player.objects.filter(owner=p, role__in=bucket).count() < cap:
+        if Player.objects.filter(owner=p, abroad_list=False, role__in=bucket).count() < cap:
             return False
     return True
 

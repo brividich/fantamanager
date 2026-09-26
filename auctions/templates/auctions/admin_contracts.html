@@ -147,6 +147,72 @@
 </div>
 
 <div class="panel" style="margin-top:16px">
+    <h3 style="margin:0 0 4px;font-size:15px">Usciti dalla Serie A (5.05 – 5.09)</h3>
+    <div class="muted" style="font-size:12px;margin-bottom:10px">
+        Si segnalano da soli all'import del listone. «Rileva» cerca il club con API-Football{% if not apifootball %} (non configurata: imposta <code>APIFOOTBALL_KEY</code> sul server){% endif %}
+        e la posizione nel ranking UEFA ({{ uefa_count }} club salvati). Compensi secondo la tabella coefficienti introiti.
+    </div>
+    {% for p in left %}
+    <div class="ct-row" style="grid-template-columns:18px minmax(0,1fr) auto">
+        <span class="role-badge role-{{ p.role }}" style="width:18px;height:18px;font-size:10px">{{ p.role }}</span>
+        <span class="ct-name">{{ p.name }} <span class="muted" style="font-weight:600">· {{ p.owner.display_name }} · non più nel listone dal {{ p.left_serie_a_at|date:"d/m" }}{% if p.left_club %} · → {{ p.left_club }}{% endif %}{% if p.preview is not None %} · {{ p.preview|floatformat:0 }} FM{% endif %}</span></span>
+        <span class="ct-act">
+            <form method="post" action="{% url 'admin_contracts_action' %}">
+                {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}">
+                <input type="hidden" name="action" value="left_detect"><input type="hidden" name="player_id" value="{{ p.id }}">
+                <button type="submit" class="ct-btn"{% if not apifootball %} disabled{% endif %}>Rileva</button>
+            </form>
+            <form method="post" action="{% url 'admin_contracts_action' %}">
+                {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}">
+                <input type="hidden" name="action" value="left_resolve"><input type="hidden" name="player_id" value="{{ p.id }}">
+                <input name="club" value="{{ p.left_club }}" placeholder="Club" style="width:110px">
+                <select name="outcome">
+                    <option value="uefa"{% if p.left_rank_kind != "fifa" %} selected{% endif %}>Club UEFA</option>
+                    <option value="fifa"{% if p.left_rank_kind == "fifa" %} selected{% endif %}>Nazione FIFA</option>
+                    <option value="free">Svincolato/ritirato</option>
+                    <option value="list">Lista ceduti</option>
+                    <option value="dismiss">Falso allarme</option>
+                </select>
+                <input name="position" value="{{ p.left_rank_pos|default_if_none:'' }}" placeholder="Pos." style="width:46px" title="Posizione nel ranking (vuoto = soglia minima)">
+                <button type="submit" class="ct-btn go">Conferma</button>
+            </form>
+        </span>
+    </div>
+    {% empty %}
+    <div class="muted" style="font-size:12px">Nessun giocatore segnalato.</div>
+    {% endfor %}
+
+    {% if listed %}
+    <h4 style="margin:14px 0 6px;font-size:13px">Lista ceduti temporanei</h4>
+    {% for p in listed %}
+    <div class="ct-row" style="grid-template-columns:18px minmax(0,1fr) auto">
+        <span class="role-badge role-{{ p.role }}" style="width:18px;height:18px;font-size:10px">{{ p.role }}</span>
+        <span class="ct-name">{{ p.name }} <span class="muted" style="font-weight:600">· {{ p.owner.display_name }} · {{ p.left_club|default:"estero" }} · {{ p.contract_years|default_if_none:"?" }} anni · vale {{ p.abroad_compensation|floatformat:0 }} FM</span></span>
+        <span class="ct-act"><form method="post" action="{% url 'admin_contracts_action' %}">
+            {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}">
+            <input type="hidden" name="action" value="list_release"><input type="hidden" name="player_id" value="{{ p.id }}">
+            <button type="submit" class="ct-btn">Svincola e incassa</button></form></span>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <details style="margin-top:12px">
+        <summary style="cursor:pointer;font-size:12.5px;font-weight:800">Ranking UEFA club</summary>
+        <div style="display:flex;gap:10px;align-items:flex-start;margin-top:8px;flex-wrap:wrap">
+            <form method="post" action="{% url 'admin_contracts_action' %}">
+                {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="uefa_fetch">
+                <button type="submit" class="ct-btn go">Scarica da uefa.com</button>
+            </form>
+            <form method="post" action="{% url 'admin_contracts_action' %}" style="display:flex;gap:6px;align-items:flex-start">
+                {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="uefa_paste">
+                <textarea name="ranking" rows="3" cols="40" placeholder="1;Real Madrid&#10;2;Manchester City&#10;…" style="font-size:12px;border-radius:6px;border:1px solid var(--line);background:rgba(0,0,0,0.2);color:inherit"></textarea>
+                <button type="submit" class="ct-btn">Salva incollato</button>
+            </form>
+        </div>
+    </details>
+</div>
+
+<div class="panel" style="margin-top:16px">
     <h3 style="margin:0 0 8px;font-size:15px">Registro dadi e contratti</h3>
     <ul class="ct-log" style="margin:0;padding-left:18px">
         {% for e in events %}
