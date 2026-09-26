@@ -5,7 +5,7 @@ from django.shortcuts import redirect, render
 from django.urls import reverse
 from ..models import Auction, League, Participant, Player
 from .. import remote
-from .common import _session_participant, target_league
+from .common import _session_participant, safe_next, target_league, try_regia_pin
 
 
 def home_portal(request):
@@ -38,25 +38,13 @@ def home_portal(request):
     if request.method == "POST":
         action = request.POST.get("action", "login")
         if action == "logout":
-            request.session["regia_unlocked"] = False
             request.session.pop("regia_unlocked", None)
-            return redirect("home")
+            return redirect("home_portal")
 
-        # Login attempt
-        pin = (request.POST.get("pin") or "").strip()
-        expected_pin = remote.regia_pin() or "123456"
-
-        # Accept the minted tunnel PIN, default 123456, or admin
-        if pin and (pin == expected_pin or pin == "123456" or pin.lower() == "admin"):
-            request.session["regia_unlocked"] = True
-            remote.regia_pin_register_success()
-            target = request.POST.get("next") or reverse('dashboard')
-            return redirect(target)
-        else:
-            remote.regia_pin_register_failure()
-            error = f"PIN non valido. Riprova (PIN predefinito: {expected_pin})."
-
-    expected_pin = remote.regia_pin() or "123456"
+        # Same gate, same lockout as /regia/unlock/: only the minted tunnel PIN.
+        error = try_regia_pin(request)
+        if not error:
+            return redirect(safe_next(request, reverse("dashboard")))
 
     return render(request, "auctions/home_portal.html", {
         "leagues": leagues,
@@ -64,7 +52,6 @@ def home_portal(request):
         "auctions": auctions,
         "active_auction": active_auction,
         "is_unlocked": is_unlocked,
-        "expected_pin": expected_pin,
         "error": error,
         "is_remote": remote.request_is_remote(request),
     })
