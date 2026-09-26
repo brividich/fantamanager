@@ -1,738 +1,1142 @@
 {% extends "auctions/base.html" %}
-{% block title %}Mercato a Buste — FantaManager{% endblock %}
+{% comment %}
+Mercato — everything that changes the rosters once the season has started.
+On top, one card per market (buste, scambi, asta di riparazione, movimenti)
+with its state at a glance; below, the tools of the card that is selected.
+Every pane is rendered by the server (?tab= picks the visible one), the cards
+only swap them in place and keep the URL in step, so links and form posts
+land back on the right market.
+{% endcomment %}
+{% block title %}Mercato — FantaManager{% endblock %}
 {% block bodyclass %}role-admin{% endblock %}
 {% block wrapclass %}wrap-wide{% endblock %}
 
 {% block content %}
 <style>
-    .market-header {
-        display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
-        margin-bottom: 18px;
+    .mk { max-width: 1320px; margin: 0 auto; }
+    .mk-head { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin: 8px 0 16px; }
+    .mk-head h1 { margin: 4px 0 0; font-size: 32px; }
+    .mk-head .sub { font-size: 13px; color: var(--fm-text-secondary); margin-top: 4px; max-width: 72ch; }
+    .mk-head .spacer { flex: 1 1 auto; }
+
+    .msg { padding: 11px 14px; border-radius: var(--fm-radius-sm); font-size: 13px; margin-bottom: 10px; }
+    .msg.success { background: rgba(22,217,104,.10); border: 1px solid rgba(22,217,104,.35); color: #8df0b6; }
+    .msg.error   { background: rgba(255,61,80,.10); border: 1px solid rgba(255,61,80,.40); color: #ffb3bb; }
+    .msg.warning { background: rgba(255,181,38,.10); border: 1px solid rgba(255,181,38,.40); color: #ffd58a; }
+    .msg.info    { background: rgba(8,124,240,.10); border: 1px solid var(--fm-border-active); color: var(--fm-text); }
+
+    /* One accent per market, read by cards, pane titles and the stepper. */
+    .c-amber  { --c: #ffb526; --c-soft: rgba(255,181,38,.13); --c-line: rgba(255,181,38,.50); }
+    .c-blue   { --c: #13b5ff; --c-soft: rgba(19,181,255,.13); --c-line: rgba(19,181,255,.50); }
+    .c-green  { --c: #16d968; --c-soft: rgba(22,217,104,.13); --c-line: rgba(22,217,104,.50); }
+    .c-violet { --c: #a78bfa; --c-soft: rgba(167,139,250,.14); --c-line: rgba(167,139,250,.50); }
+
+    /* ---- Market cards (the tabs) ---- */
+    .mk-types { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+    @media (max-width: 1100px) { .mk-types { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .mk-type {
+        position: relative; display: flex; flex-direction: column; gap: 14px; padding: 16px;
+        border-radius: var(--fm-radius-md); background: var(--fm-card); color: var(--fm-text);
+        border: 1px solid rgba(70,145,220,.20); box-shadow: var(--fm-shadow); overflow: hidden;
+        transition: border-color .15s, transform .15s, box-shadow .15s;
     }
-    .market-grid {
-        display: grid;
-        grid-template-columns: 320px 1fr;
-        gap: 20px;
-        align-items: start;
+    .mk-type::before {
+        content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .15s;
+        background: radial-gradient(120% 90% at 0% 0%, var(--c-soft), transparent 60%);
     }
-    @media (max-width: 960px) {
-        .market-grid { grid-template-columns: 1fr; }
+    .mk-type:hover { color: var(--fm-text); border-color: var(--c-line); transform: translateY(-1px); }
+    .mk-type:hover::before, .mk-type[aria-selected="true"]::before { opacity: 1; }
+    .mk-type[aria-selected="true"] { border-color: var(--c); box-shadow: inset 0 0 0 1px var(--c), var(--fm-shadow); }
+    .mk-type[aria-selected="true"]::after {
+        content: ""; position: absolute; left: 16px; right: 16px; bottom: 0; height: 3px;
+        border-radius: 3px 3px 0 0; background: var(--c);
+    }
+    .mk-type:focus-visible { outline: 2px solid var(--c); outline-offset: 2px; }
+    .mk-type-top { position: relative; display: flex; align-items: flex-start; gap: 12px; }
+    .mk-type-ic {
+        width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+        display: flex; align-items: center; justify-content: center;
+        background: var(--c-soft); color: var(--c); border: 1px solid var(--c-line);
+    }
+    .mk-type-ic .ic { width: 22px; height: 22px; }
+    .mk-type-name { flex: 1; min-width: 0; }
+    .mk-type-t { font-family: var(--fm-display); font-weight: 800; font-size: 22px; line-height: 1; }
+    .mk-type-d { font-size: 12px; color: var(--fm-text-secondary); margin-top: 4px; line-height: 1.3; }
+    .mk-type-foot { position: relative; display: flex; align-items: flex-end; gap: 10px; margin-top: auto; }
+    .mk-type-foot .st { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 7px; }
+    .mk-type-foot .txt { max-width: 100%; font-size: 12px; color: var(--fm-text-secondary);
+                         overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mk-type-num { text-align: right; line-height: 1; }
+    .mk-type-num b { display: block; font-family: var(--fm-display); font-weight: 800; font-size: 28px; color: #fff; }
+    .mk-type-num small { font-size: 9.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--fm-text-muted); }
+    @media (max-width: 520px) {
+        .mk-types { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+        .mk-type { padding: 12px; gap: 10px; }
+        .mk-type-top { flex-direction: column; gap: 8px; }
+        .mk-type-ic { width: 34px; height: 34px; border-radius: 9px; }
+        .mk-type-ic .ic { width: 17px; height: 17px; }
+        .mk-type-t { font-size: 18px; }
+        .mk-type-d, .mk-type-foot .txt, .mk-type-num small { display: none; }
+        .mk-type-num b { font-size: 22px; }
     }
 
-    .sess-card {
-        background: var(--card-bg, #181d28);
-        border: 1px solid var(--line);
-        border-radius: 12px;
-        padding: 14px 16px;
-        margin-bottom: 10px;
-        cursor: pointer;
-        text-decoration: none;
-        display: block;
-        color: inherit;
-        transition: border-color .15s, transform .15s, background .15s;
-    }
-    .sess-card:hover {
-        border-color: var(--accent);
-        background: var(--card-hover, #1f2533);
-    }
-    .sess-card.is-active {
-        border-color: var(--accent);
-        background: var(--accent-soft, rgba(34, 197, 94, 0.08));
-        box-shadow: 0 0 0 1px var(--accent);
-    }
-    .sess-title {
-        font-weight: 700;
-        font-size: 15px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 8px;
-        margin-bottom: 6px;
-    }
-    .sess-meta {
-        font-size: 12px;
-        color: var(--muted);
-        display: flex;
-        align-items: center;
-        gap: 12px;
+    /* Tags */
+    .tag { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border-radius: 5px; white-space: nowrap;
+           font-size: 10.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+           border: 1px solid var(--fm-border); color: var(--fm-text-secondary); }
+    .tag.t-live { color: var(--fm-success); border-color: rgba(22,217,104,.35); background: rgba(22,217,104,.08); }
+    .tag.t-live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: mkPulse 1.6s ease-in-out infinite; }
+    .tag.t-warn { color: var(--fm-warning); border-color: rgba(255,181,38,.40); background: rgba(255,181,38,.08); }
+    .tag.t-info { color: var(--fm-primary-light); border-color: var(--fm-border-active); background: rgba(8,124,240,.10); }
+    .tag.t-bad  { color: var(--fm-danger); border-color: rgba(255,61,80,.40); background: rgba(255,61,80,.08); }
+    .tag.t-done { color: #a5b4fc; border-color: rgba(165,180,252,.35); background: rgba(165,180,252,.08); }
+    @keyframes mkPulse { 50% { opacity: .35; } }
+    @media (prefers-reduced-motion: reduce) { .tag.t-live::before { animation: none; } }
+
+    /* ---- Quick links ---- */
+    .mk-links { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 22px;
+                padding: 10px 12px; border-radius: var(--fm-radius-md);
+                background: rgba(255,255,255,.025); border: 1px solid var(--fm-border); }
+    .mk-links .lbl { font-size: 10.5px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--fm-text-muted); margin-right: 2px; }
+    .mk-link { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 12px; border-radius: 999px;
+               font-size: 12.5px; font-weight: 700; color: var(--fm-text); background: var(--fm-surface-2); border: 1px solid var(--fm-border);
+               transition: border-color .12s, color .12s; }
+    .mk-link:hover { border-color: var(--fm-border-active); color: #fff; }
+    .mk-link .ic { width: 15px; height: 15px; color: var(--fm-primary-light); }
+    .mk-link .n { font-size: 11px; padding: 1px 7px; border-radius: 999px; background: rgba(8,124,240,.18); color: var(--fm-primary-light); }
+
+    /* ---- Panes ---- */
+    .mk-pane[hidden] { display: none; }
+    .mk-pane-head { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 16px;
+                    padding-bottom: 14px; border-bottom: 1px solid var(--fm-border); }
+    .mk-pane-head h2 { margin: 0; font-size: 26px; display: flex; align-items: center; gap: 10px; }
+    .mk-pane-head h2 .ic { width: 24px; height: 24px; color: var(--c); }
+    .mk-pane-head p { margin: 4px 0 0; font-size: 13px; color: var(--fm-text-secondary); max-width: 74ch; line-height: 1.5; }
+    .mk-pane-head .spacer { flex: 1 1 auto; }
+    .mk-pane-head .acts { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    .mk-split { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 18px; align-items: start; }
+    .mk-split.side-r { grid-template-columns: minmax(0, 1fr) 360px; }
+    @media (max-width: 980px) { .mk-split, .mk-split.side-r { grid-template-columns: minmax(0, 1fr); } }
+    .mk-col > * + * { margin-top: 14px; }
+
+    .mk-card-t { display: flex; align-items: center; gap: 9px; margin: 0 0 12px; font-size: 15px; font-family: var(--fm-sans); font-weight: 800; }
+    .mk-card-t .ic { width: 17px; height: 17px; color: var(--c, var(--fm-primary-light)); }
+    .mk-card-t .cnt { margin-left: auto; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 999px; background: rgba(255,255,255,.07); color: var(--fm-text-secondary); }
+    .mk-card-t .cnt.warn { background: rgba(255,181,38,.16); color: var(--fm-warning); }
+
+    /* KPI strip */
+    .mk-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+    @media (max-width: 720px) { .mk-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .mk-kpi { padding: 10px 12px; border-radius: 8px; background: rgba(255,255,255,.03); border: 1px solid rgba(85,160,230,.10); min-width: 0; }
+    .mk-kpi .k { font-size: 9.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--fm-text-muted); }
+    .mk-kpi .v { font-family: var(--fm-display); font-weight: 800; font-size: 24px; color: #fff; line-height: 1.15; margin-top: 2px;
+                 overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mk-kpi .v small { font-size: 14px; color: var(--fm-text-secondary); }
+    .mk-kpi .v.sm { font-size: 17px; line-height: 1.3; padding: 3px 0; white-space: normal; }
+    .mk-kpi .s { font-size: 11.5px; color: var(--fm-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    a.mk-kpi { display: block; color: var(--fm-text); transition: border-color .12s; }
+    a.mk-kpi:hover { border-color: var(--fm-border-active); color: var(--fm-text); }
+    .mk-kpi.warn .v { color: var(--fm-warning); }
+    .mk-kpi.ok .v { color: var(--fm-success); }
+    .mk-bar { height: 5px; border-radius: 3px; background: rgba(255,255,255,.08); overflow: hidden; margin-top: 6px; }
+    .mk-bar > span { display: block; height: 100%; border-radius: 3px; background: var(--fm-success); }
+
+    /* Buste: session list */
+    .mk-sess { display: flex; align-items: center; gap: 10px; padding: 11px 12px; margin-bottom: 8px;
+               border-radius: var(--fm-radius-sm); border: 1px solid var(--fm-border); background: rgba(255,255,255,.02);
+               color: var(--fm-text); transition: border-color .12s, background .12s; }
+    .mk-sess:hover { color: var(--fm-text); border-color: var(--c-line); }
+    .mk-sess.is-active { border-color: var(--c); background: var(--c-soft); }
+    .mk-sess .main { flex: 1; min-width: 0; }
+    .mk-sess .main b { display: block; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mk-sess .main small { font-size: 11.5px; color: var(--fm-text-secondary); }
+
+    /* Buste: selected session */
+    .mk-sess-top { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+    .mk-sess-top .ttl { flex: 1; min-width: 220px; }
+    .mk-sess-top h3 { margin: 0; font-family: var(--fm-display); font-weight: 800; font-size: 24px; line-height: 1.1; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .mk-sess-top .meta { font-size: 12px; color: var(--fm-text-secondary); margin-top: 5px; }
+    .mk-sess-top .meta b { color: var(--fm-text); }
+    .mk-acts { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+    .mk-acts form { margin: 0; display: contents; }
+
+    .mk-steps { display: flex; list-style: none; margin: 18px 0 16px; padding: 0; }
+    .mk-steps li { flex: 1; position: relative; text-align: center; padding-top: 22px;
+                   font-size: 10.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--fm-text-muted); }
+    .mk-steps li::before { content: ""; position: absolute; z-index: 1; top: 4px; left: 50%; width: 14px; height: 14px; margin-left: -7px;
+                           border-radius: 50%; background: var(--fm-surface-2); border: 2px solid rgba(85,160,230,.30); box-sizing: border-box; }
+    .mk-steps li::after { content: ""; position: absolute; top: 10px; left: -50%; width: 100%; height: 2px; background: rgba(85,160,230,.18); }
+    .mk-steps li:first-child::after { display: none; }
+    .mk-steps li.done { color: var(--fm-text-secondary); }
+    .mk-steps li.done::before { background: var(--fm-success); border-color: var(--fm-success); }
+    .mk-steps li.done::after, .mk-steps li.now::after { background: var(--fm-success); }
+    .mk-steps li.now { color: #fff; }
+    .mk-steps li.now::before { background: var(--c); border-color: var(--c); box-shadow: 0 0 0 5px var(--c-soft); }
+    @media (max-width: 520px) { .mk-steps li { font-size: 9.5px; letter-spacing: .04em; } }
+
+    .mk-rules { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+    .mk-rule { font-size: 12px; padding: 5px 10px; border-radius: 999px; background: rgba(255,255,255,.035);
+               border: 1px solid var(--fm-border); color: var(--fm-text-secondary); }
+    .mk-rule b { color: var(--fm-text); }
+
+    .mk-banner { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 14px; margin-bottom: 14px;
+                 border-radius: var(--fm-radius-sm); font-size: 13px; }
+    .mk-banner.info { background: rgba(8,124,240,.10); border: 1px solid var(--fm-border-active); }
+    .mk-banner.live { background: rgba(22,217,104,.08); border: 1px solid rgba(22,217,104,.35); }
+    .mk-banner .spacer { flex: 1; }
+
+    .mk-results { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 14px; }
+    .mk-results .mk-kpi { text-align: center; padding: 14px; }
+    .mk-results .mk-kpi .v { font-size: 32px; }
+
+    .mk-player { display: inline-flex; align-items: center; gap: 8px; }
+    .mk-player small { color: var(--fm-text-secondary); }
+    .mk-fm { font-weight: 800; color: var(--fm-cyan); white-space: nowrap; }
+    .mk-cut { color: #ff8a98; white-space: nowrap; }
+    .mk-plus { color: var(--fm-success); font-weight: 700; white-space: nowrap; }
+    .mk-pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 700;
+               background: rgba(255,255,255,.05); color: var(--fm-text-secondary); white-space: nowrap; }
+    .mk-pill.ok { background: rgba(22,217,104,.13); color: var(--fm-success); }
+    .mk-pill.warn { background: rgba(255,181,38,.14); color: var(--fm-warning); }
+    .mk-tie-form { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin: 0; }
+    .mk-tie-form select, .mk-tie-form input { width: auto; height: 32px; font-size: 12px; }
+    .mk-tie-form label { margin: 0; text-transform: none; letter-spacing: 0; font-size: 11.5px; color: var(--fm-text); display: inline-flex; gap: 5px; align-items: center; }
+    .mk-tie-form input { width: 76px; }
+
+    /* Scambi */
+    .mk-trade { padding: 12px 14px; border-radius: var(--fm-radius-sm); border: 1px solid var(--fm-border); background: rgba(255,255,255,.02); }
+    .mk-trade + .mk-trade { margin-top: 10px; }
+    .mk-trade-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 14px; }
+    .mk-trade-head .ic { color: var(--c); }
+    .mk-trade-head .when { margin-left: auto; font-size: 11.5px; color: var(--fm-text-muted); }
+    .mk-trade-sides { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+    @media (max-width: 560px) { .mk-trade-sides { grid-template-columns: 1fr; } }
+    .mk-trade-side { padding: 9px 10px; border-radius: 8px; background: rgba(255,255,255,.03); font-size: 12.5px; }
+    .mk-trade-side .k { font-size: 9.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--fm-text-muted); margin-bottom: 6px; }
+    .mk-trade-side .pl { display: flex; align-items: center; gap: 7px; padding: 2px 0; }
+    .mk-trade-msg { margin-top: 8px; font-size: 12px; color: var(--fm-text-secondary); font-style: italic; }
+    .mk-trade-acts { display: flex; gap: 6px; justify-content: flex-end; margin-top: 10px; }
+    .mk-trade-acts form { margin: 0; }
+
+    .mk-hist { list-style: none; margin: 0; padding: 0; }
+    .mk-hist li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid rgba(85,160,230,.09); font-size: 12.5px; }
+    .mk-hist li:last-child { border-bottom: 0; }
+    .mk-hist .when { margin-left: auto; color: var(--fm-text-muted); font-size: 11.5px; }
+    .mk-hist .note { flex-basis: 100%; font-size: 11.5px; color: var(--fm-text-secondary); }
+
+    .sw-row { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; border-bottom: 1px solid rgba(85,160,230,.08); cursor: pointer;
+              text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 500; color: var(--fm-text); margin: 0; }
+    .sw-row .txt { flex: 1; min-width: 0; }
+    .sw-row .txt b { display: block; font-size: 13.5px; }
+    .sw-row .txt span { font-size: 12px; color: var(--fm-text-secondary); }
+    .sw { position: relative; width: 40px; height: 22px; flex-shrink: 0; margin-top: 2px; }
+    .sw input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; z-index: 1; }
+    .sw i { position: absolute; inset: 0; border-radius: 999px; background: rgba(255,255,255,.12); transition: background .15s; }
+    .sw i::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .15s; }
+    .sw input:checked + i { background: var(--fm-primary); }
+    .sw input:checked + i::after { transform: translateX(18px); }
+    .sw input:focus-visible + i { outline: 2px solid var(--fm-primary-light); outline-offset: 2px; }
+
+    .mk-win { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid rgba(85,160,230,.09); font-size: 12.5px; }
+    .mk-win .main { flex: 1; min-width: 0; }
+    .mk-win .main b { display: block; }
+    .mk-win .main small { color: var(--fm-text-secondary); }
+    .mk-win form { margin: 0; }
+    .mk-win-add { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin-top: 12px; }
+    .mk-win-add label { margin: 0 0 4px; }
+    .mk-hint { font-size: 12px; color: var(--fm-text-secondary); line-height: 1.45; margin: 0 0 8px; }
+
+    /* Asta di riparazione */
+    .mk-free { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .mk-free a { display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: 8px;
+                 background: rgba(255,255,255,.03); border: 1px solid rgba(85,160,230,.12); color: var(--fm-text); transition: border-color .12s; }
+    .mk-free a:hover { border-color: var(--fm-border-active); color: var(--fm-text); }
+    .mk-free b { font-family: var(--fm-display); font-weight: 800; font-size: 24px; color: #fff; line-height: 1; }
+    .mk-free small { display: block; font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--fm-text-muted); }
+    .li { display: flex; align-items: center; gap: 12px; padding: 11px 2px; border-bottom: 1px solid rgba(85,160,230,.09); }
+    .li:last-child { border-bottom: 0; }
+    .li .main { flex: 1; min-width: 0; }
+    .li .main b { display: block; font-size: 14px; overflow-wrap: anywhere; }
+    .li .main small { font-size: 11.5px; color: var(--fm-text-secondary); }
+    .li .btns { display: flex; gap: 6px; flex-wrap: wrap; }
+    @media (max-width: 620px) { .li { flex-wrap: wrap; } .li .btns { width: 100%; justify-content: flex-end; } }
+
+    /* Movimenti */
+    .mk-filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+    .mk-filters button { height: 30px; padding: 0 12px; font-size: 12px; border-radius: 999px; background: rgba(255,255,255,.04); color: var(--fm-text-secondary); }
+    .mk-filters button[aria-pressed="true"] { background: rgba(8,124,240,.16); color: var(--fm-primary-light); border-color: var(--fm-border-active); }
+    .mk-moves { list-style: none; margin: 0; padding: 0; }
+    .mk-moves li { display: grid; grid-template-columns: 64px 120px minmax(0, 1fr) auto; align-items: center; gap: 12px;
+                   padding: 10px 4px; border-bottom: 1px solid rgba(85,160,230,.09); font-size: 13px; }
+    .mk-moves li[hidden] { display: none; }
+    .mk-moves li:last-child { border-bottom: 0; }
+    .mk-moves .when { font-size: 12px; font-weight: 700; line-height: 1.2; }
+    .mk-moves .when small { display: block; font-weight: 500; color: var(--fm-text-muted); }
+    .mk-moves .who { min-width: 0; }
+    .mk-moves .who small { display: block; font-size: 11.5px; color: var(--fm-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mk-moves .amt { text-align: right; font-weight: 800; white-space: nowrap; }
+    @media (max-width: 620px) {
+        .mk-moves li { grid-template-columns: 54px minmax(0, 1fr) auto; }
+        .mk-moves .tag { grid-column: 2; grid-row: 2; justify-self: start; }
     }
 
-    .badge-status {
-        font-size: 11px;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        padding: 3px 8px;
-        border-radius: 6px;
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-    }
-    .status-open { background: rgba(34, 197, 94, 0.15); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3); }
-    .status-closed { background: rgba(234, 179, 8, 0.15); color: #eab308; border: 1px solid rgba(234, 179, 8, 0.3); }
-    .status-resolved { background: rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3); }
+    .mk-empty { text-align: center; padding: 34px 18px; }
+    .mk-empty .ic-big { width: 56px; height: 56px; margin: 0 auto 12px; border-radius: 16px; display: flex; align-items: center; justify-content: center;
+                        background: var(--c-soft, rgba(8,124,240,.12)); color: var(--c, var(--fm-primary-light)); }
+    .mk-empty .ic-big .ic { width: 26px; height: 26px; }
+    .mk-empty b { display: block; color: #fff; font-size: 17px; margin-bottom: 4px; }
+    .mk-empty p { margin: 0 auto 14px; max-width: 52ch; font-size: 13px; color: var(--fm-text-secondary); }
 
-    .role-badge {
-        display: inline-block; width: 22px; height: 22px; line-height: 22px;
-        border-radius: 50%; font-size: 11px; font-weight: 800; text-align: center;
-    }
-    .role-P { background: #fef08a; color: #854d0e; }
-    .role-D { background: #bbf7d0; color: #166534; }
-    .role-C { background: #bfdbfe; color: #1e40af; }
-    .role-A { background: #fecaca; color: #991b1b; }
-
-    .stat-pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 4px 10px;
-        border-radius: 8px;
-        background: rgba(255, 255, 255, 0.05);
-        font-size: 12px;
-        font-weight: 600;
-    }
-
-    .btn-action {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        font-size: 13px;
-        font-weight: 700;
-        padding: 8px 16px;
-        border-radius: 8px;
-        cursor: pointer;
-        border: none;
-        transition: opacity .15s;
-    }
-    .btn-action:hover { opacity: .9; }
-    .btn-resolve { background: #22c55e; color: #022c11; }
-    .btn-close-sess { background: #eab308; color: #422006; }
-    .btn-reopen { background: #3b82f6; color: #ffffff; }
-    .btn-danger { background: #ef4444; color: #ffffff; }
-
-    .results-hero {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-        gap: 12px;
-        margin-bottom: 18px;
-    }
-    .results-card {
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid var(--line);
-        border-radius: 10px;
-        padding: 14px;
-        text-align: center;
-    }
-    .results-num {
-        font-size: 28px;
-        font-weight: 800;
-        font-variant-numeric: tabular-nums;
-        color: var(--ink);
-    }
-    .results-label {
-        font-size: 12px;
-        color: var(--muted);
-        text-transform: uppercase;
-        letter-spacing: .05em;
-        margin-top: 4px;
-    }
+    /* Session rules dialogs */
+    dialog.mk-dlg { width: min(620px, calc(100vw - 32px)); padding: 0; border-radius: var(--fm-radius-lg);
+                    border: 1px solid var(--fm-border-active); background: var(--fm-surface); color: var(--fm-text); }
+    dialog.mk-dlg::backdrop { background: rgba(1,7,18,.72); }
+    .mk-dlg form { padding: 22px; margin: 0; }
+    .mk-dlg h3 { margin: 0 0 16px; font-family: var(--fm-display); font-size: 24px; color: #fff; display: flex; align-items: center; gap: 10px; }
+    .mk-dlg .foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+    .mr-stack { display: flex; flex-direction: column; gap: 14px; }
+    .mr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .mr-field { display: flex; flex-direction: column; gap: 5px; }
+    label.mr-field, .mr-checks label, .mr-roles label { margin: 0; text-transform: none; letter-spacing: 0; font-size: 13px; color: var(--fm-text); font-weight: 500; }
+    .mr-lbl { font-size: 10.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--fm-text-muted); }
+    .mr-hint { font-size: 11.5px; color: var(--fm-text-secondary); }
+    .mr-checks { display: flex; flex-direction: column; gap: 8px; padding: 12px; background: rgba(255,255,255,.03); border: 1px solid var(--fm-border); border-radius: 8px; }
+    .mr-checks label { display: flex; gap: 8px; align-items: center; cursor: pointer; }
+    .mr-roles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .mr-roles label { display: flex; gap: 6px; align-items: center; }
+    @media (max-width: 600px) { .mr-grid { grid-template-columns: 1fr; } .mr-roles { grid-template-columns: repeat(2, 1fr); } }
 </style>
 
-<!-- Topbar & Nav -->
 {% include "auctions/_console_head.html" %}
 
-<div class="market-header">
+<div class="mk">
+<div class="mk-head">
     <div>
-        <h1 style="margin:0;font-size:26px;display:flex;align-items:center;gap:10px;">
-            <svg class="ic" style="width:28px;height:28px"><use href="#i-mail"/></svg>
-            Mercato a Buste Chiuse
-        </h1>
-        <div class="muted" style="margin-top:4px;font-size:13px">
-            Gestisci le finestre di riparazione asincrone, ricevi le buste segrete dei fantallenatori e avvia lo spoglio automatico.
-        </div>
+        <span class="kicker">{% if current_league %}{{ current_league.name }}{% else %}Stagione in corso{% endif %}</span>
+        <h1>Mercato</h1>
+        <div class="sub">Tutto quello che cambia le rose a stagione iniziata: buste di riparazione, scambi tra squadre, asta di riparazione dal vivo e lo storico dei movimenti.</div>
     </div>
-    <button class="fm-btn fm-nav-cta" onclick="document.getElementById('modal-new-session').showModal()">
-        <svg class="ic"><use href="#i-plus"/></svg> Nuova sessione buste
-    </button>
+    <span class="spacer"></span>
+    {% if current_league %}
+    <a class="fm-btn fm-btn-secondary" href="{% url 'app_regia' %}?league={{ current_league.id }}" title="La stessa lega nell'app, come la vedono le squadre">
+        <svg class="ic"><use href="#i-shirt"/></svg> Apri nell'app</a>
+    {% endif %}
 </div>
 
-{% if messages %}
-<div style="margin-bottom: 16px;">
-    {% for msg in messages %}
-    <div class="saved-flash" style="background:{% if msg.tags == 'error' %}rgba(239,68,68,0.15);color:#ef4444;border-color:rgba(239,68,68,0.3){% elif msg.tags == 'warning' %}rgba(234,179,8,0.15);color:#eab308;border-color:rgba(234,179,8,0.3){% else %}var(--accent-soft);color:var(--accent-bright);border-color:var(--accent-line){% endif %}">
-        {{ msg }}
-    </div>
+{% for m in messages %}
+<div class="msg {% if m.tags %}{{ m.tags }}{% endif %}" role="status">{{ m }}</div>
+{% endfor %}
+
+{% if not current_league %}
+<div class="fm-card mk-empty">
+    <div class="ic-big"><svg class="ic"><use href="#i-trophy"/></svg></div>
+    <b>Scegli una lega</b>
+    <p>Il mercato vive dentro una lega: sessioni a buste, scambi e aste di riparazione riguardano le sue squadre.</p>
+    {% for lg in leagues %}
+    <a class="fm-btn fm-btn-secondary fm-btn-sm" href="?league={{ lg.id }}">{{ lg.name }}</a>
+    {% empty %}
+    <a class="fm-btn fm-btn-primary" href="{% url 'admin_setup' %}"><svg class="ic"><use href="#i-plus"/></svg> Crea una lega</a>
     {% endfor %}
 </div>
-{% endif %}
+{% else %}
 
-<details class="howto" style="margin-bottom: 18px;">
-    <summary><svg class="ic"><use href="#i-info"/></svg> Come funziona il Mercato a Buste <span class="chev">▼</span></summary>
-    <div class="howto-body">
-        <ol>
-            <li><b>Crea una sessione</b>: apertura (subito o programmata), chiusura automatica, taglio condizionato e limiti d'acquisto per ruolo.</li>
-            <li>I partecipanti accedono da <b>App &rarr; Mercato</b>, consultano gli svincolati e inviano le buste segrete con importo e priorità (1 = obiettivo principale).</li>
-            <li>Usa <b>Anteprima spoglio</b> per vedere l'esito senza assegnare nulla, poi <b>▶ Scrutina Buste</b>. Ogni calciatore va all'offerta più alta valida; le buste di ciascuno vengono valutate in ordine di priorità, ricontrollando crediti, slot della rosa, tetti per ruolo e tagli.</li>
-            <li>I <b>pari merito</b> si risolvono scegliendo il vincitore o con un sorteggio. Uno spoglio sbagliato si può <b>annullare</b> finché le rose coinvolte non sono cambiate.</li>
-        </ol>
+<!-- ================================================= MARKET CARDS (tabs) -->
+<div class="mk-types" role="tablist" aria-label="Tipo di mercato">
+    <a class="mk-type c-amber" role="tab" id="t-buste" aria-controls="pane-buste" data-tab="buste"
+       href="?league={{ current_league.id }}&tab=buste" aria-selected="{% if tab == 'buste' %}true{% else %}false{% endif %}">
+        <div class="mk-type-top">
+            <span class="mk-type-ic"><svg class="ic"><use href="#i-mail"/></svg></span>
+            <div class="mk-type-name">
+                <div class="mk-type-t">Buste</div>
+                <div class="mk-type-d">Riparazione a offerte segrete</div>
+            </div>
+        </div>
+        <div class="mk-type-foot">
+            <span class="st">
+                {% with b=buste_summary %}<span class="tag {% if b.tone == 'live' %}t-live{% elif b.tone == 'warn' %}t-warn{% elif b.tone == 'info' %}t-info{% endif %}">{{ b.label }}</span>{% endwith %}
+                <span class="txt">{{ buste_summary.text }}</span></span>
+            <span class="mk-type-num"><b>{{ sessions|length }}</b><small>sessioni</small></span>
+        </div>
+    </a>
+
+    <a class="mk-type c-blue" role="tab" id="t-scambi" aria-controls="pane-scambi" data-tab="scambi"
+       href="?league={{ current_league.id }}&tab=scambi" aria-selected="{% if tab == 'scambi' %}true{% else %}false{% endif %}">
+        <div class="mk-type-top">
+            <span class="mk-type-ic"><svg class="ic"><use href="#i-swap"/></svg></span>
+            <div class="mk-type-name">
+                <div class="mk-type-t">Scambi</div>
+                <div class="mk-type-d">Giocatori e crediti tra squadre</div>
+            </div>
+        </div>
+        <div class="mk-type-foot">
+            <span class="st">
+                {% if not current_league.trades_enabled %}<span class="tag">Disattivati</span>
+                {% elif trades_pending %}<span class="tag t-warn">Da ratificare</span>
+                {% elif trade_windows and not window_now %}<span class="tag">Fuori periodo</span>
+                {% else %}<span class="tag t-live">Aperti</span>{% endif %}
+                <span class="txt">{% if trades_proposed %}{{ trades_proposed }} propost{{ trades_proposed|pluralize:"a,e" }} in corso{% else %}{{ trades_done }} complet{{ trades_done|pluralize:"ato,ati" }}{% endif %}{% if window_now %} · fino al {{ window_now.closes_at|date:"d/m" }}{% elif window_next %} · dal {{ window_next.opens_at|date:"d/m" }}{% endif %}</span></span>
+            <span class="mk-type-num"><b>{{ trades_pending|length }}</b><small>da ratificare</small></span>
+        </div>
+    </a>
+
+    <a class="mk-type c-green" role="tab" id="t-asta" aria-controls="pane-asta" data-tab="asta"
+       href="?league={{ current_league.id }}&tab=asta" aria-selected="{% if tab == 'asta' %}true{% else %}false{% endif %}">
+        <div class="mk-type-top">
+            <span class="mk-type-ic"><svg class="ic"><use href="#i-gavel"/></svg></span>
+            <div class="mk-type-name">
+                <div class="mk-type-t">Asta di riparazione</div>
+                <div class="mk-type-d">Dal vivo, con i crediti residui</div>
+            </div>
+        </div>
+        <div class="mk-type-foot">
+            <span class="st">
+                {% if active_auction.status == "LIVE" %}<span class="tag t-live">In corso</span>
+                {% elif active_auction %}<span class="tag t-warn">In pausa</span>
+                {% elif repair_auctions %}<span class="tag">{{ repair_auctions|length }} fatt{{ repair_auctions|length|pluralize:"a,e" }}</span>
+                {% else %}<span class="tag">Nessuna</span>{% endif %}
+                <span class="txt">{% if active_auction %}{{ active_auction.title }}{% else %}Svincolati pronti per l'asta{% endif %}</span></span>
+            <span class="mk-type-num"><b>{{ free_total }}</b><small>svincolati</small></span>
+        </div>
+    </a>
+
+    <a class="mk-type c-violet" role="tab" id="t-movimenti" aria-controls="pane-movimenti" data-tab="movimenti"
+       href="?league={{ current_league.id }}&tab=movimenti" aria-selected="{% if tab == 'movimenti' %}true{% else %}false{% endif %}">
+        <div class="mk-type-top">
+            <span class="mk-type-ic"><svg class="ic"><use href="#i-list"/></svg></span>
+            <div class="mk-type-name">
+                <div class="mk-type-t">Movimenti</div>
+                <div class="mk-type-d">Acquisti, svincoli e scambi</div>
+            </div>
+        </div>
+        <div class="mk-type-foot">
+            <span class="st">
+                {% with m=moves.0 %}{% if m %}<span class="tag {% if m.kind == 'acquisti' %}t-live{% elif m.kind == 'svincoli' %}t-bad{% elif m.kind == 'scambi' %}t-info{% endif %}">{{ m.get_action_display }}</span>
+                <span class="txt">Ultimo: {{ m.player_name }} · {{ m.participant_name }} · {{ m.created_at|date:"d/m" }}</span>{% else %}<span class="tag">Nessuno</span>
+                <span class="txt">Nessun movimento registrato</span>{% endif %}{% endwith %}</span>
+            <span class="mk-type-num"><b>{{ moves_recent }}</b><small>ultimi 30 gg</small></span>
+        </div>
+    </a>
+</div>
+
+<!-- ================================================= QUICK LINKS -->
+<nav class="mk-links" aria-label="Pagine collegate">
+    <span class="lbl">Vai a</span>
+    <a class="mk-link" href="{% url 'admin_participants' %}?league={{ current_league.id }}"><svg class="ic"><use href="#i-shield"/></svg> Squadre e rose</a>
+    <a class="mk-link" href="{% url 'admin_players' %}?league={{ current_league.id }}&status=free"><svg class="ic"><use href="#i-users"/></svg> Svincolati <span class="n">{{ free_total }}</span></a>
+    <a class="mk-link" href="{% url 'admin_contracts' %}?league={{ current_league.id }}"><svg class="ic"><use href="#i-doc"/></svg> Contratti</a>
+    <a class="mk-link" href="{% url 'admin_season' %}?league={{ current_league.id }}"><svg class="ic"><use href="#i-trophy"/></svg> Stagione</a>
+    <a class="mk-link" href="{% url 'admin_export' %}?league={{ current_league.id }}"><svg class="ic"><use href="#i-export"/></svg> Export rose</a>
+    <a class="mk-link" href="{% url 'admin_config' %}#lg-{{ current_league.id }}"><svg class="ic"><use href="#i-gear"/></svg> Regole della lega</a>
+</nav>
+
+<!-- ================================================================ BUSTE -->
+<section class="mk-pane c-amber" id="pane-buste" role="tabpanel" aria-labelledby="t-buste"{% if tab != 'buste' %} hidden{% endif %}>
+    <div class="mk-pane-head">
+        <div>
+            <h2><svg class="ic"><use href="#i-mail"/></svg> Buste di riparazione</h2>
+            <p>Finestre a offerte segrete: le squadre consegnano le buste dall'app (Mercato), tu controlli chi ha consegnato, guardi l'anteprima e apri lo spoglio.</p>
+        </div>
+        <span class="spacer"></span>
+        <div class="acts">
+            <button type="button" class="fm-btn fm-btn-primary" onclick="document.getElementById('modal-new-session').showModal()">
+                <svg class="ic"><use href="#i-plus"/></svg> Nuova sessione</button>
+        </div>
     </div>
-</details>
 
-<div class="market-grid">
-    <!-- Colonna sinistra: Elenco sessioni -->
-    <div>
-        <div class="section-label"><span class="dot"></span>Sessioni della lega</div>
-        {% if sessions %}
+    <details class="howto">
+        <summary><svg class="ic"><use href="#i-info"/></svg> Come funziona il mercato a buste <span class="chev">▼</span></summary>
+        <div class="howto-body">
+            <ol>
+                <li><b>Crea una sessione</b>: apertura (subito o programmata), chiusura automatica, taglio condizionato e limiti d'acquisto per ruolo.</li>
+                <li>I partecipanti accedono da <b>App &rarr; Mercato</b>, consultano gli svincolati e inviano le buste segrete con importo e priorità (1 = obiettivo principale).</li>
+                <li>Usa <b>Anteprima spoglio</b> per vedere l'esito senza assegnare nulla, poi <b>Scrutina buste</b>. Ogni calciatore va all'offerta più alta valida; le buste di ciascuno vengono valutate in ordine di priorità, ricontrollando crediti, slot della rosa, tetti per ruolo e tagli.</li>
+                <li>I <b>pari merito</b> si risolvono scegliendo il vincitore o con un sorteggio. Uno spoglio sbagliato si può <b>annullare</b> finché le rose coinvolte non sono cambiate.</li>
+            </ol>
+        </div>
+    </details>
+
+    {% if sessions %}
+    <div class="mk-split">
+        <aside>
+            <div class="fm-section-title">Sessioni <span class="sep"></span> {{ sessions|length }}</div>
             {% for s in sessions %}
-            <a href="?league={{ current_league.id }}&session={{ s.id }}" class="sess-card {% if selected_session.id == s.id %}is-active{% endif %}">
-                <div class="sess-title">
-                    <span>{{ s.title }}</span>
-                    {% if s.status == "open" %}
-                        <span class="badge-status status-open"><span style="width:6px;height:6px;border-radius:50%;background:#22c55e"></span>Aperta</span>
-                    {% elif s.status == "closed" %}
-                        <span class="badge-status status-closed">Chiusa</span>
-                    {% elif s.status == "draft" %}
-                        <span class="badge-status status-closed">Programmata</span>
-                    {% else %}
-                        <span class="badge-status status-resolved">Scrutinata</span>
-                    {% endif %}
-                </div>
-                <div class="sess-meta">
-                    <span><svg class="ic" style="width:13px;height:13px"><use href="#i-clock"/></svg> {{ s.created_at|date:"d/m/Y H:i" }}</span>
-                    <span><svg class="ic" style="width:13px;height:13px"><use href="#i-mail"/></svg> {{ s.bids.count }} offerte</span>
-                </div>
+            <a href="?league={{ current_league.id }}&session={{ s.id }}&tab=buste" class="mk-sess {% if selected_session.id == s.id %}is-active{% endif %}"{% if selected_session.id == s.id %} aria-current="true"{% endif %}>
+                <span class="main">
+                    <b>{{ s.title }}</b>
+                    <small>{{ s.created_at|date:"d/m/Y" }} · {{ s.n_bids }} bust{{ s.n_bids|pluralize:"a,e" }}</small>
+                </span>
+                {% if s.status == "open" %}<span class="tag t-live">Aperta</span>
+                {% elif s.status == "closed" %}<span class="tag t-warn">Chiusa</span>
+                {% elif s.status == "draft" %}<span class="tag t-info">Programmata</span>
+                {% else %}<span class="tag t-done">Scrutinata</span>{% endif %}
             </a>
             {% endfor %}
-        {% else %}
-            <div class="panel" style="text-align:center;padding:30px 16px;color:var(--muted)">
-                Nessuna sessione di mercato creata per questa lega.
-                <div style="margin-top:10px">
-                    <button class="btn btn-secondary" onclick="document.getElementById('modal-new-session').showModal()">+ Crea prima sessione</button>
-                </div>
-            </div>
-        {% endif %}
-    </div>
+        </aside>
 
-    <!-- Colonna destra: Dettaglio sessione selezionata -->
-    <div>
-        {% if selected_session %}
-        <div class="panel" style="margin-bottom:20px">
-            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px">
-                <div>
-                    <div style="display:flex;align-items:center;gap:10px">
-                        <h2 style="margin:0;font-size:20px">{{ selected_session.title }}</h2>
-                        {% if selected_session.status == "open" %}
-                            <span class="badge-status status-open">Aperta alle offerte</span>
-                        {% elif selected_session.status == "closed" %}
-                            <span class="badge-status status-closed">Consegna chiusa</span>
-                        {% elif selected_session.status == "draft" %}
-                            <span class="badge-status status-closed">Programmata{% if selected_session.opens_at %} · apre il {{ selected_session.opens_at|date:"d/m/Y H:i" }}{% endif %}</span>
-                        {% else %}
-                            <span class="badge-status status-resolved">Scrutinio completato</span>
-                        {% endif %}
+        <div class="mk-col">
+            {% with s=selected_session %}
+            <article class="fm-card">
+                <div class="mk-sess-top">
+                    <div class="ttl">
+                        <h3>{{ s.title }}
+                            {% if s.status == "open" %}<span class="tag t-live">Aperta alle offerte</span>
+                            {% elif s.status == "closed" %}<span class="tag t-warn">Consegna chiusa</span>
+                            {% elif s.status == "draft" %}<span class="tag t-info">Programmata</span>
+                            {% else %}<span class="tag t-done">Scrutinio completato</span>{% endif %}
+                        </h3>
+                        <div class="meta">
+                            Creata il {{ s.created_at|date:"d/m/Y H:i" }}
+                            {% if s.opens_at %} · apertura <b>{{ s.opens_at|date:"d/m/Y H:i" }}</b>{% endif %}
+                            {% if s.closes_at %} · scadenza <b>{{ s.closes_at|date:"d/m/Y H:i" }}</b>{% endif %}
+                        </div>
                     </div>
-                    <div class="muted" style="font-size:12px;margin-top:4px">
-                        Lega: <b>{{ selected_session.league.name }}</b> &bull; Creata il {{ selected_session.created_at|date:"d/m/Y H:i" }}
-                        {% if selected_session.closes_at %}
-                            &bull; Scadenza: <b style="color:var(--ink)">{{ selected_session.closes_at|date:"d/m/Y H:i" }}</b>
-                        {% endif %}
-                    </div>
-                </div>
 
-                <!-- Azioni sessione -->
-                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                    {% if selected_session.status == "open" %}
-                        <a href="?league={{ current_league.id }}&session={{ selected_session.id }}&preview=1" class="btn-action btn-reopen" title="Simula lo spoglio senza assegnare nulla">
-                            <svg class="ic"><use href="#i-eye"/></svg> Anteprima spoglio
-                        </a>
-                        <form method="post" action="{% url 'admin_market_status' selected_session.id %}" style="display:inline">
+                    <div class="mk-acts">
+                        {% if s.status == "open" or s.status == "closed" %}
+                        <a href="?league={{ current_league.id }}&session={{ s.id }}&tab=buste&preview=1" class="fm-btn fm-btn-secondary fm-btn-sm" title="Simula lo spoglio senza assegnare nulla">
+                            <svg class="ic"><use href="#i-eye"/></svg> Anteprima spoglio</a>
+                        {% endif %}
+                        {% if s.status == "open" %}
+                        <form method="post" action="{% url 'admin_market_status' s.id %}">
                             {% csrf_token %}
                             <input type="hidden" name="status" value="closed">
-                            <button type="submit" class="btn-action btn-close-sess" title="Chiudi consegna buste">
-                                <svg class="ic"><use href="#i-lock"/></svg> Chiudi finestra
-                            </button>
+                            <button type="submit" class="fm-btn btn-warn fm-btn-sm" title="Chiudi la consegna delle buste">
+                                <svg class="ic"><use href="#i-lock"/></svg> Chiudi finestra</button>
                         </form>
-                        <form method="post" action="{% url 'admin_market_resolve' selected_session.id %}" style="display:inline" onsubmit="return confirm('Vuoi chiudere e scrutinare tutte le buste adesso? L\'operazione assegnerà i giocatori ed effettuerà i tagli.');">
-                            {% csrf_token %}
-                            <button type="submit" class="btn-action btn-resolve">
-                                <svg class="ic"><use href="#i-play"/></svg> Scrutina Buste
-                            </button>
-                        </form>
-                    {% elif selected_session.status == "closed" %}
-                        <a href="?league={{ current_league.id }}&session={{ selected_session.id }}&preview=1" class="btn-action btn-reopen" title="Simula lo spoglio senza assegnare nulla">
-                            <svg class="ic"><use href="#i-eye"/></svg> Anteprima spoglio
-                        </a>
-                        <form method="post" action="{% url 'admin_market_status' selected_session.id %}" style="display:inline">
+                        {% elif s.status == "closed" %}
+                        <form method="post" action="{% url 'admin_market_status' s.id %}">
                             {% csrf_token %}
                             <input type="hidden" name="status" value="open">
-                            <button type="submit" class="btn-action btn-reopen" title="Riapri per permettere modifiche">
-                                <svg class="ic"><use href="#i-refresh"/></svg> Riapri finestra
-                            </button>
+                            <button type="submit" class="fm-btn fm-btn-secondary fm-btn-sm" title="Riapri per permettere modifiche">
+                                <svg class="ic"><use href="#i-refresh"/></svg> Riapri finestra</button>
                         </form>
-                        <form method="post" action="{% url 'admin_market_resolve' selected_session.id %}" style="display:inline" onsubmit="return confirm('Confermi lo spoglio delle buste?');">
-                            {% csrf_token %}
-                            <button type="submit" class="btn-action btn-resolve">
-                                <svg class="ic"><use href="#i-play"/></svg> Scrutina Buste
-                            </button>
-                        </form>
-                    {% elif selected_session.status == "draft" %}
-                        <form method="post" action="{% url 'admin_market_status' selected_session.id %}" style="display:inline">
+                        {% elif s.status == "draft" %}
+                        <form method="post" action="{% url 'admin_market_status' s.id %}">
                             {% csrf_token %}
                             <input type="hidden" name="status" value="open">
-                            <button type="submit" class="btn-action btn-reopen" title="Apri subito la consegna buste">
-                                <svg class="ic"><use href="#i-play"/></svg> Apri ora
-                            </button>
+                            <button type="submit" class="fm-btn fm-btn-primary fm-btn-sm" title="Apri subito la consegna delle buste">
+                                <svg class="ic"><use href="#i-play"/></svg> Apri ora</button>
                         </form>
-                    {% else %}
-                        <div class="stat-pill" style="background:rgba(59,130,246,0.1);color:#3b82f6">
-                            ✓ Spoglio eseguito
-                        </div>
-                        <form method="post" action="{% url 'admin_market_undo' selected_session.id %}" style="display:inline" onsubmit="return confirm('Annullare lo spoglio? Acquisti e tagli verranno stornati e le buste torneranno in attesa.');">
+                        {% endif %}
+                        {% if s.status == "open" or s.status == "closed" %}
+                        <form method="post" action="{% url 'admin_market_resolve' s.id %}" onsubmit="return confirm({% if s.status == 'open' %}'Vuoi chiudere e scrutinare tutte le buste adesso? L\'operazione assegnerà i giocatori ed effettuerà i tagli.'{% else %}'Confermi lo spoglio delle buste?'{% endif %});">
                             {% csrf_token %}
-                            <button type="submit" class="btn-action btn-close-sess" title="Storna acquisti e tagli dello spoglio">
-                                <svg class="ic"><use href="#i-refresh"/></svg> Annulla spoglio
-                            </button>
+                            <button type="submit" class="fm-btn fm-btn-primary fm-btn-sm">
+                                <svg class="ic"><use href="#i-play"/></svg> Scrutina buste</button>
                         </form>
-                    {% endif %}
+                        {% endif %}
+                        {% if s.status == "resolved" %}
+                        <form method="post" action="{% url 'admin_market_undo' s.id %}" onsubmit="return confirm('Annullare lo spoglio? Acquisti e tagli verranno stornati e le buste torneranno in attesa.');">
+                            {% csrf_token %}
+                            <button type="submit" class="fm-btn btn-warn fm-btn-sm" title="Storna acquisti e tagli dello spoglio">
+                                <svg class="ic"><use href="#i-refresh"/></svg> Annulla spoglio</button>
+                        </form>
+                        {% else %}
+                        <button type="button" class="fm-btn fm-btn-secondary fm-btn-sm" onclick="document.getElementById('modal-edit-rules').showModal()" title="Modifica le regole della sessione">
+                            <svg class="ic"><use href="#i-gear"/></svg> Regole</button>
+                        {% endif %}
+                        <form method="post" action="{% url 'admin_market_delete' s.id %}" onsubmit="return confirm('Attenzione: eliminando la sessione cancellerai tutte le offerte associate. Procedere?');">
+                            {% csrf_token %}
+                            <button type="submit" class="fm-btn fm-btn-danger fm-btn-sm" title="Elimina sessione" aria-label="Elimina sessione">
+                                <svg class="ic"><use href="#i-trash"/></svg></button>
+                        </form>
+                    </div>
+                </div>
 
-                    {% if selected_session.status != "resolved" %}
-                    <button type="button" class="btn-action btn-reopen" onclick="document.getElementById('modal-edit-rules').showModal()" title="Modifica le regole della sessione">
-                        <svg class="ic"><use href="#i-gear"/></svg> Regole
-                    </button>
-                    {% endif %}
-                    <form method="post" action="{% url 'admin_market_delete' selected_session.id %}" style="display:inline" onsubmit="return confirm('Attenzione: eliminando la sessione cancellerai tutte le offerte associate. Procedere?');">
-                        {% csrf_token %}
-                        <button type="submit" class="btn-action btn-danger" style="padding:8px 10px;" title="Elimina sessione">
-                            <svg class="ic"><use href="#i-trash"/></svg>
-                        </button>
-                    </form>
+                <ol class="mk-steps" aria-label="Avanzamento della sessione">
+                    <li class="{% if s.status == 'draft' %}now{% else %}done{% endif %}">{% if s.status == 'draft' %}Programmata{% else %}Creata{% endif %}</li>
+                    <li class="{% if s.status == 'open' %}now{% elif s.status == 'closed' or s.status == 'resolved' %}done{% endif %}">Consegna</li>
+                    <li class="{% if s.status == 'closed' %}now{% elif s.status == 'resolved' %}done{% endif %}">Chiusa</li>
+                    <li class="{% if s.status == 'resolved' %}now{% endif %}">Spoglio</li>
+                </ol>
+
+                <div class="mk-kpis">
+                    <div class="mk-kpi">
+                        <div class="k">Buste ricevute</div>
+                        <div class="v">{{ s.n_bids }}</div>
+                        <div class="s">{% if s.max_bids %}max {{ s.max_bids }} a squadra{% else %}senza limite{% endif %}</div>
+                    </div>
+                    <div class="mk-kpi {% if participants_stats and delivered == participants_stats|length %}ok{% endif %}">
+                        <div class="k">Squadre che hanno consegnato</div>
+                        <div class="v">{{ delivered }}<small>/{{ participants_stats|length }}</small></div>
+                        <div class="mk-bar"><span style="width:{% widthratio delivered participants_stats|length|default:1 100 %}%"></span></div>
+                    </div>
+                    <div class="mk-kpi {% if s.status == 'open' and s.closes_at %}warn{% endif %}">
+                        <div class="k">{% if s.status == "draft" %}Si apre{% else %}Scadenza{% endif %}</div>
+                        {% if s.status == "draft" and s.opens_at %}
+                        <div class="v sm">tra {{ s.opens_at|timeuntil:now }}</div>
+                        <div class="s">{{ s.opens_at|date:"D d/m H:i" }}</div>
+                        {% elif s.status == "open" and s.closes_at %}
+                        <div class="v sm">tra {{ s.closes_at|timeuntil:now }}</div>
+                        <div class="s">{{ s.closes_at|date:"D d/m H:i" }}</div>
+                        {% elif s.status == "open" %}
+                        <div class="v sm">Manuale</div>
+                        <div class="s">la chiudi tu</div>
+                        {% else %}
+                        <div class="v sm">—</div>
+                        <div class="s">{% if s.closes_at %}chiusa il {{ s.closes_at|date:"d/m H:i" }}{% else %}consegna terminata{% endif %}</div>
+                        {% endif %}
+                    </div>
+                    <a class="mk-kpi" href="{% url 'admin_players' %}?league={{ current_league.id }}&status=free" title="Apri il listone degli svincolati">
+                        <div class="k">Svincolati disponibili</div>
+                        <div class="v">{{ free_total }}</div>
+                        <div class="s">{% for r, n in free_by_role %}{{ r }} {{ n }}{% if not forloop.last %} · {% endif %}{% endfor %}</div>
+                    </a>
+                </div>
+
+                <div class="mk-rules">
+                    <span class="mk-rule">Offerte: <b>{% if s.max_bids %}max {{ s.max_bids }} per squadra{% else %}senza limite{% endif %}</b></span>
+                    <span class="mk-rule">Budget: <b>{% if s.budget_rule == "total" %}totale offerte ≤ budget{% else %}priorità{% endif %}</b></span>
+                    <span class="mk-rule">Pari merito: <b>{% if s.tie_break == "first" %}vince chi offre prima{% elif s.tie_break == "rebid" %}secondo sfoglio{% else %}decide l'admin{% endif %}</b></span>
+                    <span class="mk-rule">Taglio: <b>{% if s.require_same_role_release %}obbligatorio, pari ruolo{% elif s.allow_conditional_release %}facoltativo{% else %}no{% endif %}</b>{% if s.require_same_role_release or s.allow_conditional_release %} · rimborso {{ s.get_release_refund_mode_display|lower }}{% endif %}</span>
+                    <span class="mk-rule">Acquisti per ruolo: <b>P {{ s.max_acquisitions_p|default:"∞" }} · D {{ s.max_acquisitions_d|default:"∞" }} · C {{ s.max_acquisitions_c|default:"∞" }} · A {{ s.max_acquisitions_a|default:"∞" }}</b></span>
+                </div>
+            </article>
+
+            {% if results %}
+            <div>
+                {% if is_preview %}
+                <div class="mk-banner info">
+                    <svg class="ic"><use href="#i-eye"/></svg>
+                    <span><b style="color:var(--fm-primary-light)">Anteprima:</b> questo è l'esito che produrrebbe lo spoglio adesso. Nulla è stato assegnato.</span>
+                    <span class="spacer"></span>
+                    <a href="?league={{ current_league.id }}&session={{ s.id }}&tab=buste" class="fm-btn fm-btn-secondary fm-btn-sm">Chiudi anteprima</a>
+                </div>
+                {% endif %}
+                <div class="fm-section-title"><svg class="ic"><use href="#i-trophy"/></svg> {% if is_preview %}Esito previsto dello spoglio{% else %}Esito dello spoglio{% endif %} <span class="sep"></span></div>
+                <div class="mk-results">
+                    <div class="mk-kpi ok"><div class="v">{{ results.total_acquisitions|default:0 }}</div><div class="k">Acquisti assegnati</div></div>
+                    <div class="mk-kpi {% if results.total_ties %}warn{% endif %}"><div class="v">{{ results.total_ties|default:0 }}</div><div class="k">Pareggi / ballottaggi</div></div>
+                    <div class="mk-kpi"><div class="v">{{ results.lost|length }}</div><div class="k">Buste non aggiudicate</div></div>
                 </div>
             </div>
 
-            <!-- Regole della sessione -->
-            <div style="display:flex;gap:12px;flex-wrap:wrap;padding:10px 14px;background:rgba(255,255,255,0.02);border:1px solid var(--line);border-radius:8px;font-size:12px">
-                <div>Offerte: <b>{% if selected_session.max_bids %}max {{ selected_session.max_bids }} per squadra{% else %}senza limite{% endif %}</b></div>
-                <div class="muted">&bull;</div>
-                <div>Budget: <b>{% if selected_session.budget_rule == "total" %}totale offerte ≤ budget{% else %}priorità{% endif %}</b></div>
-                <div class="muted">&bull;</div>
-                <div>Pari merito: <b>{% if selected_session.tie_break == "first" %}vince chi offre prima{% else %}decide l'admin{% endif %}</b></div>
-                <div class="muted">&bull;</div>
-                <div>Taglio: <b>{% if selected_session.require_same_role_release %}obbligatorio, pari ruolo{% elif selected_session.allow_conditional_release %}facoltativo{% else %}no{% endif %}</b>{% if selected_session.require_same_role_release or selected_session.allow_conditional_release %} (rimborso: {{ selected_session.get_release_refund_mode_display|lower }}){% endif %}</div>
-                <div class="muted">&bull;</div>
-                <div>Acquisti per ruolo: <b>P {{ selected_session.max_acquisitions_p|default:"∞" }} · D {{ selected_session.max_acquisitions_d|default:"∞" }} · C {{ selected_session.max_acquisitions_c|default:"∞" }} · A {{ selected_session.max_acquisitions_a|default:"∞" }}</b></div>
-            </div>
-        </div>
-
-        {% if results %}
-        <!-- Risultati Spoglio (o anteprima) -->
-        {% if is_preview %}
-        <div class="panel" style="margin-bottom:14px;border-color:rgba(59,130,246,0.4);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
-            <div style="font-size:13px"><b style="color:#3b82f6">Anteprima:</b> questo è l'esito che produrrebbe lo spoglio adesso. Nulla è stato assegnato.</div>
-            <a href="?league={{ current_league.id }}&session={{ selected_session.id }}" class="btn btn-secondary" style="font-size:12px">Chiudi anteprima</a>
-        </div>
-        {% endif %}
-        <div class="section-label"><span class="dot"></span>{% if is_preview %}Esito previsto dello spoglio{% else %}Esito dello spoglio{% endif %}</div>
-        <div class="results-hero">
-            <div class="results-card">
-                <div class="results-num" style="color:#22c55e">{{ results.total_acquisitions|default:0 }}</div>
-                <div class="results-label">Acquisti assegnati</div>
-            </div>
-            <div class="results-card">
-                <div class="results-num" style="color:{% if results.total_ties %}#eab308{% else %}var(--muted){% endif %}">
-                    {{ results.total_ties|default:0 }}
-                </div>
-                <div class="results-label">Pareggi / Ballottaggi</div>
-            </div>
-        </div>
-
-        {% if results.tied %}
-        <div class="panel" style="margin-bottom:20px;border-color:rgba(234,179,8,0.4)">
-            <h3 style="margin:0 0 10px;font-size:15px;color:#eab308;display:flex;align-items:center;gap:8px">
-                <svg class="ic"><use href="#i-info"/></svg> Pareggi riscontrati (Ballottaggio)
-            </h3>
-            <p class="muted" style="font-size:13px;margin:0 0 10px">
-                I seguenti giocatori hanno ricevuto la medesima offerta massima a parità di priorità da più partecipanti. Il giocatore non è stato assegnato automaticamente: risolvi il pareggio scegliendo il vincitore o con un sorteggio.
-            </p>
-            <div class="table-scroll">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Giocatore</th>
-                            <th>Offerta</th>
-                            <th>Partecipanti in parità</th>
-                            {% if not is_preview %}<th>Spareggio</th>{% endif %}
-                        </tr>
-                    </thead>
-                    <tbody>
+            {% if results.tied %}
+            <div class="fm-card" style="border-color:rgba(255,181,38,.45)">
+                <h3 class="mk-card-t" style="color:var(--fm-warning)"><svg class="ic"><use href="#i-info"/></svg> Pareggi riscontrati (ballottaggio)</h3>
+                <p class="mk-hint">Questi giocatori hanno ricevuto la stessa offerta massima, a parità di priorità, da più squadre. Non sono stati assegnati: scegli il vincitore o fai un sorteggio.</p>
+                <div class="table-scroll">
+                    <table>
+                        <thead><tr><th>Giocatore</th><th>Offerta</th><th>Squadre in parità</th>{% if not is_preview %}<th>Spareggio</th>{% endif %}</tr></thead>
+                        <tbody>
                         {% for t in results.tied %}
                         <tr>
-                            <td>
-                                <span class="role-badge role-{{ t.player_role }}">{{ t.player_role }}</span>
-                                <b>{{ t.player_name }}</b> <span class="muted">({{ t.player_team }})</span>
-                            </td>
-                            <td><b style="color:var(--accent-bright)">{{ t.amount }} FM</b></td>
-                            <td>
-                                {% for c in t.contenders %}
-                                    <span class="stat-pill" style="background:rgba(234,179,8,0.15);color:#eab308">{{ c }}</span>
-                                {% endfor %}
-                            </td>
+                            <td><span class="mk-player"><span class="role-badge role-{{ t.player_role }}">{{ t.player_role }}</span> <b>{{ t.player_name }}</b> <small>{{ t.player_team }}</small></span></td>
+                            <td><span class="mk-fm">{{ t.amount }} FM</span></td>
+                            <td>{% for c in t.contenders %}<span class="mk-pill warn">{{ c }}</span> {% endfor %}</td>
                             {% if not is_preview %}
                             <td>
                                 {% if t.settled %}
-                                    <span style="color:#22c55e;font-weight:700;font-size:12px">✓ {{ t.settled.winner_name }} ({% if t.settled.method == "draw" %}sorteggio{% else %}scelta admin{% endif %})</span>
+                                <span class="mk-pill ok">✓ {{ t.settled.winner_name }} ({% if t.settled.method == "draw" %}sorteggio{% elif t.settled.method == "rebid" %}secondo sfoglio{% else %}scelta admin{% endif %})</span>
                                 {% else %}
-                                <form method="post" action="{% url 'admin_market_settle_tie' selected_session.id %}" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap" onsubmit="return confirm('Confermi lo spareggio? Il calciatore verrà assegnato subito.');">
+                                <form method="post" action="{% url 'admin_market_settle_tie' s.id %}" class="mk-tie-form" onsubmit="return confirm('Confermi lo spareggio? Il calciatore verrà assegnato subito.');">
                                     {% csrf_token %}
                                     <input type="hidden" name="player_id" value="{{ t.player_id }}">
-                                    {% if selected_session.tie_break == "rebid" %}
+                                    {% if s.tie_break == "rebid" %}
                                     {% for c in t.contender_list %}
-                                    <label style="font-size:11px">{{ c.name }}
-                                        <input type="number" name="rebid_{{ c.id }}" min="{{ t.amount }}" placeholder="{{ t.amount }}" style="width:70px;padding:5px;border-radius:6px;border:1px solid var(--line);background:rgba(0,0,0,0.2);color:inherit"></label>
+                                    <label>{{ c.name }} <input type="number" name="rebid_{{ c.id }}" min="{{ t.amount }}" placeholder="{{ t.amount }}"></label>
                                     {% endfor %}
-                                    <span class="muted" style="font-size:11px">Secondo sfoglio: inserisci le nuove offerte (oppure scegli sotto un accordo).</span>
+                                    <span class="mr-hint">Secondo sfoglio: inserisci le nuove offerte (oppure scegli sotto un accordo).</span>
                                     {% endif %}
-                                    <select name="winner_id" style="padding:6px;border-radius:6px;border:1px solid var(--line);background:rgba(0,0,0,0.2);color:inherit;font-size:12px">
+                                    <select name="winner_id">
                                         <option value="draw">🎲 Sorteggio</option>
                                         {% for c in t.contender_list %}<option value="{{ c.id }}">Assegna a {{ c.name }}</option>{% endfor %}
                                     </select>
-                                    <button type="submit" class="btn-action btn-resolve" style="padding:6px 10px;font-size:12px">Risolvi</button>
+                                    <button type="submit" class="fm-btn fm-btn-primary fm-btn-sm">Risolvi</button>
                                 </form>
                                 {% endif %}
                             </td>
                             {% endif %}
                         </tr>
                         {% endfor %}
-                    </tbody>
-                </table>
+                        </tbody>
+                    </table>
+                </div>
             </div>
-        </div>
-        {% endif %}
+            {% endif %}
 
-        {% if results.won %}
-        <div class="panel" style="margin-bottom:20px">
-            <h3 style="margin:0 0 10px;font-size:15px">{% if is_preview %}Aggiudicazioni previste{% else %}Aggiudicazioni effettuate{% endif %}</h3>
-            <div class="table-scroll">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Giocatore</th>
-                            <th>Acquirente</th>
-                            <th>Costo</th>
-                            <th>Taglio</th>
-                            <th>Rimborso</th>
-                        </tr>
-                    </thead>
-                    <tbody>
+            {% if results.won %}
+            <div class="fm-card">
+                <h3 class="mk-card-t"><svg class="ic"><use href="#i-gavel"/></svg> {% if is_preview %}Aggiudicazioni previste{% else %}Aggiudicazioni effettuate{% endif %} <span class="cnt">{{ results.won|length }}</span></h3>
+                <div class="table-scroll">
+                    <table>
+                        <thead><tr><th>Giocatore</th><th>Acquirente</th><th>Costo</th><th>Taglio</th><th>Rimborso</th></tr></thead>
+                        <tbody>
                         {% for w in results.won %}
                         <tr>
-                            <td>
-                                <span class="role-badge role-{{ w.player_role }}">{{ w.player_role }}</span>
-                                <b>{{ w.player_name }}</b> <span class="muted">({{ w.player_team }})</span>
-                            </td>
-                            <td><b>{{ w.winner_name }}</b>{% if w.tie_break %} <span class="muted" style="font-size:11px">(spareggio)</span>{% endif %}</td>
-                            <td><b style="color:var(--accent-bright)">{{ w.amount }} FM</b></td>
-                            <td>
-                                {% if w.released_player %}
-                                    <span style="color:#ef4444">✂ {{ w.released_player }}</span>
-                                {% else %}
-                                    <span class="muted">—</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if w.refund %}
-                                    <span style="color:#22c55e">+{{ w.refund }} FM</span>
-                                {% else %}
-                                    <span class="muted">0 FM</span>
-                                {% endif %}
-                            </td>
+                            <td><span class="mk-player"><span class="role-badge role-{{ w.player_role }}">{{ w.player_role }}</span> <b>{{ w.player_name }}</b> <small>{{ w.player_team }}</small></span></td>
+                            <td><b>{{ w.winner_name }}</b>{% if w.tie_break %} <small class="muted">(spareggio)</small>{% endif %}</td>
+                            <td><span class="mk-fm">{{ w.amount }} FM</span></td>
+                            <td>{% if w.released_player %}<span class="mk-cut">✂ {{ w.released_player }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+                            <td>{% if w.refund %}<span class="mk-plus">+{{ w.refund }} FM</span>{% else %}<span class="muted">0 FM</span>{% endif %}</td>
                         </tr>
                         {% endfor %}
-                    </tbody>
-                </table>
+                        </tbody>
+                    </table>
+                </div>
             </div>
-        </div>
-        {% endif %}
+            {% endif %}
 
-        {% if results.lost %}
-        <details class="panel" style="margin-bottom:20px">
-            <summary style="cursor:pointer;font-size:15px;font-weight:700">Buste non aggiudicate ({{ results.lost|length }})</summary>
-            <div class="table-scroll" style="margin-top:10px">
-                <table>
-                    <thead><tr><th>Giocatore</th><th>Squadra</th><th>Offerta</th><th>Motivo</th></tr></thead>
-                    <tbody>
+            {% if results.lost %}
+            <details class="fm-card">
+                <summary style="cursor:pointer;font-size:14px;font-weight:800">Buste non aggiudicate ({{ results.lost|length }})</summary>
+                <div class="table-scroll" style="margin-top:10px">
+                    <table>
+                        <thead><tr><th>Giocatore</th><th>Squadra</th><th>Offerta</th><th>Motivo</th></tr></thead>
+                        <tbody>
                         {% for l in results.lost %}
                         <tr>
-                            <td><span class="role-badge role-{{ l.player_role }}">{{ l.player_role }}</span> <b>{{ l.player_name }}</b></td>
+                            <td><span class="mk-player"><span class="role-badge role-{{ l.player_role }}">{{ l.player_role }}</span> <b>{{ l.player_name }}</b></span></td>
                             <td>{{ l.participant_name }}</td>
                             <td>{{ l.amount }} FM</td>
                             <td class="muted" style="font-size:12px">{{ l.note }}</td>
                         </tr>
                         {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </details>
-        {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </details>
+            {% endif %}
 
-        {% else %}
-        <!-- Sessione non ancora scrutinata: Stato consegna partecipanti -->
-        <div class="section-label"><span class="dot"></span>Stato consegna buste fantallenatori</div>
-        <div class="panel" style="margin-bottom:20px">
-            <div class="table-scroll">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Squadra / Fantallenatore</th>
-                            <th>Crediti residui</th>
-                            <th style="text-align:center">Buste consegnate</th>
-                            <th>Stato</th>
-                        </tr>
-                    </thead>
-                    <tbody>
+            {% else %}
+            <div class="fm-card">
+                <h3 class="mk-card-t"><svg class="ic"><use href="#i-users"/></svg> Consegna delle buste
+                    <span class="cnt {% if delivered < participants_stats|length %}warn{% endif %}">{{ delivered }}/{{ participants_stats|length }}</span></h3>
+                <div class="table-scroll">
+                    <table>
+                        <thead><tr><th>Squadra</th><th>Crediti residui</th><th>Rosa</th><th style="text-align:center">Buste</th><th>Stato</th></tr></thead>
+                        <tbody>
                         {% for item in participants_stats %}
                         <tr>
                             <td><b>{{ item.participant.display_name }}</b></td>
-                            <td><span style="font-variant-numeric:tabular-nums">{{ item.participant.remaining_credits|floatformat:0 }} FM</span></td>
-                            <td style="text-align:center">
-                                <span class="stat-pill" style="{% if item.has_submitted %}background:rgba(34,197,94,0.15);color:#22c55e{% else %}color:var(--muted){% endif %}">
-                                    {{ item.bids_count }} {% if item.bids_count == 1 %}offerta{% else %}offerte{% endif %}
-                                </span>
-                            </td>
-                            <td>
-                                {% if item.has_submitted %}
-                                    <span style="color:#22c55e;font-weight:700;font-size:12px">✓ Consegnate</span>
-                                {% else %}
-                                    <span style="color:var(--muted);font-size:12px">In attesa</span>
-                                {% endif %}
-                            </td>
+                            <td><span class="mk-fm">{{ item.participant.remaining_credits|floatformat:0 }} FM</span></td>
+                            <td>{{ item.participant.roster_n }}{% if current_league.total_slots %}<span class="muted">/{{ current_league.total_slots }}</span>{% endif %}</td>
+                            <td style="text-align:center"><span class="mk-pill {% if item.has_submitted %}ok{% endif %}">{{ item.bids_count }} {% if item.bids_count == 1 %}offerta{% else %}offerte{% endif %}</span></td>
+                            <td>{% if item.has_submitted %}<span class="tag t-live">Consegnate</span>{% else %}<span class="tag">In attesa</span>{% endif %}</td>
                         </tr>
                         {% empty %}
-                        <tr><td colspan="4" class="muted" style="text-align:center">Nessuna squadra nella lega.</td></tr>
+                        <tr><td colspan="5" class="muted" style="text-align:center">Nessuna squadra nella lega. <a href="{% url 'admin_participants' %}?league={{ current_league.id }}">Aggiungile</a></td></tr>
                         {% endfor %}
-                    </tbody>
-                </table>
+                        </tbody>
+                    </table>
+                </div>
+                {% if not bids_list and s.n_bids %}
+                <div style="text-align:right;margin-top:12px">
+                    <a href="?league={{ current_league.id }}&session={{ s.id }}&tab=buste&reveal=1" class="fm-btn fm-btn-ghost fm-btn-sm">
+                        <svg class="ic"><use href="#i-eye"/></svg> Mostra le buste (solo admin)</a>
+                </div>
+                {% endif %}
             </div>
-        </div>
+            {% endif %}
 
-        {% if not bids_list %}
-        <div style="text-align:right;margin-bottom:14px">
-            <a href="?league={{ current_league.id }}&session={{ selected_session.id }}&reveal=1" class="btn btn-secondary" style="font-size:12px">
-                <svg class="ic"><use href="#i-eye"/></svg> Mostra buste in anteprima (Admin)
-            </a>
-        </div>
-        {% endif %}
-
-        {% endif %}
-
-        <!-- Dettaglio offerte/buste pervenute -->
-        {% if bids_list %}
-        <div class="section-label"><span class="dot"></span>Tutte le buste ricevute ({{ bids_list.count }})</div>
-        <div class="panel">
-            <div class="table-scroll">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Giocatore</th>
-                            <th>Squadra offerente</th>
-                            <th>Offerta</th>
-                            <th>Priorità</th>
-                            <th>Taglio condizionato</th>
-                            <th>Esito</th>
-                        </tr>
-                    </thead>
-                    <tbody>
+            {% if bids_list %}
+            <div class="fm-card">
+                <h3 class="mk-card-t"><svg class="ic"><use href="#i-mail"/></svg> Tutte le buste ricevute <span class="cnt">{{ bids_list|length }}</span></h3>
+                <div class="table-scroll">
+                    <table>
+                        <thead><tr><th>Giocatore</th><th>Squadra</th><th>Offerta</th><th>Priorità</th><th>Taglio condizionato</th><th>Esito</th></tr></thead>
+                        <tbody>
                         {% for b in bids_list %}
                         <tr>
-                            <td>
-                                <span class="role-badge role-{{ b.player.role }}">{{ b.player.role }}</span>
-                                <b>{{ b.player.name }}</b> <span class="muted">({{ b.player.team }})</span>
-                            </td>
+                            <td><span class="mk-player"><span class="role-badge role-{{ b.player.role }}">{{ b.player.role }}</span> <b>{{ b.player.name }}</b> <small>{{ b.player.team }}</small></span></td>
                             <td><b>{{ b.participant.display_name }}</b></td>
-                            <td><b style="color:var(--accent-bright)">{{ b.amount|floatformat:0 }} FM</b></td>
-                            <td><span class="stat-pill">Scelta {{ b.priority }}ª</span></td>
+                            <td><span class="mk-fm">{{ b.amount|floatformat:0 }} FM</span></td>
+                            <td><span class="mk-pill">Scelta {{ b.priority }}ª</span></td>
+                            <td>{% if b.release_player %}<span class="mk-cut">✂ {{ b.release_player.name }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
                             <td>
-                                {% if b.release_player %}
-                                    <span style="color:#ef4444">✂ {{ b.release_player.name }}</span>
-                                {% else %}
-                                    <span class="muted">—</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if b.status == "won" %}
-                                    <span class="badge-status status-open">Vinta</span>
-                                {% elif b.status == "tied" %}
-                                    <span class="badge-status status-closed">Parità</span>
-                                {% elif b.status == "lost" %}
-                                    <span style="color:#ef4444;font-size:12px;font-weight:600">Superata</span>
-                                {% else %}
-                                    <span class="muted" style="font-size:12px">In attesa spoglio</span>
-                                {% endif %}
-                                {% if b.note %}<div class="muted" style="font-size:11px">{{ b.note }}</div>{% endif %}
+                                {% if b.status == "won" %}<span class="tag t-live">Vinta</span>
+                                {% elif b.status == "tied" %}<span class="tag t-warn">Parità</span>
+                                {% elif b.status == "lost" %}<span class="tag t-bad">Superata</span>
+                                {% else %}<span class="muted" style="font-size:12px">In attesa spoglio</span>{% endif %}
+                                {% if b.note %}<div class="muted" style="font-size:11px;margin-top:3px">{{ b.note }}</div>{% endif %}
                             </td>
                         </tr>
                         {% endfor %}
-                    </tbody>
-                </table>
+                        </tbody>
+                    </table>
+                </div>
             </div>
+            {% endif %}
+            {% endwith %}
         </div>
-        {% endif %}
-
-        {% endif %}
-    </div>
-</div>
-
-<!-- Scambi tra squadre -->
-<div class="section-label" style="margin-top:28px"><span class="dot"></span>Scambi tra squadre</div>
-{% if current_league %}
-<div class="panel" style="margin-bottom:20px">
-    <form method="post" action="{% url 'admin_trade_settings' %}" style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;font-size:13px">
-        {% csrf_token %}
-        <input type="hidden" name="league_id" value="{{ current_league.id }}">
-        <label style="display:flex;gap:8px;align-items:center;cursor:pointer">
-            <input type="checkbox" name="trades_enabled" value="1"{% if current_league.trades_enabled %} checked{% endif %}> Scambi attivi
-        </label>
-        <label style="display:flex;gap:8px;align-items:center;cursor:pointer">
-            <input type="checkbox" name="trades_need_approval" value="1"{% if current_league.trades_need_approval %} checked{% endif %}> Richiedi la ratifica dell'admin
-        </label>
-        <label style="display:flex;gap:8px;align-items:center;cursor:pointer">
-            <input type="checkbox" name="trades_same_roles" value="1"{% if current_league.trades_same_roles %} checked{% endif %}> Stesso numero di giocatori e ruoli per parte
-        </label>
-        <button type="submit" class="btn btn-secondary" style="font-size:12px">Salva</button>
-    </form>
-
-    <h3 style="margin:18px 0 6px;font-size:15px">Periodi scambi</h3>
-    <div class="muted" style="font-size:12px;margin-bottom:8px">Senza periodi gli scambi sono aperti tutta la stagione. Con almeno un periodo, si propongono e accettano solo dentro un periodo (es. estate: luglio → giorno dopo il mercato di settembre alle 17:00).</div>
-    {% for w in trade_windows %}
-    <div style="display:flex;align-items:center;gap:10px;font-size:13px;padding:6px 0;border-bottom:1px solid var(--line)">
-        <b>{{ w.name }}</b>
-        <span class="muted">{{ w.opens_at|date:"d/m/Y H:i" }} → {{ w.closes_at|date:"d/m/Y H:i" }}</span>
-        {% if w.opens_at <= now and now <= w.closes_at %}<span class="stat-pill" style="background:rgba(34,197,94,0.15);color:#22c55e">aperto ora</span>{% endif %}
-        <form method="post" action="{% url 'admin_trade_window_delete' w.id %}" style="margin-left:auto" onsubmit="return confirm('Eliminare il periodo?');">
-            {% csrf_token %}<button type="submit" class="btn-action btn-danger" style="padding:4px 8px;font-size:11px">Elimina</button>
-        </form>
-    </div>
-    {% endfor %}
-    <form method="post" action="{% url 'admin_trade_window_add' %}" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;font-size:12px">
-        {% csrf_token %}
-        <input type="hidden" name="league_id" value="{{ current_league.id }}">
-        <input type="text" name="name" placeholder="Es. Periodo estivo" class="mr-input" style="width:180px">
-        <label>dal <input type="datetime-local" name="opens_at" class="mr-input" style="width:auto" required></label>
-        <label>al <input type="datetime-local" name="closes_at" class="mr-input" style="width:auto" required></label>
-        <button type="submit" class="btn btn-secondary" style="font-size:12px">Aggiungi periodo</button>
-    </form>
-
-    <h3 style="margin:18px 0 10px;font-size:15px">Da ratificare ({{ trades_pending|length }})</h3>
-    {% if trades_pending %}
-    <div class="table-scroll">
-        <table>
-            <thead><tr><th>Scambio</th><th>Cede</th><th>Riceve</th><th></th></tr></thead>
-            <tbody>
-            {% for t in trades_pending %}
-                <tr>
-                    <td><b>{{ t.proposer.display_name }}</b> ⇄ <b>{{ t.receiver.display_name }}</b><div class="muted" style="font-size:11px">{{ t.created_at|date:"d/m H:i" }}{% if t.message %} · “{{ t.message }}”{% endif %}</div></td>
-                    <td style="font-size:12px">{% for p in t.proposer_players.all %}{{ p.role }} {{ p.name }}<br>{% endfor %}{% if t.proposer_credits %}<b>{{ t.proposer_credits|floatformat:0 }} FM</b>{% endif %}</td>
-                    <td style="font-size:12px">{% for p in t.receiver_players.all %}{{ p.role }} {{ p.name }}<br>{% endfor %}{% if t.receiver_credits %}<b>{{ t.receiver_credits|floatformat:0 }} FM</b>{% endif %}</td>
-                    <td style="white-space:nowrap">
-                        <form method="post" action="{% url 'admin_trade_decide' t.id %}" style="display:inline">
-                            {% csrf_token %}<input type="hidden" name="action" value="approve">
-                            <button type="submit" class="btn-action btn-resolve" style="padding:6px 10px;font-size:12px">Ratifica</button>
-                        </form>
-                        <form method="post" action="{% url 'admin_trade_decide' t.id %}" style="display:inline" onsubmit="return confirm('Bocciare lo scambio?');">
-                            {% csrf_token %}<input type="hidden" name="action" value="veto">
-                            <button type="submit" class="btn-action btn-danger" style="padding:6px 10px;font-size:12px">Boccia</button>
-                        </form>
-                    </td>
-                </tr>
-            {% endfor %}
-            </tbody>
-        </table>
     </div>
     {% else %}
-    <div class="muted" style="font-size:13px">Nessuno scambio in attesa di ratifica.</div>
+    <div class="fm-card mk-empty">
+        <div class="ic-big"><svg class="ic"><use href="#i-mail"/></svg></div>
+        <b>Nessuna sessione a buste</b>
+        <p>Apri una finestra di riparazione: le squadre fanno le loro offerte segrete sugli svincolati ({{ free_total }} disponibili) e tu scruti tutte le buste insieme.</p>
+        <button type="button" class="fm-btn fm-btn-primary" onclick="document.getElementById('modal-new-session').showModal()">
+            <svg class="ic"><use href="#i-plus"/></svg> Crea la prima sessione</button>
+    </div>
+    {% endif %}
+</section>
+
+<!-- =============================================================== SCAMBI -->
+<section class="mk-pane c-blue" id="pane-scambi" role="tabpanel" aria-labelledby="t-scambi"{% if tab != 'scambi' %} hidden{% endif %}>
+    <div class="mk-pane-head">
+        <div>
+            <h2><svg class="ic"><use href="#i-swap"/></svg> Scambi tra squadre</h2>
+            <p>Le squadre si propongono gli scambi dall'app; se la lega chiede la ratifica, quelli accettati da entrambe arrivano qui e diventano effettivi solo quando li approvi.</p>
+        </div>
+        <span class="spacer"></span>
+        {% if current_league.trades_enabled %}<span class="tag t-live">Scambi attivi</span>{% else %}<span class="tag">Scambi disattivati</span>{% endif %}
+    </div>
+
+    <div class="mk-kpis" style="margin-bottom:16px">
+        <div class="mk-kpi {% if trades_pending %}warn{% endif %}">
+            <div class="k">Da ratificare</div>
+            <div class="v">{{ trades_pending|length }}</div>
+            <div class="s">{% if current_league.trades_need_approval %}serve la tua approvazione{% else %}ratifica non richiesta{% endif %}</div>
+        </div>
+        <div class="mk-kpi">
+            <div class="k">Proposte in corso</div>
+            <div class="v">{{ trades_proposed }}</div>
+            <div class="s">in attesa di risposta</div>
+        </div>
+        <div class="mk-kpi ok">
+            <div class="k">Completati</div>
+            <div class="v">{{ trades_done }}</div>
+            <div class="s">in questa lega</div>
+        </div>
+        <div class="mk-kpi">
+            <div class="k">Periodo scambi</div>
+            {% if window_now %}
+            <div class="v sm" style="color:var(--fm-success)">Aperto</div>
+            <div class="s">fino al {{ window_now.closes_at|date:"d/m H:i" }}</div>
+            {% elif trade_windows %}
+            <div class="v sm">Chiuso</div>
+            <div class="s">{% if window_next %}riapre il {{ window_next.opens_at|date:"d/m H:i" }}{% else %}nessun periodo futuro{% endif %}</div>
+            {% else %}
+            <div class="v sm">Sempre</div>
+            <div class="s">nessun periodo impostato</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="mk-split side-r">
+        <div class="mk-col">
+            <div class="fm-card">
+                <h3 class="mk-card-t"><svg class="ic"><use href="#i-shield"/></svg> Da ratificare ({{ trades_pending|length }})</h3>
+                {% for t in trades_pending %}
+                <div class="mk-trade">
+                    <div class="mk-trade-head">
+                        <b>{{ t.proposer.display_name }}</b> <svg class="ic"><use href="#i-swap"/></svg> <b>{{ t.receiver.display_name }}</b>
+                        {% if t.kind == "loan" %}<span class="tag t-info">Prestito · {{ t.loan_sessions }} sess.</span>{% endif %}
+                        <span class="when">{{ t.created_at|date:"d/m H:i" }}</span>
+                    </div>
+                    <div class="mk-trade-sides">
+                        <div class="mk-trade-side">
+                            <div class="k">{{ t.proposer.display_name }} cede</div>
+                            {% for p in t.proposer_players.all %}<div class="pl"><span class="role-badge role-{{ p.role }}">{{ p.role }}</span> {{ p.name }}</div>{% endfor %}
+                            {% if t.proposer_credits %}<div class="pl"><span class="mk-fm">{{ t.proposer_credits|floatformat:0 }} FM</span></div>{% endif %}
+                            {% if not t.proposer_players.all and not t.proposer_credits %}<span class="muted">—</span>{% endif %}
+                        </div>
+                        <div class="mk-trade-side">
+                            <div class="k">{{ t.receiver.display_name }} cede</div>
+                            {% for p in t.receiver_players.all %}<div class="pl"><span class="role-badge role-{{ p.role }}">{{ p.role }}</span> {{ p.name }}</div>{% endfor %}
+                            {% if t.receiver_credits %}<div class="pl"><span class="mk-fm">{{ t.receiver_credits|floatformat:0 }} FM</span></div>{% endif %}
+                            {% if not t.receiver_players.all and not t.receiver_credits %}<span class="muted">—</span>{% endif %}
+                        </div>
+                    </div>
+                    {% if t.message %}<div class="mk-trade-msg">“{{ t.message }}”</div>{% endif %}
+                    <div class="mk-trade-acts">
+                        <form method="post" action="{% url 'admin_trade_decide' t.id %}" onsubmit="return confirm('Bocciare lo scambio?');">
+                            {% csrf_token %}<input type="hidden" name="action" value="veto">
+                            <button type="submit" class="fm-btn fm-btn-danger fm-btn-sm">Boccia</button>
+                        </form>
+                        <form method="post" action="{% url 'admin_trade_decide' t.id %}">
+                            {% csrf_token %}<input type="hidden" name="action" value="approve">
+                            <button type="submit" class="fm-btn fm-btn-primary fm-btn-sm"><svg class="ic"><use href="#i-shield"/></svg> Ratifica</button>
+                        </form>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="fm-empty">Nessuno scambio in attesa di ratifica.</div>
+                {% endfor %}
+            </div>
+
+            <div class="fm-card">
+                <h3 class="mk-card-t"><svg class="ic"><use href="#i-clock"/></svg> Ultimi scambi <span class="cnt">{{ trades_recent|length }}</span></h3>
+                {% if trades_recent %}
+                <ul class="mk-hist">
+                    {% for t in trades_recent %}
+                    <li>
+                        <b>{{ t.proposer.display_name }}</b> ⇄ <b>{{ t.receiver.display_name }}</b>
+                        {% if t.status == "completed" %}<span class="tag t-live">{{ t.get_status_display }}</span>
+                        {% elif t.status == "pending" %}<span class="tag t-info">{{ t.get_status_display }}</span>
+                        {% elif t.status == "vetoed" or t.status == "failed" or t.status == "rejected" %}<span class="tag t-bad">{{ t.get_status_display }}</span>
+                        {% else %}<span class="tag">{{ t.get_status_display }}</span>{% endif %}
+                        <span class="when">{{ t.created_at|date:"d/m H:i" }}</span>
+                        {% if t.status_note %}<span class="note">{{ t.status_note }}</span>{% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <div class="fm-empty">Ancora nessuno scambio in questa lega.</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="mk-col">
+            <form class="fm-card" method="post" action="{% url 'admin_trade_settings' %}">
+                {% csrf_token %}
+                <input type="hidden" name="league_id" value="{{ current_league.id }}">
+                <h3 class="mk-card-t"><svg class="ic"><use href="#i-gear"/></svg> Regole degli scambi</h3>
+                <label class="sw-row">
+                    <span class="sw"><input type="checkbox" name="trades_enabled" value="1"{% if current_league.trades_enabled %} checked{% endif %}><i></i></span>
+                    <span class="txt"><b>Scambi attivi</b><span>Le squadre possono proporre scambi dall'app.</span></span>
+                </label>
+                <label class="sw-row">
+                    <span class="sw"><input type="checkbox" name="trades_need_approval" value="1"{% if current_league.trades_need_approval %} checked{% endif %}><i></i></span>
+                    <span class="txt"><b>Richiedi la ratifica dell'admin</b><span>Uno scambio accettato aspetta la tua approvazione.</span></span>
+                </label>
+                <label class="sw-row" style="border-bottom:0">
+                    <span class="sw"><input type="checkbox" name="trades_same_roles" value="1"{% if current_league.trades_same_roles %} checked{% endif %}><i></i></span>
+                    <span class="txt"><b>Stessi giocatori e ruoli per parte</b><span>Ogni lato cede lo stesso numero di giocatori, ruolo per ruolo.</span></span>
+                </label>
+                <div style="text-align:right;margin-top:10px">
+                    <button type="submit" class="fm-btn fm-btn-secondary fm-btn-sm"><svg class="ic"><use href="#i-save"/></svg> Salva</button>
+                </div>
+            </form>
+
+            <div class="fm-card">
+                <h3 class="mk-card-t"><svg class="ic"><use href="#i-clock"/></svg> Periodi scambi <span class="cnt">{{ trade_windows|length }}</span></h3>
+                <p class="mk-hint">Senza periodi gli scambi sono aperti tutta la stagione. Con almeno un periodo si propongono e accettano solo lì dentro (es. estate: luglio → giorno dopo il mercato di settembre alle 17:00).</p>
+                {% for w in trade_windows %}
+                <div class="mk-win">
+                    <span class="main"><b>{{ w.name }}</b><small>{{ w.opens_at|date:"d/m/Y H:i" }} → {{ w.closes_at|date:"d/m/Y H:i" }}</small></span>
+                    {% if w.opens_at <= now and now <= w.closes_at %}<span class="tag t-live">Aperto ora</span>{% elif w.opens_at > now %}<span class="tag t-info">In arrivo</span>{% else %}<span class="tag">Passato</span>{% endif %}
+                    <form method="post" action="{% url 'admin_trade_window_delete' w.id %}" onsubmit="return confirm('Eliminare il periodo?');">
+                        {% csrf_token %}<button type="submit" class="fm-btn fm-btn-ghost fm-btn-sm" title="Elimina periodo" aria-label="Elimina periodo {{ w.name }}"><svg class="ic"><use href="#i-trash"/></svg></button>
+                    </form>
+                </div>
+                {% endfor %}
+                <form method="post" action="{% url 'admin_trade_window_add' %}" class="mk-win-add">
+                    {% csrf_token %}
+                    <input type="hidden" name="league_id" value="{{ current_league.id }}">
+                    <div><label for="win-name">Nome</label><input id="win-name" type="text" name="name" placeholder="Es. Periodo estivo"></div>
+                    <div><label for="win-from">Dal</label><input id="win-from" type="datetime-local" name="opens_at" required></div>
+                    <div><label for="win-to">Al</label><input id="win-to" type="datetime-local" name="closes_at" required></div>
+                    <div style="text-align:right"><button type="submit" class="fm-btn fm-btn-secondary fm-btn-sm"><svg class="ic"><use href="#i-plus"/></svg> Aggiungi periodo</button></div>
+                </form>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ================================================= ASTA DI RIPARAZIONE -->
+<section class="mk-pane c-green" id="pane-asta" role="tabpanel" aria-labelledby="t-asta"{% if tab != 'asta' %} hidden{% endif %}>
+    <div class="mk-pane-head">
+        <div>
+            <h2><svg class="ic"><use href="#i-gavel"/></svg> Asta di riparazione</h2>
+            <p>Un'asta dal vivo sulle rose attuali: ogni squadra completa la rosa con gli svincolati usando i crediti che le restano. Si crea dal wizard e si conduce dalla regia, come l'asta iniziale.</p>
+        </div>
+        <span class="spacer"></span>
+        <div class="acts">
+            <a class="fm-btn fm-btn-primary" href="{% url 'admin_auction_wizard' %}?league={{ current_league.id }}&mode=REPAIR_AUCTION">
+                <svg class="ic"><use href="#i-plus"/></svg> Nuova asta di riparazione</a>
+        </div>
+    </div>
+
+    {% if active_auction %}
+    <div class="mk-banner live">
+        <span class="tag {% if active_auction.status == 'LIVE' %}t-live{% else %}t-warn{% endif %}">{% if active_auction.status == "LIVE" %}In corso{% else %}In pausa{% endif %}</span>
+        <span><b>{{ active_auction.title }}</b> <span class="muted">· {{ active_auction.get_mode_display }}</span></span>
+        <span class="spacer"></span>
+        <a class="fm-btn fm-btn-primary fm-btn-sm" href="{% url 'admin_dashboard' %}?auction={{ active_auction.id }}"><svg class="ic"><use href="#i-gavel"/></svg> Vai alla regia</a>
+        <a class="fm-btn fm-btn-secondary fm-btn-sm" href="{% url 'screen' active_auction.id %}?t={{ active_auction.public_token }}" target="_blank" rel="noopener"><svg class="ic"><use href="#i-tv"/></svg> Maxischermo</a>
+    </div>
     {% endif %}
 
-    {% if trades_recent %}
-    <details style="margin-top:14px">
-        <summary style="cursor:pointer;font-size:13px;font-weight:700">Ultimi scambi</summary>
-        <ul style="font-size:12.5px;margin:8px 0 0;padding-left:18px">
-            {% for t in trades_recent %}
-            <li><b>{{ t.proposer.display_name }}</b> ⇄ <b>{{ t.receiver.display_name }}</b> · {{ t.get_status_display }} <span class="muted">({{ t.created_at|date:"d/m H:i" }}){% if t.status_note %} — {{ t.status_note }}{% endif %}</span></li>
+    <div class="mk-split side-r">
+        <div class="fm-card">
+            <h3 class="mk-card-t"><svg class="ic"><use href="#i-gavel"/></svg> Aste della lega <span class="cnt">{{ league_auctions|length }}</span></h3>
+            {% for a in league_auctions %}
+            <div class="li">
+                <div class="main">
+                    <b>{{ a.title }}</b>
+                    <small>{{ a.get_mode_display }} · creata il {{ a.created_at|date:"d/m/Y" }}</small>
+                </div>
+                {% if a.status == "LIVE" %}<span class="tag t-live">In corso</span>
+                {% elif a.status == "PAUSED" %}<span class="tag t-warn">In pausa</span>
+                {% elif a.status == "CLOSED" %}<span class="tag t-done">Chiusa</span>
+                {% else %}<span class="tag t-info">Non iniziata</span>{% endif %}
+                <div class="btns">
+                    <a class="fm-btn fm-btn-secondary fm-btn-sm" href="{% url 'admin_dashboard' %}?auction={{ a.id }}">Regia</a>
+                </div>
+            </div>
+            {% empty %}
+            <div class="mk-empty" style="padding:22px 10px">
+                <div class="ic-big"><svg class="ic"><use href="#i-gavel"/></svg></div>
+                <b>Nessuna asta in questa lega</b>
+                <p>Crea un'asta di riparazione per completare le rose dal vivo, con la sala e il maxischermo.</p>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="mk-col">
+            <div class="fm-card">
+                <h3 class="mk-card-t"><svg class="ic"><use href="#i-users"/></svg> Svincolati disponibili <span class="cnt">{{ free_total }}</span></h3>
+                <div class="mk-free">
+                    {% for r, n in free_by_role %}
+                    <a href="{% url 'admin_players' %}?league={{ current_league.id }}&status=free&role={{ r }}" title="Apri gli svincolati di questo ruolo">
+                        <span class="role-badge role-{{ r }}">{{ r }}</span>
+                        <span><b>{{ n }}</b><small>{% if r == "P" %}Portieri{% elif r == "D" %}Difensori{% elif r == "C" %}Centrocampisti{% else %}Attaccanti{% endif %}</small></span>
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="fm-card">
+                <h3 class="mk-card-t"><svg class="ic"><use href="#i-bulb"/></svg> Prima di iniziare</h3>
+                <ul class="mk-hist">
+                    <li><span>Le rose sono aggiornate?</span> <a class="when" href="{% url 'admin_participants' %}?league={{ current_league.id }}">Squadre →</a></li>
+                    <li><span>Serve importarle da Fantapazz?</span> <a class="when" href="{% url 'admin_fantapazz' %}?league={{ current_league.id }}">Importa →</a></li>
+                    <li><span>Listone e quotazioni aggiornati?</span> <a class="when" href="{% url 'admin_players' %}?league={{ current_league.id }}">Giocatori →</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ============================================================ MOVIMENTI -->
+<section class="mk-pane c-violet" id="pane-movimenti" role="tabpanel" aria-labelledby="t-movimenti"{% if tab != 'movimenti' %} hidden{% endif %}>
+    <div class="mk-pane-head">
+        <div>
+            <h2><svg class="ic"><use href="#i-list"/></svg> Movimenti delle rose</h2>
+            <p>Ogni acquisto, svincolo e scambio delle squadre della lega — dall'asta, dalle buste, dall'app o fatto a mano dalla regia.</p>
+        </div>
+        <span class="spacer"></span>
+        <div class="acts">
+            <a class="fm-btn fm-btn-secondary" href="{% url 'admin_export' %}?league={{ current_league.id }}"><svg class="ic"><use href="#i-export"/></svg> Export rose</a>
+        </div>
+    </div>
+
+    <div class="fm-card">
+        {% if moves %}
+        <div class="mk-filters" role="group" aria-label="Filtra i movimenti">
+            <button type="button" data-filter="" aria-pressed="true">Tutti</button>
+            <button type="button" data-filter="acquisti" aria-pressed="false">Acquisti</button>
+            <button type="button" data-filter="svincoli" aria-pressed="false">Svincoli</button>
+            <button type="button" data-filter="scambi" aria-pressed="false">Scambi</button>
+        </div>
+        <ul class="mk-moves">
+            {% for m in moves %}
+            <li data-kind="{{ m.kind }}">
+                <span class="when">{{ m.created_at|date:"d/m" }}<small>{{ m.created_at|date:"H:i" }}</small></span>
+                <span class="tag {% if m.kind == 'acquisti' %}t-live{% elif m.kind == 'svincoli' %}t-bad{% elif m.kind == 'scambi' %}t-info{% endif %}">{{ m.get_action_display }}</span>
+                <span class="who">
+                    <span class="mk-player">{% if m.player_role %}<span class="role-badge role-{{ m.player_role }}">{{ m.player_role }}</span>{% endif %} <b>{{ m.player_name }}</b> <small>· {{ m.participant_name }}</small></span>
+                    {% if m.note %}<small>{{ m.note }}</small>{% endif %}
+                </span>
+                <span class="amt">{% if m.spent %}<span class="mk-fm">−{{ m.spent|floatformat:0 }} FM</span>{% elif m.refund %}<span class="mk-plus">+{{ m.refund|floatformat:0 }} FM</span>{% else %}<span class="muted">—</span>{% endif %}</span>
+            </li>
             {% endfor %}
         </ul>
-    </details>
-    {% endif %}
-</div>
+        <div class="fm-empty" id="moves-none" hidden>Nessun movimento di questo tipo.</div>
+        {% else %}
+        <div class="mk-empty">
+            <div class="ic-big"><svg class="ic"><use href="#i-list"/></svg></div>
+            <b>Nessun movimento</b>
+            <p>Qui compariranno gli acquisti, gli svincoli e gli scambi delle squadre appena succedono.</p>
+        </div>
+        {% endif %}
+    </div>
+</section>
 {% endif %}
+</div>
 
-<style>
-    .mr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .mr-field { display: flex; flex-direction: column; gap: 5px; }
-    .mr-lbl { font-size: 13px; font-weight: 700; }
-    .mr-hint { font-size: 11px; color: var(--muted); }
-    .mr-input { width: 100%; padding: 9px 10px; border-radius: 8px; border: 1px solid var(--line); background: rgba(0,0,0,0.2); color: inherit; box-sizing: border-box; }
-    .mr-checks { display: flex; flex-direction: column; gap: 8px; padding: 12px; background: rgba(255,255,255,0.03); border: 1px solid var(--line); border-radius: 8px; font-size: 13px; font-weight: 600; }
-    .mr-checks label { display: flex; gap: 8px; align-items: center; cursor: pointer; }
-    .mr-roles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-    .mr-roles label { display: flex; gap: 6px; align-items: center; }
-    @media (max-width: 600px) { .mr-grid { grid-template-columns: 1fr; } }
-</style>
-
-<!-- Modal Modifica Regole -->
+<!-- Modal: regole della sessione -->
 {% if selected_session and selected_session.status != "resolved" %}
-<dialog id="modal-edit-rules" style="border:1px solid var(--line);border-radius:14px;background:var(--card-bg,#181d28);color:var(--ink);padding:24px;max-width:620px;width:92%">
+<dialog id="modal-edit-rules" class="mk-dlg">
     <form method="post" action="{% url 'admin_market_rules' selected_session.id %}">
         {% csrf_token %}
-        <h2 style="margin:0 0 16px;font-size:20px">Regole della sessione</h2>
-        <div style="display:flex;flex-direction:column;gap:14px">
+        <h3><svg class="ic"><use href="#i-gear"/></svg> Regole della sessione</h3>
+        <div class="mr-stack">
             <label class="mr-field"><span class="mr-lbl">Titolo</span>
                 <input type="text" name="title" value="{{ selected_session.title }}" class="mr-input"></label>
             <label class="mr-field"><span class="mr-lbl">Chiusura consegna (vuoto = manuale)</span>
                 <input type="datetime-local" name="closes_at" class="mr-input" value="{% if selected_session.closes_at %}{{ selected_session.closes_at|date:'Y-m-d\TH:i' }}{% endif %}"></label>
             {% include "auctions/_market_rules_fields.html" with s=selected_session %}
         </div>
-        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px">
-            <button type="button" class="btn btn-secondary" onclick="document.getElementById('modal-edit-rules').close()">Annulla</button>
-            <button type="submit" class="fm-btn fm-nav-cta">Salva regole</button>
+        <div class="foot">
+            <button type="button" class="fm-btn fm-btn-ghost" onclick="document.getElementById('modal-edit-rules').close()">Annulla</button>
+            <button type="submit" class="fm-btn fm-btn-primary">Salva regole</button>
         </div>
     </form>
 </dialog>
 {% endif %}
 
-<!-- Modal Creazione Nuova Sessione -->
-<dialog id="modal-new-session" style="border:1px solid var(--line);border-radius:14px;background:var(--card-bg,#181d28);color:var(--ink);padding:24px;max-width:540px;width:90%">
+<!-- Modal: nuova sessione a buste -->
+{% if current_league %}
+<dialog id="modal-new-session" class="mk-dlg">
     <form method="post" action="{% url 'admin_market_create' %}">
         {% csrf_token %}
         <input type="hidden" name="league_id" value="{{ current_league.id }}">
-
-        <h2 style="margin:0 0 16px;font-size:20px;display:flex;align-items:center;gap:10px">
-            <svg class="ic"><use href="#i-mail"/></svg> Nuova sessione mercato a buste
-        </h2>
-
-        <div style="display:flex;flex-direction:column;gap:14px">
-            <div>
-                <label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Titolo sessione</label>
-                <input type="text" name="title" value="Mercato di Riparazione" required class="input" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);background:rgba(0,0,0,0.2);color:inherit">
+        <h3><svg class="ic"><use href="#i-mail"/></svg> Nuova sessione a buste</h3>
+        <div class="mr-stack">
+            <label class="mr-field"><span class="mr-lbl">Titolo sessione</span>
+                <input type="text" name="title" value="Mercato di Riparazione" required class="mr-input"></label>
+            <div class="mr-grid">
+                <label class="mr-field"><span class="mr-lbl">Apertura (opzionale)</span>
+                    <input type="datetime-local" name="opens_at" class="mr-input">
+                    <span class="mr-hint">Vuoto = apre subito. Se nel futuro, la sessione resta programmata e si apre da sola.</span></label>
+                <label class="mr-field"><span class="mr-lbl">Chiusura (opzionale)</span>
+                    <input type="datetime-local" name="closes_at" class="mr-input">
+                    <span class="mr-hint">Oltre questo orario la consegna si chiude da sola; lo spoglio resta a te.</span></label>
             </div>
-
-            <div>
-                <label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Data e ora di apertura (opzionale)</label>
-                <input type="datetime-local" name="opens_at" class="input" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);background:rgba(0,0,0,0.2);color:inherit">
-                <div class="muted" style="font-size:11px;margin-top:4px">Vuoto = apre subito. Se nel futuro, la sessione resta programmata e si apre da sola.</div>
-            </div>
-
-            <div>
-                <label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Data e ora di chiusura (opzionale)</label>
-                <input type="datetime-local" name="closes_at" class="input" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);background:rgba(0,0,0,0.2);color:inherit">
-                <div class="muted" style="font-size:11px;margin-top:4px">Oltre questo orario la consegna si chiude da sola; lo spoglio resta a te (con anteprima).</div>
-            </div>
-
             {% include "auctions/_market_rules_fields.html" with s=None %}
         </div>
-
-        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px">
-            <button type="button" class="btn btn-secondary" onclick="document.getElementById('modal-new-session').close()">Annulla</button>
-            <button type="submit" class="fm-btn fm-nav-cta">Crea e apri sessione</button>
+        <div class="foot">
+            <button type="button" class="fm-btn fm-btn-ghost" onclick="document.getElementById('modal-new-session').close()">Annulla</button>
+            <button type="submit" class="fm-btn fm-btn-primary">Crea sessione</button>
         </div>
     </form>
 </dialog>
+{% endif %}
+
+<script>
+(function () {
+    // ---- Market cards: swap the pane in place, keep ?tab= in the URL ----
+    const tabs = [...document.querySelectorAll(".mk-types [role=tab]")];
+    function show(tab, focus) {
+        tabs.forEach(t => {
+            const on = t === tab;
+            t.setAttribute("aria-selected", on ? "true" : "false");
+            t.tabIndex = on ? 0 : -1;
+            const pane = document.getElementById(t.getAttribute("aria-controls"));
+            if (pane) pane.hidden = !on;
+        });
+        if (focus) tab.focus();
+        const url = new URL(location.href);
+        url.searchParams.set("tab", tab.dataset.tab);
+        ["preview", "reveal"].forEach(k => url.searchParams.delete(k));
+        history.replaceState(null, "", url);
+    }
+    tabs.forEach((t, i) => {
+        if (t.getAttribute("aria-selected") !== "true") t.tabIndex = -1;
+        t.addEventListener("click", ev => {
+            if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.button === 1) return;  // new tab: let it go
+            ev.preventDefault();
+            show(t);
+        });
+        t.addEventListener("keydown", ev => {
+            const d = ev.key === "ArrowRight" ? 1 : ev.key === "ArrowLeft" ? -1 : 0;
+            if (d) { ev.preventDefault(); show(tabs[(i + d + tabs.length) % tabs.length], true); }
+        });
+    });
+
+    // ---- Movimenti: filter chips ----
+    const chips = [...document.querySelectorAll(".mk-filters [data-filter]")];
+    const rows = [...document.querySelectorAll(".mk-moves li")];
+    const none = document.getElementById("moves-none");
+    chips.forEach(c => c.addEventListener("click", () => {
+        const kind = c.dataset.filter;
+        chips.forEach(x => x.setAttribute("aria-pressed", x === c ? "true" : "false"));
+        let shown = 0;
+        rows.forEach(r => { r.hidden = !!kind && r.dataset.kind !== kind; shown += !r.hidden; });
+        if (none) none.hidden = shown > 0;
+    }));
+})();
+</script>
 {% endblock %}

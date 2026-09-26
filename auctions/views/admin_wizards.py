@@ -62,10 +62,15 @@ def admin_auction_wizard(request):
         preselect = int(request.GET.get("league") or 0)
     except (TypeError, ValueError):
         preselect = 0
+    # ?mode= preselects the auction type (the Mercato page asks for a repair one).
+    preselect_mode = request.GET.get("mode")
+    if preselect_mode not in {v for v, _ in modes}:
+        preselect_mode = modes[0][0]
     return render(request, "auctions/auction_wizard.html", {
         "modes": modes,
         "leagues": leagues,
         "preselect": preselect,
+        "preselect_mode": preselect_mode,
         "flow_modes": Auction.FlowMode.choices,
         "call_orders": Auction.CallOrder.choices,
         "within_roles": Auction.WithinRole.choices,
