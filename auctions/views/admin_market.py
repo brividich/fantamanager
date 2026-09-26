@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from django.contrib import messages
 from django.db.models import Count, Q
+from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
@@ -14,16 +15,37 @@ from ..services.market import resolve_market_session
 from .common import (
     current_auction,
     current_league,
+    manageable_leagues,
     staff_member_required,
     target_league,
+    user_can_manage_league,
 )
+
+_FORBIDDEN_MSG = "Non hai i permessi per gestire il mercato di questa lega."
+
+
+def _managed_session_or_403(request, session_id):
+    """The market session, or a 403 response when its league isn't the user's."""
+    session = get_object_or_404(MarketSession.objects.select_related("league"), pk=session_id)
+    if not user_can_manage_league(request.user, session.league):
+        return None, HttpResponseForbidden(_FORBIDDEN_MSG)
+    return session, None
+
+
+def _dashboard_url(request, session=None, league_id=None):
+    base = request.build_absolute_uri("/admin-auction/market/")
+    if session is not None:
+        return f"{base}?league={session.league_id}&session={session.id}"
+    return f"{base}?league={league_id}"
 
 
 @staff_member_required
 def admin_market_dashboard(request):
     """Dashboard to manage market sessions, inspect submitted bids, and resolve envelopes."""
-    leagues = League.objects.all().order_by("name")
+    leagues = manageable_leagues(request.user)
     league = current_league(request)
+    if league is not None and not user_can_manage_league(request.user, league):
+        return HttpResponseForbidden(_FORBIDDEN_MSG)
 
     sessions = []
     selected_session = None
@@ -89,6 +111,8 @@ def admin_market_create(request):
     if not league:
         messages.error(request, "Nessuna lega selezionata per la sessione di mercato.")
         return redirect("admin_market_dashboard")
+    if not user_can_manage_league(request.user, league):
+        return HttpResponseForbidden(_FORBIDDEN_MSG)
 
     title = (request.POST.get("title") or "Mercato di Riparazione a Buste").strip()
     allow_conditional_release = request.POST.get("allow_conditional_release") == "1"
@@ -128,31 +152,35 @@ def admin_market_create(request):
     )
 
     messages.success(request, f"Sessione '{session.title}' creata con successo e aperta alle offerte.")
-    return redirect(f"{request.build_absolute_uri('/admin-auction/market/')}?league={league.id}&session={session.id}")
+    return redirect(_dashboard_url(request, session))
 
 
 @staff_member_required
 @require_POST
 def admin_market_status(request, session_id):
     """Toggle or update status of a market session (open/closed)."""
-    session = get_object_or_404(MarketSession, pk=session_id)
+    session, denied = _managed_session_or_403(request, session_id)
+    if denied:
+        return denied
     new_status = (request.POST.get("status") or "").strip().lower()
     if new_status in (MarketSession.Status.OPEN, MarketSession.Status.CLOSED):
         session.status = new_status
         session.save(update_fields=["status", "updated_at"])
         label = "aperta" if new_status == MarketSession.Status.OPEN else "chiusa"
         messages.success(request, f"Sessione '{session.title}' {label}.")
-    return redirect(f"{request.build_absolute_uri('/admin-auction/market/')}?league={session.league_id}&session={session.id}")
+    return redirect(_dashboard_url(request, session))
 
 
 @staff_member_required
 @require_POST
 def admin_market_resolve(request, session_id):
     """Scrutinize and resolve all envelopes for the session."""
-    session = get_object_or_404(MarketSession, pk=session_id)
+    session, denied = _managed_session_or_403(request, session_id)
+    if denied:
+        return denied
     if session.status == MarketSession.Status.RESOLVED:
         messages.warning(request, f"La sessione '{session.title}' è già stata scrutinata.")
-        return redirect(f"{request.build_absolute_uri('/admin-auction/market/')}?league={session.league_id}&session={session.id}")
+        return redirect(_dashboard_url(request, session))
 
     summary = resolve_market_session(session.id)
     won_count = summary.get("total_acquisitions", 0)
@@ -161,16 +189,18 @@ def admin_market_resolve(request, session_id):
         request,
         f"Spoglio completato per '{session.title}': {won_count} acquisti assegnati, {ties_count} situazioni di pareggio.",
     )
-    return redirect(f"{request.build_absolute_uri('/admin-auction/market/')}?league={session.league_id}&session={session.id}")
+    return redirect(_dashboard_url(request, session))
 
 
 @staff_member_required
 @require_POST
 def admin_market_delete(request, session_id):
     """Delete a market session and its associated bids."""
-    session = get_object_or_404(MarketSession, pk=session_id)
+    session, denied = _managed_session_or_403(request, session_id)
+    if denied:
+        return denied
     league_id = session.league_id
     title = session.title
     session.delete()
     messages.info(request, f"Sessione '{title}' eliminata.")
-    return redirect(f"{request.build_absolute_uri('/admin-auction/market/')}?league={league_id}")
+    return redirect(_dashboard_url(request, league_id=league_id))

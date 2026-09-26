@@ -3,6 +3,7 @@ import json
 from datetime import timedelta
 from decimal import Decimal
 
+from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -363,6 +364,7 @@ class MarketViewsTests(TestCase):
 
     def test_admin_market_views(self):
         """Admin views for creating, toggling status, and resolving session."""
+        self.client.force_login(User.objects.create_superuser("root", "root@x.local", "pw"))
         # 1. Dashboard
         resp = self.client.get(reverse("admin_market_dashboard") + f"?league={self.league.id}")
         self.assertEqual(resp.status_code, 200)
@@ -407,3 +409,48 @@ class MarketViewsTests(TestCase):
         )
         self.assertEqual(del_resp.status_code, 302)
         self.assertFalse(MarketSession.objects.filter(pk=new_sess.id).exists())
+
+
+class MarketAdminTenantIsolationTests(TestCase):
+    """A league admin can only manage the market sessions of leagues they own."""
+
+    def setUp(self):
+        self.admin_a = User.objects.create_user("admin_a", password="pw")
+        self.admin_b = User.objects.create_user("admin_b", password="pw")
+        self.league_a = League.objects.create(name="Lega A", owner=self.admin_a)
+        self.league_b = League.objects.create(name="Lega B", owner=self.admin_b)
+        self.session_b = MarketSession.objects.create(
+            league=self.league_b, title="Mercato B", status=MarketSession.Status.OPEN,
+        )
+        self.client.force_login(self.admin_a)
+
+    def test_cannot_touch_foreign_session(self):
+        for name, data in (
+            ("admin_market_status", {"status": "closed"}),
+            ("admin_market_resolve", {}),
+            ("admin_market_delete", {}),
+        ):
+            resp = self.client.post(reverse(name, kwargs={"session_id": self.session_b.id}), data)
+            self.assertEqual(resp.status_code, 403, name)
+        self.session_b.refresh_from_db()
+        self.assertEqual(self.session_b.status, MarketSession.Status.OPEN)
+
+    def test_cannot_create_in_foreign_league(self):
+        self.client.post(reverse("admin_market_create"), {"league_id": self.league_b.id, "title": "X"})
+        self.assertFalse(MarketSession.objects.filter(league=self.league_b, title="X").exists())
+
+    def test_dashboard_lists_only_owned_leagues(self):
+        resp = self.client.get(reverse("admin_market_dashboard") + f"?league={self.league_a.id}")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(list(resp.context["leagues"]), [self.league_a])
+        self.assertNotContains(resp, "Mercato B")
+
+    def test_owner_can_manage_own_session(self):
+        self.client.force_login(self.admin_b)
+        resp = self.client.post(
+            reverse("admin_market_status", kwargs={"session_id": self.session_b.id}),
+            {"status": "closed"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.session_b.refresh_from_db()
+        self.assertEqual(self.session_b.status, MarketSession.Status.CLOSED)
