@@ -6,7 +6,12 @@ Context it reads (all optional, so any admin view can include it):
   console_active   which nav entry is current: players|teams|import|export|remote
   leagues / current_league / auctions / selected   for the two pickers
 Keeping this in one file is what makes the pages look like one product.
+
+On a phone the two bars collapse into one sticky row (icon, title, menu
+button) and everything else opens as a full-screen menu: ``.fm-chrome`` is
+``display: contents`` on desktop, so the layout there is untouched.
 {% endcomment %}
+<div class="fm-chrome" id="fm-chrome">
 <header class="fm-topbar">
     <div class="brand">
         <div class="brand-icon"><svg class="ic" style="width:22px;height:22px"><use href="#i-gavel"/></svg></div>
@@ -21,6 +26,12 @@ Keeping this in one file is what makes the pages look like one product.
         <div class="t">{% if selected %}Regia d'asta{% else %}Gestionale Sportivo{% endif %}</div>
         <div class="s">{% if selected %}{{ selected.title }}{% elif current_league %}{{ current_league.name }}{% else %}Hub Leghe{% endif %}</div>
     </div>
+
+    <button type="button" class="fm-menu-btn" aria-controls="fm-chrome" aria-expanded="false"
+            aria-label="Apri il menu" onclick="fmToggleMenu()">
+        <svg class="ic ic-open"><use href="#i-menu"/></svg>
+        <svg class="ic ic-close"><use href="#i-x"/></svg>
+    </button>
 
     <!-- Quick Search / Command Palette Trigger -->
     <button type="button" class="fm-cmd-trigger" onclick="openCmdPalette()" title="Ricerca rapida e comandi (Cmd+K / Ctrl+K)">
@@ -144,3 +155,22 @@ Keeping this in one file is what makes the pages look like one product.
         </div>
     </details>
 </nav>
+</div>
+<script>
+function fmToggleMenu(force) {
+    var chrome = document.getElementById("fm-chrome");
+    var open = typeof force === "boolean" ? force : !chrome.classList.contains("is-open");
+    chrome.classList.toggle("is-open", open);
+    document.documentElement.classList.toggle("fm-menu-open", open);
+    var btn = chrome.querySelector(".fm-menu-btn");
+    btn.setAttribute("aria-expanded", open ? "true" : "false");
+    btn.setAttribute("aria-label", open ? "Chiudi il menu" : "Apri il menu");
+    // In the phone sheet "Altro" is just one more group of links: show it.
+    if (window.matchMedia("(max-width: 760px)").matches) {
+        chrome.querySelectorAll(".fm-nav-more").forEach(function (d) { d.open = open; });
+    }
+}
+document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && document.documentElement.classList.contains("fm-menu-open")) fmToggleMenu(false);
+});
+</script>

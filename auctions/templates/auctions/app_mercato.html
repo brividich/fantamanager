@@ -156,7 +156,12 @@
 
 <!-- Sessione di mercato a buste (aperta, oppure l'ultima chiusa/scrutinata) -->
 {% if market_session %}
-<div class="market-banner">
+{# Phone: the list of free agents and the envelopes are two sections. #}
+<div class="a-seg" role="tablist" aria-label="Sezioni del mercato" data-asec-default="svincolati" style="margin-bottom:12px">
+    <button type="button" role="tab" data-asec-go="svincolati">Svincolati</button>
+    <button type="button" role="tab" data-asec-go="buste">Le mie buste <span class="n">{{ my_bids|length }}</span></button>
+</div>
+<div class="market-banner" data-asec="buste">
     <div class="mb-head">
         <div class="mb-title">{{ market_session.title }}</div>
         {% if market_open %}
@@ -195,7 +200,7 @@
 </div>
 
 <!-- Le tue buste consegnate -->
-<div class="a-card bids-card" id="my-bids-card">
+<div class="a-card bids-card" id="my-bids-card" data-asec="buste">
     <div class="a-label">
         <svg class="ic"><use href="#i-shield"/></svg>
         Le tue buste consegnate (<span id="bids-count">{{ my_bids|length }}</span>)
@@ -246,7 +251,7 @@
 </div>
 {% endif %}
 </div>
-<div class="merc-main">
+<div class="merc-main" data-asec="svincolati">
 
 <!-- Filtri ricerca svincolati -->
 <form method="get" class="market-filters" id="fa-filters">

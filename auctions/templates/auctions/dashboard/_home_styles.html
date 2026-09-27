@@ -1928,5 +1928,21 @@
         color: var(--fm-success);
         font-weight: 800;
     }
+
+    /* Phone: the header card says where you are and what to do, not a
+       paragraph; the two tabs share the row; the standings keep the columns
+       that fit (the whole row already opens the roster). */
+    @media (max-width: 760px) {
+        .fm-sport-title { font-size: 21px; line-height: 1.2; }
+        .fm-sport-desc { display: none; }
+        .fm-league-tab-btn {
+            flex: 1 1 0; min-width: 0; justify-content: center;
+            padding: 10px 8px; font-size: 13px;
+        }
+        .sport-standings th:nth-child(4), .sport-standings td:nth-child(4),
+        .sport-standings th:nth-child(6), .sport-standings td:nth-child(6) { display: none; }
+        .sport-standings th { width: auto !important; }
+        .sport-standings .sport-roster-meter .meter-bar { display: none; }
+    }
 </style>
 <!-- ══════════════════════════════════════════════════ END HOME COMMAND CENTER -->

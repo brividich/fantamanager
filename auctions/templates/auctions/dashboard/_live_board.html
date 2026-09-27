@@ -1,5 +1,5 @@
 <!-- ═══════════════════════════════════════════ 1. LIVE AUCTION + TIMER -->
-<div class="fm-live-grid">
+<div class="fm-live-grid" data-msec="asta">
 
     <section class="fm-card fm-live-card">
         <div class="fm-live-head">
@@ -102,7 +102,7 @@
 
 <!-- Chiamata a turno (regolamento 5.02): chi deve chiamare il prossimo giocatore. -->
 {% if selected.flow_mode == "call" %}
-<div id="turn-card" class="fm-card" style="margin-bottom:16px;padding:12px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+<div id="turn-card" data-msec="asta" class="fm-card" style="margin-bottom:16px;padding:12px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
     <span style="font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)">Chiamata a turno</span>
     <span id="turn-text" style="font-size:16px;font-weight:800">—</span>
     <span style="margin-left:auto;display:flex;gap:8px">
@@ -115,7 +115,7 @@
 <!-- Asta alle buste: mentre il giro e' aperto la regia vede il minimo e
      quante buste sono arrivate — mai il contenuto, che il server non manda
      a nessuno finche' non si spoglia. -->
-<div id="sealed-banner" class="fm-card" style="display:none;margin-bottom:16px;padding:16px 20px;
+<div id="sealed-banner" data-msec="asta" class="fm-card" style="display:none;margin-bottom:16px;padding:16px 20px;
      align-items:center;gap:16px;background:rgba(255,181,38,.10);border:1px solid #ffb526">
     <svg class="ic" style="width:26px;height:26px;flex:none">
         <use href="#i-shield" />
@@ -131,7 +131,7 @@
 </div>
 
 <!-- Lo spoglio dell'ultimo giro, finche' non sale il giocatore dopo. -->
-<div id="sealed-result" class="fm-card" style="display:none;margin-bottom:16px;padding:14px 20px">
+<div id="sealed-result" data-msec="asta" class="fm-card" style="display:none;margin-bottom:16px;padding:14px 20px">
     <div style="font-weight:700;margin-bottom:8px">Buste aperte</div>
     <div id="sealed-result-rows" style="display:flex;flex-direction:column;gap:4px"></div>
 </div>
@@ -140,7 +140,7 @@
      or MANUAL with lo scorrimento automatico attivo): the running order parks
      here until the regia clicks "Prosegui" — see awaiting_confirm in
      services.serialize_state and admin_confirm_advance. -->
-<div id="awaiting-confirm-banner" class="fm-card"
+<div id="awaiting-confirm-banner" data-msec="asta" class="fm-card"
     style="display:none;margin-bottom:16px;padding:16px 20px;align-items:center;gap:16px;background:var(--fm-primary-soft, rgba(91,191,31,.1));border:1px solid var(--fm-primary-light,#5bbf1f)">
     <svg class="ic" style="width:26px;height:26px;flex:none">
         <use href="#i-gavel" />

@@ -1363,4 +1363,29 @@
             display: none;
         }
     }
+
+    /* Phone (the regia in sections): the clock is a row beside its buttons,
+       not half a screen of ring. */
+    @media (max-width: 760px) {
+        .fm-live-grid { grid-template-columns: minmax(0, 1fr); gap: 10px; margin-bottom: 10px; }
+        .fm-timer-card {
+            display: grid; grid-template-columns: 108px minmax(0, 1fr);
+            align-items: center; column-gap: 14px; row-gap: 8px; padding: 12px 14px;
+        }
+        .fm-timer-card > .fm-kpi-label { grid-column: 1 / -1; text-align: left !important; }
+        .fm-timer-card .ring-wrap { grid-column: 1; grid-row: 2 / span 3; width: 108px; height: 108px; }
+        .fm-timer-card .timer { font-size: 27px; }
+        .fm-timer-card .ring-cap { display: none; }
+        .fm-timer-card .timer-adjust { grid-column: 2; margin-top: 0 !important; }
+        .fm-timer-card .timer-adjust:empty,
+        .fm-timer-card .timer-adjust:has(> .fm-btn[style*="display:none"]:only-child) { display: none; }
+        .fm-timer-card .timer-adjust .fm-btn { height: 40px; }
+        #turn-card { padding: 10px 14px !important; margin-bottom: 10px !important; gap: 8px !important; }
+        /* Standings: "Spesi" is on every team card just below. */
+        .table-scroll table.classifica { min-width: 0; }
+        .classifica th:nth-child(4), .classifica td:nth-child(4) { display: none; }
+        .classifica th, .classifica td { padding: 8px 6px; }
+        .classifica .team-nm { white-space: normal; overflow-wrap: anywhere; }
+        .classifica td:nth-child(5) .fm-meter { display: none; }
+    }
 </style>
