@@ -127,6 +127,8 @@ def player_status(player, contracts_on=True):
         return "renewal"
     if player.contract_years is None:
         return "pending"
+    if player.contract_years == 1:
+        return "expiring"
     return ""
 
 

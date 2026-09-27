@@ -84,7 +84,8 @@ class TeamSheetDataTests(SheetFixture):
         self.assertEqual(rows["MARUSIC"]["status"], "renewal")
         self.assertEqual(rows["ZANOLI"]["years"], "-")
         self.assertEqual(rows["ZANOLI"]["status"], "pending")
-        self.assertEqual(rows["PULISIC"]["status"], "")
+        self.assertEqual(rows["PULISIC"]["status"], "expiring")   # ultimo anno di contratto
+        self.assertEqual(rows["BUTEZ"]["status"], "")
         self.assertEqual(rows["BUTEZ"]["years"], "2")
         # Il ceduto temporaneo non occupa uno slot: sta nella sua tabella.
         self.assertNotIn("MALINOVSKYI", rows)
@@ -117,6 +118,7 @@ class TeamSheetDataTests(SheetFixture):
         self.assertTrue(cells["LEALI"].fill.fgColor.rgb.endswith(team_sheets.FILL_OUT))
         self.assertTrue(cells["MARUSIC"].fill.fgColor.rgb.endswith(team_sheets.FILL_RENEWAL))
         self.assertTrue(cells["ZANOLI"].fill.fgColor.rgb.endswith(team_sheets.FILL_PENDING))
+        self.assertTrue(cells["PULISIC"].fill.fgColor.rgb.endswith(team_sheets.FILL_EXPIRING))
         butez = cells["BUTEZ"]
         self.assertEqual(ws.cell(row=butez.row, column=12).value, "11")   # Id nascosto
         self.assertTrue(ws.column_dimensions["L"].hidden)

@@ -209,8 +209,9 @@ Il foglio che la lega si passa prima dell'asta, generato dall'app
 
 - **Scheda squadra**: logo, presidente, allenatore, stadio, palmarès e maglie;
   la rosa per reparto con squadra di Serie A, spesa e anni di contratto
-  (`RIN.` = scaduto, `-` = da tirare), colorata come la legenda (rinnovo
-  obbligatorio, contratto da assegnare, fuori dalla Serie A); le operazioni
+  (`RIN.` = scaduto, `-` = da tirare), colorata come la legenda (in scadenza
+  a fine anno, rinnovo obbligatorio, contratto da assegnare, fuori dalla
+  Serie A); le operazioni
   temporanee (prestiti) e la lista dei ceduti temporanei. Da **Export rose** si
   scarica in Excel (un foglio per squadra) o si stampa/salva in PDF; i dati di
   testata si modificano da **Squadre → Scheda**.
