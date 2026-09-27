@@ -78,6 +78,8 @@ land back on the right market.
         .mk-type-t { font-size: 18px; }
         .mk-type-d, .mk-type-foot .txt, .mk-type-num small { display: none; }
         .mk-type-num b { font-size: 22px; }
+        /* A long state ("Assegnazione admin") must not run under the number. */
+        .mk-type-foot .tag { max-width: 100%; overflow: hidden; text-overflow: ellipsis; letter-spacing: .04em; }
     }
 
     /* Tags */

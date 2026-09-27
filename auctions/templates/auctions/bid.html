@@ -286,6 +286,112 @@
     @media (min-width: 1300px) {
         #bid-panel .bidbtn { font-size: 52px; padding: 34px 16px; }
     }
+
+    /* ---- Phone: an app, in sections ----------------------------------------
+       The page used to be one floating card taller than two screens, with the
+       rilancio buttons at its bottom edge. Below 900px it is full-bleed: a
+       sticky header with the section tabs (Asta · Obiettivi · Rosa), the lot
+       in one screen, and the buttons in a bar fixed under the thumb in every
+       section. Away from "Asta", the bar also shows the lot in one line. */
+    .p-tabs, .bid-mini { display: none; }
+    @media (max-width: 899px) {
+        .wrap.bid-wrap { padding: 0 0 calc(150px + env(safe-area-inset-bottom)); max-width: none; }
+        .p-shell { max-width: none; border-radius: 0; border: 0; box-shadow: none; overflow: visible; }
+
+        .p-header {
+            position: sticky; top: 0; z-index: 30; padding: 10px 12px 8px;
+            -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+        }
+        .p-tabs {
+            position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 4px; margin-top: 10px; padding: 4px; border-radius: 13px;
+            background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08);
+        }
+        .p-tabs button {
+            height: 38px; border: 0; border-radius: 10px; background: transparent;
+            color: var(--muted); font-weight: 800; font-size: 14px; letter-spacing: .01em;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .p-tabs button .n {
+            display: inline-block; min-width: 20px; margin-left: 4px; padding: 1px 6px;
+            border-radius: 999px; background: rgba(255,255,255,.08); font-size: 11.5px;
+        }
+        .p-tabs button.is-on { background: var(--accent, #13b5ff); color: #03101f; }
+        .p-tabs button.is-on .n { background: rgba(3,16,31,.18); }
+
+        .p-body { display: flex; flex-direction: column; padding: 12px 12px 16px; }
+        .p-body > * + * { margin-top: 10px; }
+
+        /* One section at a time. */
+        html[data-psec="asta"] #watch-panel,
+        html[data-psec="asta"] #roster-panel,
+        html[data-psec="obiettivi"] .p-body > :not(#watch-panel):not(#bid-panel),
+        html[data-psec="rosa"] .p-body > :not(#roster-panel):not(#bid-panel) { display: none !important; }
+        html[data-psec="obiettivi"] #watch-panel,
+        html[data-psec="rosa"] #roster-panel { margin: 0; }
+
+        /* Asta: the lot first, the help and the exit last. */
+        .p-body > .howto { order: 40; }
+        #p-disclaimer { order: 41; }
+        #exit-links { order: 42; }
+
+        .p-credits { padding: 8px 12px; }
+        .p-credits-value { font-size: 19px; }
+        .planner { margin: 0; }
+        #block-player-wrap { padding: 12px !important; margin-bottom: 0 !important; }
+        .bp-stats {
+            display: flex; overflow-x: auto; gap: 6px; margin: 0; padding-bottom: 2px;
+            scrollbar-width: none;
+        }
+        .bp-stats::-webkit-scrollbar { display: none; }
+        .bp-stats .stat { flex: 0 0 auto; min-width: 66px; padding: 7px 8px 6px; }
+        .bp-stats .stat.key { min-width: 96px; }
+        .bp-stats .stat b { font-size: 18px; }
+        .bp-stats .stat.key b { font-size: 22px; }
+        .p-grid2 > .glass { padding: 10px !important; }
+        .p-grid2 .ring-wrap { width: 92px !important; height: 92px !important; }
+        .p-grid2 .label { margin-bottom: 4px !important; }
+        .p-best { padding: 10px 14px; gap: 12px; justify-content: flex-start; }
+        .p-best-logo, .p-best-placeholder { width: 42px; height: 42px; font-size: 20px; }
+        .p-best-name { font-size: 19px; }
+        #min-inc-row { font-size: 10.5px !important; }
+
+        .toast { bottom: calc(170px + env(safe-area-inset-bottom)); }
+
+        /* The rilancio bar: fixed under the thumb, every section. */
+        #bid-panel {
+            position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; margin: 0 !important;
+            display: flex; flex-direction: column; gap: 7px;
+            padding: 8px 10px calc(10px + env(safe-area-inset-bottom));
+            background: rgba(3, 14, 30, .97);
+            -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+            border-top: 1px solid rgba(255,255,255,.10);
+            box-shadow: 0 -14px 34px rgba(0,0,0,.5);
+        }
+        #bid-panel .bidgrid {
+            grid-template-columns: none; grid-auto-flow: column;
+            grid-auto-columns: minmax(0, 1fr); gap: 8px;
+        }
+        #bid-panel .bidbtn { padding: 12px 4px; font-size: 25px; gap: 1px; }
+        #bid-panel .bidbtn small { font-size: 9px; }
+        #bid-panel #hint { font-size: 10.5px; letter-spacing: .08em !important; }
+        #bid-panel #hint:empty { display: none; }
+        #bid-panel .react-bar { order: 5; flex-wrap: nowrap; justify-content: space-between; gap: 4px; margin: 0; }
+        #bid-panel .react-bar button { flex: 1 1 0; font-size: 17px; padding: 4px 0; border-radius: 10px; }
+        html:not([data-psec="asta"]) #bid-panel .bid-mini {
+            display: flex; align-items: center; gap: 10px; padding: 2px 4px 0;
+        }
+        .bid-mini .bm-player {
+            flex: 1 1 auto; min-width: 0; font-weight: 800; font-size: 14px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .bid-mini .bm-price { font-size: 11px; color: var(--muted); font-weight: 800; }
+        .bid-mini .bm-price b { font-family: var(--display); font-size: 18px; color: #fff; }
+        .bid-mini .bm-timer {
+            min-width: 50px; text-align: right; font-weight: 900; font-size: 16px;
+            font-variant-numeric: tabular-nums; color: var(--accent, #13b5ff);
+        }
+    }
 </style>
 
 {% if lan_switch_url %}
@@ -344,6 +450,12 @@
                 <span id="status-pill" class="status-pill s-{{ auction.status }}" style="font-size:10px;padding:5px 10px">…</span>
             </div>
         </div>
+        {# Phone only: the page in sections. The rilancio bar stays under the thumb in all of them. #}
+        <nav class="p-tabs" aria-label="Sezioni">
+            <button type="button" data-psec-go="asta">Asta</button>
+            <button type="button" data-psec-go="obiettivi">Obiettivi <span class="n" id="tab-watch-n">{{ watches|length }}</span></button>
+            <button type="button" data-psec-go="rosa">Rosa <span class="n">{{ participant.roster.all|length }}</span></button>
+        </nav>
     </div>
 
     <!-- Chiamata a turno (5.02): avvisa quando tocca a questa squadra chiamare. -->
@@ -402,7 +514,7 @@
                 <span class="bp-ava role-{{ auction.player.role }}" aria-hidden="true"><svg class="ic"><use href="#i-shirt"/></svg></span>
                 <span style="text-align:left">
                     {% if auction.league.is_mantra %}{% if auction.player.role_list %}<span class="bp-mroles">{% for r in auction.player.role_list %}<span class="bp-mrole">{{ r }}</span>{% endfor %}</span>{% endif %}{% else %}<span class="role-badge role-{{ auction.player.role }}">{{ auction.player.role }}</span>{% endif %}
-                    <span style="font-family:var(--display);font-weight:800;font-size:20px">{{ auction.player.name }}</span>
+                    <span class="bp-name" style="font-family:var(--display);font-weight:800;font-size:20px">{{ auction.player.name }}</span>
                     <span class="muted" style="font-size:13px;display:block">{{ auction.player.team }}</span>
                 </span>
             {% else %}
@@ -461,6 +573,11 @@
         <!-- Bid panel: buttons + hint + reactions, kept together so the desktop
              layout can pin them all in one prominent sidebar. -->
         <div id="bid-panel">
+            <div class="bid-mini" aria-hidden="true">
+                <span class="bm-player" id="bm-player">—</span>
+                <span class="bm-price"><b id="bm-price">—</b> FM</span>
+                <span class="bm-timer" id="bm-timer">--:--</span>
+            </div>
             <div id="buttons" class="bidgrid"></div>
             <p id="hint" class="muted" style="text-align:center;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;font-weight:700;margin:0"></p>
 
@@ -607,8 +724,6 @@
 
     </div>
 </div>
-{% endblock %}
-
 <style>
     .sealed-panel { padding:14px; margin-bottom:12px; border:1px solid rgba(255,181,38,0.45) }
     .sealed-head { display:flex; align-items:center; justify-content:center; gap:8px;
@@ -629,7 +744,54 @@
     .sealed-row:last-child { border-bottom:0 }
     .sealed-row.win { color:var(--gold); font-weight:800 }
 </style>
+{% endblock %}
+
 {% block scripts %}
+<script>
+/* Phone sections (Asta · Obiettivi · Rosa): the CSS only acts below 900px. */
+(function () {
+    var KEY = "fm-bid-section", root = document.documentElement;
+    var phone = window.matchMedia("(max-width: 899px)");
+    function show(sec) {
+        root.setAttribute("data-psec", sec);
+        document.querySelectorAll(".p-tabs [data-psec-go]").forEach(function (b) {
+            b.classList.toggle("is-on", b.dataset.psecGo === sec);
+            b.setAttribute("aria-pressed", b.dataset.psecGo === sec ? "true" : "false");
+        });
+        // A section *is* the panel: open it instead of showing a closed summary.
+        if (phone.matches) {
+            var panel = { obiettivi: "watch-panel", rosa: "roster-panel" }[sec];
+            if (panel) document.getElementById(panel).open = true;
+        }
+        try { sessionStorage.setItem(KEY, sec); } catch (e) {}
+    }
+    var start = "asta";
+    try { start = sessionStorage.getItem(KEY) || "asta"; } catch (e) {}
+    document.addEventListener("DOMContentLoaded", function () {
+        show(start);
+        document.querySelector(".p-tabs").addEventListener("click", function (e) {
+            var b = e.target.closest("[data-psec-go]");
+            if (!b) return;
+            show(b.dataset.psecGo);
+            window.scrollTo(0, 0);
+        });
+
+        // The lot in one line above the buttons, mirrored from the live card.
+        function text(sel) { var n = document.querySelector(sel); return n ? n.textContent.trim() : ""; }
+        function sync() {
+            document.getElementById("bm-player").textContent = text("#block-player .bp-name") || "In attesa…";
+            document.getElementById("bm-price").textContent = text("#price-val") || "—";
+            document.getElementById("bm-timer").textContent = text("#timer") || "--:--";
+        }
+        sync();
+        var mo = new MutationObserver(sync);
+        ["#block-player", "#price-val", "#timer"].forEach(function (sel) {
+            var n = document.querySelector(sel);
+            if (n) mo.observe(n, { childList: true, subtree: true, characterData: true });
+        });
+    });
+})();
+</script>
 <script>
     const AUCTION_ID = {{ auction.id }};
     const WATCHED = new Set({{ watched_ids_json|safe }});
@@ -851,8 +1013,11 @@
         updateWatchCount();
     }
     function updateWatchCount() {
+        const n = document.querySelectorAll(".watch-item").length;
         const c = document.getElementById("watch-count");
-        if (c) c.textContent = document.querySelectorAll(".watch-item").length;
+        if (c) c.textContent = n;
+        const t = document.getElementById("tab-watch-n");
+        if (t) t.textContent = n;
     }
 
     // Decision-support stat pills (fantamedia highlighted). Only present values render.
@@ -905,7 +1070,7 @@
                     `<span class="bp-ava role-${s.player.role}">${ava}</span>` +
                     `<span style="text-align:left">` +
                       roleTag +
-                      `<span style="font-family:var(--display);font-weight:800;font-size:20px">${s.player.name}</span>` +
+                      `<span class="bp-name" style="font-family:var(--display);font-weight:800;font-size:20px">${s.player.name}</span>` +
                       `<span class="muted" style="font-size:13px;display:block">${s.player.team || ""}</span>` +
                     `</span>`;
             } else {

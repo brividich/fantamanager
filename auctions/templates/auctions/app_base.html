@@ -244,6 +244,53 @@ app through one of their teams — a banner with the way back.
         .app-main.fit .fit-body { flex: 1; min-height: 0; }
         .app-main.fit .fit-scroll { min-height: 0; overflow-y: auto; }
     }
+
+    /* ---- Sections: a segmented control, one section at a time ---------
+       A page opts in with `.a-seg` (buttons with data-asec-go) and tags its
+       blocks with data-asec. On a phone only the chosen section shows; from
+       880px up everything is laid out at once, as before. */
+    .a-seg { display: none; }
+    @media (max-width: 879px) {
+        .asec-off { display: none !important; }
+        .a-seg {
+            display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px;
+            padding: 4px; border-radius: 13px;
+            background: var(--panel-2); border: 1px solid var(--line);
+        }
+        .a-seg button {
+            height: 38px; border: 0; border-radius: 10px; background: transparent;
+            color: var(--muted); font-weight: 800; font-size: 14px;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .a-seg button .n {
+            display: inline-block; min-width: 20px; margin-left: 4px; padding: 1px 6px;
+            border-radius: 999px; background: rgba(255,255,255,.08); font-size: 11.5px;
+        }
+        .a-seg button.on { background: var(--accent); color: #03101f; }
+        .a-seg button.on .n { background: rgba(3,16,31,.18); }
+    }
+
+    /* ---- Phone density: modern, not shouty -----------------------------
+       Same colours and type, less of everything: headings that don't take a
+       screen, labels that aren't letter-spaced capitals, tighter cards. */
+    @media (max-width: 879px) {
+        .app-main { padding: 12px 12px calc(84px + env(safe-area-inset-bottom, 0px)); }
+        .app-main > * + * { margin-top: 12px; }
+        .tab-head h1 { font-size: 22px; }
+        .tab-head p { font-size: 13px; }
+        .a-card { padding: 14px; }
+        .a-label { font-size: 12.5px; letter-spacing: .06em; }
+        .a-cta { padding: 12px 14px; gap: 12px; }
+        .a-cta .ic { width: 22px; height: 22px; }
+        .a-cta .t b { font-size: 15px; letter-spacing: .01em; }
+        .a-stats { gap: 8px; }
+        .a-stat { padding: 10px 8px; }
+        .a-stat .v { font-size: 22px; }
+        .a-stat .k { font-size: 10px; letter-spacing: .05em; }
+        .a-rolehdr { letter-spacing: .12em; }
+        .app-nav a { font-size: 10.5px; letter-spacing: 0; text-transform: none; }
+        .app-nav.is-wide a { font-size: 9.5px; }
+    }
 </style>
 
 <header class="app-top">
@@ -327,4 +374,31 @@ app through one of their teams — a banner with the way back.
         <svg class="ic"><use href="#i-table"/></svg>Console completa</a>
     {% endif %}
 </nav>
+<script>
+/* Sections (.a-seg): remember the choice per page for this tab/session. */
+(function () {
+    document.querySelectorAll(".a-seg").forEach(function (seg) {
+        var key = "fm-asec:" + location.pathname;
+        function show(sec) {
+            document.querySelectorAll("[data-asec]").forEach(function (el) {
+                el.classList.toggle("asec-off", el.dataset.asec !== sec);
+            });
+            seg.querySelectorAll("[data-asec-go]").forEach(function (b) {
+                var on = b.dataset.asecGo === sec;
+                b.classList.toggle("on", on);
+                b.setAttribute("aria-selected", on ? "true" : "false");
+            });
+            try { sessionStorage.setItem(key, sec); } catch (e) {}
+        }
+        var start = seg.dataset.asecDefault, saved = null;
+        try { saved = sessionStorage.getItem(key); } catch (e) {}
+        if (saved && seg.querySelector('[data-asec-go="' + saved + '"]')) start = saved;
+        show(start);
+        seg.addEventListener("click", function (e) {
+            var b = e.target.closest("[data-asec-go]");
+            if (b) show(b.dataset.asecGo);
+        });
+    });
+})();
+</script>
 {% endblock %}
