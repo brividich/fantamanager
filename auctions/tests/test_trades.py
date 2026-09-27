@@ -138,7 +138,7 @@ class TradeViewsTests(TestCase):
         self.assertContains(resp, "ratifica")
 
         self.client.force_login(self.owner)
-        page = self.client.get(reverse("admin_market_dashboard") + f"?league={self.league.id}")
+        page = self.client.get(reverse("admin_market_trades") + f"?league={self.league.id}")
         self.assertContains(page, "Da ratificare (1)")
         self.client.post(reverse("admin_trade_decide", args=[trade.id]), {"action": "approve"})
         self.pa.refresh_from_db()
@@ -258,7 +258,7 @@ class TradeRulesTests(TestCase):
             "opens_at": "2026-07-01T00:00", "closes_at": "2026-09-02T17:00",
         })
         w = self.TradeWindow.objects.get(name="Estivo")
-        page = self.client.get(reverse("admin_market_dashboard") + f"?league={self.league.id}")
+        page = self.client.get(reverse("admin_market_trades") + f"?league={self.league.id}")
         self.assertContains(page, "Estivo")
         self.client.post(reverse("admin_trade_window_delete", args=[w.id]))
         self.assertFalse(self.TradeWindow.objects.exists())

@@ -18,6 +18,9 @@ class Participant(models.Model):
     external_team_id = models.CharField(max_length=60, blank=True)
     display_name  = models.CharField(max_length=80)
     access_code   = models.CharField(max_length=20, blank=True, db_index=True)
+    # Where the league writes to the team (invites, market notices). An
+    # account linked to the team has its own email: this one wins when set.
+    email         = models.EmailField(blank=True)
     # Strong, unguessable join credential (the human-friendly access_code stays
     # for manual entry; this token backs shareable join links).
     public_token  = models.CharField(max_length=64, blank=True, db_index=True)
@@ -50,6 +53,14 @@ class Participant(models.Model):
 
     def __str__(self):
         return self.display_name
+
+    @property
+    def contact_email(self):
+        """The address the league's emails go to ("" when there is none)."""
+        if self.email:
+            return self.email
+        user = self.user if self.user_id else None
+        return (user.email or "") if user is not None else ""
 
     @property
     def remaining_credits(self):

@@ -1,0 +1,76 @@
+{% extends "auctions/market/base.html" %}
+{% block mk_title %}Asta di riparazione · Mercato{% endblock %}
+{% block mk_color %}c-green{% endblock %}
+{% block mk_crumbs %}<span class="sep">›</span> <span aria-current="page">Asta di riparazione</span>{% endblock %}
+
+{% block mk_head %}
+<div>
+    <span class="kicker">{{ current_league.name }}</span>
+    <h1><svg class="ic"><use href="#i-gavel"/></svg> Asta di riparazione</h1>
+    <div class="sub">Un'asta dal vivo sulle rose attuali: ogni squadra completa la rosa con gli svincolati usando i crediti che le restano. Si crea dal wizard e si conduce dalla regia, come l'asta iniziale.</div>
+</div>
+<span class="spacer"></span>
+{% if current_league %}<a class="fm-btn fm-btn-primary" href="{% url 'admin_auction_wizard' %}?league={{ current_league.id }}&mode=REPAIR_AUCTION">
+    <svg class="ic"><use href="#i-plus"/></svg> Nuova asta di riparazione</a>{% endif %}
+{% endblock %}
+
+{% block mk_body %}
+{% if active_auction %}
+<div class="mk-banner live">
+    <span class="tag {% if active_auction.status == 'LIVE' %}t-live{% else %}t-warn{% endif %}">{% if active_auction.status == "LIVE" %}In corso{% else %}In pausa{% endif %}</span>
+    <span><b>{{ active_auction.title }}</b> <span class="muted">· {{ active_auction.get_mode_display }}</span></span>
+    <span class="spacer"></span>
+    <a class="fm-btn fm-btn-primary fm-btn-sm" href="{% url 'admin_dashboard' %}?auction={{ active_auction.id }}"><svg class="ic"><use href="#i-gavel"/></svg> Vai alla regia</a>
+    <a class="fm-btn fm-btn-secondary fm-btn-sm" href="{% url 'screen' active_auction.id %}?t={{ active_auction.public_token }}" target="_blank" rel="noopener"><svg class="ic"><use href="#i-tv"/></svg> Maxischermo</a>
+</div>
+{% endif %}
+
+<div class="mk-split side-r">
+    <div class="fm-card">
+        <h3 class="mk-card-t"><svg class="ic"><use href="#i-gavel"/></svg> Aste della lega <span class="cnt">{{ league_auctions|length }}</span></h3>
+        {% for a in league_auctions %}
+        <div class="li">
+            <div class="main">
+                <b>{{ a.title }}</b>
+                <small>{{ a.get_mode_display }} · creata il {{ a.created_at|date:"d/m/Y" }}</small>
+            </div>
+            {% if a.status == "LIVE" %}<span class="tag t-live">In corso</span>
+            {% elif a.status == "PAUSED" %}<span class="tag t-warn">In pausa</span>
+            {% elif a.status == "CLOSED" %}<span class="tag t-done">Chiusa</span>
+            {% else %}<span class="tag t-info">Non iniziata</span>{% endif %}
+            <div class="btns">
+                <a class="fm-btn fm-btn-secondary fm-btn-sm" href="{% url 'admin_dashboard' %}?auction={{ a.id }}">Regia</a>
+            </div>
+        </div>
+        {% empty %}
+        <div class="mk-empty" style="padding:22px 10px">
+            <div class="ic-big"><svg class="ic"><use href="#i-gavel"/></svg></div>
+            <b>Nessuna asta in questa lega</b>
+            <p>Crea un'asta di riparazione per completare le rose dal vivo, con la sala e il maxischermo.</p>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="mk-col">
+        <div class="fm-card">
+            <h3 class="mk-card-t"><svg class="ic"><use href="#i-users"/></svg> Svincolati disponibili <span class="cnt">{{ free_total }}</span></h3>
+            <div class="mk-free">
+                {% for r, n in free_by_role %}
+                <a href="{% url 'admin_players' %}?league={{ current_league.id }}&status=free&role={{ r }}" title="Apri gli svincolati di questo ruolo">
+                    <span class="role-badge role-{{ r }}">{{ r }}</span>
+                    <span><b>{{ n }}</b><small>{% if r == "P" %}Portieri{% elif r == "D" %}Difensori{% elif r == "C" %}Centrocampisti{% else %}Attaccanti{% endif %}</small></span>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="fm-card">
+            <h3 class="mk-card-t"><svg class="ic"><use href="#i-bulb"/></svg> Prima di iniziare</h3>
+            <ul class="mk-hist">
+                <li><span>Le rose sono aggiornate?</span> <a class="when" href="{% url 'admin_participants' %}?league={{ current_league.id }}">Squadre →</a></li>
+                <li><span>Serve importarle da Fantapazz?</span> <a class="when" href="{% url 'admin_fantapazz' %}?league={{ current_league.id }}">Importa →</a></li>
+                <li><span>Listone e quotazioni aggiornati?</span> <a class="when" href="{% url 'admin_players' %}?league={{ current_league.id }}">Giocatori →</a></li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

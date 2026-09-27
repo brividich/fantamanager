@@ -163,6 +163,11 @@
     }
 </style>
 
+<style>
+    .mail-row { display: flex; gap: 4px; align-items: center; margin: 6px 0 0; max-width: 260px; }
+    .mail-row input { height: 30px; font-size: 12px; padding: 0 8px; min-width: 0; flex: 1; }
+    .mail-row .fm-btn { height: 30px; width: 30px; padding: 0; flex: 0 0 auto; }
+</style>
 {% include "auctions/_console_head.html" %}
 
 <div class="pg-head noprint">
@@ -175,6 +180,15 @@
         <svg class="ic"><use href="#i-import"/></svg> Importa rose</a>
     <a class="fm-btn fm-btn-primary" href="{% url 'admin_dashboard' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
         <svg class="ic"><use href="#i-plus"/></svg> Aggiungi squadra</a>
+    {% if current_league and rows %}
+    <form method="post" action="{% url 'admin_invite_teams' %}" style="margin:0"
+          {% if mail_ready and reachable %}onsubmit="return confirm('Inviare a {{ reachable }} squadr{{ reachable|pluralize:"a,e" }} il link personale e il codice?');"{% endif %}>
+        {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}">
+        <button type="submit" class="fm-btn fm-btn-secondary"{% if not mail_ready or not reachable %} disabled{% endif %}
+                title="{% if not mail_ready %}Posta non configurata{% if request.user.is_superuser %}: Altro → Posta{% endif %}{% elif not reachable %}Aggiungi l'email delle squadre qui sotto{% else %}Email con link personale e codice a {{ reachable }} squadre{% endif %}">
+            <svg class="ic"><use href="#i-mail"/></svg> Invia inviti{% if reachable %} ({{ reachable }}){% endif %}</button>
+    </form>
+    {% endif %}
     <button type="button" class="fm-btn fm-btn-ghost noprint" onclick="window.print()">
         <svg class="ic"><use href="#i-print"/></svg> Stampa</button>
 </div>
@@ -250,6 +264,15 @@
                         <div class="team-name">{{ r.p.display_name }}</div>
                         {% if not r.p.is_active %}<div class="muted" style="font-size:12px">disattivata</div>{% endif %}
                         {% if r.p.access_code %}<div style="margin-top:4px"><span class="code">{{ r.p.access_code }}</span></div>{% endif %}
+                        <form method="post" action="{% url 'admin_participant_email' r.p.id %}" class="mail-row noprint">
+                            {% csrf_token %}
+                            <input type="email" name="email" value="{{ r.p.email }}" aria-label="Email di {{ r.p.display_name }}"
+                                   placeholder="{% if r.p.user.email and accounts_ok %}{{ r.p.user.email }} (account){% elif r.p.user.email %}email dell'account{% else %}email allenatore{% endif %}">
+                            <button type="submit" class="fm-btn fm-btn-ghost fm-btn-sm" title="Salva email" aria-label="Salva email"><svg class="ic"><use href="#i-save"/></svg></button>
+                            {% if mail_ready and r.p.contact_email %}
+                            <button type="submit" name="invite" value="1" class="fm-btn fm-btn-ghost fm-btn-sm" title="Salva e invia l'invito{% if r.p.email or accounts_ok %} a {{ r.p.contact_email }}{% endif %}" aria-label="Invia invito"><svg class="ic"><use href="#i-mail"/></svg></button>
+                            {% endif %}
+                        </form>
                         <button type="button" class="fm-btn fm-btn-secondary fm-btn-sm noprint" style="margin-top:6px"
                                 data-open-sheet="sheet-dlg-{{ r.p.id }}">
                             <svg class="ic"><use href="#i-shield"/></svg> Scheda</button>

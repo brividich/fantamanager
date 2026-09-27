@@ -575,7 +575,7 @@ class MarketAdminTemplateTests(TestCase):
         )
 
     def _get(self):
-        url = reverse("admin_market_dashboard") + f"?league={self.league.id}&session={self.session.id}"
+        url = reverse("admin_market_session", args=[self.session.id])
         return self.client.get(url)
 
     def test_open_session_shows_close_and_resolve_actions(self):
@@ -595,35 +595,72 @@ class MarketAdminTemplateTests(TestCase):
 
 
 class MarketHubTests(TestCase):
-    """The Mercato page: one card per market, the chosen one shown below."""
+    """The Mercato hub says which markets are open; each market is its own screen."""
 
     def setUp(self):
         self.client.force_login(User.objects.create_superuser("root", "root@x.local", "pw"))
         self.league = League.objects.create(name="Lega H")
         self.team = Participant.objects.create(display_name="Squadra H", league=self.league, credits=Decimal("100"))
 
-    def _get(self, qs=""):
+    def _hub(self, qs=""):
         return self.client.get(reverse("admin_market_dashboard") + f"?league={self.league.id}{qs}")
 
-    def _pane_hidden(self, resp, name):
-        tag = resp.content.decode().split(f'id="pane-{name}"', 1)[1].split(">", 1)[0]
-        return "hidden" in tag
+    def _screen(self, name):
+        return self.client.get(reverse(name) + f"?league={self.league.id}")
 
-    def test_nav_says_mercato_and_buste_is_the_default_market(self):
-        resp = self._get()
+    def test_nav_says_mercato_and_hub_holds_no_market_content(self):
+        self.league.trades_enabled = False
+        self.league.save()
+        resp = self._hub()
         self.assertContains(resp, "</svg> Mercato</a>")
-        self.assertFalse(self._pane_hidden(resp, "buste"))
-        for other in ("scambi", "asta", "movimenti"):
-            self.assertTrue(self._pane_hidden(resp, other))
+        self.assertContains(resp, "Nessun mercato aperto")
+        # Only links to the screens, none of their tools.
+        for name in ("admin_market_buste", "admin_market_trades", "admin_market_repair", "admin_market_moves"):
+            self.assertContains(resp, reverse(name))
+        self.assertNotContains(resp, "Regole degli scambi")
+        self.assertNotContains(resp, 'id="modal-new-session"')
 
-    def test_tab_param_picks_the_market_and_unknown_falls_back(self):
-        self.assertFalse(self._pane_hidden(self._get("&tab=asta"), "asta"))
-        self.assertTrue(self._pane_hidden(self._get("&tab=asta"), "buste"))
-        self.assertFalse(self._pane_hidden(self._get("&tab=nope"), "buste"))
+    def test_hub_lists_the_open_markets_and_links_their_screen(self):
+        open_s = MarketSession.objects.create(league=self.league, title="Buste Ottobre", status=MarketSession.Status.OPEN)
+        MarketSession.objects.create(league=self.league, title="Vecchia", status=MarketSession.Status.RESOLVED)
+        self.league.trades_enabled = True
+        self.league.save()
+        resp = self._hub()
+        self.assertContains(resp, "In corso adesso")
+        self.assertContains(resp, "Buste Ottobre")
+        self.assertContains(resp, reverse("admin_market_session", args=[open_s.id]))
+        self.assertContains(resp, "Scambi tra squadre")
+        self.assertEqual(resp.context["n_live"], 2)
+        self.assertNotIn("Vecchia", [s.title for s in resp.context["live_sessions"]])
+
+    def test_old_tab_and_session_links_open_the_new_screens(self):
+        s = MarketSession.objects.create(league=self.league, title="S", status=MarketSession.Status.OPEN)
+        resp = self._hub("&tab=scambi")
+        self.assertRedirects(resp, reverse("admin_market_trades") + f"?league={self.league.id}")
+        resp = self._hub(f"&session={s.id}&preview=1")
+        self.assertRedirects(resp, reverse("admin_market_session", args=[s.id]) + "?preview=1")
+
+    def test_buste_lists_sessions_and_each_opens_alone(self):
+        a = MarketSession.objects.create(league=self.league, title="Prima", status=MarketSession.Status.OPEN)
+        MarketSession.objects.create(league=self.league, title="Seconda", status=MarketSession.Status.RESOLVED)
+        resp = self._screen("admin_market_buste")
+        self.assertContains(resp, "Prima")
+        self.assertContains(resp, "Seconda")
+        self.assertNotContains(resp, "Chiudi finestra")
+        page = self.client.get(reverse("admin_market_session", args=[a.id]))
+        self.assertContains(page, "Chiudi finestra")
+        self.assertNotContains(page, "Seconda")
 
     def test_trade_settings_land_back_on_scambi(self):
         resp = self.client.post(reverse("admin_trade_settings"), {"league_id": self.league.id, "trades_enabled": "1"})
-        self.assertTrue(resp["Location"].endswith("&tab=scambi"))
+        self.assertEqual(resp["Location"], reverse("admin_market_trades") + f"?league={self.league.id}")
+
+    def test_session_actions_land_on_the_session_screen(self):
+        s = MarketSession.objects.create(league=self.league, title="S", status=MarketSession.Status.OPEN)
+        resp = self.client.post(reverse("admin_market_status", args=[s.id]), {"status": "closed"})
+        self.assertEqual(resp["Location"], reverse("admin_market_session", args=[s.id]))
+        resp = self.client.post(reverse("admin_market_delete", args=[s.id]))
+        self.assertEqual(resp["Location"], reverse("admin_market_buste") + f"?league={self.league.id}")
 
     def test_movimenti_lists_the_league_roster_log(self):
         RosterLog.objects.create(participant=self.team, participant_name="Squadra H", player_name="Kean",
@@ -631,18 +668,25 @@ class MarketHubTests(TestCase):
         other = Participant.objects.create(display_name="Altrove", league=League.objects.create(name="Altra"))
         RosterLog.objects.create(participant=other, participant_name="Altrove", player_name="Vlahovic",
                                  player_role="A", action=RosterLog.Action.ASSIGN, credits_delta=Decimal("5"))
-        resp = self._get("&tab=movimenti")
+        resp = self._screen("admin_market_moves")
         self.assertContains(resp, "Kean")
         self.assertContains(resp, "−18 FM")
         self.assertNotContains(resp, "Vlahovic")
 
     def test_asta_offers_a_repair_auction_and_the_wizard_preselects_it(self):
         Player.objects.create(name="Svincolato", role="C", league=self.league)
-        resp = self._get("&tab=asta")
+        resp = self._screen("admin_market_repair")
         self.assertContains(resp, "mode=REPAIR_AUCTION")
         self.assertContains(resp, f"status=free&role=C")
         wizard = self.client.get(reverse("admin_auction_wizard") + f"?league={self.league.id}&mode=REPAIR_AUCTION")
         self.assertContains(wizard, 'value="REPAIR_AUCTION" checked')
+
+    def test_foreign_session_screen_is_forbidden(self):
+        owner = User.objects.create_user("owner", password="pw")
+        other = League.objects.create(name="Altrui", owner=owner)
+        s = MarketSession.objects.create(league=other, title="Segreta", status=MarketSession.Status.OPEN)
+        self.client.force_login(User.objects.create_user("intruso", password="pw"))
+        self.assertEqual(self.client.get(reverse("admin_market_session", args=[s.id])).status_code, 403)
 
 
 class MarketAdminTenantIsolationTests(TestCase):
@@ -824,7 +868,7 @@ class MarketAfterResolutionTests(TestCase):
     def test_admin_preview_page(self):
         self.client.force_login(self.root)
         place_market_bid(self.session.id, self.a.id, self.x.id, 25)
-        url = reverse("admin_market_dashboard") + f"?league={self.league.id}&session={self.session.id}&preview=1"
+        url = reverse("admin_market_session", args=[self.session.id]) + "?preview=1"
         resp = self.client.get(url)
         self.assertContains(resp, "Anteprima:")
         self.assertContains(resp, "Esito previsto dello spoglio")
@@ -835,7 +879,7 @@ class MarketAfterResolutionTests(TestCase):
         self.client.force_login(self.root)
         self._tie()
         page = self.client.get(
-            reverse("admin_market_dashboard") + f"?league={self.league.id}&session={self.session.id}"
+            reverse("admin_market_session", args=[self.session.id])
         )
         self.assertContains(page, "Sorteggio")
         self.assertContains(page, "Annulla spoglio")
@@ -1101,7 +1145,7 @@ class RegolamentoBusteTests(TestCase):
         self.assertEqual(self.session.tie_break, "manual")
         self.assertFalse(self.session.require_same_role_release)
         self.assertEqual(self.session.release_refund_mode, "current")
-        page = self.client.get(reverse("admin_market_dashboard") + f"?league={self.league.id}&session={self.session.id}")
+        page = self.client.get(reverse("admin_market_session", args=[self.session.id]))
         self.assertContains(page, "max 3 per squadra")
 
     def test_app_shows_rules_and_same_role_choices(self):

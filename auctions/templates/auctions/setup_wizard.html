@@ -139,12 +139,23 @@ admin_setup_create has always read.
     .team-chip { display: inline-flex; gap: 6px; align-items: baseline; margin: 3px; padding: 6px 11px; border-radius: 8px;
                  background: var(--accent-soft); border: 1px solid var(--accent-line); font-size: 13px; font-weight: 700; }
     .team-chip small { color: var(--muted); font-weight: 500; }
-    .part-row { display: grid; grid-template-columns: 26px 1fr 120px 40px; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .part-row { display: grid; grid-template-columns: 26px minmax(0, 1.2fr) minmax(0, 1fr) 110px 40px; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .part-head { display: grid; grid-template-columns: 26px minmax(0, 1.2fr) minmax(0, 1fr) 110px 40px; gap: 8px; margin-bottom: 4px;
+                 font-size: 10.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--fm-text-muted); }
+    .part-head span:first-child { grid-column: 2; }
     .part-row .ix { font-family: var(--display); font-weight: 800; color: var(--fm-text-muted); text-align: center; }
     .part-row input { margin: 0; }
     .part-row .rm { width: 40px; padding: 0; color: var(--closed); border-color: rgba(248,113,113,.4); background: transparent; }
     .part-row input.bad { border-color: var(--closed) !important; }
-    @media (max-width: 480px) { .part-row { grid-template-columns: 1fr 92px 40px; } .part-row .ix { display: none; } }
+    @media (max-width: 640px) {
+        .part-head { display: none; }
+        .part-row { grid-template-columns: minmax(0, 1fr) 92px 40px; padding-bottom: 8px; border-bottom: 1px solid var(--line, rgba(85,160,230,.12)); }
+        .part-row .ix { display: none; }
+        .part-row .p-mail { grid-column: 1 / -1; grid-row: 2; }
+    }
+    .what { margin-bottom: 18px; }
+    #auction-part[hidden] { display: none; }
+    .inv-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
     .team-tools { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
     .paste-box { margin-top: 10px; display: none; }
     .paste-box.open { display: block; }
@@ -230,7 +241,7 @@ admin_setup_create has always read.
 <ol class="sw-steps" id="steps" aria-label="Passi">
     <li><button type="button" data-go="1" aria-current="step"><span class="n">1</span><span class="l"><b>File</b><small>Listone e rose</small></span></button></li>
     <li><button type="button" data-go="2" disabled><span class="n">2</span><span class="l"><b>Lega</b><small>Regole e squadre</small></span></button></li>
-    <li><button type="button" data-go="3" disabled><span class="n">3</span><span class="l"><b>Asta</b><small>Ritmo e riepilogo</small></span></button></li>
+    <li><button type="button" data-go="3" disabled><span class="n">3</span><span class="l"><b>Asta</b><small>Asta, inviti e riepilogo</small></span></button></li>
 </ol>
 
 <form id="wiz-form" method="post" action="{% url 'admin_setup_create' %}" enctype="multipart/form-data" novalidate>
@@ -368,12 +379,14 @@ admin_setup_create has always read.
             <div class="blk-t"><svg class="ic"><use href="#i-shield"/></svg> Squadre <span class="opt-tag" id="teams-count"></span></div>
 
             <div id="detected-teams" style="display:none">
-                <p class="hint" style="margin-top:0"><span class="pill">✓ Dal file rose</span> queste squadre nascono con le loro rose e i loro crediti.</p>
+                <p class="hint" style="margin-top:0"><span class="pill">✓ Dal file rose</span> queste squadre nascono con le loro rose e i loro crediti. Le email degli allenatori le aggiungi alla fine, nella pagina «Lega pronta».</p>
                 <div id="detected-teams-list" style="margin-top:8px"></div>
             </div>
 
             <div id="manual-teams">
-                <p class="hint" style="margin-top:0">Scrivi le squadre che partecipano. Invio passa alla riga successiva; i crediti partono dal budget della lega.</p>
+                <p class="hint" style="margin-top:0">Scrivi le squadre che partecipano. Invio passa alla riga successiva; i crediti partono dal budget della lega.
+                    L'<b>email</b> è facoltativa: serve per mandare a ogni allenatore il suo link personale.</p>
+                <div class="part-head" aria-hidden="true"><span>Squadra</span><span>Email allenatore</span><span>Crediti</span></div>
                 <div id="part-list"></div>
                 <div class="team-tools">
                     <button type="button" class="fm-btn-secondary" onclick="teams.add()"><svg class="ic"><use href="#i-plus"/></svg> Aggiungi squadra</button>
@@ -407,7 +420,21 @@ admin_setup_create has always read.
     <!-- ========================== STEP 3 — ASTA ========================== -->
     <section class="wstep panel" data-step="3" aria-labelledby="s3-h">
         <h2 id="s3-h" tabindex="-1">L'asta</h2>
-        <p class="lead">Come si chiamano i giocatori e quanto corre il timer. Tutto resta modificabile anche dopo, dalle impostazioni dell'asta.</p>
+        <p class="lead">Crea subito anche l'asta, oppure solo la lega se l'asta la fai più avanti (o la lega è già a stagione iniziata). Tutto resta modificabile anche dopo.</p>
+
+        <div class="blk what">
+            <input type="hidden" name="create_auction" id="create_auction" value="1">
+            <div class="cards" role="radiogroup" aria-label="Cosa creare">
+                <label class="card-opt"><input type="radio" name="_what" value="1" checked>
+                    <div class="t"><svg class="ic"><use href="#i-gavel"/></svg> Lega e asta</div>
+                    <div class="d">Imposto adesso timer e regole: l'asta nasce pronta in regia.</div></label>
+                <label class="card-opt"><input type="radio" name="_what" value="0">
+                    <div class="t"><svg class="ic"><use href="#i-shield"/></svg> Solo la lega</div>
+                    <div class="d">Squadre, listone e rose. L'asta la crei quando serve, dal wizard asta o dal Mercato.</div></label>
+            </div>
+        </div>
+
+        <div id="auction-part">
 
         <div class="blk">
             <div class="blk-t"><svg class="ic"><use href="#i-gavel"/></svg> Tipo di asta</div>
@@ -522,12 +549,28 @@ admin_setup_create has always read.
             </div>
         </details>
 
+        </div><!-- /auction-part -->
+
+        <div class="blk">
+            <div class="blk-t"><svg class="ic"><use href="#i-mail"/></svg> Inviti alle squadre</div>
+            {% if mail_ready %}
+            <label class="toggle-row" style="margin-top:0">
+                <input type="checkbox" name="send_invites" value="1" id="send-invites">
+                <div><b>Manda a ogni squadra il suo link via email</b>
+                    <span id="inv-note">Parte appena la lega è creata, a chi ha un'email.</span></div>
+            </label>
+            {% else %}
+            <p class="hint" style="margin:0">La posta non è configurata: i link li passi a mano (o con il QR) dalla pagina Squadre.
+                {% if request.user.is_superuser %}<a href="{% url 'admin_mail_settings' %}" target="_blank" rel="noopener">Configura la posta</a> per mandarli via email.{% else %}Per mandarli via email chiedi all'amministratore di configurare la posta.{% endif %}</p>
+            {% endif %}
+        </div>
+
         <div class="blk" id="sum-inline-wrap">
             <div class="blk-t"><svg class="ic"><use href="#i-list"/></svg> Riepilogo</div>
             <div class="glass sum" id="sum-inline"></div>
         </div>
 
-        <label class="toggle-row start-box">
+        <label class="toggle-row start-box" id="start-box">
             <input type="checkbox" name="start_now" value="1">
             <div><b>Avvia subito l'asta</b>
                 <span>Altrimenti resta «Pronta» e la fai partire dalla regia quando la sala è pronta.</span></div>
@@ -709,12 +752,13 @@ $$('.chips[data-for] .chip').forEach(c => c.addEventListener("click", () => {
 // ---------------------------------------------------------------- squadre
 const teams = {
     rows() { return $$("#part-list .part-row"); },
-    add(name = "", credits = "", focus = true) {
+    add(name = "", credits = "", focus = true, email = "") {
         const row = document.createElement("div");
         row.className = "part-row";
         row.innerHTML =
             `<span class="ix"></span>` +
             `<input class="p-name" placeholder="Nome squadra" aria-label="Nome squadra" maxlength="80" value="${esc(name)}">` +
+            `<input class="p-mail" type="email" placeholder="email (facoltativa)" aria-label="Email allenatore" maxlength="254" value="${esc(email)}">` +
             `<input class="p-cred" placeholder="${esc($("#budget").value || "Crediti")}" aria-label="Crediti" inputmode="numeric" value="${esc(credits)}">` +
             `<button type="button" class="rm" aria-label="Togli questa squadra" title="Togli">✕</button>`;
         row.querySelector(".rm").addEventListener("click", () => { row.remove(); teams.renumber(); refresh(); });
@@ -739,7 +783,7 @@ const teams = {
         const names = $("#paste-area").value.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean);
         const have = new Set(teams.collect().map(t => t.name.toLowerCase()));
         // Drop the empty row the list may start with, then append.
-        teams.rows().forEach(r => { if (!r.querySelector(".p-name").value.trim() && !r.querySelector(".p-cred").value.trim()) r.remove(); });
+        teams.rows().forEach(r => { if (!r.querySelector(".p-name").value.trim() && !r.querySelector(".p-cred").value.trim() && !r.querySelector(".p-mail").value.trim()) r.remove(); });
         let added = 0;
         names.forEach(n => { if (!have.has(n.toLowerCase())) { have.add(n.toLowerCase()); teams.add(n, "", false); added++; } });
         $("#paste-area").value = "";
@@ -751,6 +795,7 @@ const teams = {
         return teams.rows().map(r => ({
             name: r.querySelector(".p-name").value.trim(),
             credits: r.querySelector(".p-cred").value.trim(),
+            email: r.querySelector(".p-mail").value.trim(),
         })).filter(t => t.name);
     },
     problem() {
@@ -760,6 +805,8 @@ const teams = {
             const name = n.value.trim(), cred = c.value.trim();
             if (!name) continue;
             if (cred && (isNaN(num(cred)) || num(cred) < 0)) return { el: c, msg: `I crediti di «${name}» devono essere un numero.` };
+            const m = r.querySelector(".p-mail");
+            if (m.value.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(m.value.trim())) return { el: m, msg: `L'email di «${name}» non sembra valida.` };
             const k = name.toLowerCase();
             if (seen.has(k)) return { el: n, msg: `«${name}» compare due volte: dai un nome diverso a ogni squadra.` };
             seen.set(k, true);
@@ -818,6 +865,19 @@ $("#wz-sealed-toggle").addEventListener("change", () => {
     $("#wz-sealed-wrap").style.display = $("#wz-sealed-toggle").checked ? "" : "none";
 });
 
+function setWhat(v) {
+    $("#create_auction").value = v;
+    $$('input[name="_what"]').forEach(i => { i.checked = i.value === v; });
+    $("#auction-part").hidden = v === "0";
+    $("#start-box").style.display = v === "0" ? "none" : "";
+    $("#btn-create .lbl").textContent = v === "0" ? "Crea la lega" : "Crea lega e asta";
+    refresh();
+}
+$$('input[name="_what"]').forEach(i => i.addEventListener("change", () => setWhat(i.value)));
+function nEmails() {
+    return teams.detected() ? 0 : teams.collect().filter(t => t.email).length;
+}
+
 // ---------------------------------------------------------------- summary
 function summaryRows() {
     const val = n => (form.querySelector(`[name="${n}"]`) || {}).value || "";
@@ -840,9 +900,15 @@ function summaryRows() {
         ? (mantra ? `${val("slots_gk")} por + ${val("slots_out")} mov.` : `${val("slots_p")}/${val("slots_d")}/${val("slots_c")}/${val("slots_a")}`) + ` · ${total} giocatori`
         : "Nessun limite di posti", ""]);
     rows.push(["Squadre", nTeams ? String(nTeams) : "Nessuna (le aggiungi dopo)", nTeams >= 2 ? "" : "warn"]);
-    rows.push(["Asta", `${checkedLabel("mode")} · ${checkedLabel("flow_mode")}`, ""]);
-    rows.push(["Ritmo", `${val("duration_seconds")} s · +${val("antisnipe_seconds")} s all'ultimo · rilancio ${val("min_increment")} FM`, ""]);
-    rows.push(["Avvio", form.querySelector('[name="start_now"]').checked ? "Subito" : "Resta pronta", ""]);
+    if ($("#create_auction").value === "0") {
+        rows.push(["Asta", "La crei dopo", ""]);
+    } else {
+        rows.push(["Asta", `${checkedLabel("mode")} · ${checkedLabel("flow_mode")}`, ""]);
+        rows.push(["Ritmo", `${val("duration_seconds")} s · +${val("antisnipe_seconds")} s all'ultimo · rilancio ${val("min_increment")} FM`, ""]);
+        rows.push(["Avvio", form.querySelector('[name="start_now"]').checked ? "Subito" : "Resta pronta", ""]);
+    }
+    const inv = $("#send-invites"), ne = nEmails();
+    rows.push(["Inviti", inv && inv.checked ? (ne ? `Email a ${ne} squadr${ne === 1 ? "a" : "e"}` : "Nessuna email inserita") : "A mano (link e QR)", inv && inv.checked && !ne ? "warn" : ""]);
     return rows;
 }
 function renderSummary(el) {
@@ -868,6 +934,12 @@ function refresh() {
     $$("#part-list .p-cred").forEach(i => { i.placeholder = $("#budget").value || "Crediti"; });
     const n = teams.count();
     $("#teams-count").textContent = n ? `· ${n}` : "";
+    const invNote = $("#inv-note");
+    if (invNote) {
+        const ne = nEmails();
+        invNote.textContent = teams.detected() ? "Le squadre arrivano dal file: aggiungi le email nella pagina finale e invia da lì."
+            : ne ? `Parte appena la lega è creata, alle ${ne} squadr${ne === 1 ? "a" : "e"} con un'email.` : "Nessuna squadra ha un'email: aggiungila al passo 2.";
+    }
     renderSummary($("#sum-side"));
     if (wiz.cur === 3) renderSummary($("#sum-inline"));
     draft.save();
@@ -946,7 +1018,7 @@ const draft = {
         try {
             const data = { f: {}, teams: teams.collect(), step: wiz.seen };
             $$("input, select", form).forEach(el => {
-                if (!el.name || el.type === "file" || el.type === "hidden" && !["game_mode", "slot_limits"].includes(el.name)) return;
+                if (!el.name || el.type === "file" || el.type === "hidden" && !["game_mode", "slot_limits", "create_auction"].includes(el.name)) return;
                 if (el.name === "csrfmiddlewaretoken") return;
                 if (el.type === "checkbox") data.f[el.name + (el.name === "attach_ids" ? ":" + el.value : "")] = el.checked;
                 else if (el.type === "radio") { if (el.checked) data.f[el.name] = el.value; }
@@ -966,11 +1038,11 @@ const draft = {
                 if (k in data.f) el.checked = !!data.f[k];
             } else if (el.type === "radio") {
                 if (el.name in data.f) el.checked = el.value === data.f[el.name];
-            } else if (el.name in data.f && el.type !== "hidden" || ["game_mode", "slot_limits"].includes(el.name) && el.name in data.f) {
+            } else if (el.name in data.f && el.type !== "hidden" || ["game_mode", "slot_limits", "create_auction"].includes(el.name) && el.name in data.f) {
                 el.value = data.f[el.name];
             }
         });
-        (data.teams || []).forEach(t => teams.add(t.name, t.credits, false));
+        (data.teams || []).forEach(t => teams.add(t.name, t.credits, false, t.email || ""));
         return true;
     },
     clear() { try { localStorage.removeItem(DRAFT_KEY); } catch (e) {} },
@@ -983,6 +1055,7 @@ if (restored) $("#draft-note").classList.add("show");
 setSource("", false);
 setGameMode($("#game_mode").value || "CLASSIC");
 setSlotMode($("#slot_limits").value || "1");
+setWhat($("#create_auction").value || "1");
 flowChanged();
 $("#wz-sealed-wrap").style.display = $("#wz-sealed-toggle").checked ? "" : "none";
 teams.sync();

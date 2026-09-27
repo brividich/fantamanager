@@ -145,6 +145,7 @@ button) and everything else opens as a full-screen menu: ``.fm-chrome`` is
             <a class="fm-nav-link" href="{% url 'admin_sessions' %}"><svg class="ic"><use href="#i-folder"/></svg> Carica sessione</a>
             <a class="fm-nav-link {% if console_active == 'remote' %}is-active{% endif %}" href="{% url 'admin_remote_page' %}"><svg class="ic"><use href="#i-globe"/></svg> Accesso remoto</a>
             <a class="fm-nav-link {% if console_active == 'config' %}is-active{% endif %}" href="{% url 'admin_config' %}"><svg class="ic"><use href="#i-gear"/></svg> Configurazione</a>
+            {% if request.user.is_superuser %}<a class="fm-nav-link {% if console_active == 'mail' %}is-active{% endif %}" href="{% url 'admin_mail_settings' %}"><svg class="ic"><use href="#i-mail"/></svg> Posta (email)</a>{% endif %}
             {% if selected %}
             <a class="fm-nav-link" href="{% url 'screen' selected.id %}?t={{ selected.public_token }}" target="_blank"><svg class="ic"><use href="#i-tv"/></svg> Apri maxischermo</a>
             {% elif active_auction %}

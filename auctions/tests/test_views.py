@@ -14,6 +14,7 @@ from channels.routing import URLRouter
 from channels.testing import WebsocketCommunicator
 from django.contrib.auth.models import User
 from django.conf import settings
+from django.urls import reverse
 from django.test import (RequestFactory, TestCase, TransactionTestCase,
                          override_settings)
 from django.utils import timezone
@@ -555,6 +556,48 @@ class SetupWizardTests(TestCase):
         # The auto-snapshot captured the wizard's team.
         names = [p["display_name"] for p in session.data["participants"]]
         self.assertIn("Alfa", names)
+
+    def _post_setup(self, **extra):
+        data = {
+            "name": "Lega Pronta", "budget": "300", "import_choice": "none",
+            "participants_json": json.dumps([{"name": "Alfa", "credits": "", "email": "alfa@x.it"},
+                                             {"name": "Beta", "credits": "", "email": "non-una-mail"}]),
+            "mode": "NEW_FROM_ZERO", "flow_mode": "call", "listone_file": self._listone(),
+        }
+        data.update(extra)
+        return self.client.post("/admin-auction/setup/create/", data)
+
+    def test_setup_lands_on_the_ready_page_with_next_steps(self):
+        resp = self._post_setup()
+        league = League.objects.get(name="Lega Pronta")
+        self.assertRedirects(resp, reverse("admin_setup_done", args=[league.id]))
+        page = self.client.get(resp["Location"])
+        self.assertContains(page, "Lega Pronta è pronta")
+        self.assertContains(page, "Vai alla regia")
+        self.assertContains(page, "Squadre: link, QR ed email")
+        # The typed email is kept, a malformed one is left out.
+        self.assertEqual(Participant.objects.get(display_name="Alfa").email, "alfa@x.it")
+        self.assertEqual(Participant.objects.get(display_name="Beta").email, "")
+
+    def test_setup_can_create_only_the_league(self):
+        resp = self._post_setup(create_auction="0", start_now="1")
+        league = League.objects.get(name="Lega Pronta")
+        self.assertFalse(Auction.objects.filter(league=league).exists())
+        page = self.client.get(resp["Location"])
+        self.assertContains(page, "Crea l'asta")
+
+    @override_settings(EMAIL_HOST="smtp.env.local")
+    def test_setup_sends_the_invites_when_asked(self):
+        from django.core import mail as outbox
+        resp = self._post_setup(send_invites="1")
+        self.assertEqual([m.to for m in outbox.outbox], [["alfa@x.it"]])
+        page = self.client.get(resp["Location"])
+        self.assertContains(page, "Inviti: 1 email inviata")
+
+    def test_ready_page_of_a_foreign_league_is_forbidden(self):
+        other = League.objects.create(name="Altrui", owner=User.objects.create_user("o", password="pw"))
+        self.client.force_login(User.objects.create_user("x", password="pw", is_staff=True))
+        self.assertEqual(self.client.get(reverse("admin_setup_done", args=[other.id])).status_code, 403)
 
     def test_resume_latest_empty_redirects_to_sessions(self):
         resp = self.client.post("/admin-auction/sessions/resume-latest/")

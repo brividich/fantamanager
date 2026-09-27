@@ -28,6 +28,7 @@ from .league import (
 from .trade import Trade, TradeWindow
 from .contract import ContractEvent
 from .season import CapEntry, CapPhase, DecreeAward, LeagueRanking, UefaClubRank
+from .mail import MailSettings
 from .market import (
     MarketBid,
     MarketSession,
@@ -58,6 +59,7 @@ __all__ = [
     "Watch",
     "Bid",
     "SealedBid",
+    "MailSettings",
     "MarketSession",
     "MarketBid",
     "Trade",

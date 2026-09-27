@@ -41,9 +41,10 @@ layer in-memory, processo singolo).
 | `/join/` | Ingresso partecipante: nome + PIN opzionale → sessione → pagina offerta. |
 | `/bid/<auction_id>/` | Pagina partecipante: titolo, timer, stato, prezzo, miglior offerente, 4 pulsanti rilancio. |
 | `/screen/<auction_id>/` | Maxischermo: prezzo grande, timer grande, stato, ultimo offerente, log ultime offerte. |
-| `/admin-auction/market/` | Mercato a buste e scambi (admin): sessioni, anteprima e spoglio, pareggi, annullamento, ratifica scambi. |
+| `/admin-auction/market/` | **Mercato** (admin): i mercati aperti adesso e una scheda per ogni mercato. Ogni mercato si apre nella sua schermata: **Buste** (`market/buste/`, ogni sessione in `market/buste/<id>/` con consegne, anteprima, spoglio, pareggi e avviso via email), **Scambi** (`market/scambi/`), **Asta di riparazione** (`market/asta/`), **Movimenti** (`market/movimenti/`). |
 | `/app/` | App del fantallenatore: home, rosa, formazione, lega, **mercato** (`/app/mercato/`) e **scambi** (`/app/scambi/`). Per chi gestisce una lega c'è anche la **Regia** (`/app/regia/`). |
-| `/admin-auction/setup/` | **Nuova lega** guidata: listone e rose → lega e squadre → asta, con riepilogo dal vivo. |
+| `/admin-auction/setup/` | **Nuova lega** guidata: listone e rose → lega e squadre (con email degli allenatori) → asta (facoltativa) e inviti, con riepilogo dal vivo. Finisce sulla pagina **Lega pronta** con i prossimi passi. |
+| `/admin-auction/mail/` | **Posta** (solo superadmin): provider SMTP con preset (Gmail, Outlook, Brevo, SendGrid, Mailgun, Aruba, SMTP generico o «solo log»), mittente ed email di prova. Serve per inviti alle squadre e avvisi del mercato. |
 | `/admin-auction/config/` | **Impostazioni** delle leghe che gestisci (nome, crediti, rosa, Classic/Mantra, regole) e pulizia di aste e salvataggi. |
 | `/django-admin/` | Admin Django nativo (accesso dati grezzi / debug). |
 
