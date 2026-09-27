@@ -19,3 +19,13 @@ logs/*.log
 .gemini/
 .idea/
 .vscode/
+
+# Never bake local data into an image: the entrypoint seeds a new volume from
+# /app/db.sqlite3 when one is present, users and password hashes included.
+db.sqlite3
+*.sqlite3
+*.sqlite3.bak*
+backups/
+media/
+.env
+data/.secret_key

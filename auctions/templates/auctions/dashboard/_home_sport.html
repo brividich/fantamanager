@@ -1493,19 +1493,23 @@
                 sincronizzato</span>
         </div>
         <div class="foot-right">
+            {% if request.user.is_superuser %}
             <button type="button" class="fm-btn fm-btn-ghost fm-btn-xs" onclick="openSystemLogs()">
                 📋 Log Sistema
             </button>
+            {% endif %}
             <a class="fm-btn fm-btn-ghost fm-btn-xs" href="{% url 'admin_config' %}">
                 <svg class="ic">
                     <use href="#i-gear" />
                 </svg> Configurazione
             </a>
+            {% if desktop_app and request.user.is_superuser %}
             <button type="button" class="fm-btn fm-btn-danger fm-btn-xs" onclick="startQuit()">
                 <svg class="ic">
                     <use href="#i-stop" />
                 </svg> Chiudi
             </button>
+            {% endif %}
         </div>
     </div>
 

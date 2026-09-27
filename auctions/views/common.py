@@ -4,6 +4,7 @@ from functools import wraps
 
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
+from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
@@ -195,7 +196,7 @@ def target_league(request):
                 # Restrict to owned leagues if user is an authenticated normal league admin
                 user = getattr(request, "user", None)
                 if user and user.is_authenticated and not user.is_superuser:
-                    if league.owner_id is not None and league.owner_id != user.id:
+                    if league.owner_id != user.id:
                         return None
                 request.session[SESSION_LEAGUE_KEY] = league.id
                 # Check if pinned auction belongs to a different league
@@ -212,7 +213,7 @@ def target_league(request):
         if league is not None:
             user = getattr(request, "user", None)
             if user and user.is_authenticated and not user.is_superuser:
-                if league.owner_id is not None and league.owner_id != user.id:
+                if league.owner_id != user.id:
                     request.session.pop(SESSION_LEAGUE_KEY, None)
                     return None
             return league
@@ -224,7 +225,7 @@ def target_league(request):
         if auction is not None and auction.league_id:
             user = getattr(request, "user", None)
             if user and user.is_authenticated and not user.is_superuser:
-                if auction.league and auction.league.owner_id is not None and auction.league.owner_id != user.id:
+                if auction.league and auction.league.owner_id != user.id:
                     request.session.pop(SESSION_AUCTION_KEY, None)
                     return None
             request.session[SESSION_LEAGUE_KEY] = auction.league_id
@@ -249,14 +250,15 @@ def user_can_manage_league(user, league):
     """True when ``user`` may administer ``league``.
 
     Superusers manage everything; a league admin manages the leagues they own.
-    Legacy leagues without an owner stay manageable by any staff user, the same
-    rule ``target_league`` applies.
+    A league without an owner (legacy data, or its owner's account deleted) is
+    superuser business: registration is open, so "any logged-in account" would
+    mean anybody. Every creation path sets an owner; the Supervisor assigns one.
     """
     if league is None or user is None or not user.is_authenticated:
         return False
     if user.is_superuser:
         return True
-    return league.owner_id is None or league.owner_id == user.id
+    return league.owner_id is not None and league.owner_id == user.id
 
 
 def user_can_manage(user, obj):
@@ -309,8 +311,23 @@ def manageable_leagues(user):
     """Leagues listed in the console pickers for ``user``."""
     qs = League.objects.all()
     if not user.is_superuser:
-        qs = qs.filter(Q(owner=user) | Q(owner__isnull=True))
+        qs = qs.filter(owner=user)
     return qs.order_by("name")
+
+
+def linkable_users(user):
+    """Accounts ``user`` may attach to a team from the console.
+
+    A superuser picks from everyone. An organiser only from the accounts that
+    already play in one of their leagues or that they created themselves:
+    anyone can sign up, so the full list of usernames and emails is not theirs
+    to browse. A newcomer links their own account with the team code.
+    """
+    qs = get_user_model().objects.all()
+    if not user.is_superuser:
+        qs = qs.filter(Q(pk=user.pk) | Q(teams__league__owner=user)
+                       | Q(managed_account__created_by=user)).distinct()
+    return qs.order_by("username")
 
 
 FORBIDDEN_LEAGUE_MSG = "Non hai i permessi per gestire questa lega."

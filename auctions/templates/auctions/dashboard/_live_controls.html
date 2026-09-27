@@ -38,9 +38,11 @@
                         <use href="#i-save" />
                     </svg> Salva sessione</button>
             </form>
+            {% if request.user.is_superuser %}
             <button type="button" class="fm-btn fm-btn-ghost fm-btn-sm" onclick="openSystemLogs()"
                 title="Visualizza i log di sistema in tempo reale">
                 📋 Log sistema</button>
+            {% endif %}
             <span style="flex:1 1 auto"></span>
             <input id="announce-text" type="text" maxlength="140" placeholder="Annuncio alla sala…"
                 style="flex:0 1 220px" onkeydown="if(event.key==='Enter')announce()">

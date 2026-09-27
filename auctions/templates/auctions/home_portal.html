@@ -706,9 +706,11 @@
             <span>Rete Locale: <b>http://localhost:8001/</b></span>
         </div>
         <div class="foot-right">
+            {% if request.user.is_superuser %}
             <a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% url 'admin_remote_page' %}">
                 <svg class="ic"><use href="#i-globe"/></svg> Accesso Remoto
             </a>
+            {% endif %}
             <a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% url 'admin_config' %}">
                 <svg class="ic"><use href="#i-gear"/></svg> Configurazione
             </a>

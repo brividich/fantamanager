@@ -174,7 +174,10 @@ class WebSocketFlowTests(TransactionTestCase):
         watcher = await self._connect(auction.id, None)
         await watcher.receive_json_from()  # state
 
-        resp = await AsyncClient().post(
+        admin = await User.objects.acreate(username="admin", is_staff=True, is_superuser=True)
+        client = AsyncClient()
+        await client.aforce_login(admin)
+        resp = await client.post(
             f"/admin-auction/{auction.id}/announce/",
             {"text": "Ultima chiamata!", "level": "call"},
         )
