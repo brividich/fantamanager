@@ -15,9 +15,23 @@ from .common import (
     SESSION_LEAGUE_KEY,
     _session_participant,
     broadcast_state,
+    lists_every_league,
     participant_lan_join_url,
     target_league,
+    visible_leagues,
 )
+
+
+def _listed_auctions(request, joinable):
+    """The auctions the join page offers in its picker. Online, a visitor
+    without a team yet sees none: the team link or code says where they play
+    (see ``lists_every_league``)."""
+    req_l = target_league(request)
+    if req_l is not None:
+        joinable = joinable.filter(league=req_l)
+    if not lists_every_league(request):
+        joinable = joinable.filter(league__in=visible_leagues(request))
+    return joinable
 
 
 @require_POST
@@ -139,12 +153,8 @@ def join(request):
                 )
 
         if error:
-            scoped_joinable = joinable
-            req_l = target_league(request)
-            if req_l is not None:
-                scoped_joinable = scoped_joinable.filter(league=req_l)
             return render(request, "auctions/join.html", {
-                "joinable": scoped_joinable,
+                "joinable": _listed_auctions(request, joinable),
                 "error": error,
                 "token": token,
             })
@@ -184,13 +194,10 @@ def join(request):
     if not recognized:
         recognized = _session_participant(request)
 
-    scoped_joinable = joinable
     if recognized and recognized.league_id is not None:
-        scoped_joinable = scoped_joinable.filter(league_id=recognized.league_id)
+        scoped_joinable = joinable.filter(league_id=recognized.league_id)
     else:
-        req_l = target_league(request)
-        if req_l is not None:
-            scoped_joinable = scoped_joinable.filter(league=req_l)
+        scoped_joinable = _listed_auctions(request, joinable)
 
     return render(request, "auctions/join.html", {
         "joinable": scoped_joinable,

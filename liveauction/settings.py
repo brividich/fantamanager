@@ -95,6 +95,8 @@ MIDDLEWARE = [
     # Keeps debug tracebacks off the public tunnel (the desktop app runs with
     # DEBUG on so one process can also serve static/media). No-op locally.
     "auctions.middleware.RemoteErrorShield",
+    # Plain-text refusals (403, 405...) get a real page when a browser asks.
+    "auctions.middleware.FriendlyErrorPages",
 ]
 
 # WhiteNoise serves static files efficiently when running behind a single ASGI

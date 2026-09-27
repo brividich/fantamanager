@@ -184,9 +184,11 @@
             <button type="button" class="tab-btn {% if active_mode == 'code' %}is-active{% endif %}" id="tab-btn-code" onclick="switchLoginMode('code')">
                 <svg class="ic" style="width:13px;height:13px;vertical-align:-1px"><use href="#i-shield"/></svg> Codice Squadra
             </button>
+            {% if leagues %}{# online, a stranger has no league to pick from #}
             <button type="button" class="tab-btn {% if active_mode == 'select' %}is-active{% endif %}" id="tab-btn-select" onclick="switchLoginMode('select')">
                 <svg class="ic" style="width:13px;height:13px;vertical-align:-1px"><use href="#i-users"/></svg> Seleziona Squadra
             </button>
+            {% endif %}
         </div>
 
         <!-- Opzione 1: Account (Username / Email + Password) -->
@@ -256,6 +258,7 @@
         </form>
 
         <!-- Opzione 3: Selezione guidata (Lega -> Squadra) -->
+        {% if leagues %}
         <form method="post" id="form-select" action="{% url 'app_login' %}" style="{% if active_mode != 'select' %}display:none{% endif %}">
             {% csrf_token %}
             <input type="hidden" name="login_mode" value="select">
@@ -288,6 +291,7 @@
                 Entra con Squadra &rarr;
             </button>
         </form>
+        {% endif %}
     </div>
 
     <!-- Callout per Asta Live Libera -->

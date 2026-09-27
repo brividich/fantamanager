@@ -1,0 +1,13 @@
+{% extends "errors/_page.html" %}
+{% comment %}
+A view's short plain-text answer (403, 405, 429...) shown to a browser,
+wrapped by FriendlyErrorPages with its own message. On a 403, someone not
+signed in is offered the login, as on 403.html.
+{% endcomment %}
+{% block title %}{{ heading }}{% endblock %}
+{% block code %}{{ code }}{% endblock %}
+{% block heading %}{{ heading }}{% endblock %}
+{% block message %}{{ message }}{% endblock %}
+{% block second_action %}{% if code == 403 and not request.user.is_authenticated %}
+        <a class="btn btn-ghost" href="/login/?next={{ request.path|urlencode }}">Accedi</a>
+{% else %}{{ block.super }}{% endif %}{% endblock %}

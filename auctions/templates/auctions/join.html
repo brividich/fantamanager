@@ -46,6 +46,8 @@
                style="font-size:20px; letter-spacing:0.14em; text-transform:uppercase; text-align:center">
         {% endif %}
 
+        {% if joinable or recognized %}
+        {# Online a stranger is shown no auction: the team code decides where they play. #}
         <label for="auction_id">Asta</label>
         <select id="auction_id" name="auction_id" required>
             {% for a in joinable %}
@@ -57,6 +59,7 @@
                 <option value="" disabled>Nessuna asta disponibile</option>
             {% endfor %}
         </select>
+        {% endif %}
 
         <div style="margin-top:22px">
             <button type="submit" class="btn-ok" style="width:100%; font-size:18px; padding:18px">
