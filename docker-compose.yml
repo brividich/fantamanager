@@ -70,6 +70,50 @@ services:
       retries: 3
       start_period: 20s
 
+  # Backup del database: pg_dump della stessa versione del server, all'avvio,
+  # ogni BACKUP_EVERY_HOURS ore e entro un minuto da quando l'app lo chiede
+  # (fine asta). File pg-AAAAMMGG-HHMMSS.sql.gz (ora UTC) in ./backups; tiene i
+  # BACKUP_KEEP piu' recenti. Ripristino: vedi README, "Backup e ripristino".
+  backup:
+    image: postgres:16-alpine
+    container_name: fantamanager-backup
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGDATABASE: ${POSTGRES_DB:-fantamanager}
+      PGUSER: ${POSTGRES_USER:-fantamanager}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-fantamanager_secret_pass}
+      BACKUP_EVERY_HOURS: ${BACKUP_EVERY_HOURS:-6}
+      BACKUP_KEEP: ${BACKUP_KEEP:-30}
+    volumes:
+      - ./backups:/backups
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -u
+        every=$$((BACKUP_EVERY_HOURS * 3600)); last=0
+        echo "backup: ogni $$BACKUP_EVERY_HOURS ore, tengo gli ultimi $$BACKUP_KEEP"
+        while true; do
+          now=$$(date +%s)
+          if [ -f /backups/.richiesta ] || [ $$((now - last)) -ge "$$every" ]; then
+            rm -f /backups/.richiesta
+            f=/backups/pg-$$(date -u +%Y%m%d-%H%M%S)
+            if pg_dump --clean --if-exists --no-owner --file="$$f.part" && mv "$$f.part" "$$f.sql" && gzip "$$f.sql"; then
+              last=$$now
+              echo "backup: $$f.sql.gz"
+              ls -1t /backups/pg-*.sql.gz | tail -n +$$((BACKUP_KEEP + 1)) | xargs -r rm -f
+            else
+              rm -f "$$f.part" "$$f.sql"
+              echo "backup: pg_dump non riuscito, riprovo tra 10 minuti" >&2
+              sleep 540
+            fi
+          fi
+          sleep 60
+        done
+
 volumes:
   postgres_data:
 

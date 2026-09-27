@@ -229,11 +229,45 @@ svincolati e usciti dalla Serie A. Per i PDF serve `pdfplumber`.
 
 ---
 
+## Server con Docker (NAS): database e backup
+
+Con `docker-compose.yml` / `docker-compose.ghcr.yml` il database è
+**PostgreSQL 16** (servizio `db`, dati nel volume Docker `postgres_data`);
+SQLite resta per l'app desktop e lo sviluppo in locale.
+
+I backup li fa il servizio **`backup`** dello stesso compose: `pg_dump` della
+stessa versione del server, all'avvio, ogni `BACKUP_EVERY_HOURS` ore (6) e
+entro un minuto dalla fine di ogni asta. Finiscono in `./backups` come
+`pg-AAAAMMGG-HHMMSS.sql.gz` (ora UTC); restano i `BACKUP_KEEP` più recenti
+(30). L'ultimo backup si vede in **Supervisor → Info Server & Health**.
+Copia ogni tanto `./backups` fuori dal NAS: un backup sullo stesso disco non
+protegge dal disco che si rompe.
+
+Ripristino (sostituisce **tutto** il contenuto del database con quello del
+file scelto):
+
+```bash
+docker stop fantamanager                       # niente scritture durante il ripristino
+gunzip -c backups/pg-20260927-180000.sql.gz \
+  | docker exec -i fantamanager-db psql -U fantamanager -d fantamanager -v ON_ERROR_STOP=1
+docker start fantamanager
+```
+
+(con utente o database diversi nel `.env`, usa i tuoi `POSTGRES_USER` /
+`POSTGRES_DB`).
+
+---
+
 ## Test
 
 ```bash
 python manage.py test
 ```
+
+La CI li esegue su ogni PR due volte: con SQLite e con PostgreSQL 16, il
+database del server. In locale, per provarli su Postgres basta impostare
+`POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST` (l'utente
+deve poter creare il database di test).
 
 Tra le altre cose copre: offerta accettata in `LIVE`, rifiuto se chiusa / timer scaduto
 / partecipante inattivo / incremento non valido, ricalcolo del prezzo su due

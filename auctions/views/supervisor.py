@@ -1,5 +1,5 @@
 """Master Supervisor Cockpit: Server Health, User/League Management, Logs & Reporting."""
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from functools import wraps
 import json
@@ -23,6 +23,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 import django
+from .. import backup
 from ..models import Auction, Bid, League, Participant, Player
 from ..consumers import _ROOM_TICKERS
 
@@ -72,14 +73,30 @@ def _get_server_metrics():
     except Exception:
         pass
 
-    # Database file size
+    # Database: the engine actually in use (PostgreSQL in Docker, SQLite on the
+    # desktop), its size, and the newest backup on disk.
+    db = settings.DATABASES.get("default", {})
     db_size_mb = 0
-    db_path = settings.DATABASES.get("default", {}).get("NAME")
-    if db_path and os.path.exists(str(db_path)):
+    if connection.vendor == "postgresql":
+        db_engine, db_where = "PostgreSQL", f"{db.get('NAME')} su {db.get('HOST') or 'localhost'}"
         try:
-            db_size_mb = round(os.path.getsize(str(db_path)) / (1024 * 1024), 2)
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT pg_database_size(current_database())")
+                db_size_mb = round(cursor.fetchone()[0] / (1024 * 1024), 2)
         except Exception:
             pass
+    else:
+        db_path = db.get("NAME")
+        db_engine, db_where = "SQLite", f"File: {os.path.basename(str(db_path or ''))}"
+        if db_path and os.path.exists(str(db_path)):
+            try:
+                db_size_mb = round(os.path.getsize(str(db_path)) / (1024 * 1024), 2)
+            except Exception:
+                pass
+    last_backup = backup.latest_backup()
+    if last_backup:
+        # A day without a backup means the backup service is not running.
+        last_backup["stale"] = timezone.now() - last_backup["at"] > timedelta(hours=24)
 
     # Load average (Unix)
     load_avg = "N/A"
@@ -103,6 +120,9 @@ def _get_server_metrics():
         "disk_free_gb": disk_free_gb,
         "disk_percent": disk_percent,
         "db_size_mb": db_size_mb,
+        "db_engine": db_engine,
+        "db_where": db_where,
+        "last_backup": last_backup,
         "load_avg": load_avg,
         "active_rooms": active_tickers_count,
         "channels_status": "Daphne / ASGI Online",

@@ -1,6 +1,7 @@
 import asyncio
 import json
 import io
+import os
 import re
 import sqlite3
 import tempfile
@@ -15,6 +16,7 @@ from channels.routing import URLRouter
 from channels.testing import WebsocketCommunicator
 from django.contrib.auth.models import User
 from django.conf import settings
+from django.db import connection
 from django.test import (RequestFactory, TestCase, TransactionTestCase,
                          override_settings)
 from django.utils import timezone
@@ -185,8 +187,10 @@ class BackupTests(TestCase):
         self._patch_db_path(self.data_dir / "does-not-exist.sqlite3")
         self.assertIsNone(self.backup.backup_database())
 
-    def test_backup_is_a_noop_for_a_non_sqlite_engine(self):
-        with mock.patch.object(self.backup, "_db_path", return_value=None):
+    def test_backup_is_a_noop_for_an_engine_it_cannot_back_up(self):
+        # Neither SQLite nor PostgreSQL (see PostgresBackupRequestTests).
+        with mock.patch.object(self.backup, "_db_path", return_value=None), \
+                mock.patch.object(self.backup, "_is_postgres", return_value=False):
             self.assertIsNone(self.backup.backup_database())
 
     def test_async_throttles_bursts_and_coalesces_to_one_thread(self):
@@ -216,6 +220,70 @@ class BackupTests(TestCase):
             self.backup.backup_database_async(min_interval=0)
             self.backup.backup_database_async(min_interval=0)
         self.assertEqual(MockThread.call_count, 2)
+
+
+class PostgresBackupRequestTests(TestCase):
+    """On PostgreSQL the dumps are the compose backup service's job: the app
+    only asks for one when an auction ends, and reads the latest for the
+    Supervisor."""
+
+    def setUp(self):
+        from .. import backup
+        self.backup = backup
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.dir = Path(tmp.name)
+        for name, value in (("_is_postgres", True), ("_db_path", None)):
+            patcher = mock.patch.object(backup, name, return_value=value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        override = override_settings(BACKUP_DIR=self.dir)
+        override.enable()
+        self.addCleanup(override.disable)
+
+    def test_an_auction_ending_asks_for_a_dump(self):
+        path = self.backup.backup_database(reason="asta terminata")
+        self.assertEqual(path, self.dir / self.backup.PG_REQUEST_FILE)
+        self.assertEqual(path.read_text(encoding="utf-8").strip(), "asta terminata")
+
+    def test_the_live_tickers_periodic_call_asks_nothing(self):
+        # The service keeps its own schedule; a dump every five minutes of a
+        # live auction would only rotate the older ones away.
+        self.assertIsNone(self.backup.backup_database(reason=self.backup.PERIODIC))
+        self.assertFalse((self.dir / self.backup.PG_REQUEST_FILE).exists())
+
+    def test_latest_backup_is_the_newest_dump(self):
+        self.assertIsNone(self.backup.latest_backup())
+        older = self.dir / "pg-20260101-000000.sql.gz"
+        newer = self.dir / "pg-20260102-000000.sql.gz"
+        older.write_bytes(b"x")
+        newer.write_bytes(b"y")
+        os.utime(older, (1_700_000_000, 1_700_000_000))
+        info = self.backup.latest_backup()
+        self.assertEqual((info["name"], info["count"]), (newer.name, 2))
+
+
+class SupervisorDatabaseCardTests(TestCase):
+    """The Supervisor names the database actually in use and its last backup."""
+
+    def setUp(self):
+        self.client.force_login(User.objects.create_superuser("root", "r@x.local", "pwd12345"))
+
+    def test_the_card_names_the_engine_in_use(self):
+        engine = "PostgreSQL" if connection.vendor == "postgresql" else "SQLite"
+        with mock.patch("auctions.backup.latest_backup", return_value=None):
+            resp = self.client.get("/supervisor/?tab=health")
+        self.assertContains(resp, f"Database {engine}")
+        self.assertContains(resp, "Ultimo backup")
+        self.assertContains(resp, "Nessuno")
+
+    def test_it_shows_the_latest_backup(self):
+        info = {"name": "pg-20260927-180000.sql.gz", "at": timezone.now() - timedelta(hours=2),
+                "count": 5, "folder": "/app/backups"}
+        with mock.patch("auctions.backup.latest_backup", return_value=info):
+            resp = self.client.get("/supervisor/?tab=health")
+        self.assertContains(resp, "pg-20260927-180000.sql.gz")
+        self.assertNotContains(resp, "controlla il servizio backup")
 
 
 @override_settings(BID_MIN_INTERVAL_MS=0)
