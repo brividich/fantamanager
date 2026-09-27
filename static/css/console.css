@@ -797,9 +797,25 @@ tr.flash-in { animation: flashIn .5s ease; }
 }
 .fm-remote-bar .rb-spacer { flex: 1 1 auto; }
 
+/* Laptop/tablet widths: the topbar wrapped into two or three ragged rows
+   (long league label, user block, badges). Trim it to one clean row. */
+.fm-field select { max-width: 260px; text-overflow: ellipsis; }
+@media (max-width: 1400px) {
+    .fm-user > div:not(.fm-avatar) { display: none; }
+    .fm-topbar .fm-brand-badge { display: none; }
+    .fm-field { min-width: 0; }
+    .fm-field select { max-width: 200px; }
+    .fm-nav-link { padding: 0 9px; }
+}
 @media (max-width: 1100px) {
-    .fm-topbar-title { padding-left: 0; border-left: 0; }
+    .fm-topbar { gap: 12px; }
+    .fm-topbar .brand-text { display: none; }
+    .fm-topbar-title { padding-left: 0; border-left: 0; min-width: 0; }
+    .fm-topbar-title .s { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .fm-user { padding-left: 0; border-left: 0; }
+    .fm-field > .k { display: none; }
+    .fm-field select { max-width: 170px; }
+    .fm-cmd-trigger kbd { display: none; }
 }
 
 /* Short screens (1366×768 & co.): the chrome gives its height back to
