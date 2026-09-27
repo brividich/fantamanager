@@ -293,7 +293,17 @@ def admin_fantapazz_auth_status(request):
 @staff_member_required
 @require_POST
 def admin_fantapazz_browser_login(request):
-    """Launch the Playwright login helper as a SEPARATE PROCESS."""
+    """Launch the Playwright login helper as a SEPARATE PROCESS.
+
+    It opens a visible browser on the machine running the server: that is the
+    desktop app's operator sitting at it. On a server nobody would see that
+    window, and any account could keep spawning browsers.
+    """
+    if not settings.DESKTOP_APP:
+        return JsonResponse({
+            "ok": False,
+            "error": "Il login con il browser funziona solo nell'app desktop: qui carica il file delle rose.",
+        }, status=404)
     try:
         import playwright  # noqa: F401
     except ImportError:

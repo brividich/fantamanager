@@ -216,6 +216,7 @@ def main() -> None:
     os.environ.setdefault("DJANGO_DB_PATH", str(data / "db.sqlite3"))
     os.environ.setdefault("FANTAMANAGER_MEDIA_ROOT", str(data / "media"))
     os.environ.setdefault("DJANGO_DEBUG", "True")          # localhost/LAN tool
+    os.environ.setdefault("FANTAMANAGER_DESKTOP", "1")     # "Esci", browser login, ...
     os.environ.setdefault("DJANGO_ALLOWED_HOSTS", "*")
     os.environ.setdefault("DJANGO_SECRET_KEY", _get_or_create_secret_key(data))
 

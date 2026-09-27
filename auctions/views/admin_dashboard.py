@@ -26,6 +26,7 @@ from .common import (
     current_auction,
     forbidden_json,
     league_mismatch_json,
+    linkable_users,
     managed_or_403,
     participant_join_url,
     participant_lan_join_url,
@@ -188,9 +189,7 @@ def admin_dashboard(request, league_id=None, hub=False, auction_id=None):
                 r: range(p.empty_slots[r]) for r in ("P", "D", "C", "A")
             }
 
-        from django.contrib.auth import get_user_model
-        User = get_user_model()
-        available_users = list(User.objects.all().order_by("username"))
+        available_users = list(linkable_users(user))
     else:
         auctions = Auction.objects.none()
         participants = []
@@ -315,7 +314,8 @@ def admin_dashboard(request, league_id=None, hub=False, auction_id=None):
         "queue_pending": queue_pending,
         "storico": storico,
         "error_labels_json": json.dumps(services.ERROR_LABELS),
-        "remote_json": json.dumps(remote.status()),
+        # The tunnel status carries the regia PIN: superadmin only.
+        "remote_json": json.dumps(remote.status()) if user.is_superuser else "null",
         "lan_url": remote.lan_url(request),
     })
 
@@ -842,10 +842,17 @@ def admin_cancel_bid(request, bid_id):
 
 @staff_member_required
 def admin_logs_tail(request):
-    """Return the last 100 lines of system logs for the regia console."""
+    """Return the last 100 lines of system logs for the regia console.
+
+    Superadmin only: the log covers every league on the server (names, IPs,
+    bids), not just the one a league admin runs.
+    """
     from collections import deque
     from pathlib import Path
     from django.conf import settings
+
+    if not request.user.is_superuser:
+        return forbidden_json()
 
     log_file = Path(settings.BASE_DIR) / "logs" / "fantamanager.log"
     lines = []

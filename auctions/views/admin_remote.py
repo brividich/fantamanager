@@ -7,15 +7,21 @@ try:
 except ImportError:
     qrcode = None
 
-from django.http import HttpResponse, JsonResponse
+from django.conf import settings
+from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from ..models import League
 from .. import remote
-from .common import (current_auction, regia_pin_lockout_error, safe_next,
-                     staff_member_required, target_league, try_regia_pin)
+from .common import (current_auction, forbidden_json, manageable_leagues,
+                     regia_pin_lockout_error, safe_next, staff_member_required,
+                     target_league, try_regia_pin)
+
+# The tunnel is one door into the whole server, and its status carries the
+# regia PIN: it belongs to whoever runs the machine, not to every organiser
+# (anyone can sign up and become one).
+_SUPERADMIN_ONLY = "L'accesso remoto è riservato al superadmin."
 
 
 def _current_port(request):
@@ -31,6 +37,8 @@ def _current_port(request):
 
 @staff_member_required
 def admin_remote_status(request):
+    if not request.user.is_superuser:
+        return forbidden_json()
     return JsonResponse({"ok": True, "remote": remote.status()})
 
 
@@ -41,7 +49,9 @@ def admin_remote_page(request):
     The console only carries the compact strip; everything tunnel-related that
     needs room (and is looked at once per evening) lives here.
     """
-    leagues = list(League.objects.all())
+    if not request.user.is_superuser:
+        return HttpResponseForbidden(_SUPERADMIN_ONLY)
+    leagues = list(manageable_leagues(request.user))
     current_league = target_league(request)
     live = current_auction(request, current_league) if current_league else None
     return render(request, "auctions/admin_remote.html", {
@@ -76,9 +86,15 @@ def admin_quit(request):
 
     The Windows build shows a console window you can close; a macOS ``.app``
     shows nothing at all, so without this the only way to stop the server is
-    Activity Monitor. Refused from the public tunnel: stopping the auction is
-    for whoever is sitting at the host machine, PIN or not.
+    Activity Monitor. Only the desktop app has it (on a server, stopping the
+    process would take the service down for every league), only for the
+    superadmin, and never from the public tunnel: stopping the auction is for
+    whoever is sitting at the host machine, PIN or not.
     """
+    if not settings.DESKTOP_APP:
+        return JsonResponse({"ok": False, "error": "not_available"}, status=404)
+    if not request.user.is_superuser:
+        return JsonResponse({"ok": False, "error": "forbidden"}, status=403)
     if remote.request_is_remote(request):
         return JsonResponse({"ok": False, "error": "local_only"}, status=403)
     remote.stop()            # never leave a tunnel (and its child) behind
@@ -90,6 +106,8 @@ def admin_quit(request):
 @require_POST
 def admin_remote_start(request):
     """Open the public tunnel. The URL lands a few seconds later — poll status."""
+    if not request.user.is_superuser:
+        return forbidden_json()
     if remote.is_on():
         return JsonResponse({"ok": True, "remote": remote.status()})
     # Never tunnel to the tunnel: when the request already came in through the
@@ -105,6 +123,8 @@ def admin_remote_start(request):
 @staff_member_required
 @require_POST
 def admin_remote_stop(request):
+    if not request.user.is_superuser:
+        return forbidden_json()
     return JsonResponse({"ok": True, "remote": remote.stop()})
 
 

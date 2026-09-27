@@ -38,6 +38,8 @@ class RemoteAccessTests(TestCase):
         self.remote = remote
         remote.stop()          # known-clean state, whatever a previous test left
         self.addCleanup(remote.stop)
+        # The console always needs the login; through the tunnel the PIN comes on top.
+        self.client.force_login(User.objects.create_superuser("admin", "a@b.c", "pw"))
         self.league = League.objects.create(name="L", budget=Decimal("500"))
         self.p = Participant.objects.create(display_name="Alfa", league=self.league,
                                             credits=Decimal("500"))
@@ -77,7 +79,7 @@ class RemoteAccessTests(TestCase):
     # --- the gate ----------------------------------------------------------
 
     def test_console_stays_open_on_the_lan(self):
-        """No tunnel, no PIN: the LAN console must not grow a login."""
+        """No tunnel, no PIN: on the LAN the login is enough."""
         r = self.client.get("/admin-auction/")
         self.assertEqual(r.status_code, 200)
 
@@ -155,6 +157,7 @@ class RemoteAccessTests(TestCase):
         r = self.client.get("/admin-auction/participants/",
                             HTTP_HOST="abc-def.trycloudflare.com")
         self.assertEqual(r.status_code, 302)
+        self.assertIn("/regia/unlock/", r["Location"])
 
 
 class RemoteErrorShieldTests(TestCase):
@@ -316,6 +319,7 @@ class LocalAddressTests(TestCase):
         self.remote = remote
         remote.stop()
         self.addCleanup(remote.stop)
+        self.client.force_login(User.objects.create_superuser("admin", "a@b.c", "pw"))
         self.league = League.objects.create(name="L", budget=Decimal("500"))
         self.p = Participant.objects.create(display_name="Alfa", league=self.league,
                                             credits=Decimal("500"))
@@ -415,6 +419,7 @@ class LocalAddressTests(TestCase):
         self.assertIn("net=lan", body)                   # the wifi QR
 
 
+@override_settings(DESKTOP_APP=True)
 class QuitAppTests(TestCase):
     """The in-app quit button — the only way to stop a macOS .app bundle."""
 
@@ -423,6 +428,7 @@ class QuitAppTests(TestCase):
         self.remote = remote
         remote.stop()
         self.addCleanup(remote.stop)
+        self.client.force_login(User.objects.create_superuser("admin", "a@b.c", "pw"))
         self.calls = []
         self._real = remote.shutdown_process
         remote.shutdown_process = lambda *a, **k: self.calls.append(1)
