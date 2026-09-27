@@ -4,6 +4,7 @@ from functools import wraps
 
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.http import Http404, JsonResponse
@@ -313,6 +314,36 @@ def manageable_leagues(user):
     if not user.is_superuser:
         qs = qs.filter(owner=user)
     return qs.order_by("name")
+
+
+def lists_every_league(request):
+    """Whether the public pages (portal, app login, join) may list every league.
+
+    On a trusted LAN everybody in the room plays, so they do, as always; and
+    for the superadmin. Once the app is reachable from the internet
+    (``PUBLIC_TOKENS_REQUIRED``: on in Docker, and while the tunnel is open) a
+    stranger must not browse other people's leagues, teams and auctions.
+    """
+    user = getattr(request, "user", None)
+    return not settings.PUBLIC_TOKENS_REQUIRED or bool(user and user.is_superuser)
+
+
+def visible_leagues(request):
+    """The leagues a public page may list to this visitor: all of them (see
+    ``lists_every_league``), or only the ones the visitor is part of — owned,
+    with one of their teams, or the team they came in with. A stranger: none.
+    """
+    qs = League.objects.all()
+    if lists_every_league(request):
+        return qs
+    mine = Q(pk__in=[])
+    user = getattr(request, "user", None)
+    if user and user.is_authenticated:
+        mine |= Q(owner=user) | Q(participants__user=user)
+    pid = request.session.get("participant_id")
+    if pid:
+        mine |= Q(participants__pk=pid)
+    return qs.filter(mine).distinct()
 
 
 def linkable_users(user):

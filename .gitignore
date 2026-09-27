@@ -50,3 +50,6 @@ Thumbs.db
 
 # collectstatic output
 staticfiles/
+
+# Real leagues' documents (schede, rinnovi): personal data, never in a public repo
+/*.pdf

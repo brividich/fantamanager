@@ -3,9 +3,9 @@ from decimal import Decimal
 import re
 from django.shortcuts import redirect, render
 from django.urls import reverse
-from ..models import Auction, League, Participant, Player
+from ..models import Auction, Participant, Player
 from .. import remote
-from .common import _session_participant, safe_next, target_league, try_regia_pin
+from .common import _session_participant, safe_next, target_league, try_regia_pin, visible_leagues
 
 
 def home_portal(request):
@@ -15,12 +15,17 @@ def home_portal(request):
     1. Free Area (Asta Live, Maxischermo, App Allenatori) — no login needed.
     2. Managerial Area (Regia, Command Center / Dashboard) — PIN/login protected.
     """
-    leagues = list(League.objects.all().order_by("name"))
+    visible = visible_leagues(request)
+    leagues = list(visible.order_by("name"))
     participant = _session_participant(request)
     if participant and participant.league:
         current_league = participant.league
     else:
         current_league = target_league(request)
+    # ?league= would otherwise open anyone's league, live auction and
+    # maxischermo token included.
+    if current_league is not None and not visible.filter(pk=current_league.pk).exists():
+        current_league = None
 
     if current_league is not None:
         auctions = list(Auction.objects.filter(league=current_league).order_by("-id"))
