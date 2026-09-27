@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% if sheets|length == 1 %}Scheda {{ sheets.0.participant.display_name }}{% else %}Schede squadre{% endif %} — {{ league.name }}</title>
+<style>
+    @page { size: A4 portrait; margin: 7mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #e9e9e9; color: #000;
+           font-family: "Century Gothic", "Avenir Next", "Avenir", "Trebuchet MS", Arial, sans-serif;
+           -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .toolbar { position: sticky; top: 0; z-index: 2; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+               padding: 10px 16px; background: #10223a; color: #fff; font-size: 14px; }
+    .toolbar b { flex: 1 1 auto; }
+    .toolbar a, .toolbar button { font: inherit; font-weight: 700; color: #fff; background: #087cf0; border: 0;
+               border-radius: 8px; padding: 8px 14px; cursor: pointer; text-decoration: none; }
+    .toolbar a.ghost { background: transparent; border: 1px solid rgba(255,255,255,.35); }
+    .pages { overflow-x: auto; padding: 14px 0; }
+    .sheet { width: 196mm; min-height: 283mm; margin: 0 auto 14px; padding: 4mm 3mm; background: #fff;
+             box-shadow: 0 2px 10px rgba(0,0,0,.18); break-after: page; page-break-after: always; }
+    .sheet:last-child { break-after: auto; page-break-after: auto; }
+
+    .head { display: grid; grid-template-columns: 27% 32% 41%; height: 50mm; margin-bottom: 5mm; }
+    .head .logo { display: flex; align-items: center; justify-content: center; padding: 2mm; }
+    .head img { max-width: 100%; max-height: 46mm; object-fit: contain; }
+    .head .info { border-left: 1px solid #000; border-right: 1px solid #000; text-align: center;
+                  display: flex; flex-direction: column; justify-content: center; padding: 0 2mm; font-size: 8.6pt; line-height: 1.35; }
+    .head .title { font-size: 11.5pt; font-weight: 700; margin-bottom: 2.5mm; }
+    .head .hon { margin-top: 3mm; font-size: 9.4pt; line-height: 1.4; }
+    .kits { display: grid; grid-template-columns: 1fr 1fr; }
+    .kits > div { display: flex; align-items: center; justify-content: center; padding: 2mm; }
+    .kits > div + div { border-left: 1px solid #000; }
+    .kits .empty { color: #aaa; font-size: 8pt; }
+
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 9pt; }
+    td, th { border: 1px solid #a5a5a5; padding: 0 1.2mm; height: 4.75mm; white-space: nowrap; overflow: hidden;
+             text-overflow: ellipsis; }
+    th { background: #e7e6e6; font-size: 8pt; font-weight: 700; text-align: center; }
+    .c { text-align: center; }
+    .n { text-align: center; font-weight: 700; }
+    .gap td { height: 1.6mm; background: #e7e6e6; border-left: 0; border-right: 0; }
+    .role { background: #e7e6e6; font-weight: 700; font-size: 8.8pt; text-align: center; padding: 0; }
+    .role span { writing-mode: vertical-rl; transform: rotate(180deg); display: inline-block; letter-spacing: .02em; }
+    .split { border-left: 2px solid #000; }
+    .st-expiring { background: #fff2cc; }
+    .st-renewal { background: #d9e2f3; }
+    .st-pending { background: #c5e0b3; }
+    .st-out { background: #f8cbad; }
+    .sec { background: #e7e6e6; font-size: 10pt; font-weight: 700; text-align: center; }
+    td.legend { font-style: italic; text-align: center; }
+    .bottom { margin-top: 4mm; }
+
+    @media print {
+        body { background: #fff; }
+        .toolbar { display: none; }
+        .pages { padding: 0; overflow: visible; }
+        .sheet { box-shadow: none; margin: 0; padding: 0; width: auto; min-height: 0; }
+    }
+</style>
+</head>
+<body>
+<div class="toolbar">
+    <b>{% if sheets|length == 1 %}Scheda {{ sheets.0.participant.display_name }}{% else %}Schede squadre · {{ league.name }}{% endif %}</b>
+    <button type="button" onclick="window.print()">Stampa / salva PDF</button>
+    <a class="ghost" href="{% url 'admin_export_team_sheets' %}?league={{ league.id }}{% if sheets|length == 1 %}&team={{ sheets.0.participant.id }}{% endif %}">Excel</a>
+    <a class="ghost" href="{% url 'admin_export' %}?league={{ league.id }}">Torna all'export</a>
+</div>
+<div class="pages">
+{% for s in sheets %}
+<section class="sheet">
+    <div class="head">
+        <div class="logo">{% if s.participant.logo %}<img src="{{ s.participant.logo.url }}" alt="Logo {{ s.participant.display_name }}">{% endif %}</div>
+        <div class="info">
+            <div class="title">{{ s.title }}</div>
+            <div>PRESIDENTE: {{ s.president }}</div>
+            <div>ALLENATORE: {{ s.coach }}</div>
+            <div>STADIO: {{ s.stadium }}{% if s.capacity %} ({{ s.capacity }}){% endif %}</div>
+            <div class="hon">{% for label, count in s.honours %}{{ label }}: <b>{{ count }}</b><br>{% endfor %}</div>
+        </div>
+        <div class="kits">
+            <div>{% if s.participant.kit_home %}<img src="{{ s.participant.kit_home.url }}" alt="Prima maglia">{% else %}<span class="empty">prima maglia</span>{% endif %}</div>
+            <div>{% if s.participant.kit_away %}<img src="{{ s.participant.kit_away.url }}" alt="Seconda maglia">{% else %}<span class="empty">seconda maglia</span>{% endif %}</div>
+        </div>
+    </div>
+
+    <table>
+        <colgroup>
+            <col style="width:3.9%"><col style="width:3.9%"><col style="width:22.1%"><col style="width:11.9%">
+            <col style="width:7.1%"><col style="width:6.5%"><col style="width:4.8%"><col style="width:16.8%">
+            <col style="width:10.1%"><col style="width:6.9%"><col style="width:6%">
+        </colgroup>
+        <thead><tr>
+            <th></th><th colspan="2">CALCIATORE</th><th>SQUADRA</th><th>SPESA</th><th>ANNI</th>
+            <th colspan="2">SOSTITUTO</th><th>SQUADRA</th><th>SPESA</th><th>ANNI</th>
+        </tr></thead>
+        {% for b in s.blocks %}
+        <tbody>
+            <tr class="gap"><td class="role" rowspan="{{ b.size|add:1 }}"><span>{{ b.title }}</span></td><td colspan="10"></td></tr>
+            {% for n, r in b.lines %}
+            <tr>
+                <td class="n">{{ n }}</td>
+                <td class="{% if r %}st-{{ r.status }}{% endif %}">{% if r %}{{ r.name }}{% endif %}</td>
+                <td class="{% if r %}st-{{ r.status }}{% endif %}">{% if r %}{{ r.club }}{% endif %}</td>
+                <td class="c {% if r %}st-{{ r.status }}{% endif %}">{% if r %}{{ r.cost }}{% endif %}</td>
+                <td class="c {% if r %}st-{{ r.status }}{% endif %}">{% if r %}{{ r.years }}{% endif %}</td>
+                <td class="n split">{{ n }}</td><td></td><td></td><td></td><td></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        {% endfor %}
+    </table>
+
+    <table class="bottom">
+        <colgroup><col style="width:3.9%"><col style="width:26%"><col style="width:30.5%"><col style="width:26.9%"><col style="width:12.7%"></colgroup>
+        <tr><td class="sec" colspan="5">OPERAZIONI TEMPORANEE</td></tr>
+        <tr><th></th><th>CALCIATORE CEDUTO</th><th>CALCIATORE RICEVUTO</th><th>SOCIETA’ IMPEGNATA</th><th>SCADENZA</th></tr>
+        {% for n, l in s.loan_lines %}
+        <tr><td class="n">{{ n }}</td><td>{% if l %}{{ l.out }}{% endif %}</td><td>{% if l %}{{ l.in }}{% endif %}</td>
+            <td>{% if l %}{{ l.team }}{% endif %}</td><td class="c">{% if l %}{{ l.expiry }}{% endif %}</td></tr>
+        {% endfor %}
+    </table>
+
+    <table>
+        <colgroup><col style="width:3.9%"><col style="width:26%"><col style="width:11.9%"><col style="width:7.1%"><col style="width:11.3%"><col style="width:39.8%"></colgroup>
+        <tr><td class="sec" colspan="5">PRELAZIONE CEDUTI TEMPORANEI</td><td class="sec">LEGENDA</td></tr>
+        <tr><th></th><th>CALCIATORE PERSO</th><th>SQUADRA</th><th>SPESA</th><th>SCADENZA</th>
+            <td class="legend st-{{ s.legend_first.0 }}">{{ s.legend_first.1 }}</td></tr>
+        {% for n, r, mark in s.reserved_lines %}
+        <tr><td class="n">{{ n }}</td><td>{% if r %}{{ r.name }}{% endif %}</td><td>{% if r %}{{ r.club }}{% endif %}</td>
+            <td class="c">{% if r %}{{ r.cost }}{% endif %}</td><td class="c">{% if r %}{{ r.expiry }}{% endif %}</td>
+            {% if mark %}<td class="legend st-{{ mark.0 }}">{{ mark.1 }}</td>{% else %}<td></td>{% endif %}</tr>
+        {% endfor %}
+    </table>
+</section>
+{% empty %}
+<section class="sheet"><p>Nessuna squadra in questa lega.</p></section>
+{% endfor %}
+</div>
+</body>
+</html>
