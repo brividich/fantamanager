@@ -3,8 +3,11 @@ from decimal import Decimal
 from pathlib import Path
 from unittest.mock import patch
 
+import tempfile
+
 from django.conf import settings
-from django.test import Client, TestCase
+from django.contrib.auth.models import User
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
 from .. import services
@@ -15,6 +18,7 @@ from .common import make_live_auction
 class SystemLoggingAndUndoTests(TestCase):
     def setUp(self):
         self.client = Client()
+        self.client.force_login(User.objects.create_superuser("admin", "a@b.c", "pass12345"))
         self.league = League.objects.create(name="Lega Test")
         self.participant = Participant.objects.create(
             league=self.league,
@@ -68,6 +72,12 @@ class SystemLoggingAndUndoTests(TestCase):
 
     def test_admin_logs_tail_reads_log_file(self):
         """admin_logs_tail returns the last lines from the log file."""
+        # A throwaway BASE_DIR: the test must not overwrite the real log.
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        settings_override = override_settings(BASE_DIR=Path(tmp.name))
+        settings_override.enable()
+        self.addCleanup(settings_override.disable)
         log_dir = Path(settings.BASE_DIR) / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
         log_file = log_dir / "fantamanager.log"
