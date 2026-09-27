@@ -59,9 +59,16 @@ from .admin_team_sheets import (
     admin_print_team_sheets,
 )
 from .admin_season import admin_season, admin_season_action
+from .admin_mail import admin_mail_settings
 from .admin_market import (
+    admin_market_buste,
     admin_market_create,
     admin_market_dashboard,
+    admin_market_moves,
+    admin_market_notify,
+    admin_market_repair,
+    admin_market_session,
+    admin_market_trades,
     admin_market_delete,
     admin_market_resolve,
     admin_market_rules,
@@ -88,7 +95,9 @@ from .admin_participants import (
     admin_create_participant,
     admin_delete_participant,
     admin_edit_participant,
+    admin_invite_teams,
     admin_participant_account,
+    admin_participant_email,
     admin_participant_roster,
     admin_participants,
     admin_quick_assign_player,
@@ -132,6 +141,7 @@ from .admin_wizards import (
     admin_create_league,
     admin_setup,
     admin_setup_analyze,
+    admin_setup_done,
     admin_setup_create,
     admin_wizard_create,
 )
@@ -270,6 +280,7 @@ __all__ = [
     "admin_setup",
     "admin_setup_create",
     "admin_setup_analyze",
+    "admin_setup_done",
     "_sealed_settings",
     "_game_mode",
     "_setup_wizard_context",
@@ -326,6 +337,8 @@ __all__ = [
     "participant_qr",
     "admin_participant_roster",
     "admin_participant_account",
+    "admin_participant_email",
+    "admin_invite_teams",
     # bidder
     "participant_release_player",
     "_auction_for_join",
@@ -378,8 +391,15 @@ __all__ = [
     "app_login",
     "app_logout",
     "app_update_pin",
+    "admin_mail_settings",
     # admin_market
     "admin_market_dashboard",
+    "admin_market_buste",
+    "admin_market_session",
+    "admin_market_trades",
+    "admin_market_repair",
+    "admin_market_moves",
+    "admin_market_notify",
     "admin_market_create",
     "admin_market_status",
     "admin_market_resolve",

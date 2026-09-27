@@ -1,0 +1,65 @@
+{% extends "auctions/market/base.html" %}
+{% block mk_title %}Movimenti · Mercato{% endblock %}
+{% block mk_color %}c-violet{% endblock %}
+{% block mk_crumbs %}<span class="sep">›</span> <span aria-current="page">Movimenti</span>{% endblock %}
+
+{% block mk_head %}
+<div>
+    <span class="kicker">{{ current_league.name }}</span>
+    <h1><svg class="ic"><use href="#i-list"/></svg> Movimenti delle rose</h1>
+    <div class="sub">Ogni acquisto, svincolo e scambio delle squadre della lega — dall'asta, dalle buste, dall'app o fatto a mano dalla regia.</div>
+</div>
+<span class="spacer"></span>
+{% if current_league %}<a class="fm-btn fm-btn-secondary" href="{% url 'admin_export' %}?league={{ current_league.id }}"><svg class="ic"><use href="#i-export"/></svg> Export rose</a>{% endif %}
+{% endblock %}
+
+{% block mk_body %}
+<div class="fm-card">
+    {% if moves %}
+    <div class="mk-filters" role="group" aria-label="Filtra i movimenti">
+        <button type="button" data-filter="" aria-pressed="true">Tutti</button>
+        <button type="button" data-filter="acquisti" aria-pressed="false">Acquisti</button>
+        <button type="button" data-filter="svincoli" aria-pressed="false">Svincoli</button>
+        <button type="button" data-filter="scambi" aria-pressed="false">Scambi</button>
+    </div>
+    <ul class="mk-moves">
+        {% for m in moves %}
+        <li data-kind="{{ m.kind }}">
+            <span class="when">{{ m.created_at|date:"d/m" }}<small>{{ m.created_at|date:"H:i" }}</small></span>
+            <span class="tag {% if m.kind == 'acquisti' %}t-live{% elif m.kind == 'svincoli' %}t-bad{% elif m.kind == 'scambi' %}t-info{% endif %}">{{ m.get_action_display }}</span>
+            <span class="who">
+                <span class="mk-player">{% if m.player_role %}<span class="role-badge role-{{ m.player_role }}">{{ m.player_role }}</span>{% endif %} <b>{{ m.player_name }}</b> <small>· {{ m.participant_name }}</small></span>
+                {% if m.note %}<small>{{ m.note }}</small>{% endif %}
+            </span>
+            <span class="amt">{% if m.spent %}<span class="mk-fm">−{{ m.spent|floatformat:0 }} FM</span>{% elif m.refund %}<span class="mk-plus">+{{ m.refund|floatformat:0 }} FM</span>{% else %}<span class="muted">—</span>{% endif %}</span>
+        </li>
+        {% endfor %}
+    </ul>
+    <div class="fm-empty" id="moves-none" hidden>Nessun movimento di questo tipo.</div>
+    {% else %}
+    <div class="mk-empty">
+        <div class="ic-big"><svg class="ic"><use href="#i-list"/></svg></div>
+        <b>Nessun movimento</b>
+        <p>Qui compariranno gli acquisti, gli svincoli e gli scambi delle squadre appena succedono.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block mk_after %}
+<script>
+(function () {
+    // Filter chips: show one kind of move at a time.
+    const chips = [...document.querySelectorAll(".mk-filters [data-filter]")];
+    const rows = [...document.querySelectorAll(".mk-moves li")];
+    const none = document.getElementById("moves-none");
+    chips.forEach(c => c.addEventListener("click", () => {
+        const kind = c.dataset.filter;
+        chips.forEach(x => x.setAttribute("aria-pressed", x === c ? "true" : "false"));
+        let shown = 0;
+        rows.forEach(r => { r.hidden = !!kind && r.dataset.kind !== kind; shown += !r.hidden; });
+        if (none) none.hidden = shown > 0;
+    }));
+})();
+</script>
+{% endblock %}

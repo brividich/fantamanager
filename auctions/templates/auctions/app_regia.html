@@ -308,7 +308,7 @@ the same league.
         <div class="a-label" id="rg-market-h"><svg class="ic"><use href="#i-mail"/></svg> Mercato a buste
             <a href="{% url 'admin_market_dashboard' %}{{ league_q }}" style="margin-left:auto;font-size:11px;letter-spacing:.06em">Gestisci</a></div>
         {% for s in market_sessions %}
-        <a class="a-row" href="{% url 'admin_market_dashboard' %}{{ league_q }}&session={{ s.id }}" style="text-decoration:none;color:inherit">
+        <a class="a-row" href="{% url 'admin_market_session' s.id %}" style="text-decoration:none;color:inherit">
             <span class="nm">{{ s.title }}<small>{{ s.get_status_display }}</small></span>
             <span class="val" style="font-size:12px;color:var(--muted)">{% if s.closes_at %}{{ s.closes_at|date:"d/m H:i" }}{% endif %}</span>
         </a>
