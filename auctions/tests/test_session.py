@@ -5,6 +5,7 @@ import re
 import sqlite3
 import tempfile
 import threading
+import time
 from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -197,7 +198,13 @@ class BackupTests(TestCase):
             started.append(t)
             return t
 
-        with mock.patch("auctions.backup.threading.Thread", side_effect=_spy):
+        # The throttle is module-global and the auction ticker feeds it too: a
+        # call left over from an earlier test's ticker can land between setUp
+        # and here and swallow the whole burst. A clock of our own, an hour
+        # past any real call, keeps this test about the burst it makes.
+        clock = mock.Mock(wraps=time, monotonic=mock.Mock(return_value=time.monotonic() + 3600))
+        with mock.patch.object(self.backup, "time", clock), \
+                mock.patch("auctions.backup.threading.Thread", side_effect=_spy):
             self.backup.backup_database_async(min_interval=60)
             self.backup.backup_database_async(min_interval=60)  # too soon — coalesced
             self.backup.backup_database_async(min_interval=60)  # too soon — coalesced
