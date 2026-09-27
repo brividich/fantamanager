@@ -18,7 +18,6 @@ from ..models import (
     Formation,
     Giornata,
     GiornataScore,
-    League,
     MarketBid,
     MarketSession,
     Participant,
@@ -36,6 +35,7 @@ from .common import (
     _app_standings,
     safe_next,
     user_can_manage_scope,
+    visible_leagues,
 )
 
 
@@ -746,7 +746,7 @@ def app_login(request):
                 request.session[SESSION_LEAGUE_KEY] = participant.league_id
             return redirect(next_url)
 
-    leagues = League.objects.all().prefetch_related("participants").order_by("name")
+    leagues = visible_leagues(request).prefetch_related("participants").order_by("name")
     user_teams = []
     if request.user.is_authenticated:
         user_teams = list(Participant.objects.filter(user=request.user, is_active=True))
