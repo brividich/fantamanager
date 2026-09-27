@@ -1,5 +1,6 @@
 """Authentication & Onboarding views for the SaaS platform."""
 import logging
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
@@ -10,10 +11,21 @@ from django.http import HttpResponseForbidden
 from django.shortcuts import redirect, render
 from django.urls import reverse
 
+from .. import throttle
+
 from ..models import Auction, League, Participant
 from .common import SESSION_LEAGUE_KEY, safe_next, target_league
 
 logger = logging.getLogger(__name__)
+
+
+def _spectator_auctions(*statuses):
+    """Running auctions listed on the sign-in page as quick links to their
+    screen. Only on a trusted LAN: online the screen wants its token, and a
+    stranger has no business seeing which leagues are playing tonight."""
+    if settings.PUBLIC_TOKENS_REQUIRED:
+        return Auction.objects.none()
+    return Auction.objects.filter(status__in=statuses).select_related("league")[:6]
 
 
 def portal_view(request):
@@ -47,9 +59,7 @@ def portal_view(request):
         return redirect("onboarding")
 
     # Unauthenticated visitor: collect joinable auctions for spectator quick links
-    live_auctions = Auction.objects.filter(
-        status__in=[Auction.Status.LIVE, Auction.Status.PAUSED, Auction.Status.READY]
-    ).select_related("league")[:6]
+    live_auctions = _spectator_auctions(Auction.Status.LIVE, Auction.Status.PAUSED, Auction.Status.READY)
 
     return render(
         request,
@@ -77,6 +87,8 @@ def login_view(request):
 
         if not identifier or not password:
             error = "Inserisci nome utente / email e password."
+        elif throttle.blocked(request, "login"):
+            error = throttle.MESSAGE
         else:
             # Look up username if email was entered
             username = identifier
@@ -93,8 +105,10 @@ def login_view(request):
                     login(request, user)
                     logger.info("Utente autenticato: %s (id=%s)", user.username, user.id)
 
-                    # Bootstrap: if this is the first user and no superuser exists, make them superuser
-                    if User.objects.filter(is_superuser=True).count() == 0:
+                    # Bootstrap for old desktop databases that have accounts but no
+                    # superadmin. Desktop only: on a server, "no superadmin left"
+                    # must not hand the whole platform to whoever logs in next.
+                    if settings.DESKTOP_APP and not User.objects.filter(is_superuser=True).exists():
                         user.is_superuser = True
                         user.is_staff = True
                         user.save(update_fields=["is_superuser", "is_staff"])
@@ -103,6 +117,7 @@ def login_view(request):
                         return redirect(next_url)
                     return redirect("home")
             else:
+                throttle.failure(request, "login")
                 error = "Credenziali non valide. Verifica username/email e password."
 
     return render(
@@ -112,9 +127,7 @@ def login_view(request):
             "error": error,
             "next": next_url,
             "active_tab": "login",
-            "live_auctions": Auction.objects.filter(
-                status__in=[Auction.Status.LIVE, Auction.Status.PAUSED]
-            )[:6],
+            "live_auctions": _spectator_auctions(Auction.Status.LIVE, Auction.Status.PAUSED),
         },
     )
 
@@ -176,9 +189,7 @@ def register_view(request):
         {
             "error": error,
             "active_tab": "register",
-            "live_auctions": Auction.objects.filter(
-                status__in=[Auction.Status.LIVE, Auction.Status.PAUSED]
-            )[:6],
+            "live_auctions": _spectator_auctions(Auction.Status.LIVE, Auction.Status.PAUSED),
         },
     )
 
@@ -225,13 +236,20 @@ def onboarding_view(request):
             code = (request.POST.get("access_code") or "").strip()
             if not code:
                 error = "Inserisci il codice squadra ricevuto dal presidente di lega."
+            elif throttle.blocked(request, "code"):
+                error = throttle.MESSAGE
             else:
                 participant = Participant.objects.filter(
                     Q(access_code__iexact=code) | Q(public_token=code),
                     is_active=True,
                 ).first()
                 if not participant:
+                    throttle.failure(request, "code")
                     error = "Codice squadra non valido o non riconosciuto."
+                elif participant.user_id is not None and participant.user_id != request.user.id:
+                    # Same rule as the app login: a code does not take a team
+                    # away from the account it is already linked to.
+                    error = "Questa squadra è già associata a un altro account utente."
                 else:
                     # Link participant to user
                     participant.user = request.user

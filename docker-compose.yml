@@ -30,8 +30,19 @@ services:
     ports:
       - "${PORT:-8088}:8000"
     environment:
-      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-fantamanager-secret-key-production-change-me}
-      - DJANGO_DEBUG=${DJANGO_DEBUG:-True}
+      # Vuota = l'entrypoint ne genera una e la conserva in ./data/.secret_key.
+      # Mai un valore scritto in questo file: il repository e' pubblico.
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-}
+      - DJANGO_DEBUG=${DJANGO_DEBUG:-False}
+      # Maxischermo e link squadra solo con il loro token (False = LAN fidata).
+      - PUBLIC_TOKENS_REQUIRED=${PUBLIC_TOKENS_REQUIRED:-True}
+      # Primo superadmin (facoltativo). Senza, la password viene generata e
+      # stampata una volta sola nel log del container.
+      - DJANGO_SUPERUSER_USERNAME=${DJANGO_SUPERUSER_USERNAME:-}
+      - DJANGO_SUPERUSER_PASSWORD=${DJANGO_SUPERUSER_PASSWORD:-}
+      - DJANGO_SUPERUSER_EMAIL=${DJANGO_SUPERUSER_EMAIL:-}
+      # 1 = carica le leghe dimostrative di data/seed_data.json in un DB vuoto
+      - FANTAMANAGER_LOAD_SEED=${FANTAMANAGER_LOAD_SEED:-0}
       - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS:-*}
       - DJANGO_BEHIND_PROXY=True
       - DJANGO_SECURE_SSL_REDIRECT=False

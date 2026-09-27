@@ -419,6 +419,7 @@ class LocalAddressTests(TestCase):
         self.assertIn("net=lan", body)                   # the wifi QR
 
 
+@override_settings(DESKTOP_APP=True)
 class QuitAppTests(TestCase):
     """The in-app quit button — the only way to stop a macOS .app bundle."""
 
