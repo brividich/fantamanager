@@ -202,6 +202,30 @@ un'altra squadra; chi riceve accetta o rifiuta. Per ogni lega l'admin decide se
 gli scambi sono attivi e se serve la sua **ratifica**. Rose, crediti e slot
 vengono ricontrollati quando lo scambio viene eseguito.
 
+## Scheda squadra e lista rinnovi
+
+Il foglio che la lega si passa prima dell'asta, generato dall'app
+(`auctions/team_sheets.py`):
+
+- **Scheda squadra**: logo, presidente, allenatore, stadio, palmarès e maglie;
+  la rosa per reparto con squadra di Serie A, spesa e anni di contratto
+  (`RIN.` = scaduto, `-` = da tirare), colorata come la legenda (in scadenza
+  a fine anno, rinnovo obbligatorio, contratto da assegnare, fuori dalla
+  Serie A); le operazioni
+  temporanee (prestiti) e la lista dei ceduti temporanei. Da **Export rose** si
+  scarica in Excel (un foglio per squadra) o si stampa/salva in PDF; i dati di
+  testata si modificano da **Squadre → Scheda**.
+- **Rinnovo contratti**: i contratti scaduti di tutta la lega per reparto, con
+  le colonne svincolo / rinnovo sì-no / anni già riempite per gli esiti decisi.
+  Da **Export rose** o da **Contratti**.
+
+Le schede si **reimportano** da **Giocatori → Importa schede squadra**
+(`auctions/providers/team_sheet_import.py`): l'Excel esportato o i PDF della
+lega (una squadra per pagina, anche più file insieme). L'anteprima esegue
+l'import e lo annulla, così mostra esattamente cosa cambierà: squadra
+riconosciuta dal titolo (o scelta a mano), giocatori nuovi, spostati,
+svincolati e usciti dalla Serie A. Per i PDF serve `pdfplumber`.
+
 ---
 
 ## Test

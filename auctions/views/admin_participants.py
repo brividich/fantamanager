@@ -20,7 +20,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from ..models import Auction, League, ManagedAccount, Participant, Player
-from .. import remote
+from .. import remote, team_sheets
 from .common import (
     FORBIDDEN_LEAGUE_MSG,
     current_auction,
@@ -75,6 +75,7 @@ def admin_participants(request):
 
     accounts_ok = current_league is not None and can_manage_accounts(request.user, current_league)
     participants = participants.select_related("user", "user__managed_account")
+    honour_labels = team_sheets.league_honour_labels(current_league)
 
     rows = []
     for p in participants:
@@ -94,6 +95,9 @@ def admin_participants(request):
             "account": p.user if accounts_ok else None,
             "account_lock": account_lock_reason(request.user, p.user) if accounts_ok and p.user else "",
             "account_deletable": accounts_ok and p.user is not None and account_deletable(request.user, p.user),
+            "honours": team_sheets.honours_for(p, honour_labels),
+            "images": [("logo", "Logo", p.logo), ("kit_home", "Prima maglia", p.kit_home),
+                       ("kit_away", "Seconda maglia", p.kit_away)],
         })
 
     # A password the server generated is shown once, on the page the action

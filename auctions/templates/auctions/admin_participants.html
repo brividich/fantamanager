@@ -78,6 +78,23 @@
         border:1px solid rgba(255,181,38,.35); font-size:12.5px; color:var(--fm-text-secondary); }
     .acc-lock .ic { width:16px; height:16px; color:var(--fm-warning); flex:0 0 auto; margin-top:1px; }
 
+    /* Scheda squadra: testata del foglio pre-asta. */
+    dialog.sheet-dlg { width:min(560px, calc(100vw - 32px)); }
+    .sheet-grid { display:grid; grid-template-columns:1fr 1fr; gap:0 12px; }
+    .honour-row { display:grid; grid-template-columns:1fr 72px; gap:8px; margin-top:6px; }
+    .honour-row input { margin:0; }
+    .sheet-imgs { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:10px; margin-top:8px; }
+    .sheet-imgs input[type=file] { font-size:11px; padding:6px; }
+    .sheet-thumb { height:84px; border-radius:8px; background:#fff; display:flex; align-items:center; justify-content:center; }
+    .sheet-thumb img { max-width:100%; max-height:80px; object-fit:contain; }
+    .sheet-thumb span { font-size:11px; color:#888; }
+    .opt-inline { display:flex; align-items:center; gap:6px; font-size:12px; text-transform:none; letter-spacing:0; }
+    .opt-inline input { width:auto; margin:0; }
+    @media (max-width: 520px) {
+        .sheet-grid { grid-template-columns:1fr; }
+        .sheet-imgs { grid-template-columns:1fr 1fr; }
+    }
+
     /* Medium screens: the eight columns no longer fit; credits and spent
        step aside (the residual is the figure that matters). */
     @media screen and (max-width: 1400px) {
@@ -233,6 +250,9 @@
                         <div class="team-name">{{ r.p.display_name }}</div>
                         {% if not r.p.is_active %}<div class="muted" style="font-size:12px">disattivata</div>{% endif %}
                         {% if r.p.access_code %}<div style="margin-top:4px"><span class="code">{{ r.p.access_code }}</span></div>{% endif %}
+                        <button type="button" class="fm-btn fm-btn-secondary fm-btn-sm noprint" style="margin-top:6px"
+                                data-open-sheet="sheet-dlg-{{ r.p.id }}">
+                            <svg class="ic"><use href="#i-shield"/></svg> Scheda</button>
                     </td>
                     <td class="num c-cred">{{ r.p.credits|floatformat:0 }}</td>
                     <td class="num c-spent">{{ r.p.spent_credits|floatformat:0 }}</td>
@@ -324,6 +344,84 @@
 })();
 </script>
 
+{% for r in rows %}
+<dialog class="acc-dlg sheet-dlg" id="sheet-dlg-{{ r.p.id }}" aria-labelledby="sheet-dlg-title-{{ r.p.id }}">
+    <div class="acc-dlg-head">
+        <h3 id="sheet-dlg-title-{{ r.p.id }}">Scheda di «{{ r.p.display_name }}»</h3>
+        <button type="button" class="fm-btn fm-btn-ghost x" data-close-sheet aria-label="Chiudi">
+            <svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
+    <form class="acc-dlg-body" method="post" enctype="multipart/form-data" action="{% url 'admin_participant_profile' r.p.id %}">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <div class="acc-sec">
+            <h4>Intestazione</h4>
+            <div class="sheet-grid">
+                <div><label for="sh-sn-{{ r.p.id }}">Sigla negli elenchi</label>
+                    <input id="sh-sn-{{ r.p.id }}" name="short_name" value="{{ r.p.short_name }}" maxlength="30" placeholder="es. S. VIAFONDA"></div>
+                <div><label for="sh-fd-{{ r.p.id }}">Anno di fondazione</label>
+                    <input id="sh-fd-{{ r.p.id }}" name="founded" value="{{ r.p.founded|default_if_none:'' }}" inputmode="numeric" maxlength="4" placeholder="es. 2019"></div>
+                <div><label for="sh-pr-{{ r.p.id }}">Presidente</label>
+                    <input id="sh-pr-{{ r.p.id }}" name="president_name" value="{{ r.p.president_name }}" maxlength="80"></div>
+                <div><label for="sh-co-{{ r.p.id }}">Allenatore</label>
+                    <input id="sh-co-{{ r.p.id }}" name="coach_name" value="{{ r.p.coach_name }}" maxlength="80"></div>
+                <div><label for="sh-st-{{ r.p.id }}">Stadio</label>
+                    <input id="sh-st-{{ r.p.id }}" name="stadium" value="{{ r.p.stadium }}" maxlength="80"></div>
+                <div><label for="sh-ca-{{ r.p.id }}">Capienza</label>
+                    <input id="sh-ca-{{ r.p.id }}" name="stadium_capacity" value="{{ r.p.stadium_capacity|default_if_none:'' }}" inputmode="numeric"></div>
+            </div>
+        </div>
+        <div class="acc-sec">
+            <h4>Palmarès</h4>
+            <p>Le voci sono quelle della lega: cambiane il nome o aggiungine una nelle righe vuote.</p>
+            {% for label, count in r.honours %}
+            <div class="honour-row"><input name="honour_label" value="{{ label }}" maxlength="60" aria-label="Voce">
+                <input name="honour_count" value="{{ count }}" inputmode="numeric" aria-label="Numero"></div>
+            {% endfor %}
+            <div class="honour-row"><input name="honour_label" maxlength="60" placeholder="Nuova voce" aria-label="Voce">
+                <input name="honour_count" inputmode="numeric" placeholder="0" aria-label="Numero"></div>
+        </div>
+        <div class="acc-sec">
+            <h4>Logo e maglie</h4>
+            <div class="sheet-imgs">
+                {% for key, label, img in r.images %}
+                <div>
+                    <div class="sheet-thumb">{% if img %}<img src="{{ img.url }}" alt="{{ label }}">{% else %}<span>{{ label }}</span>{% endif %}</div>
+                    <label for="sh-{{ key }}-{{ r.p.id }}">{{ label }}</label>
+                    <input id="sh-{{ key }}-{{ r.p.id }}" type="file" name="{{ key }}" accept="image/*">
+                    {% if img %}<label class="opt-inline"><input type="checkbox" name="clear_{{ key }}" value="1"> rimuovi</label>{% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="acc-sec row-actions">
+            <button type="submit" class="fm-btn fm-btn-primary fm-btn-sm"><svg class="ic"><use href="#i-save"/></svg> Salva</button>
+            {% if current_league %}
+            <a class="fm-btn fm-btn-secondary fm-btn-sm" target="_blank" rel="noopener"
+               href="{% url 'admin_print_team_sheets' %}?league={{ current_league.id }}&team={{ r.p.id }}"><svg class="ic"><use href="#i-print"/></svg> Stampa scheda</a>
+            <a class="fm-btn fm-btn-secondary fm-btn-sm"
+               href="{% url 'admin_export_team_sheets' %}?league={{ current_league.id }}&team={{ r.p.id }}"><svg class="ic"><use href="#i-import"/></svg> Excel</a>
+            {% endif %}
+        </div>
+    </form>
+</dialog>
+{% endfor %}
+<script>
+(function () {
+    document.querySelectorAll("[data-open-sheet]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+            var dlg = document.getElementById(btn.getAttribute("data-open-sheet"));
+            if (dlg && dlg.showModal) dlg.showModal();
+        });
+    });
+    document.querySelectorAll("dialog.sheet-dlg").forEach(function (dlg) {
+        dlg.querySelectorAll("[data-close-sheet]").forEach(function (b) {
+            b.addEventListener("click", function () { dlg.close(); });
+        });
+        dlg.addEventListener("click", function (e) { if (e.target === dlg) dlg.close(); });
+    });
+})();
+</script>
 {% if accounts_ok %}
 {% for r in rows %}
 {% url 'admin_participant_account' r.p.id as account_url %}

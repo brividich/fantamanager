@@ -27,6 +27,22 @@ class Participant(models.Model):
     is_active     = models.BooleanField(default=True)
     created_at    = models.DateTimeField(auto_now_add=True)
 
+    # --- Scheda squadra ----------------------------------------------------
+    # L'intestazione della scheda che la lega si passa prima dell'asta:
+    # testo libero, niente di tutto questo tocca crediti, rose o regole.
+    # Sigla per gli elenchi di lega ("S. VIAFONDA"): vuota = nome intero.
+    short_name     = models.CharField(max_length=30, blank=True)
+    founded        = models.PositiveSmallIntegerField(null=True, blank=True)
+    president_name = models.CharField(max_length=80, blank=True)
+    coach_name     = models.CharField(max_length=80, blank=True)
+    stadium        = models.CharField(max_length=80, blank=True)
+    stadium_capacity = models.PositiveIntegerField(null=True, blank=True)
+    # Palmarès come coppie [voce, numero] nell'ordine della scheda: le coppe
+    # hanno il nome della lega ("COPPE LUGNANESI"), quindi le voci sono dati.
+    honours        = models.JSONField(default=list, blank=True)
+    kit_home       = models.ImageField(upload_to="kits/", blank=True, null=True)
+    kit_away       = models.ImageField(upload_to="kits/", blank=True, null=True)
+
     def save(self, *args, **kwargs):
         if not self.public_token and kwargs.get("update_fields") is None:
             self.public_token = generate_public_token()
