@@ -48,3 +48,56 @@ jobs:
           DJANGO_DEBUG: "False"
           DJANGO_SECRET_KEY: ci-only-${{ github.run_id }}
         run: python manage.py test --noinput
+
+  django-postgres:
+    # The Docker deployment runs on PostgreSQL 16, not SQLite: the same suite
+    # against the real thing, so a query only Postgres rejects shows up here.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: fantamanager
+          POSTGRES_USER: fantamanager
+          POSTGRES_PASSWORD: ci-only-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fantamanager -d fantamanager"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    env:
+      DJANGO_SECRET_KEY: ci-only-${{ github.run_id }}
+      POSTGRES_DB: fantamanager
+      POSTGRES_USER: fantamanager
+      POSTGRES_PASSWORD: ci-only-password
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_PORT: "5432"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          grep -v '^pystray' requirements.txt > /tmp/requirements-ci.txt
+          python -m pip install --upgrade pip
+          pip install -r /tmp/requirements-ci.txt
+
+      - name: Collect static files
+        run: python manage.py collectstatic --noinput
+
+      - name: Run tests on PostgreSQL
+        env:
+          DJANGO_DEBUG: "False"
+        run: python manage.py test --noinput

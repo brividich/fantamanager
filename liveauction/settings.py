@@ -246,6 +246,9 @@ if _HAS_WHITENOISE:
 MEDIA_URL  = "media/"
 MEDIA_ROOT = Path(os.getenv("FANTAMANAGER_MEDIA_ROOT") or (BASE_DIR / "media"))
 
+# PostgreSQL dumps (./backups in docker-compose, shared with its backup service).
+BACKUP_DIR = Path(os.getenv("FANTAMANAGER_BACKUP_DIR") or (BASE_DIR / "backups"))
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # --- Auth redirects ---------------------------------------------------------

@@ -92,7 +92,7 @@ class RoomTicker:
 
     async def _ticker_tick(self):
         backup.backup_database_async(
-            reason="periodico", min_interval=self._BACKUP_INTERVAL_SECONDS,
+            reason=backup.PERIODIC, min_interval=self._BACKUP_INTERVAL_SECONDS,
         )
         sealed = await database_sync_to_async(services.sealed_tick)(self.auction_id)
         if sealed is not None:
