@@ -19,12 +19,18 @@
         background:rgba(8,124,240,.12); border:1px solid var(--fm-border);
         border-radius:4px; padding:2px 7px; color:var(--fm-primary-light);
     }
-    .linkcell { max-width:320px; }
-    .linkcell input {
-        width:100%; height:30px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        font-size:11px; padding:0 8px; margin:0;
+    .linkcell { min-width:0; }
+    .link-row { display:flex; align-items:center; gap:6px; min-width:0; max-width:300px; }
+    .link-row + .netlabel { margin-top:8px; }
+    .link-text {
+        flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:11px;
+        color:var(--fm-text-secondary); padding:5px 8px; border-radius:6px;
+        background:rgba(255,255,255,.03); border:1px solid var(--fm-border);
     }
-    .qr { width:84px; height:84px; border-radius:8px; background:#fff; padding:4px; display:block; }
+    .link-row .fm-btn { flex:0 0 auto; height:28px; width:30px; padding:0; }
+    .pt-table td { vertical-align:top; }
+    .qr { width:72px; height:72px; border-radius:8px; background:#fff; padding:4px; display:block; }
     .netlabel { font-size:9.5px; text-transform:uppercase; letter-spacing:.12em;
         color:var(--fm-primary-light); font-weight:700; margin-bottom:4px; }
     .netlabel .muted { text-transform:none; letter-spacing:0; font-weight:500; }
@@ -35,7 +41,7 @@
     .flash.error { border-color:rgba(255,61,80,.45); background:rgba(255,61,80,.10); color:#ff8a95; }
 
     /* Portal account (the coach's username/password login). */
-    .acccell { min-width:190px; }
+    .acccell { min-width:170px; }
     .acc-user { font-weight:700; display:flex; align-items:center; gap:6px; }
     .acc-user .ic { width:14px; height:14px; color:var(--fm-primary-light); flex:0 0 auto; }
     .acc-meta { font-size:11.5px; color:var(--fm-text-muted); margin-top:2px; word-break:break-all; }
@@ -72,11 +78,17 @@
         border:1px solid rgba(255,181,38,.35); font-size:12.5px; color:var(--fm-text-secondary); }
     .acc-lock .ic { width:16px; height:16px; color:var(--fm-warning); flex:0 0 auto; margin-top:1px; }
 
-    /* Phone: one card per team instead of an eight-column table. Top line:
+    /* Medium screens: the eight columns no longer fit; credits and spent
+       step aside (the residual is the figure that matters). */
+    @media screen and (max-width: 1400px) {
+        .pt-table .c-cred, .pt-table .c-spent { display:none; }
+    }
+
+    /* Tablet and phone: one card per team instead of an eight-column table. Top line:
        name and what is left to spend (the figure that matters mid-auction);
        then the roster, the account, and the join link beside its QR code.
        Budget and spent are one tap away in the team's own page. */
-    @media screen and (max-width: 760px) {
+    @media screen and (max-width: 1100px) {
         .pt-table { min-width: 0 !important; }
         .pt-table thead { display: none; }
         .pt-table, .pt-table tbody { display: block; }
@@ -95,8 +107,9 @@
         .pt-table .c-rosa { grid-area: rosa; }
         .pt-table .acccell { grid-area: acc; }
         .pt-table .linkcell { grid-area: link; max-width: none; min-width: 0; }
+        .pt-table .link-row { max-width: none; }
         .pt-table .c-qr { grid-area: qr; display: flex; gap: 6px; }
-        .pt-table .qr { width: 72px; height: 72px; }
+        .pt-table .qr { width: 64px; height: 64px; }
     }
 
     /* Print: paper is white and QR codes need contrast — the dark theme stays
@@ -117,9 +130,12 @@
         .team-name, .num, strong, b { color:#000 !important; }
         .muted, .netlabel, .roles { color:#444 !important; }
         .code { background:#eee !important; color:#000 !important; border-color:#999 !important; }
-        .linkcell input {
+        .link-row { max-width:none !important; }
+        .link-row .fm-btn { display:none !important; }
+        .link-text {
             background:#fff !important; color:#000 !important; border:0 !important;
             font-size:10px !important; padding:0 !important;
+            white-space:normal !important; word-break:break-all;
         }
         .qr { width:104px !important; height:104px !important; padding:0 !important;
               background:#fff !important; filter:contrast(1.25); }
@@ -200,8 +216,8 @@
                 <tr>
                     <th style="width:36px">Pos</th>
                     <th>Squadra</th>
-                    <th class="num">Crediti</th>
-                    <th class="num">Spesi</th>
+                    <th class="num c-cred">Crediti</th>
+                    <th class="num c-spent">Spesi</th>
                     <th class="num">Residuo</th>
                     <th>Rosa</th>
                     {% if accounts_ok %}<th>Account portale</th>{% endif %}
@@ -252,11 +268,15 @@
                     {% endif %}
                     <td class="linkcell">
                         {% if r.lan_join_url %}
-                        <div class="netlabel">Wifi di casa <span class="muted">— usalo per chi è nella stanza</span></div>
-                        <input type="text" readonly value="{{ r.lan_join_url }}" onclick="this.select()">
-                        <div class="netlabel" style="margin-top:8px">Da internet</div>
+                        <div class="netlabel">Wifi <span class="muted">— chi è nella stanza</span></div>
+                        <div class="link-row"><span class="link-text" title="{{ r.lan_join_url }}">{{ r.lan_join_url }}</span>
+                            <button type="button" class="fm-btn fm-btn-ghost noprint" data-copy="{{ r.lan_join_url }}" title="Copia link" aria-label="Copia link wifi">
+                                <svg class="ic"><use href="#i-copy"/></svg></button></div>
+                        <div class="netlabel">Da internet</div>
                         {% endif %}
-                        <input type="text" readonly value="{{ r.join_url }}" onclick="this.select()">
+                        <div class="link-row"><span class="link-text" title="{{ r.join_url }}">{{ r.join_url }}</span>
+                            <button type="button" class="fm-btn fm-btn-ghost noprint" data-copy="{{ r.join_url }}" title="Copia link" aria-label="Copia link">
+                                <svg class="ic"><use href="#i-copy"/></svg></button></div>
                     </td>
                     <td class="c-qr" style="text-align:right">
                         {% if r.lan_join_url %}
@@ -284,6 +304,25 @@
     </div>
     {% endif %}
 </div>
+
+<script>
+(function () {
+    document.querySelectorAll("[data-copy]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+            var text = btn.getAttribute("data-copy");
+            var done = function () { if (window.showToast) showToast("Link copiato", "info"); };
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(done);
+            } else {
+                var ta = document.createElement("textarea");
+                ta.value = text; document.body.appendChild(ta); ta.select();
+                try { document.execCommand("copy"); done(); } catch (err) {}
+                ta.remove();
+            }
+        });
+    });
+})();
+</script>
 
 {% if accounts_ok %}
 {% for r in rows %}
