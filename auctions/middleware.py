@@ -7,8 +7,12 @@ auction is published on a ``trycloudflare.com`` URL a crash would hand a full
 traceback — source lines, settings, local variables — to anyone holding the
 link. This turns unhandled exceptions into a plain 500 for requests that came
 in through the tunnel, while local/LAN requests keep the useful debug page.
+
+``FriendlyErrorPages`` gives the short plain-text refusals views return a real
+page when a person, not a script, is on the other end.
 """
 from django.http import HttpResponse
+from django.template.loader import render_to_string
 
 from . import remote
 
@@ -36,3 +40,58 @@ class RemoteErrorShield:
         if not remote.request_is_remote(request):
             return None          # local: let the debug page through
         return HttpResponse(_PLAIN_500, status=500, content_type="text/html; charset=utf-8")
+
+
+# Status -> (heading, message when the view gave none).
+_WRAPPED = {
+    400: ("Richiesta non valida", "Il link o i dati inviati non sono validi."),
+    403: ("Non puoi aprire questa pagina", "Non hai i permessi per aprire questa pagina."),
+    404: ("Pagina non trovata", "L'indirizzo non esiste o la pagina è stata spostata."),
+    405: ("Azione non disponibile qui",
+          "Questa azione parte dai pulsanti dell'app, non aprendo l'indirizzo."),
+    429: ("Troppi tentativi", "Riprova tra qualche minuto."),
+}
+
+
+def _is_navigation(request):
+    """A person opening a page, as opposed to the app's own fetch() calls."""
+    mode = request.headers.get("Sec-Fetch-Mode")
+    if mode:
+        return mode == "navigate"
+    # Browsers without Fetch Metadata: go by what they ask for.
+    return ("text/html" in request.headers.get("Accept", "")
+            and request.headers.get("X-Requested-With") != "XMLHttpRequest")
+
+
+class FriendlyErrorPages:
+    """A real error page, instead of one line of text on white.
+
+    Many views refuse with ``HttpResponseForbidden("Non hai i permessi…")``,
+    and ``require_POST`` answers an empty 405. The app's own fetch() calls read
+    that text, so it stays; but a person who followed a link got a blank page.
+    For browser navigations only, a short plain answer is wrapped in the
+    app's error page, keeping its message and status.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        status = response.status_code
+        if status not in _WRAPPED or response.streaming or not _is_navigation(request):
+            return response
+        if not response.get("Content-Type", "").startswith("text/html"):
+            return response
+        text = response.content.decode(response.charset or "utf-8", "replace").strip()
+        if len(text) > 400 or "<" in text:      # already a page, or markup: leave it
+            return response
+        heading, default = _WRAPPED[status]
+        html = render_to_string("errors/wrapped.html", {
+            "code": status, "heading": heading, "message": text or default,
+        }, request=request)
+        wrapped = HttpResponse(html, status=status, content_type="text/html; charset=utf-8")
+        for header in ("Allow", "Retry-After"):
+            if header in response:
+                wrapped[header] = response[header]
+        return wrapped
