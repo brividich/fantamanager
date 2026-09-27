@@ -1,0 +1,14 @@
+{% include "auctions/email/_layout_top.html" %}
+<p style="margin:0 0 12px;font-size:15px">Ciao <b>{{ team.display_name }}</b>,</p>
+<p style="margin:0 0 18px;font-size:14px;line-height:1.55">sei nella lega <b>{{ league.name }}</b>. Dall'app vedi la tua rosa, prepari la formazione, fai le offerte al mercato e segui l'asta dal telefono.</p>
+<p style="margin:0 0 20px;text-align:center">
+  <a href="{{ link }}" style="display:inline-block;background:#087cf0;color:#ffffff;text-decoration:none;font-weight:800;font-size:15px;padding:13px 26px;border-radius:10px">Entra nella tua squadra</a>
+</p>
+{% if code %}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5fb;border-radius:10px;margin:0 0 16px"><tr><td style="padding:12px 16px;font-size:13px;color:#334155">
+  Codice squadra: <b style="font-family:Consolas,Menlo,monospace;font-size:16px;letter-spacing:.08em;color:#0f172a">{{ code }}</b><br>
+  <span style="font-size:12px;color:#64748b">Serve se entri dalla pagina di accesso senza il link.</span>
+</td></tr></table>
+{% endif %}
+<p style="margin:0;font-size:12px;color:#64748b;word-break:break-all">Se il pulsante non funziona copia questo indirizzo nel browser:<br>{{ link }}</p>
+{% include "auctions/email/_layout_bottom.html" %}

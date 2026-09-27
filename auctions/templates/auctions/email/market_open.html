@@ -1,0 +1,15 @@
+{% include "auctions/email/_layout_top.html" %}
+<p style="margin:0 0 12px;font-size:15px">Ciao <b>{{ team.display_name }}</b>,</p>
+<p style="margin:0 0 16px;font-size:14px;line-height:1.55">
+{% if session.status == "draft" %}è in arrivo il mercato a buste <b>{{ session.title }}</b>{% if session.opens_at %}: si apre <b>{{ session.opens_at|date:"l d/m \a\l\l\e H:i"|lower }}</b>{% endif %}.
+{% else %}è aperto il mercato a buste <b>{{ session.title }}</b>: scegli gli svincolati e consegna le tue offerte segrete dall'app.{% endif %}
+</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#fff7e6;border:1px solid #ffd58a;border-radius:10px;margin:0 0 18px"><tr><td style="padding:12px 16px;font-size:13px;color:#7a4b00;line-height:1.6">
+  {% if session.closes_at %}Consegna entro <b>{{ session.closes_at|date:"l d/m \a\l\l\e H:i"|lower }}</b>{% else %}La consegna la chiude il presidente di lega{% endif %}<br>
+  Crediti disponibili: <b>{{ team.remaining_credits|floatformat:0 }} FM</b>{% if session.max_bids %} · massimo <b>{{ session.max_bids }}</b> buste{% endif %}
+</td></tr></table>
+<p style="margin:0 0 20px;text-align:center">
+  <a href="{{ link }}" style="display:inline-block;background:#e09200;color:#ffffff;text-decoration:none;font-weight:800;font-size:15px;padding:13px 26px;border-radius:10px">Vai al mercato</a>
+</p>
+<p style="margin:0;font-size:12px;color:#64748b;word-break:break-all">Se il pulsante non funziona copia questo indirizzo nel browser:<br>{{ link }}</p>
+{% include "auctions/email/_layout_bottom.html" %}

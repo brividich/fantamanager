@@ -1,0 +1,157 @@
+{% extends "auctions/market/base.html" %}
+{% block mk_title %}Scambi · Mercato{% endblock %}
+{% block mk_color %}c-blue{% endblock %}
+{% block mk_crumbs %}<span class="sep">›</span> <span aria-current="page">Scambi</span>{% endblock %}
+
+{% block mk_head %}
+<div>
+    <span class="kicker">{{ current_league.name }}</span>
+    <h1><svg class="ic"><use href="#i-swap"/></svg> Scambi tra squadre</h1>
+    <div class="sub">Le squadre si propongono gli scambi dall'app; se la lega chiede la ratifica, quelli accettati da entrambe arrivano qui e diventano effettivi solo quando li approvi.</div>
+</div>
+<span class="spacer"></span>
+{% if current_league %}{% if current_league.trades_enabled %}<span class="tag t-live">Scambi attivi</span>{% else %}<span class="tag">Scambi disattivati</span>{% endif %}{% endif %}
+{% endblock %}
+
+{% block mk_body %}
+<div class="mk-kpis" style="margin-bottom:16px">
+    <div class="mk-kpi {% if trades_pending %}warn{% endif %}">
+        <div class="k">Da ratificare</div>
+        <div class="v">{{ trades_pending|length }}</div>
+        <div class="s">{% if current_league.trades_need_approval %}serve la tua approvazione{% else %}ratifica non richiesta{% endif %}</div>
+    </div>
+    <div class="mk-kpi">
+        <div class="k">Proposte in corso</div>
+        <div class="v">{{ trades_proposed }}</div>
+        <div class="s">in attesa di risposta</div>
+    </div>
+    <div class="mk-kpi ok">
+        <div class="k">Completati</div>
+        <div class="v">{{ trades_done }}</div>
+        <div class="s">in questa lega</div>
+    </div>
+    <div class="mk-kpi">
+        <div class="k">Periodo scambi</div>
+        {% if window_now %}
+        <div class="v sm" style="color:var(--fm-success)">Aperto</div>
+        <div class="s">fino al {{ window_now.closes_at|date:"d/m H:i" }}</div>
+        {% elif trade_windows %}
+        <div class="v sm">Chiuso</div>
+        <div class="s">{% if window_next %}riapre il {{ window_next.opens_at|date:"d/m H:i" }}{% else %}nessun periodo futuro{% endif %}</div>
+        {% else %}
+        <div class="v sm">Sempre</div>
+        <div class="s">nessun periodo impostato</div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="mk-split side-r">
+    <div class="mk-col">
+        <div class="fm-card">
+            <h3 class="mk-card-t"><svg class="ic"><use href="#i-shield"/></svg> Da ratificare ({{ trades_pending|length }})</h3>
+            {% for t in trades_pending %}
+            <div class="mk-trade">
+                <div class="mk-trade-head">
+                    <b>{{ t.proposer.display_name }}</b> <svg class="ic"><use href="#i-swap"/></svg> <b>{{ t.receiver.display_name }}</b>
+                    {% if t.kind == "loan" %}<span class="tag t-info">Prestito · {{ t.loan_sessions }} sess.</span>{% endif %}
+                    <span class="when">{{ t.created_at|date:"d/m H:i" }}</span>
+                </div>
+                <div class="mk-trade-sides">
+                    <div class="mk-trade-side">
+                        <div class="k">{{ t.proposer.display_name }} cede</div>
+                        {% for p in t.proposer_players.all %}<div class="pl"><span class="role-badge role-{{ p.role }}">{{ p.role }}</span> {{ p.name }}</div>{% endfor %}
+                        {% if t.proposer_credits %}<div class="pl"><span class="mk-fm">{{ t.proposer_credits|floatformat:0 }} FM</span></div>{% endif %}
+                        {% if not t.proposer_players.all and not t.proposer_credits %}<span class="muted">—</span>{% endif %}
+                    </div>
+                    <div class="mk-trade-side">
+                        <div class="k">{{ t.receiver.display_name }} cede</div>
+                        {% for p in t.receiver_players.all %}<div class="pl"><span class="role-badge role-{{ p.role }}">{{ p.role }}</span> {{ p.name }}</div>{% endfor %}
+                        {% if t.receiver_credits %}<div class="pl"><span class="mk-fm">{{ t.receiver_credits|floatformat:0 }} FM</span></div>{% endif %}
+                        {% if not t.receiver_players.all and not t.receiver_credits %}<span class="muted">—</span>{% endif %}
+                    </div>
+                </div>
+                {% if t.message %}<div class="mk-trade-msg">“{{ t.message }}”</div>{% endif %}
+                <div class="mk-trade-acts">
+                    <form method="post" action="{% url 'admin_trade_decide' t.id %}" onsubmit="return confirm('Bocciare lo scambio?');">
+                        {% csrf_token %}<input type="hidden" name="action" value="veto">
+                        <button type="submit" class="fm-btn fm-btn-danger fm-btn-sm">Boccia</button>
+                    </form>
+                    <form method="post" action="{% url 'admin_trade_decide' t.id %}">
+                        {% csrf_token %}<input type="hidden" name="action" value="approve">
+                        <button type="submit" class="fm-btn fm-btn-primary fm-btn-sm"><svg class="ic"><use href="#i-shield"/></svg> Ratifica</button>
+                    </form>
+                </div>
+            </div>
+            {% empty %}
+            <div class="fm-empty">Nessuno scambio in attesa di ratifica.</div>
+            {% endfor %}
+        </div>
+
+        <div class="fm-card">
+            <h3 class="mk-card-t"><svg class="ic"><use href="#i-clock"/></svg> Ultimi scambi <span class="cnt">{{ trades_recent|length }}</span></h3>
+            {% if trades_recent %}
+            <ul class="mk-hist">
+                {% for t in trades_recent %}
+                <li>
+                    <b>{{ t.proposer.display_name }}</b> ⇄ <b>{{ t.receiver.display_name }}</b>
+                    {% if t.status == "completed" %}<span class="tag t-live">{{ t.get_status_display }}</span>
+                    {% elif t.status == "pending" %}<span class="tag t-info">{{ t.get_status_display }}</span>
+                    {% elif t.status == "vetoed" or t.status == "failed" or t.status == "rejected" %}<span class="tag t-bad">{{ t.get_status_display }}</span>
+                    {% else %}<span class="tag">{{ t.get_status_display }}</span>{% endif %}
+                    <span class="when">{{ t.created_at|date:"d/m H:i" }}</span>
+                    {% if t.status_note %}<span class="note">{{ t.status_note }}</span>{% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <div class="fm-empty">Ancora nessuno scambio in questa lega.</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="mk-col">
+        <form class="fm-card" method="post" action="{% url 'admin_trade_settings' %}">
+            {% csrf_token %}
+            <input type="hidden" name="league_id" value="{{ current_league.id }}">
+            <h3 class="mk-card-t"><svg class="ic"><use href="#i-gear"/></svg> Regole degli scambi</h3>
+            <label class="sw-row">
+                <span class="sw"><input type="checkbox" name="trades_enabled" value="1"{% if current_league.trades_enabled %} checked{% endif %}><i></i></span>
+                <span class="txt"><b>Scambi attivi</b><span>Le squadre possono proporre scambi dall'app.</span></span>
+            </label>
+            <label class="sw-row">
+                <span class="sw"><input type="checkbox" name="trades_need_approval" value="1"{% if current_league.trades_need_approval %} checked{% endif %}><i></i></span>
+                <span class="txt"><b>Richiedi la ratifica dell'admin</b><span>Uno scambio accettato aspetta la tua approvazione.</span></span>
+            </label>
+            <label class="sw-row" style="border-bottom:0">
+                <span class="sw"><input type="checkbox" name="trades_same_roles" value="1"{% if current_league.trades_same_roles %} checked{% endif %}><i></i></span>
+                <span class="txt"><b>Stessi giocatori e ruoli per parte</b><span>Ogni lato cede lo stesso numero di giocatori, ruolo per ruolo.</span></span>
+            </label>
+            <div style="text-align:right;margin-top:10px">
+                <button type="submit" class="fm-btn fm-btn-secondary fm-btn-sm"><svg class="ic"><use href="#i-save"/></svg> Salva</button>
+            </div>
+        </form>
+
+        <div class="fm-card">
+            <h3 class="mk-card-t"><svg class="ic"><use href="#i-clock"/></svg> Periodi scambi <span class="cnt">{{ trade_windows|length }}</span></h3>
+            <p class="mk-hint">Senza periodi gli scambi sono aperti tutta la stagione. Con almeno un periodo si propongono e accettano solo lì dentro (es. estate: luglio → giorno dopo il mercato di settembre alle 17:00).</p>
+            {% for w in trade_windows %}
+            <div class="mk-win">
+                <span class="main"><b>{{ w.name }}</b><small>{{ w.opens_at|date:"d/m/Y H:i" }} → {{ w.closes_at|date:"d/m/Y H:i" }}</small></span>
+                {% if w.opens_at <= now and now <= w.closes_at %}<span class="tag t-live">Aperto ora</span>{% elif w.opens_at > now %}<span class="tag t-info">In arrivo</span>{% else %}<span class="tag">Passato</span>{% endif %}
+                <form method="post" action="{% url 'admin_trade_window_delete' w.id %}" onsubmit="return confirm('Eliminare il periodo?');">
+                    {% csrf_token %}<button type="submit" class="fm-btn fm-btn-ghost fm-btn-sm" title="Elimina periodo" aria-label="Elimina periodo {{ w.name }}"><svg class="ic"><use href="#i-trash"/></svg></button>
+                </form>
+            </div>
+            {% endfor %}
+            <form method="post" action="{% url 'admin_trade_window_add' %}" class="mk-win-add">
+                {% csrf_token %}
+                <input type="hidden" name="league_id" value="{{ current_league.id }}">
+                <div><label for="win-name">Nome</label><input id="win-name" type="text" name="name" placeholder="Es. Periodo estivo"></div>
+                <div><label for="win-from">Dal</label><input id="win-from" type="datetime-local" name="opens_at" required></div>
+                <div><label for="win-to">Al</label><input id="win-to" type="datetime-local" name="closes_at" required></div>
+                <div style="text-align:right"><button type="submit" class="fm-btn fm-btn-secondary fm-btn-sm"><svg class="ic"><use href="#i-plus"/></svg> Aggiungi periodo</button></div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

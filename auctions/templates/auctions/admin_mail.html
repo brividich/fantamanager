@@ -1,0 +1,230 @@
+{% extends "auctions/base.html" %}
+{% comment %}
+Impostazioni → Posta. The provider the platform sends its emails through
+(team invites, buste notices): a preset fills server, port and security,
+the admin adds account and sender, saves and sends a test. The password is
+write-only. Only superusers reach this page.
+{% endcomment %}
+{% block title %}Posta — FantaManager{% endblock %}
+{% block bodyclass %}role-admin{% endblock %}
+{% block wrapclass %}wrap-wide{% endblock %}
+
+{% block content %}
+<style>
+    .ml { max-width: 1100px; margin: 0 auto; }
+    .ml-head { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin: 8px 0 16px; }
+    .ml-head h1 { margin: 4px 0 0; font-size: 30px; }
+    .ml-head .sub { font-size: 13px; color: var(--fm-text-secondary); margin-top: 4px; max-width: 72ch; }
+    .ml-head .spacer { flex: 1 1 auto; }
+    .msg { padding: 11px 14px; border-radius: var(--fm-radius-sm); font-size: 13px; margin-bottom: 10px; }
+    .msg.success { background: rgba(22,217,104,.10); border: 1px solid rgba(22,217,104,.35); color: #8df0b6; }
+    .msg.error   { background: rgba(255,61,80,.10); border: 1px solid rgba(255,61,80,.40); color: #ffb3bb; }
+    .msg.warning { background: rgba(255,181,38,.10); border: 1px solid rgba(255,181,38,.40); color: #ffd58a; }
+    .msg.info    { background: rgba(8,124,240,.10); border: 1px solid var(--fm-border-active); color: var(--fm-text); }
+
+    .ml-state { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 14px 16px; margin-bottom: 16px;
+                border-radius: var(--fm-radius-md); border: 1px solid var(--fm-border); background: var(--fm-card); }
+    .ml-state.ok { border-color: rgba(22,217,104,.40); }
+    .ml-state.off { border-color: rgba(255,181,38,.40); }
+    .ml-state .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--fm-warning); flex-shrink: 0; }
+    .ml-state.ok .dot { background: var(--fm-success); box-shadow: 0 0 0 5px rgba(22,217,104,.14); }
+    .ml-state .txt { flex: 1; min-width: 220px; font-size: 13px; color: var(--fm-text-secondary); }
+    .ml-state .txt b { display: block; color: #fff; font-size: 15px; margin-bottom: 2px; }
+
+    .ml-grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 18px; align-items: start; }
+    @media (max-width: 960px) { .ml-grid { grid-template-columns: minmax(0, 1fr); } }
+    .ml-col > * + * { margin-top: 14px; }
+    .ml-t { display: flex; align-items: center; gap: 9px; margin: 0 0 12px; font-size: 15px; font-weight: 800; }
+    .ml-t .ic { width: 17px; height: 17px; color: var(--fm-primary-light); }
+    .ml-t .n { display: inline-flex; width: 22px; height: 22px; border-radius: 50%; align-items: center; justify-content: center;
+               font-size: 11.5px; background: rgba(8,124,240,.18); color: var(--fm-primary-light); }
+
+    .ml-prov { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+    .ml-prov label { position: relative; display: flex; align-items: center; gap: 8px; margin: 0; padding: 11px 12px; cursor: pointer;
+                     border-radius: 10px; border: 1px solid var(--fm-border); background: rgba(255,255,255,.025);
+                     text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 700; color: var(--fm-text); }
+    .ml-prov input { position: absolute; opacity: 0; pointer-events: none; }
+    .ml-prov label:has(input:checked) { border-color: var(--fm-primary); background: rgba(8,124,240,.14); box-shadow: inset 0 0 0 1px var(--fm-primary); }
+    .ml-prov label:has(input:focus-visible) { outline: 2px solid var(--fm-primary-light); outline-offset: 2px; }
+    .ml-hint { margin: 10px 0 0; padding: 10px 12px; border-radius: 8px; font-size: 12.5px; line-height: 1.45;
+               background: rgba(8,124,240,.08); border: 1px solid var(--fm-border-active); color: var(--fm-text-secondary); }
+
+    .ml-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .ml-fields .wide { grid-column: 1 / -1; }
+    @media (max-width: 620px) { .ml-fields { grid-template-columns: minmax(0, 1fr); } }
+    .ml-fields label { margin-bottom: 4px; }
+    .ml-fields .h { font-size: 11.5px; color: var(--fm-text-secondary); margin-top: 4px; }
+    .ml-row3 { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px; }
+    @media (max-width: 620px) { .ml-row3 { grid-template-columns: 1fr 1fr; } .ml-row3 > :first-child { grid-column: 1 / -1; } }
+    .ml-smtp[hidden] { display: none; }
+
+    .sw-row { display: flex; align-items: flex-start; gap: 12px; padding: 4px 0 14px; cursor: pointer; margin: 0;
+              text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 500; color: var(--fm-text); }
+    .sw-row .txt b { display: block; font-size: 14px; }
+    .sw-row .txt span { font-size: 12px; color: var(--fm-text-secondary); }
+    .sw { position: relative; width: 40px; height: 22px; flex-shrink: 0; margin-top: 2px; }
+    .sw input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; z-index: 1; }
+    .sw i { position: absolute; inset: 0; border-radius: 999px; background: rgba(255,255,255,.12); transition: background .15s; }
+    .sw i::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .15s; }
+    .sw input:checked + i { background: var(--fm-success); }
+    .sw input:checked + i::after { transform: translateX(18px); }
+    .sw input:focus-visible + i { outline: 2px solid var(--fm-primary-light); outline-offset: 2px; }
+
+    .ml-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+    .ml-uses { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+    .ml-uses li { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid rgba(85,160,230,.09); color: var(--fm-text-secondary); }
+    .ml-uses li:last-child { border-bottom: 0; }
+    .ml-uses .ic { width: 16px; height: 16px; flex-shrink: 0; color: var(--fm-primary-light); margin-top: 2px; }
+    .ml-uses b { color: var(--fm-text); }
+    .ml-last { font-size: 12px; margin-top: 10px; color: var(--fm-text-secondary); }
+    .ml-last.ok { color: var(--fm-success); }
+    .ml-last.bad { color: #ff8a98; }
+</style>
+
+{% include "auctions/_console_head.html" %}
+
+<div class="ml">
+<div class="ml-head">
+    <div>
+        <span class="kicker">Impostazioni</span>
+        <h1>Posta</h1>
+        <div class="sub">Il provider da cui partono le email della piattaforma: inviti alle squadre con il link personale e gli avvisi del mercato a buste.</div>
+    </div>
+    <span class="spacer"></span>
+    <a class="fm-btn fm-btn-ghost" href="{% url 'admin_config' %}"><svg class="ic"><use href="#i-gear"/></svg> Configurazione</a>
+</div>
+
+{% for m in messages %}
+<div class="msg {% if m.tags %}{{ m.tags }}{% endif %}" role="status">{{ m }}</div>
+{% endfor %}
+
+<div class="ml-state {% if ready %}ok{% else %}off{% endif %}">
+    <span class="dot" aria-hidden="true"></span>
+    <span class="txt">
+        {% if ready and source == "db" %}<b>Posta attiva · {{ cfg.get_provider_display }}</b>
+            {% if cfg.provider == "console" %}Le email non partono davvero: finiscono nel log del server.{% else %}Mittente {{ cfg.from_name|default:"" }} &lt;{{ cfg.from_email }}&gt; tramite {{ cfg.host }}:{{ cfg.port }}.{% endif %}
+        {% elif ready %}<b>Posta attiva · variabili d'ambiente</b>
+            Si usano le impostazioni <code>EMAIL_*</code> del server. Accendi la posta qui sotto per gestirla dalla console.
+        {% else %}<b>Posta non configurata</b>
+            Nessuna email può partire: scegli un provider, inserisci account e mittente, salva e manda una prova.{% endif %}
+    </span>
+    {% if cfg.last_test_at %}
+    <span class="tag {% if cfg.last_test_ok %}t-live{% else %}t-bad{% endif %}" style="font-size:11px">Prova {{ cfg.last_test_at|date:"d/m H:i" }} · {% if cfg.last_test_ok %}ok{% else %}fallita{% endif %}</span>
+    {% endif %}
+</div>
+
+<div class="ml-grid">
+<form class="ml-col" method="post" autocomplete="off" id="ml-form">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="save">
+
+    <section class="fm-card">
+        <label class="sw-row">
+            <span class="sw"><input type="checkbox" name="enabled" value="1"{% if cfg.enabled %} checked{% endif %}><i></i></span>
+            <span class="txt"><b>Invia le email con queste impostazioni</b><span>Spenta, la piattaforma usa le variabili d'ambiente del server (se ci sono) o non invia nulla.</span></span>
+        </label>
+        <h2 class="ml-t"><span class="n">1</span> Provider</h2>
+        <div class="ml-prov" role="radiogroup" aria-label="Provider di posta">
+            {% for value, label in providers %}
+            <label><input type="radio" name="provider" value="{{ value }}"{% if cfg.provider == value %} checked{% endif %}> {{ label }}</label>
+            {% endfor %}
+        </div>
+        <p class="ml-hint" id="ml-hint" aria-live="polite"></p>
+    </section>
+
+    <section class="fm-card ml-smtp" id="ml-smtp">
+        <h2 class="ml-t"><span class="n">2</span> Server e account</h2>
+        <div class="ml-row3">
+            <div><label for="ml-host">Server SMTP</label><input id="ml-host" name="host" value="{{ cfg.host }}" placeholder="smtp.esempio.it" spellcheck="false"></div>
+            <div><label for="ml-port">Porta</label><input id="ml-port" name="port" value="{{ cfg.port }}" inputmode="numeric"></div>
+            <div><label for="ml-sec">Sicurezza</label>
+                <select id="ml-sec" name="security">
+                    {% for value, label in securities %}<option value="{{ value }}"{% if cfg.security == value %} selected{% endif %}>{{ label }}</option>{% endfor %}
+                </select></div>
+        </div>
+        <div class="ml-fields" style="margin-top:12px">
+            <div><label for="ml-user">Utente</label><input id="ml-user" name="username" value="{{ cfg.username }}" autocomplete="off" spellcheck="false"></div>
+            <div><label for="ml-pass">Password / chiave</label>
+                <input id="ml-pass" type="password" name="password" value="" autocomplete="new-password"
+                       placeholder="{% if cfg.password %}•••••••• salvata — scrivi per cambiarla{% else %}Nessuna password salvata{% endif %}">
+                {% if cfg.password %}<label style="margin-top:6px;text-transform:none;letter-spacing:0;font-size:12px;display:flex;gap:6px;align-items:center"><input type="checkbox" name="clear_password" value="1"> Cancella la password salvata</label>{% endif %}
+            </div>
+            <div><label for="ml-timeout">Timeout (secondi)</label><input id="ml-timeout" name="timeout" value="{{ cfg.timeout }}" inputmode="numeric"></div>
+        </div>
+    </section>
+
+    <section class="fm-card">
+        <h2 class="ml-t"><span class="n" id="ml-n3">3</span> Mittente</h2>
+        <div class="ml-fields">
+            <div><label for="ml-from">Indirizzo mittente</label><input id="ml-from" type="email" name="from_email" value="{{ cfg.from_email }}" placeholder="lega@esempio.it">
+                <div class="h">Con Gmail/Outlook deve essere l'indirizzo dell'account.</div></div>
+            <div><label for="ml-name">Nome mittente</label><input id="ml-name" name="from_name" value="{{ cfg.from_name }}" placeholder="FantaManager" maxlength="80"></div>
+            <div class="wide"><label for="ml-reply">Rispondi a (facoltativo)</label><input id="ml-reply" type="email" name="reply_to" value="{{ cfg.reply_to }}" placeholder="presidente@esempio.it">
+                <div class="h">Le risposte delle squadre arrivano qui invece che al mittente.</div></div>
+        </div>
+        <div class="ml-foot">
+            <button type="submit" class="fm-btn fm-btn-primary"><svg class="ic"><use href="#i-save"/></svg> Salva</button>
+        </div>
+    </section>
+</form>
+
+<aside class="ml-col">
+    <form class="fm-card" method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="test">
+        <h2 class="ml-t"><svg class="ic"><use href="#i-mail"/></svg> Email di prova</h2>
+        <label for="ml-to">Invia a</label>
+        <input id="ml-to" type="email" name="test_to" value="{{ request.user.email }}" placeholder="tuo@indirizzo.it" required>
+        <div class="ml-foot" style="margin-top:10px">
+            <button type="submit" class="fm-btn fm-btn-secondary"{% if not ready %} disabled title="Salva prima una configurazione completa"{% endif %}><svg class="ic"><use href="#i-play"/></svg> Invia prova</button>
+        </div>
+        {% if cfg.last_test_at %}
+        <div class="ml-last {% if cfg.last_test_ok %}ok{% else %}bad{% endif %}">
+            Ultima prova {{ cfg.last_test_at|date:"d/m/Y H:i" }}: {% if cfg.last_test_ok %}partita.{% else %}{{ cfg.last_test_error }}{% endif %}
+        </div>
+        {% endif %}
+    </form>
+
+    <div class="fm-card">
+        <h2 class="ml-t"><svg class="ic"><use href="#i-info"/></svg> A cosa serve</h2>
+        <ul class="ml-uses">
+            <li><svg class="ic"><use href="#i-users"/></svg><span><b>Inviti alle squadre</b> — dal wizard «Nuova lega» e da Squadre: ognuna riceve il suo link personale e il codice.</span></li>
+            <li><svg class="ic"><use href="#i-bell"/></svg><span><b>Avvisi del mercato</b> — quando apri una sessione a buste, con la scadenza e il link al mercato.</span></li>
+            <li><svg class="ic"><use href="#i-lock"/></svg><span>La password resta sul server e non viene più mostrata. Per un account Google usa una <b>password per le app</b>.</span></li>
+        </ul>
+    </div>
+</aside>
+</div>
+</div>
+
+{{ presets|json_script:"ml-presets" }}
+<script>
+(function () {
+    const PRESETS = JSON.parse(document.getElementById("ml-presets").textContent);
+    const form = document.getElementById("ml-form");
+    const host = form.elements.host, port = form.elements.port, sec = form.elements.security;
+    const hint = document.getElementById("ml-hint");
+    const smtp = document.getElementById("ml-smtp");
+    const n3 = document.getElementById("ml-n3");
+    function apply(value, fill) {
+        const p = PRESETS[value] || {};
+        hint.textContent = p.hint || "";
+        hint.hidden = !p.hint;
+        smtp.hidden = value === "console";
+        n3.textContent = value === "console" ? "2" : "3";
+        if (!fill || value === "console") return;
+        // A preset writes its own server; «SMTP personalizzato» leaves the fields as they are.
+        if (p.host) host.value = p.host;
+        if (p.port) port.value = p.port;
+        if (p.security) sec.value = p.security;
+    }
+    form.querySelectorAll('input[name="provider"]').forEach(r => r.addEventListener("change", () => apply(r.value, true)));
+    const cur = form.querySelector('input[name="provider"]:checked');
+    apply(cur ? cur.value : "smtp", false);
+    sec.addEventListener("change", () => {
+        if (sec.value === "ssl" && port.value === "587") port.value = "465";
+        if (sec.value === "starttls" && port.value === "465") port.value = "587";
+    });
+})();
+</script>
+{% endblock %}
