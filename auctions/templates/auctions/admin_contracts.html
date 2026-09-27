@@ -51,6 +51,11 @@
     <div class="ct-bar">
         <span>Stagione <b>{{ current_league.season_number }}</b></span>
         {% if current_league.renewals_open %}<span class="ct-pill warn">Rinnovi aperti</span>{% endif %}
+        <a class="ct-btn" style="display:inline-flex;align-items:center;text-decoration:none" target="_blank" rel="noopener"
+           href="{% url 'admin_print_renewals' %}?league={{ current_league.id }}"
+           title="Il foglio «Rinnovo contratti» con i contratti scaduti e gli esiti già decisi">Lista rinnovi</a>
+        <a class="ct-btn" style="display:inline-flex;align-items:center;text-decoration:none"
+           href="{% url 'admin_export_renewals' %}?league={{ current_league.id }}">Excel</a>
         <form method="post" action="{% url 'admin_contracts_action' %}" onsubmit="return confirm('Iniziare una nuova stagione? Tutti i contratti scalano di un anno e si aprono i rinnovi per quelli scaduti.');">
             {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}">
             <input type="hidden" name="action" value="new_season">
