@@ -1,0 +1,183 @@
+{% extends "auctions/base.html" %}
+{% comment %}
+«Lega pronta» — where the Nuova lega wizard lands: what was created (teams,
+listone, rosters, auction), how the invites went, and the next steps in the
+order a president does them: give the teams their access, check the league
+rules, run the auction, then the market during the season.
+{% endcomment %}
+{% block title %}{{ league.name }} è pronta — FantaManager{% endblock %}
+{% block bodyclass %}role-admin{% endblock %}
+{% block wrapclass %}wrap-wide{% endblock %}
+
+{% block content %}
+<style>
+    .sd { max-width: 1100px; margin: 0 auto; }
+    .sd-hero { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; margin: 10px 0 18px; padding: 22px 24px;
+               border-radius: var(--fm-radius-lg); border: 1px solid rgba(22,217,104,.35);
+               background: radial-gradient(120% 140% at 0% 0%, rgba(22,217,104,.14), transparent 60%), var(--fm-card); }
+    .sd-check { width: 58px; height: 58px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+                background: var(--fm-success); color: #03170b; font-size: 30px; font-weight: 900; box-shadow: 0 0 0 8px rgba(22,217,104,.14); }
+    .sd-hero h1 { margin: 2px 0 0; font-size: 30px; line-height: 1.1; overflow-wrap: anywhere; }
+    .sd-hero .sub { font-size: 13px; color: var(--fm-text-secondary); margin-top: 6px; }
+    .sd-hero .main { flex: 1; min-width: 240px; }
+    .sd-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 18px; }
+    @media (max-width: 720px) { .sd-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .sd-kpi { padding: 12px 14px; border-radius: 10px; background: var(--fm-card); border: 1px solid var(--fm-border); }
+    .sd-kpi .k { font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--fm-text-muted); }
+    .sd-kpi .v { font-family: var(--fm-display); font-weight: 800; font-size: 26px; color: #fff; line-height: 1.15; margin-top: 2px;
+                 overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .sd-kpi .v.sm { font-size: 16px; padding: 5px 0; }
+    .sd-kpi .s { font-size: 11.5px; color: var(--fm-text-secondary); }
+    .msg { padding: 11px 14px; border-radius: var(--fm-radius-sm); font-size: 13px; margin-bottom: 12px; }
+    .msg.success { background: rgba(22,217,104,.10); border: 1px solid rgba(22,217,104,.35); color: #8df0b6; }
+    .msg.warning { background: rgba(255,181,38,.10); border: 1px solid rgba(255,181,38,.40); color: #ffd58a; }
+    .msg.error   { background: rgba(255,61,80,.10); border: 1px solid rgba(255,61,80,.40); color: #ffb3bb; }
+    .msg.info    { background: rgba(8,124,240,.10); border: 1px solid var(--fm-border-active); color: var(--fm-text); }
+
+    .sd-grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 18px; align-items: start; }
+    @media (max-width: 940px) { .sd-grid { grid-template-columns: minmax(0, 1fr); } }
+    .sd-steps { list-style: none; margin: 0; padding: 0; counter-reset: sd; }
+    .sd-step { position: relative; display: flex; gap: 14px; padding: 16px 16px 16px 14px; margin-bottom: 10px;
+               border-radius: var(--fm-radius-md); background: var(--fm-card); border: 1px solid var(--fm-border); }
+    .sd-step.hot { border-color: var(--fm-border-active); box-shadow: inset 3px 0 0 var(--fm-primary); }
+    .sd-step .n { counter-increment: sd; width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+                  font-weight: 800; font-size: 14px; background: rgba(8,124,240,.16); color: var(--fm-primary-light); }
+    .sd-step .n::before { content: counter(sd); }
+    .sd-step.ok .n { background: var(--fm-success); color: #03170b; }
+    .sd-step.ok .n::before { content: "✓"; }
+    .sd-step .body { flex: 1; min-width: 0; }
+    .sd-step h2 { margin: 3px 0 4px; font-size: 16px; font-family: var(--fm-sans); font-weight: 800; }
+    .sd-step p { margin: 0 0 10px; font-size: 13px; color: var(--fm-text-secondary); line-height: 1.5; }
+    .sd-acts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .sd-acts form { margin: 0; }
+
+    .sd-teams { list-style: none; margin: 0; padding: 0; }
+    .sd-teams li { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid rgba(85,160,230,.09); font-size: 13px; }
+    .sd-teams li:last-child { border-bottom: 0; }
+    .sd-teams .nm { flex: 1; min-width: 0; }
+    .sd-teams .nm b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .sd-teams .nm small { color: var(--fm-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+    .sd-teams .cr { font-weight: 800; color: var(--fm-cyan); white-space: nowrap; }
+    .sd-teams .nomail { color: var(--fm-warning); }
+    .sd-t { display: flex; align-items: center; gap: 9px; margin: 0 0 10px; font-size: 15px; font-weight: 800; }
+    .sd-t .ic { width: 17px; height: 17px; color: var(--fm-primary-light); }
+</style>
+
+{% include "auctions/_console_head.html" %}
+
+<div class="sd">
+<div class="sd-hero" role="status">
+    <span class="sd-check" aria-hidden="true">✓</span>
+    <div class="main">
+        <span class="kicker">Lega creata</span>
+        <h1>{{ league.name }} è pronta</h1>
+        <div class="sub">{{ league.get_game_mode_display }} · {{ league.budget|floatformat:0 }} FM a squadra{% if league.slot_limits %} · rosa da {{ league.total_slots }}{% endif %}. Ecco cosa fare adesso, in ordine.</div>
+    </div>
+    <a class="fm-btn fm-btn-secondary" href="{% url 'dashboard_league' league.id %}"><svg class="ic"><use href="#i-home"/></svg> Dashboard della lega</a>
+</div>
+
+{% for m in messages %}
+<div class="msg {% if m.tags %}{{ m.tags }}{% endif %}" role="status">{{ m }}</div>
+{% endfor %}
+{% if invites_line %}
+<div class="msg {% if report.invites.sent and not report.invites.failed %}success{% else %}warning{% endif %}" role="status">Inviti: {{ invites_line }}</div>
+{% endif %}
+
+<div class="sd-kpis">
+    <div class="sd-kpi"><div class="k">Squadre</div><div class="v">{{ teams|length }}</div><div class="s">{{ with_email|length }} con email</div></div>
+    <div class="sd-kpi"><div class="k">Listone</div><div class="v">{{ n_players }}</div><div class="s">giocatori</div></div>
+    <div class="sd-kpi"><div class="k">Già in rosa</div><div class="v">{{ n_owned }}</div><div class="s">{% if n_owned %}dalle rose importate{% else %}si parte da zero{% endif %}</div></div>
+    <div class="sd-kpi"><div class="k">Asta</div>
+        {% if auction %}<div class="v sm">{% if auction.status == "LIVE" %}In corso{% elif auction.status == "PAUSED" %}In pausa{% elif auction.status == "CLOSED" %}Chiusa{% else %}Pronta{% endif %}</div><div class="s">{{ auction.title }}</div>
+        {% else %}<div class="v sm">Da creare</div><div class="s">quando ti serve</div>{% endif %}</div>
+</div>
+
+<div class="sd-grid">
+<ol class="sd-steps">
+    <li class="sd-step {% if report.invites.sent %}ok{% else %}hot{% endif %}">
+        <span class="n" aria-hidden="true"></span>
+        <div class="body">
+            <h2>Dai l'accesso alle squadre</h2>
+            <p>Ogni squadra ha un <b>link personale</b> (e un QR): chi lo apre entra nell'app già riconosciuto, senza password.
+                {% if mail_ready %}Con l'email dell'allenatore glielo mandi da qui.{% else %}Stampa i QR o copia i link dalla pagina Squadre.{% endif %}</p>
+            <div class="sd-acts">
+                {% if mail_ready %}
+                <form method="post" action="{% url 'admin_invite_teams' %}">
+                    {% csrf_token %}<input type="hidden" name="league_id" value="{{ league.id }}">
+                    <input type="hidden" name="next" value="{{ request.path }}">
+                    <button type="submit" class="fm-btn fm-btn-primary"{% if not with_email %} disabled title="Nessuna squadra ha un'email: aggiungila da Squadre"{% endif %}>
+                        <svg class="ic"><use href="#i-mail"/></svg> {% if report.invites.sent %}Invia di nuovo{% else %}Invia gli inviti{% endif %}{% if with_email %} ({{ with_email|length }}){% endif %}</button>
+                </form>
+                {% endif %}
+                <a class="fm-btn {% if mail_ready %}fm-btn-secondary{% else %}fm-btn-primary{% endif %}" href="{% url 'admin_participants' %}?league={{ league.id }}">
+                    <svg class="ic"><use href="#i-shield"/></svg> Squadre: link, QR ed email</a>
+                {% if not mail_ready and request.user.is_superuser %}
+                <a class="fm-btn fm-btn-ghost" href="{% url 'admin_mail_settings' %}"><svg class="ic"><use href="#i-mail"/></svg> Configura la posta</a>
+                {% endif %}
+            </div>
+        </div>
+    </li>
+
+    <li class="sd-step">
+        <span class="n" aria-hidden="true"></span>
+        <div class="body">
+            <h2>Controlla le regole della lega</h2>
+            <p>Scambi (ratifica, periodi), contratti e tetto salariale partono dai valori standard: cambiali prima che la stagione inizi.</p>
+            <div class="sd-acts">
+                <a class="fm-btn fm-btn-secondary" href="{% url 'admin_config' %}#lg-{{ league.id }}"><svg class="ic"><use href="#i-gear"/></svg> Regole della lega</a>
+            </div>
+        </div>
+    </li>
+
+    <li class="sd-step {% if auction %}hot{% endif %}">
+        <span class="n" aria-hidden="true"></span>
+        <div class="body">
+            {% if auction %}
+            <h2>Fai partire l'asta</h2>
+            <p><b>{{ auction.title }}</b> è {% if auction.status == "LIVE" %}in corso{% elif auction.status == "CLOSED" %}chiusa{% else %}pronta{% endif %}. Apri la regia quando la sala è pronta e proietta il maxischermo.</p>
+            <div class="sd-acts">
+                <a class="fm-btn fm-btn-primary" href="/regia/{{ auction.id }}/"><svg class="ic"><use href="#i-gavel"/></svg> Vai alla regia</a>
+                <a class="fm-btn fm-btn-secondary" href="{% url 'screen' auction.id %}?t={{ auction.public_token }}" target="_blank" rel="noopener"><svg class="ic"><use href="#i-tv"/></svg> Maxischermo</a>
+            </div>
+            {% else %}
+            <h2>Crea l'asta quando serve</h2>
+            <p>La lega non ha ancora un'asta. Se le rose sono già complete puoi saltare questo passo e usare il mercato.</p>
+            <div class="sd-acts">
+                <a class="fm-btn fm-btn-secondary" href="{% url 'admin_auction_wizard' %}?league={{ league.id }}"><svg class="ic"><use href="#i-plus"/></svg> Crea l'asta</a>
+            </div>
+            {% endif %}
+        </div>
+    </li>
+
+    <li class="sd-step">
+        <span class="n" aria-hidden="true"></span>
+        <div class="body">
+            <h2>Durante la stagione: il mercato</h2>
+            <p>Buste di riparazione, scambi tra squadre e aste di riparazione: li apri dal Mercato quando servono.</p>
+            <div class="sd-acts">
+                <a class="fm-btn fm-btn-secondary" href="{% url 'admin_market_dashboard' %}?league={{ league.id }}"><svg class="ic"><use href="#i-swap"/></svg> Mercato</a>
+            </div>
+        </div>
+    </li>
+</ol>
+
+<aside class="fm-card">
+    <h2 class="sd-t"><svg class="ic"><use href="#i-users"/></svg> Squadre</h2>
+    {% if teams %}
+    <ul class="sd-teams">
+        {% for p in teams %}
+        <li>
+            <span class="nm"><b>{{ p.display_name }}</b>
+                {% if p.email %}<small>{{ p.email }}</small>{% elif p.contact_email %}<small>email dell'account</small>{% else %}<small class="nomail">senza email</small>{% endif %}</span>
+            <span class="cr">{{ p.remaining_credits|floatformat:0 }} FM</span>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="muted" style="font-size:13px;margin:0 0 10px">Nessuna squadra: aggiungile dalla pagina Squadre.</p>
+    {% endif %}
+    <a class="fm-btn fm-btn-ghost fm-btn-sm" style="margin-top:10px" href="{% url 'admin_participants' %}?league={{ league.id }}">Aggiungi le email →</a>
+</aside>
+</div>
+</div>
+{% endblock %}

@@ -21,11 +21,13 @@ from django.views.decorators.http import require_POST
 
 from ..models import Auction, League, ManagedAccount, Participant, Player
 from .. import remote, team_sheets
+from ..services import mail
 from .common import (
     FORBIDDEN_LEAGUE_MSG,
     current_auction,
     linkable_users,
     manageable_leagues,
+    league_scope_or_403,
     managed_or_403,
     mixed_leagues,
     participant_join_url,
@@ -117,7 +119,64 @@ def admin_participants(request):
         "console_section": "Squadre",
         "console_active": "teams",
         "selected": current_auction(request, current_league),
+        "mail_ready": mail.is_ready(),
+        "reachable": sum(1 for r in rows if r["p"].contact_email and r["p"].is_active),
     })
+
+
+@staff_member_required
+@require_POST
+def admin_participant_email(request, participant_id):
+    """Set (or clear) the address the league writes to for a team; with
+    ``invite=1`` also send the team its personal link right away."""
+    p, denied = managed_or_403(request, Participant, participant_id)
+    if denied:
+        return denied
+    back = safe_next(request, reverse("admin_participants") + (f"?league={p.league_id}" if p.league_id else ""))
+    if "email" in request.POST:
+        email = (request.POST.get("email") or "").strip()
+        if email:
+            try:
+                validate_email(email)
+            except ValidationError:
+                messages.error(request, f"«{email}» non è un indirizzo email valido.")
+                return redirect(back)
+        if email != p.email:
+            p.email = email
+            p.save(update_fields=["email"])
+            messages.success(request, f"Email di «{p.display_name}» {'salvata' if email else 'rimossa'}.")
+    if request.POST.get("invite") == "1":
+        if not p.contact_email:
+            messages.error(request, f"«{p.display_name}» non ha un indirizzo email.")
+        elif not mail.is_ready():
+            messages.error(request, "La posta non è configurata: impostala in Impostazioni → Posta.")
+        elif p.league is None:
+            messages.error(request, "La squadra non è in nessuna lega.")
+        else:
+            report = mail.send_team_invites(request, p.league, [p])
+            (messages.success if report["sent"] else messages.error)(
+                request, f"Invito a «{p.display_name}»: " + mail.report_message(report, "invito").replace("invito inviata", "invito inviato"))
+    return redirect(back)
+
+
+@staff_member_required
+@require_POST
+def admin_invite_teams(request):
+    """Email every team of the league its personal app link and code."""
+    league, denied = league_scope_or_403(request, request.POST.get("league_id"))
+    if denied:
+        return denied
+    if league is None:
+        messages.error(request, "Scegli prima la lega da invitare.")
+        return redirect("admin_participants")
+    back = safe_next(request, reverse("admin_participants") + f"?league={league.id}")
+    if not mail.is_ready():
+        messages.error(request, "La posta non è configurata: impostala in Impostazioni → Posta.")
+        return redirect(back)
+    report = mail.send_team_invites(request, league)
+    (messages.success if report["sent"] and not report["failed"] else messages.warning)(
+        request, "Inviti: " + mail.report_message(report))
+    return redirect(back)
 
 
 @staff_member_required

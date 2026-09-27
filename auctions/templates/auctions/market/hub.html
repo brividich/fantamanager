@@ -1,0 +1,165 @@
+{% extends "auctions/market/base.html" %}
+{% comment %}
+The Mercato hub: at a glance which markets are running now (open buste
+sessions, trades, a live repair auction), then one card per market. Nothing
+of a market's content is on this page: every item opens its own screen.
+{% endcomment %}
+
+{% block mk_head %}
+<div>
+    <span class="kicker">{% if current_league %}{{ current_league.name }}{% else %}Stagione in corso{% endif %}</span>
+    <h1>Mercato</h1>
+    <div class="sub">Tutto quello che cambia le rose a stagione iniziata. Qui vedi cosa è aperto adesso: apri un mercato per gestirlo.</div>
+</div>
+<span class="spacer"></span>
+{% if current_league %}
+<a class="fm-btn fm-btn-secondary" href="{% url 'app_regia' %}?league={{ current_league.id }}" title="La stessa lega nell'app, come la vedono le squadre">
+    <svg class="ic"><use href="#i-shirt"/></svg> Apri nell'app</a>
+{% endif %}
+{% endblock %}
+
+{% block mk_body %}
+<!-- ============================================== MARKETS RUNNING NOW -->
+<div class="fm-section-title"><svg class="ic"><use href="#i-pulse"/></svg> In corso adesso <span class="sep"></span> {{ n_live }}</div>
+{% if n_live %}
+<div class="mk-live">
+    {% for s in live_sessions %}
+    <a class="mk-live-item c-amber" href="{% url 'admin_market_session' s.id %}">
+        <span class="mk-live-top">
+            <span class="kind"><svg class="ic"><use href="#i-mail"/></svg> Buste</span>
+            {% if s.status == "open" %}<span class="tag t-live">Aperta</span>
+            {% elif s.status == "closed" %}<span class="tag t-warn">Da scrutinare</span>
+            {% else %}<span class="tag t-info">Programmata</span>{% endif %}
+        </span>
+        <b class="t">{{ s.title }}</b>
+        <span class="meta">
+            {% if s.status == "open" %}{% if s.closes_at %}Chiude il {{ s.closes_at|date:"D d/m H:i" }}{% else %}Chiusura manuale{% endif %} · {{ s.n_teams }}/{{ n_teams }} squadre hanno consegnato
+            {% elif s.status == "closed" %}Consegna chiusa · {{ s.n_bids }} bust{{ s.n_bids|pluralize:"a,e" }} da aprire
+            {% else %}{% if s.opens_at %}Si apre il {{ s.opens_at|date:"D d/m H:i" }}{% else %}Da aprire a mano{% endif %}{% endif %}
+        </span>
+        <span class="go">Apri la sessione <svg class="ic"><use href="#i-arrow-right"/></svg></span>
+    </a>
+    {% endfor %}
+
+    {% if trades_open or trades_pending %}
+    <a class="mk-live-item c-blue" href="{% url 'admin_market_trades' %}?league={{ current_league.id }}">
+        <span class="mk-live-top">
+            <span class="kind"><svg class="ic"><use href="#i-swap"/></svg> Scambi</span>
+            {% if trades_pending %}<span class="tag t-warn">Da ratificare</span>{% else %}<span class="tag t-live">Aperti</span>{% endif %}
+        </span>
+        <b class="t">{% if trades_pending %}{{ trades_pending|length }} scamb{{ trades_pending|length|pluralize:"io,i" }} da ratificare{% else %}Scambi tra squadre{% endif %}</b>
+        <span class="meta">
+            {{ trades_proposed }} propost{{ trades_proposed|pluralize:"a,e" }} in corso
+            {% if window_now %} · periodo aperto fino al {{ window_now.closes_at|date:"d/m H:i" }}{% elif not trade_windows %} · aperti tutta la stagione{% endif %}
+        </span>
+        <span class="go">Gestisci gli scambi <svg class="ic"><use href="#i-arrow-right"/></svg></span>
+    </a>
+    {% endif %}
+
+    {% if active_auction %}
+    <a class="mk-live-item c-green" href="{% url 'admin_market_repair' %}?league={{ current_league.id }}">
+        <span class="mk-live-top">
+            <span class="kind"><svg class="ic"><use href="#i-gavel"/></svg> Asta</span>
+            {% if active_auction.status == "LIVE" %}<span class="tag t-live">In corso</span>{% else %}<span class="tag t-warn">In pausa</span>{% endif %}
+        </span>
+        <b class="t">{{ active_auction.title }}</b>
+        <span class="meta">{{ active_auction.get_mode_display }} · {{ free_total }} svincolati</span>
+        <span class="go">Apri l'asta <svg class="ic"><use href="#i-arrow-right"/></svg></span>
+    </a>
+    {% endif %}
+</div>
+{% else %}
+<div class="mk-live-empty">
+    <svg class="ic"><use href="#i-info"/></svg>
+    <span><b>Nessun mercato aperto.</b> Le squadre non possono fare offerte né scambi in questo momento{% if current_league.trades_enabled and trade_windows %} (gli scambi riaprono {% if window_next %}il {{ window_next.opens_at|date:"d/m" }}{% else %}con il prossimo periodo{% endif %}){% endif %}.</span>
+    <span class="spacer"></span>
+    <a class="fm-btn fm-btn-primary fm-btn-sm" href="{% url 'admin_market_buste' %}?league={{ current_league.id }}&new=1"><svg class="ic"><use href="#i-plus"/></svg> Apri una sessione a buste</a>
+</div>
+{% endif %}
+
+<!-- ============================================================ MARKETS -->
+<div class="fm-section-title"><svg class="ic"><use href="#i-folder"/></svg> Mercati <span class="sep"></span></div>
+<div class="mk-types">
+    <a class="mk-type c-amber" href="{% url 'admin_market_buste' %}?league={{ current_league.id }}">
+        <div class="mk-type-top">
+            <span class="mk-type-ic"><svg class="ic"><use href="#i-mail"/></svg></span>
+            <div class="mk-type-name">
+                <div class="mk-type-t">Buste</div>
+                <div class="mk-type-d">Riparazione a offerte segrete</div>
+            </div>
+        </div>
+        <div class="mk-type-foot">
+            <span class="st">
+                {% with b=buste_summary %}<span class="tag {% if b.tone == 'live' %}t-live{% elif b.tone == 'warn' %}t-warn{% elif b.tone == 'info' %}t-info{% endif %}">{{ b.label }}</span>{% endwith %}
+                <span class="txt">{{ buste_summary.text }}</span></span>
+            <span class="mk-type-num"><b>{{ sessions|length }}</b><small>sessioni</small></span>
+        </div>
+    </a>
+
+    <a class="mk-type c-blue" href="{% url 'admin_market_trades' %}?league={{ current_league.id }}">
+        <div class="mk-type-top">
+            <span class="mk-type-ic"><svg class="ic"><use href="#i-swap"/></svg></span>
+            <div class="mk-type-name">
+                <div class="mk-type-t">Scambi</div>
+                <div class="mk-type-d">Giocatori e crediti tra squadre</div>
+            </div>
+        </div>
+        <div class="mk-type-foot">
+            <span class="st">
+                {% if not current_league.trades_enabled %}<span class="tag">Disattivati</span>
+                {% elif trades_pending %}<span class="tag t-warn">Da ratificare</span>
+                {% elif not trades_open %}<span class="tag">Fuori periodo</span>
+                {% else %}<span class="tag t-live">Aperti</span>{% endif %}
+                <span class="txt">{% if trades_proposed %}{{ trades_proposed }} propost{{ trades_proposed|pluralize:"a,e" }} in corso{% else %}{{ trades_done }} complet{{ trades_done|pluralize:"ato,ati" }}{% endif %}{% if window_now %} · fino al {{ window_now.closes_at|date:"d/m" }}{% elif window_next %} · dal {{ window_next.opens_at|date:"d/m" }}{% endif %}</span></span>
+            <span class="mk-type-num"><b>{{ trades_pending|length }}</b><small>da ratificare</small></span>
+        </div>
+    </a>
+
+    <a class="mk-type c-green" href="{% url 'admin_market_repair' %}?league={{ current_league.id }}">
+        <div class="mk-type-top">
+            <span class="mk-type-ic"><svg class="ic"><use href="#i-gavel"/></svg></span>
+            <div class="mk-type-name">
+                <div class="mk-type-t">Asta di riparazione</div>
+                <div class="mk-type-d">Dal vivo, con i crediti residui</div>
+            </div>
+        </div>
+        <div class="mk-type-foot">
+            <span class="st">
+                {% if active_auction.status == "LIVE" %}<span class="tag t-live">In corso</span>
+                {% elif active_auction %}<span class="tag t-warn">In pausa</span>
+                {% elif repair_auctions %}<span class="tag">{{ repair_auctions|length }} fatt{{ repair_auctions|length|pluralize:"a,e" }}</span>
+                {% else %}<span class="tag">Nessuna</span>{% endif %}
+                <span class="txt">{% if active_auction %}{{ active_auction.title }}{% else %}Svincolati pronti per l'asta{% endif %}</span></span>
+            <span class="mk-type-num"><b>{{ free_total }}</b><small>svincolati</small></span>
+        </div>
+    </a>
+
+    <a class="mk-type c-violet" href="{% url 'admin_market_moves' %}?league={{ current_league.id }}">
+        <div class="mk-type-top">
+            <span class="mk-type-ic"><svg class="ic"><use href="#i-list"/></svg></span>
+            <div class="mk-type-name">
+                <div class="mk-type-t">Movimenti</div>
+                <div class="mk-type-d">Acquisti, svincoli e scambi</div>
+            </div>
+        </div>
+        <div class="mk-type-foot">
+            <span class="st">
+                {% with m=last_move %}{% if m %}<span class="tag {% if m.kind == 'acquisti' %}t-live{% elif m.kind == 'svincoli' %}t-bad{% elif m.kind == 'scambi' %}t-info{% endif %}">{{ m.get_action_display }}</span>
+                <span class="txt">Ultimo: {{ m.player_name }} · {{ m.participant_name }} · {{ m.created_at|date:"d/m" }}</span>{% else %}<span class="tag">Nessuno</span>
+                <span class="txt">Nessun movimento registrato</span>{% endif %}{% endwith %}</span>
+            <span class="mk-type-num"><b>{{ moves_recent }}</b><small>ultimi 30 gg</small></span>
+        </div>
+    </a>
+</div>
+
+<!-- ======================================================= QUICK LINKS -->
+<nav class="mk-links" aria-label="Pagine collegate" style="margin-top:10px">
+    <span class="lbl">Vai a</span>
+    <a class="mk-link" href="{% url 'admin_participants' %}?league={{ current_league.id }}"><svg class="ic"><use href="#i-shield"/></svg> Squadre e rose</a>
+    <a class="mk-link" href="{% url 'admin_players' %}?league={{ current_league.id }}&status=free"><svg class="ic"><use href="#i-users"/></svg> Svincolati <span class="n">{{ free_total }}</span></a>
+    <a class="mk-link" href="{% url 'admin_contracts' %}?league={{ current_league.id }}"><svg class="ic"><use href="#i-doc"/></svg> Contratti</a>
+    <a class="mk-link" href="{% url 'admin_season' %}?league={{ current_league.id }}"><svg class="ic"><use href="#i-trophy"/></svg> Stagione</a>
+    <a class="mk-link" href="{% url 'admin_export' %}?league={{ current_league.id }}"><svg class="ic"><use href="#i-export"/></svg> Export rose</a>
+    <a class="mk-link" href="{% url 'admin_config' %}#lg-{{ current_league.id }}"><svg class="ic"><use href="#i-gear"/></svg> Regole della lega</a>
+</nav>
+{% endblock %}

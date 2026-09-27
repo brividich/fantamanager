@@ -5,16 +5,20 @@ import secrets as _sec
 from decimal import Decimal, InvalidOperation
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 from django.http import HttpResponseForbidden, JsonResponse
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from .. import services
-from ..models import Auction, League, LeagueConfig, Participant
+from ..models import Auction, League, LeagueConfig, Participant, Player
 from ..providers import importers
+from ..services import mail
 from .admin_dashboard import _pint
 from .common import (
+    SESSION_LEAGUE_KEY,
     _call_order,
     _flow_mode,
     _opening_price_mode,
@@ -25,6 +29,9 @@ from .common import (
     staff_member_required,
     user_can_manage_league,
 )
+
+# What the wizard did, kept for the «Lega pronta» page it lands on.
+SETUP_REPORT_KEY = "setup_report"
 
 
 def _sealed_settings(request):
@@ -247,8 +254,13 @@ def _create_manual_teams(request, league, budget):
             credits = Decimal(str(p.get("credits"))) if p.get("credits") not in (None, "") else budget
         except (InvalidOperation, ValueError):
             credits = budget
+        email = str(p.get("email") or "").strip()[:254]
+        try:
+            validate_email(email) if email else None
+        except ValidationError:
+            email = ""  # the wizard checks it too; a bad one is simply left out
         Participant.objects.create(
-            league=league, display_name=name,
+            league=league, display_name=name, email=email,
             access_code=_sec.token_hex(4), credits=max(Decimal("0"), credits), is_active=True,
         )
 
@@ -276,6 +288,7 @@ def _setup_wizard_context(request, error=""):
         "within_roles": Auction.WithinRole.choices,
         "opening_price_modes": Auction.OpeningPriceMode.choices,
         "has_fp_rose": _fp_rose_ready(request),
+        "mail_ready": mail.is_ready(),
         "error": error,
     }
 
@@ -396,6 +409,22 @@ def admin_setup_create(request):
             import_report = _import_rose_into_league(request, league, source=import_choice)
         _import_listone_into_league(listone_rows, league, replace=(import_report is None))
 
+    request.session[SESSION_LEAGUE_KEY] = league.id
+    invites = None
+    if request.POST.get("send_invites") == "1" and mail.is_ready():
+        invites = mail.send_team_invites(request, league)
+    request.session[SETUP_REPORT_KEY] = {
+        "league_id": league.id,
+        "import": ({k: v for k, v in import_report.items() if isinstance(v, int)}
+                   if isinstance(import_report, dict) else None),
+        "invites": invites,
+    }
+
+    # «Solo la lega»: the auction is created later, from the wizard or the
+    # Mercato, when the league knows what it needs.
+    if request.POST.get("create_auction", "1") == "0":
+        return redirect("admin_setup_done", league_id=league.id)
+
     mode = request.POST.get("mode", "").strip()
     if mode not in Auction.Mode.values:
         mode = Auction.Mode.NEW_FROM_ZERO
@@ -438,7 +467,39 @@ def admin_setup_create(request):
     except Exception:
         pass
 
-    return redirect(f"/regia/{auction.id}/")
+    # Started right away: the room is waiting, straight to the regia.
+    if request.POST.get("start_now") == "1":
+        return redirect(f"/regia/{auction.id}/")
+    return redirect("admin_setup_done", league_id=league.id)
+
+
+@staff_member_required
+def admin_setup_done(request, league_id):
+    """«Lega pronta»: what the wizard created and the next steps, in order."""
+    league = get_object_or_404(League, pk=league_id)
+    if not user_can_manage_league(request.user, league):
+        return HttpResponseForbidden("Non hai i permessi per gestire questa lega.")
+    report = request.session.get(SETUP_REPORT_KEY) or {}
+    if report.get("league_id") != league.id:
+        report = {}
+    teams = list(Participant.objects.filter(league=league).select_related("user").order_by("display_name"))
+    players = Player.objects.filter(league=league)
+    auction = Auction.objects.filter(league=league).order_by("-created_at").first()
+    with_email = [p for p in teams if p.contact_email]
+    return render(request, "auctions/setup_done.html", {
+        "league": league,
+        "current_league": league,
+        "teams": teams,
+        "with_email": with_email,
+        "n_players": players.count(),
+        "n_owned": players.filter(owner__isnull=False).count(),
+        "auction": auction,
+        "report": report,
+        "invites_line": mail.report_message(report["invites"]) if report.get("invites") else "",
+        "mail_ready": mail.is_ready(),
+        "console_section": "Nuova lega",
+        "console_active": "dashboard",
+    })
 
 
 @staff_member_required

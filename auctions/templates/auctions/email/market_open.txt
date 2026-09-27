@@ -1,0 +1,12 @@
+{% autoescape off %}Ciao {{ team.display_name }},
+
+{% if session.status == "draft" %}è in arrivo il mercato a buste «{{ session.title }}»{% if session.opens_at %}: si apre {{ session.opens_at|date:"l d/m \a\l\l\e H:i"|lower }}{% endif %}.{% else %}è aperto il mercato a buste «{{ session.title }}»: scegli gli svincolati e consegna le tue offerte segrete dall'app.{% endif %}
+
+{% if session.closes_at %}Consegna entro {{ session.closes_at|date:"l d/m \a\l\l\e H:i"|lower }}.{% else %}La consegna la chiude il presidente di lega.{% endif %}
+Crediti disponibili: {{ team.remaining_credits|floatformat:0 }} FM{% if session.max_bids %} · massimo {{ session.max_bids }} buste{% endif %}
+
+Vai al mercato:
+{{ link }}
+
+— FantaManager · {{ league.name }}
+{% endautoescape %}

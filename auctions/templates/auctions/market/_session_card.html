@@ -1,0 +1,19 @@
+<a class="mk-scard{% if s.status == 'open' %} is-live{% endif %}" href="{% url 'admin_market_session' s.id %}">
+    <span class="top">
+        <b>{{ s.title }}</b>
+        {% if s.status == "open" %}<span class="tag t-live">Aperta</span>
+        {% elif s.status == "closed" %}<span class="tag t-warn">Da scrutinare</span>
+        {% elif s.status == "draft" %}<span class="tag t-info">Programmata</span>
+        {% else %}<span class="tag t-done">Scrutinata</span>{% endif %}
+    </span>
+    <span class="meta">
+        {% if s.status == "draft" %}{% if s.opens_at %}Si apre il {{ s.opens_at|date:"D d/m H:i" }}{% else %}Da aprire a mano{% endif %}
+        {% elif s.status == "open" %}{% if s.closes_at %}Chiude il {{ s.closes_at|date:"D d/m H:i" }}{% else %}Chiusura manuale{% endif %}
+        {% else %}Creata il {{ s.created_at|date:"d/m/Y" }}{% endif %}
+    </span>
+    <span class="nums">
+        <span><b>{{ s.n_bids }}</b>bust{{ s.n_bids|pluralize:"a,e" }}</span>
+        <span><b>{{ s.n_teams }}</b>{% if n_teams %}/{{ n_teams }} squadre{% else %}squadr{{ s.n_teams|pluralize:"a,e" }}{% endif %}</span>
+    </span>
+    <span class="go">Apri la sessione →</span>
+</a>
