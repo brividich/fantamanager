@@ -1,0 +1,6 @@
+{% extends "errors/_page.html" %}
+{% comment %}The CSRF refusal: in practice a form left open too long, or blocked cookies.{% endcomment %}
+{% block title %}Pagina scaduta{% endblock %}
+{% block code %}403{% endblock %}
+{% block heading %}La pagina è scaduta{% endblock %}
+{% block message %}Il modulo è rimasto aperto troppo a lungo, oppure il browser blocca i cookie. Ricarica la pagina e riprova.{% endblock %}

@@ -89,10 +89,11 @@ class ViewTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_superuser("admin", "a@b.c", "pass12345")
 
-    def test_admin_dashboard_open_without_login(self):
-        # The admin login was removed (local/LAN use): the dashboard is open.
+    def test_admin_dashboard_requires_login(self):
+        # The console is behind the login (and, through the tunnel, the PIN too).
         resp = self.client.get("/admin-auction/")
-        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(resp["Location"].startswith("/login/"))
 
     def test_admin_dashboard_loads_for_staff(self):
         self.client.force_login(self.user)
@@ -154,6 +155,7 @@ class ViewTests(TestCase):
         self.assertIn(f"retryFromStorico({unsold.id}", html)
 
     def test_participants_page_lists_teams_with_join_links(self):
+        self.client.force_login(self.user)
         league = League.objects.create(name="L", budget=Decimal("500"))
         p = Participant.objects.create(display_name="Squadra Uno", league=league,
                                        credits=Decimal("500"))
@@ -1581,6 +1583,7 @@ class TeamBelongsToItsAuctionTests(TestCase):
         self.assertTrue(r.accepted, msg=r.reason)
 
     def test_the_regia_cannot_bid_on_behalf_of_a_foreign_team(self):
+        self.client.force_login(User.objects.create_superuser("admin", "a@b.c", "pw"))
         r = self.client.post(f"/admin-auction/{self.a_auction.id}/bid-for/",
                              {"participant_id": self.b_team.id, "increment": "1"})
         self.assertEqual(r.status_code, 400)
@@ -1639,12 +1642,13 @@ class ConsoleLandingTests(TestCase):
         self._pin()
         r = self.client.get("/admin-auction/")
         self.assertEqual(r.status_code, 302)
-        self.assertEqual(r["Location"], f"/admin-auction/?auction={self.auction.id}")
+        self.assertEqual(r["Location"], f"/regia/{self.auction.id}/")
 
     def test_home_opens_the_start_screen_even_with_an_auction_open(self):
         """What the launcher opens: avviare l'app riparte da qui."""
         self._pin()
         r = self.client.get("/admin-auction/?home=1")
         self.assertEqual(r.status_code, 200)
-        self.assertContains(r, "Da dove vuoi partire")
+        self.assertIsNone(r.context["selected"])          # the dashboard, not the regia
+        self.assertContains(r, "Console Gestionale")
 

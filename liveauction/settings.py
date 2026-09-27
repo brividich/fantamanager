@@ -23,6 +23,26 @@ SECRET_KEY = os.getenv(
 
 DEBUG = os.getenv("DJANGO_DEBUG", "True").lower() in ("1", "true", "yes")
 
+# A deployment with DEBUG off is one other people reach: it must not run on a
+# key anybody can read. These placeholders are in this (public) repository.
+_PUBLIC_PLACEHOLDER_KEYS = {
+    "",
+    "dev-insecure-change-me-before-anything-public",
+    "fantamanager-secret-key-production-change-me",
+}
+if not DEBUG and SECRET_KEY in _PUBLIC_PLACEHOLDER_KEYS:
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured(
+        "DJANGO_SECRET_KEY non impostata, o uguale a un valore pubblico del "
+        "repository. Con DEBUG spento serve una chiave vera, per esempio: "
+        'python -c "import secrets; print(secrets.token_urlsafe(50))"'
+    )
+
+# Set by the desktop launcher (run_app.py): one user, on the machine that runs
+# the server. What acts on that machine exists only there: the "Esci" button,
+# the Fantapazz login in a visible browser, the first-login superadmin.
+DESKTOP_APP = os.getenv("FANTAMANAGER_DESKTOP", "").lower() in ("1", "true", "yes")
+
 # For LAN use we accept any host by default. Lock this down in production.
 ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "*").split(",")
 
@@ -75,6 +95,8 @@ MIDDLEWARE = [
     # Keeps debug tracebacks off the public tunnel (the desktop app runs with
     # DEBUG on so one process can also serve static/media). No-op locally.
     "auctions.middleware.RemoteErrorShield",
+    # Plain-text refusals (403, 405...) get a real page when a browser asks.
+    "auctions.middleware.FriendlyErrorPages",
 ]
 
 # WhiteNoise serves static files efficiently when running behind a single ASGI

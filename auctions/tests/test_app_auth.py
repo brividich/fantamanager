@@ -60,14 +60,16 @@ class AppAuthTests(TestCase):
         self.assertEqual(self.client.session.get("participant_id"), self.team_protected.id)
 
     def test_login_via_team_select(self):
-        """Guided team selection: open team logs in directly, protected team requires code."""
-        # 1. Open team (no code needed)
+        """Guided team selection: a team without a code needs a logged-in account,
+        a protected team needs its code."""
+        # 1. A team with no code is not free for anyone to take.
         resp = self.client.post(
             reverse("app_login"),
             data={"participant_id": str(self.team_open.id)},
         )
-        self.assertEqual(resp.status_code, 302)
-        self.assertEqual(self.client.session.get("participant_id"), self.team_open.id)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "accedi al tuo account")
+        self.assertIsNone(self.client.session.get("participant_id"))
 
         # 2. Protected team without code -> fails
         resp_fail = self.client.post(

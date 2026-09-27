@@ -85,6 +85,7 @@
                 </div>
                 <span class="cmd-tag">Import</span>
             </a>
+            {% if request.user.is_superuser %}
             <a class="cmd-item" href="{% url 'admin_remote_page' %}">
                 <span class="cmd-icon"><svg class="ic">
                         <use href="#i-globe" />
@@ -95,6 +96,7 @@
                 </div>
                 <span class="cmd-tag">Tunnel</span>
             </a>
+            {% endif %}
             <a class="cmd-item" href="{% url 'app_home' %}" target="_blank">
                 <span class="cmd-icon"><svg class="ic">
                         <use href="#i-shirt" />

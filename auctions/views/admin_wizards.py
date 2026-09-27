@@ -24,6 +24,8 @@ from .common import (
     _opening_price_mode,
     _refund_mode,
     _within_role,
+    FORBIDDEN_LEAGUE_MSG,
+    manageable_leagues,
     staff_member_required,
     user_can_manage_league,
 )
@@ -44,6 +46,40 @@ def _sealed_settings(request):
     }
 
 
+def _free_teams(user):
+    """Teams with no league yet, offered for adoption by a new league.
+
+    They sit in the global pool, which belongs to the superadmin: an organiser
+    who signed up five minutes ago must not see them, let alone adopt them.
+    """
+    if not user.is_superuser:
+        return Participant.objects.none()
+    return Participant.objects.filter(league__isnull=True).order_by("display_name")
+
+
+def _adopt_free_teams(request, league):
+    """Move the ticked league-less teams into ``league`` — never a team that
+    already plays somewhere else, whatever ids the form carries."""
+    attach_ids = [i for i in request.POST.getlist("attach_ids") if i.isdigit()]
+    if attach_ids:
+        _free_teams(request.user).filter(pk__in=attach_ids).update(league=league)
+
+
+def _remember_as_default(user, league):
+    """The global LeagueConfig holds the defaults every new league starts
+    from; only the superadmin's leagues may rewrite them."""
+    if not user.is_superuser:
+        return
+    cfg = LeagueConfig.get()
+    cfg.name, cfg.budget = league.name, league.budget
+    cfg.slot_limits = league.slot_limits
+    cfg.slots_p, cfg.slots_d = league.slots_p, league.slots_d
+    cfg.slots_c, cfg.slots_a = league.slots_c, league.slots_a
+    cfg.game_mode = league.game_mode
+    cfg.slots_gk, cfg.slots_out = league.slots_gk, league.slots_out
+    cfg.save()
+
+
 def _game_mode(raw, fallback=None):
     """Legge il sistema di gioco dal form: solo CLASSIC o MANTRA."""
     value = (raw or "").strip().upper()
@@ -61,7 +97,7 @@ def admin_auction_wizard(request):
         (v, l) for v, l in Auction.Mode.choices
         if v != Auction.Mode.RESUME_SAVED
     ]
-    leagues = list(League.objects.all())
+    leagues = list(manageable_leagues(request.user))
     for lg in leagues:
         lg.team_count = lg.participants.count()
         lg.pool_count = lg.players.count()
@@ -106,6 +142,8 @@ def admin_wizard_create(request):
     league = League.objects.filter(pk=league_id).first() if league_id else None
     if league is None:
         return redirect("admin_create_league")
+    if not user_can_manage_league(request.user, league):
+        return HttpResponseForbidden(FORBIDDEN_LEAGUE_MSG)
 
     if not league.players.exists():
         return redirect(f"{reverse('admin_players')}?league={league.id}&need_listone=1&from=wizard")
@@ -157,8 +195,8 @@ def admin_create_league(request):
         cfg = LeagueConfig.get()
         return render(request, "auctions/league_form.html", {
             "cfg": cfg,
-            "free_teams": Participant.objects.filter(league__isnull=True).order_by("display_name"),
-            "leagues": League.objects.all(),
+            "free_teams": _free_teams(request.user),
+            "leagues": manageable_leagues(request.user),
         })
 
     def dec(name, default):
@@ -190,20 +228,9 @@ def admin_create_league(request):
         slots_out=pint("slots_out", 22),
     )
 
-    cfg = LeagueConfig.get()
-    cfg.name, cfg.budget = league.name, league.budget
-    cfg.slot_limits = league.slot_limits
-    cfg.slots_p, cfg.slots_d = league.slots_p, league.slots_d
-    cfg.slots_c, cfg.slots_a = league.slots_c, league.slots_a
-    cfg.game_mode = league.game_mode
-    cfg.slots_gk, cfg.slots_out = league.slots_gk, league.slots_out
-    cfg.save()
-
+    _remember_as_default(request.user, league)
     _create_manual_teams(request, league, budget)
-
-    attach_ids = [i for i in request.POST.getlist("attach_ids") if i.isdigit()]
-    if attach_ids:
-        Participant.objects.filter(pk__in=attach_ids).update(league=league)
+    _adopt_free_teams(request, league)
 
     return redirect(f"/dashboard/{league.id}/")
 
@@ -254,7 +281,7 @@ def _setup_wizard_context(request, error=""):
         # Names already taken by the user's leagues: the wizard warns before a
         # second "Lega" is born next to the first one.
         "existing_names": list(mine.values_list("name", flat=True)),
-        "free_teams": Participant.objects.filter(league__isnull=True).order_by("display_name"),
+        "free_teams": _free_teams(user),
         "modes": [(v, l) for v, l in Auction.Mode.choices if v != Auction.Mode.RESUME_SAVED],
         "flow_modes": Auction.FlowMode.choices,
         "call_orders": Auction.CallOrder.choices,
@@ -368,19 +395,9 @@ def admin_setup_create(request):
         slots_out=pint("slots_out", 22),
     )
 
-    cfg = LeagueConfig.get()
-    cfg.name, cfg.budget = league.name, league.budget
-    cfg.slot_limits = league.slot_limits
-    cfg.slots_p, cfg.slots_d = league.slots_p, league.slots_d
-    cfg.slots_c, cfg.slots_a = league.slots_c, league.slots_a
-    cfg.game_mode = league.game_mode
-    cfg.slots_gk, cfg.slots_out = league.slots_gk, league.slots_out
-    cfg.save()
-
+    _remember_as_default(request.user, league)
     _create_manual_teams(request, league, budget)
-    attach_ids = [i for i in request.POST.getlist("attach_ids") if i.isdigit()]
-    if attach_ids:
-        Participant.objects.filter(pk__in=attach_ids).update(league=league)
+    _adopt_free_teams(request, league)
 
     import_choice = request.POST.get("import_choice", "none")
     import_report = None
