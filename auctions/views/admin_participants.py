@@ -69,6 +69,10 @@ def admin_participants(request):
     target = (auctions.filter(status=Auction.Status.LIVE).first()
               or auctions.filter(status=Auction.Status.READY).first())
 
+    # The wifi/internet twin links only matter while an auction is running:
+    # that is the one evening the phones in the room need the local door.
+    live = target is not None and target.status == Auction.Status.LIVE
+
     accounts_ok = current_league is not None and can_manage_accounts(request.user, current_league)
     participants = participants.select_related("user", "user__managed_account")
 
@@ -86,7 +90,7 @@ def admin_participants(request):
             "roster_pct": int(100 * sum(counts.values()) / slots) if slots else 0,
             "counts": counts,
             "join_url": participant_join_url(request, p, target),
-            "lan_join_url": participant_lan_join_url(request, p, target),
+            "lan_join_url": participant_lan_join_url(request, p, target) if live else "",
             "account": p.user if accounts_ok else None,
             "account_lock": account_lock_reason(request.user, p.user) if accounts_ok and p.user else "",
             "account_deletable": accounts_ok and p.user is not None and account_deletable(request.user, p.user),
@@ -104,7 +108,7 @@ def admin_participants(request):
         "account_secret": secret,
         "portal_login_url": remote.best_base_url(request).rstrip("/") + reverse("app_login"),
         "target_auction": target,
-        "remote_on": remote.is_on(),
+        "remote_on": live and remote.is_on(),
         "console_section": "Squadre",
         "console_active": "teams",
         "selected": current_auction(request, current_league),

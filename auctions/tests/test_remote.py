@@ -403,7 +403,13 @@ class LocalAddressTests(TestCase):
         session = self.client.session
         session["regia_unlocked"] = True
         session.save()
-        body = self.client.get("/admin-auction/participants/", HTTP_HOST=host).content.decode()
+        url = f"/admin-auction/participants/?league={self.league.id}"
+        # No auction running: one link only, the wifi twin is live-auction business.
+        body = self.client.get(url, HTTP_HOST=host).content.decode()
+        self.assertNotIn(f"http://{ip}:8123/join/", body)
+        self.assertNotIn("net=lan", body)
+        Auction.objects.create(league=self.league, title="Estiva", status=Auction.Status.LIVE)
+        body = self.client.get(url, HTTP_HOST=host).content.decode()
         self.assertIn(f"http://{ip}:8123/join/", body)   # wifi
         self.assertIn(f"https://{host}/join/", body)     # internet
         self.assertIn("net=lan", body)                   # the wifi QR
