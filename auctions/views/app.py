@@ -18,7 +18,6 @@ from ..models import (
     Formation,
     Giornata,
     GiornataScore,
-    League,
     MarketBid,
     MarketSession,
     Participant,
@@ -27,7 +26,7 @@ from ..models import (
     Season,
     Trade,
 )
-from .. import services
+from .. import services, throttle
 from .common import (
     SESSION_LEAGUE_KEY,
     _ROLE_LABELS,
@@ -35,6 +34,8 @@ from .common import (
     _app_ctx,
     _app_standings,
     safe_next,
+    user_can_manage_scope,
+    visible_leagues,
 )
 
 
@@ -659,6 +660,8 @@ def app_login(request):
         if login_mode == "account":
             if not identifier or not password:
                 error = "Inserisci nome utente / email e password."
+            elif throttle.blocked(request, "login"):
+                error = throttle.MESSAGE
             else:
                 username = identifier
                 if "@" in identifier:
@@ -667,6 +670,7 @@ def app_login(request):
                         username = user_obj.username
                 user = authenticate(request, username=username, password=password)
                 if user is None:
+                    throttle.failure(request, "login")
                     error = "Credenziali non valide. Verifica username/email e password."
                 elif not user.is_active:
                     error = "Questo account è disattivato. Contatta l'amministratore."
@@ -688,12 +692,15 @@ def app_login(request):
         elif login_mode == "code" or (access_code and not participant_id):
             if not access_code:
                 error = "Inserisci il codice della tua squadra."
+            elif throttle.blocked(request, "code"):
+                error = throttle.MESSAGE
             else:
                 participant = Participant.objects.filter(
                     Q(access_code__iexact=access_code) | Q(public_token=access_code),
                     is_active=True,
                 ).first()
                 if not participant:
+                    throttle.failure(request, "code")
                     error = "Codice squadra non valido o non riconosciuto."
                 elif participant.user_id is not None and request.user.is_authenticated and request.user.id != participant.user_id:
                     error = "Questa squadra è già associata a un altro account utente."
@@ -708,10 +715,18 @@ def app_login(request):
                 if candidate:
                     if candidate.user_id is not None and (not request.user.is_authenticated or request.user.id != candidate.user_id):
                         error = f"{candidate.display_name} è associata all'account di un utente. Accedi con Username e Password."
+                    elif candidate.access_code and throttle.blocked(request, "code"):
+                        error = throttle.MESSAGE
                     elif candidate.access_code and candidate.access_code.lower() != access_code.lower():
+                        throttle.failure(request, "code")
                         error = f"Codice di accesso errato per {candidate.display_name}."
                     elif not candidate.access_code and not request.user.is_authenticated:
                         error = f"Per gestire {candidate.display_name} accedi al tuo account o inserisci il codice squadra."
+                    elif not candidate.access_code and not user_can_manage_scope(request.user, candidate.league):
+                        # Registration is open: "logged in" alone would let any
+                        # account take (and keep) any league's team without a code.
+                        error = (f"{candidate.display_name} non ha un codice squadra: "
+                                 "chiedi a chi organizza la lega di collegarla al tuo account.")
                     else:
                         participant = candidate
                         if request.user.is_authenticated and participant.user is None:
@@ -731,7 +746,7 @@ def app_login(request):
                 request.session[SESSION_LEAGUE_KEY] = participant.league_id
             return redirect(next_url)
 
-    leagues = League.objects.all().prefetch_related("participants").order_by("name")
+    leagues = visible_leagues(request).prefetch_related("participants").order_by("name")
     user_teams = []
     if request.user.is_authenticated:
         user_teams = list(Participant.objects.filter(user=request.user, is_active=True))

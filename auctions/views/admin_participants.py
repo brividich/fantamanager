@@ -25,6 +25,7 @@ from ..services import mail
 from .common import (
     FORBIDDEN_LEAGUE_MSG,
     current_auction,
+    linkable_users,
     manageable_leagues,
     league_scope_or_403,
     managed_or_403,
@@ -200,6 +201,8 @@ def admin_create_participant(request):
     if league is None and League.objects.exists():
         messages.error(request, "Scegli prima la lega in cui creare la squadra.")
         return redirect(safe_next(request, fallback))
+    if not user_can_manage_scope(request.user, league):     # the global pool: superadmin only
+        return HttpResponseForbidden(FORBIDDEN_LEAGUE_MSG)
 
     p = Participant(
         league=league,
@@ -210,8 +213,7 @@ def admin_create_participant(request):
     )
     user_id = request.POST.get("user_id")
     if user_id and user_id.isdigit():
-        from django.contrib.auth import get_user_model
-        usr = get_user_model().objects.filter(pk=int(user_id)).first()
+        usr = linkable_users(request.user).filter(pk=int(user_id)).first()
         if usr:
             p.user = usr
     if "logo" in request.FILES:
@@ -244,8 +246,7 @@ def admin_edit_participant(request, participant_id):
     if user_id == "none" or user_id == "":
         p.user = None
     elif user_id and user_id.isdigit():
-        from django.contrib.auth import get_user_model
-        usr = get_user_model().objects.filter(pk=int(user_id)).first()
+        usr = linkable_users(request.user).filter(pk=int(user_id)).first()
         if usr:
             p.user = usr
 

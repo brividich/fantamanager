@@ -147,6 +147,13 @@
         if (targetBtn && targetPane) {
             targetBtn.classList.add('is-active');
             targetPane.classList.add('is-active');
+            // Phone: the bar scrolls sideways; bring the chosen chip into it
+            // (horizontally only: never move the page).
+            const bar = targetBtn.parentElement;
+            if (bar && bar.scrollWidth > bar.clientWidth) {
+                const dx = targetBtn.getBoundingClientRect().left - bar.getBoundingClientRect().left - 8;
+                bar.scrollTo({ left: bar.scrollLeft + dx, behavior: 'smooth' });
+            }
             if (history.replaceState) {
                 history.replaceState(null, null, '#' + tabId);
             }

@@ -11,7 +11,7 @@
 {% include "auctions/_console_head.html" %}
 
 {% if selected %}
-{% include "auctions/_remote_bar.html" %}
+{% if request.user.is_superuser %}{% include "auctions/_remote_bar.html" %}{% endif %}
 
 {# Written for the desk layout ("sotto la card"...): on a phone the sections say it. #}
 <details class="howto" data-msec="guida">
@@ -117,7 +117,7 @@ the price and the clock in sight — tap it to go back.
     });
 })();
 </script>
-{% include "auctions/_remote_bar_js.html" %}
+{% if request.user.is_superuser %}{% include "auctions/_remote_bar_js.html" %}{% endif %}
 {% include "auctions/dashboard/_live_js.html" %}
 {% endif %}
 

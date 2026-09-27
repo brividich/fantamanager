@@ -71,9 +71,9 @@ class ParticipantAccountTests(TestCase):
         Participant.objects.create(league=legacy, display_name="Vecchia", user=self.coach)
         self._as(self.owner)
         resp = self._page(legacy)
-        self.assertEqual(resp.status_code, 200)
-        self.assertNotContains(resp, "Account portale")
-        self.assertNotContains(resp, "mario@x.local")
+        self.assertEqual(resp.status_code, 403)     # nobody's league: superadmin only
+        self.assertNotContains(resp, "Account portale", status_code=403)
+        self.assertNotContains(resp, "mario@x.local", status_code=403)
 
     # --- Create ------------------------------------------------------------
 

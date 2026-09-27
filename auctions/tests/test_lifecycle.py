@@ -213,6 +213,10 @@ class AdminCancelBidViewTests(TestCase):
 class AnnounceViewTests(TestCase):
     """HTTP contract for the regista announcement endpoint."""
 
+    def setUp(self):
+        # League-less auctions are superuser business (see views.common.user_can_manage).
+        self.client.force_login(User.objects.create_superuser("admin", "a@b.c", "pass12345"))
+
     def _live(self):
         return Auction.objects.create(
             title="A", status=Auction.Status.LIVE, current_price=Decimal("1"),
@@ -243,6 +247,7 @@ class RegistaControlTests(TestCase):
 
     def setUp(self):
         self.user = User.objects.create_superuser("admin", "a@b.c", "pass12345")
+        self.client.force_login(self.user)
         self.league = League.objects.create(name="L", budget=Decimal("500"))
         self.p = Participant.objects.create(display_name="Eve", league=self.league,
                                             credits=Decimal("500"))
