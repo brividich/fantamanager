@@ -197,8 +197,10 @@ class ConfigScopeTests(TestCase):
     def test_page_lists_only_manageable_leagues(self):
         resp = self.client.get(reverse("admin_config"))
         names = {r["league"].name for r in resp.context["rows"]}
-        self.assertEqual(names, {"Mia", "Vecchia"})
+        self.assertEqual(names, {"Mia"})
         self.assertNotContains(resp, "Altrui")
+        # A league nobody owns is the superadmin's to assign, not up for grabs.
+        self.assertNotContains(resp, "Vecchia")
 
     def test_cannot_edit_or_delete_someone_elses_league(self):
         self._post(action="update_league", league_id=self.theirs.id, name="Presa")
@@ -206,11 +208,13 @@ class ConfigScopeTests(TestCase):
         self.theirs.refresh_from_db()
         self.assertEqual(self.theirs.name, "Altrui")
 
-    def test_legacy_league_editable_but_not_deletable_by_non_owner(self):
+    def test_legacy_league_reserved_to_superusers(self):
+        # Anyone can sign up: "any logged-in account" can no longer mean "may
+        # edit every league that has no owner".
         self._post(action="update_league", league_id=self.legacy.id, name="Rinnovata")
         self._post(action="delete_league", league_id=self.legacy.id)
         self.legacy.refresh_from_db()
-        self.assertEqual(self.legacy.name, "Rinnovata")
+        self.assertEqual(self.legacy.name, "Vecchia")
         self._post(action="clean_empty")
         self.assertTrue(League.objects.filter(pk=self.legacy.id).exists())
         self.assertFalse(League.objects.filter(pk=self.mine.id).exists())  # own empty league goes
