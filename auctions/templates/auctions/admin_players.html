@@ -217,6 +217,36 @@
     <div id="rose-preview" style="display:none;margin-top:14px"></div>
 </section>
 
+<!-- Import schede squadra (il foglio pre-asta della lega) -->
+<section class="fm-card"><div class="fm-section-title"><svg class="ic"><use href="#i-users"/></svg> Importa schede squadra <span class="sep"></span></div>
+    <p class="muted" style="font-size:13px;margin:0 0 16px;line-height:1.6">
+        Carica le <strong style="color:var(--ink)">schede squadra</strong> della lega: i <strong style="color:var(--ink)">PDF</strong>
+        (una squadra per pagina) o l'<strong style="color:var(--ink)">Excel</strong> scaricato da
+        <a href="{% url 'admin_export' %}{% if current_league %}?league={{ current_league.id }}{% endif %}" style="color:var(--accent)">Export rose</a>,
+        anche più file insieme. Entrano presidente, allenatore, stadio, palmarès, logo e maglie, la rosa con
+        <strong style="color:var(--ink)">spesa e anni di contratto</strong> (RIN. = scaduto, - = da tirare),
+        i giocatori <strong style="color:var(--ink)">fuori dalla Serie A</strong> (riga arancione),
+        i prestiti e la lista ceduti temporanei.
+    </p>
+    <div style="display:flex;gap:18px;align-items:flex-end;flex-wrap:wrap">
+        <div style="flex:1;min-width:220px">
+            <label>Schede (.pdf / .xlsx)</label>
+            <input type="file" id="sheet-files" multiple accept=".pdf,.xlsx,.xlsm" style="padding:10px;font-size:14px"
+                   onchange="resetSheets()">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:9px">
+            <label class="opt-row"><input type="checkbox" id="sheet-replace" value="1" checked> La scheda è la rosa completa (svincola chi non c'è)</label>
+            <label class="opt-row"><input type="checkbox" id="sheet-images" value="1"> Sostituisci logo e maglie già caricati</label>
+        </div>
+        <div style="display:flex;gap:10px">
+            <button onclick="importSheets(true)" class="btn-ghost" style="padding:13px 18px">Anteprima</button>
+            <button onclick="importSheets(false)" class="btn-ok" style="padding:13px 24px">Importa schede</button>
+        </div>
+    </div>
+    <p id="sheet-msg" style="margin:14px 0 0;font-size:13px;font-weight:700;display:none"></p>
+    <div id="sheet-preview" style="display:none;margin-top:14px"></div>
+</section>
+
 <!-- Foto giocatori -->
 
 
@@ -506,6 +536,99 @@
 
     function esc(s) {
         const d = document.createElement("div"); d.textContent = s == null ? "" : s; return d.innerHTML;
+    }
+
+    // --- Schede squadra -------------------------------------------------------
+    // L'anteprima fa l'import vero e poi lo annulla: quello che mostra è quello
+    // che succederà. Le tendine scelgono la squadra di ogni scheda.
+    function showSheetMsg(text, color) {
+        const msg = document.getElementById("sheet-msg");
+        msg.style.display = "block"; msg.style.color = color; msg.textContent = text;
+    }
+
+    function resetSheets() {
+        document.getElementById("sheet-preview").style.display = "none";
+        document.getElementById("sheet-preview").innerHTML = "";
+        document.getElementById("sheet-msg").style.display = "none";
+    }
+
+    function sheetMapping() {
+        const map = {};
+        document.querySelectorAll("[data-sheet-map]").forEach(sel => { map[sel.dataset.sheetMap] = sel.value; });
+        return map;
+    }
+
+    function sheetList(label, items, color) {
+        if (!items || !items.length) return "";
+        return `<div style="margin-top:4px"><span style="color:${color};font-weight:700">${label}:</span> ` +
+            items.map(esc).join(", ") + `</div>`;
+    }
+
+    function renderSheets(data) {
+        const teams = data.teams || [];
+        const cards = data.sheets.map(s => {
+            const pick = s.skipped ? "skip" : (s.team_id ? String(s.team_id) : (s.created_team ? "new" : ""));
+            const opts = teams.map(t => `<option value="${t.id}" ${String(t.id) === pick ? "selected" : ""}>${esc(t.name)}</option>`).join("");
+            const info = s.info || {};
+            const head = [info.president && `Presidente ${esc(info.president)}`,
+                          info.coach && `allenatore ${esc(info.coach)}`,
+                          info.stadium && `stadio ${esc(info.stadium)}${info.capacity ? " (" + info.capacity + ")" : ""}`]
+                .filter(Boolean).join(" · ");
+            const counts = s.skipped ? "scheda saltata" :
+                `${s.players} giocatori` + (s.reserved ? ` · ${s.reserved} in lista ceduti` : "") +
+                (s.loans ? ` · ${s.loans} prestiti` : "") +
+                (s.images && s.images.length ? ` · immagini: ${s.images.map(k => ({logo: "logo", kit_home: "prima maglia", kit_away: "seconda maglia"})[k] || k).join(", ")}` : "");
+            return `<div style="padding:12px 14px;border:1px solid var(--fm-border);border-radius:10px;margin-bottom:10px">` +
+                `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">` +
+                `<b style="flex:1 1 200px">${esc(s.title || "(senza titolo)")}</b>` +
+                `<span class="muted" style="font-size:12px">${esc(s.source)}</span>` +
+                `<select data-sheet-map="${s.index}" style="width:auto;min-width:190px;margin:0">` +
+                `<option value="">Riconosci dal titolo</option>${opts}` +
+                `<option value="new" ${pick === "new" ? "selected" : ""}>➕ Nuova squadra</option>` +
+                `<option value="skip" ${pick === "skip" ? "selected" : ""}>Salta questa scheda</option></select></div>` +
+                `<div style="font-size:12.5px;margin-top:6px">${s.created_team ? "<b style='color:var(--gold)'>Nuova squadra</b> · " : ""}${counts}</div>` +
+                (head ? `<div class="muted" style="font-size:12px;margin-top:2px">${head}</div>` : "") +
+                `<div style="font-size:12px;margin-top:4px">` +
+                sheetList("Nuovi nel listone", s.created_players, "var(--gold)") +
+                sheetList("Spostati da un'altra squadra", s.moved, "var(--accent)") +
+                sheetList("Fuori dalla Serie A", s.flagged_out, "#f8a77a") +
+                sheetList("Svincolati (non nella scheda)", s.released, "var(--closed)") +
+                sheetList("Attenzione", s.warnings, "var(--closed)") + `</div></div>`;
+        }).join("");
+        const box = document.getElementById("sheet-preview");
+        box.innerHTML = cards + (data.errors && data.errors.length
+            ? `<div style="color:var(--closed);font-size:12.5px">${data.errors.map(esc).join("<br>")}</div>` : "");
+        box.style.display = "block";
+    }
+
+    async function importSheets(preview) {
+        const files = document.getElementById("sheet-files").files;
+        if (!files.length) { showSheetMsg("Seleziona uno o più file.", "var(--closed)"); return; }
+        const form = new FormData();
+        for (const f of files) form.append("sheet_files", f);
+        if (preview) form.append("action", "preview");
+        form.append("replace", document.getElementById("sheet-replace").checked ? "1" : "0");
+        form.append("overwrite_images", document.getElementById("sheet-images").checked ? "1" : "0");
+        form.append("mapping", JSON.stringify(sheetMapping()));
+        if (LEAGUE_ID) form.append("league_id", LEAGUE_ID);
+        showSheetMsg(preview ? "Lettura delle schede…" : "Importazione…", "var(--muted)");
+        let data;
+        try {
+            const r = await fetch("{% url 'admin_import_team_sheets' %}", { method: "POST", body: form, headers: { "X-CSRFToken": CSRF } });
+            data = await r.json();
+        } catch (e) {
+            showSheetMsg("✗ Errore di rete.", "var(--closed)"); return;
+        }
+        if (!data.ok) { showSheetMsg("✗ " + (data.error || "Errore."), "var(--closed)"); return; }
+        renderSheets(data);
+        const total = data.sheets.filter(s => !s.skipped).reduce((n, s) => n + s.players, 0);
+        if (preview) {
+            showSheetMsg(`Anteprima: ${data.sheets.length} schede, ${total} giocatori. Controlla le squadre e premi «Importa schede».` +
+                (data.contracts_on ? "" : " ⚠ I contratti non sono attivi in questa lega: gli anni vengono salvati ma non usati."),
+                "var(--gold)");
+            return;
+        }
+        showSheetMsg(`✓ Importate ${data.sheets.filter(s => !s.skipped).length} schede · ${total} giocatori.`, "var(--live)");
     }
 
     async function clearPlayers() {

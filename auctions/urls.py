@@ -104,6 +104,11 @@ urlpatterns = [
     path("admin-auction/export/xlsx/", views.admin_export_xlsx, name="admin_export_xlsx"),
     path("admin-auction/export/csv/", views.admin_export_csv, name="admin_export_csv"),
     path("admin-auction/export/leghe/", views.admin_export_leghe, name="admin_export_leghe"),
+    path("admin-auction/export/schede/", views.admin_export_team_sheets, name="admin_export_team_sheets"),
+    path("admin-auction/export/schede/stampa/", views.admin_print_team_sheets, name="admin_print_team_sheets"),
+    path("admin-auction/export/rinnovi/", views.admin_export_renewals, name="admin_export_renewals"),
+    path("admin-auction/export/rinnovi/stampa/", views.admin_print_renewals, name="admin_print_renewals"),
+    path("admin-auction/rose/schede/import/", views.admin_import_team_sheets, name="admin_import_team_sheets"),
     path("admin-auction/players/", views.admin_players, name="admin_players"),
     path("admin-auction/players/import/", views.admin_import_players, name="admin_import_players"),
     path("admin-auction/players/photos/", views.admin_apply_photos, name="admin_apply_photos"),
@@ -118,6 +123,7 @@ urlpatterns = [
     path("admin-auction/participants/<int:participant_id>/edit/", views.admin_edit_participant, name="admin_edit_participant"),
     path("admin-auction/participants/<int:participant_id>/delete/", views.admin_delete_participant, name="admin_delete_participant"),
     path("admin-auction/participants/<int:participant_id>/account/", views.admin_participant_account, name="admin_participant_account"),
+    path("admin-auction/participants/<int:participant_id>/scheda/", views.admin_participant_profile, name="admin_participant_profile"),
     path("participants/<int:participant_id>/qr.png", views.participant_qr, name="participant_qr"),
 
     # Participant flow.
