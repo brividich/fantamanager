@@ -11,13 +11,24 @@ while something is actually LIVE.
 Runs off sqlite3's own online backup API rather than a plain file copy, so a
 snapshot taken while WAL journal entries are still unflushed is still a
 consistent copy.
+
+On PostgreSQL (the Docker deployment) the dumps are the ``backup`` service's
+job in docker-compose: pg_dump of the server's own version, every few hours
+and within a minute of a request. The app only asks, when something worth a
+snapshot of its own happens (an auction ending), by leaving a file in the
+shared backups folder; the periodic ticker asks nothing, the service already
+keeps its own schedule.
 """
 import logging
 import threading
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+PERIODIC = "periodico"          # the live ticker's reason: see consumers.RoomTicker
+PG_REQUEST_FILE = ".richiesta"  # watched by the backup service in docker-compose
 
 _bg_lock = threading.Lock()
 _last_bg_backup = 0.0
@@ -34,6 +45,56 @@ def _db_path():
     return Path(str(name)) if name else None
 
 
+def _is_postgres():
+    from django.conf import settings
+    return "postgresql" in settings.DATABASES.get("default", {}).get("ENGINE", "")
+
+
+def _backup_dir():
+    """Where the PostgreSQL dumps land (./backups in docker-compose)."""
+    from django.conf import settings
+    return Path(settings.BACKUP_DIR)
+
+
+def request_pg_dump(reason=""):
+    """Ask the backup service for a PostgreSQL dump now. Returns the request
+    file, or None when it could not be written (logged, never raised)."""
+    path = _backup_dir() / PG_REQUEST_FILE
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"{reason or 'richiesta'}\n", encoding="utf-8")
+    except OSError:
+        logger.exception("could not request a database dump (%s)", reason or "no reason given")
+        return None
+    return path
+
+
+def latest_backup():
+    """The newest backup on disk, for the Supervisor: ``{"name", "at", "count",
+    "folder"}``, or None when there is none — the pg-*.sql.gz dumps on
+    PostgreSQL, the db-*.sqlite3 snapshots on SQLite."""
+    if _is_postgres():
+        folder, pattern = _backup_dir(), "pg-*.sql.gz"
+    else:
+        src = _db_path()
+        if src is None:
+            return None
+        folder, pattern = src.parent / "backups", "db-*.sqlite3"
+    try:
+        files = sorted(folder.glob(pattern), key=lambda p: p.stat().st_mtime, reverse=True)
+    except OSError:
+        files = []
+    if not files:
+        return None
+    newest = files[0]
+    return {
+        "name": newest.name,
+        "at": datetime.fromtimestamp(newest.stat().st_mtime, tz=timezone.utc),
+        "count": len(files),
+        "folder": str(folder),
+    }
+
+
 def backup_database(*, keep=10, reason=""):
     """Blocking snapshot — call this from a background thread (see
     :func:`backup_database_async`), never inline on a request or websocket
@@ -45,7 +106,11 @@ def backup_database(*, keep=10, reason=""):
     request or the ticker down with it).
     """
     src_path = _db_path()
-    if src_path is None or not src_path.exists():
+    if src_path is None:
+        if _is_postgres() and reason != PERIODIC:
+            return request_pg_dump(reason)
+        return None
+    if not src_path.exists():
         return None
 
     backups_dir = src_path.parent / "backups"
