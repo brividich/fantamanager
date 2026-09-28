@@ -318,9 +318,20 @@
     </div>
 
     <div class="metric-card">
-        <div class="metric-label">Database SQLite</div>
+        <div class="metric-label">Database {{ metrics.db_engine }}</div>
         <div class="metric-value">{{ metrics.db_size_mb }} <span style="font-size:14px;color:var(--muted)">MB</span></div>
-        <div class="metric-sub">File: db.sqlite3</div>
+        <div class="metric-sub">{{ metrics.db_where }}</div>
+    </div>
+
+    <div class="metric-card">
+        <div class="metric-label">Ultimo backup</div>
+        {% if metrics.last_backup %}
+        <div class="metric-value" style="font-size:20px{% if metrics.last_backup.stale %};color:#f87171{% endif %}">{{ metrics.last_backup.at|timesince }} fa</div>
+        <div class="metric-sub">{{ metrics.last_backup.name }} · {{ metrics.last_backup.count }} file{% if metrics.last_backup.stale %} · da più di un giorno: controlla il servizio backup{% endif %}</div>
+        {% else %}
+        <div class="metric-value" style="font-size:20px;color:#f87171">Nessuno</div>
+        <div class="metric-sub">{% if metrics.db_engine == "PostgreSQL" %}Nessun file in ./backups: il servizio «backup» del docker-compose è attivo?{% else %}Nessuna copia accanto al database{% endif %}</div>
+        {% endif %}
     </div>
 
     <div class="metric-card">
@@ -808,7 +819,7 @@
             {% csrf_token %}
             <input type="hidden" name="action" value="vacuum_db">
             <button type="submit" class="btn-super-action" style="padding:10px 16px;background:rgba(59,130,246,0.15);border-color:#3b82f6;color:#60a5fa">
-                🧹 Ottimizza Database (VACUUM SQLite)
+                🧹 Ottimizza Database (VACUUM)
             </button>
         </form>
 
