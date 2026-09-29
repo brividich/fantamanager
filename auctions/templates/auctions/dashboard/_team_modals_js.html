@@ -6,9 +6,9 @@
         document.getElementById("ep-credits").value = credits;
         document.getElementById("ep-active").checked = isActive === 1;
         document.getElementById("edit-participant-form").action =
-            `/admin-auction/participants/${id}/edit/`;
+            `/dashboard/participants/${id}/edit/`;
         document.getElementById("delete-participant-form").action =
-            `/admin-auction/participants/${id}/delete/`;
+            `/dashboard/participants/${id}/delete/`;
         modal.style.display = "flex";
     }
     function closeEditParticipant() {
@@ -17,7 +17,7 @@
     function deleteParticipant(id, name) {
         if (!confirm(`Eliminare la squadra "${name}"? L'azione è irreversibile.`)) return;
         const form = document.getElementById("delete-participant-form");
-        form.action = `/admin-auction/participants/${id}/delete/`;
+        form.action = `/dashboard/participants/${id}/delete/`;
         form.submit();
     }
 

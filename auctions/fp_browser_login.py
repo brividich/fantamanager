@@ -220,7 +220,7 @@ def main():
     # POST the cookie back to the server.
     payload = json.dumps({"cookie": cookie_str, "rose_ready": rose_ok}).encode("utf-8")
     req = urllib.request.Request(
-        f"{server_origin}/admin-auction/fantapazz/cookie-sync/",
+        f"{server_origin}/dashboard/fantapazz/cookie-sync/",
         data=payload,
         headers={"Content-Type": "application/json", "X-Token": token},
         method="POST",

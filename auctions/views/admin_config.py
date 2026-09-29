@@ -240,7 +240,7 @@ def admin_save_session(request, auction_id):
         created_by=request.user.get_username(),
         notes=request.POST.get("notes", "").strip(),
     )
-    return redirect(f"/admin-auction/sessions/?saved={session.id}")
+    return redirect(f"/dashboard/sessions/?saved={session.id}")
 
 
 def _after_resume(auction):
@@ -249,7 +249,7 @@ def _after_resume(auction):
         return redirect(
             f"{reverse('admin_players')}?league={auction.league_id}&need_listone=1&from=resume"
         )
-    return redirect(f"/admin-auction/?auction={auction.id}")
+    return redirect(f"/dashboard/?auction={auction.id}")
 
 
 def _resume(request, session):
