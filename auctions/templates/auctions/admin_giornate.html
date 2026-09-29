@@ -1,55 +1,44 @@
-{% extends "auctions/base.html" %}
+{% extends "auctions/app_base.html" %}
 {% block title %}Giornate & Voti — FantaManager{% endblock %}
-{% block bodyclass %}role-admin{% endblock %}
-{% block wrapclass %}wrap-wide{% endblock %}
+{% block mainclass %}wide{% endblock %}
 
-{% block content %}
+{% block app %}
 <style>
-    .pg-head { display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap; margin:6px 0 14px; }
-    .pg-head h1 { margin:0; font-size:26px; letter-spacing:.02em; }
-    .pg-head .sub { font-size:12.5px; color:var(--fm-text-secondary); }
-    .pg-head .spacer { flex:1 1 auto; }
-
-    .msg { padding:11px 14px; border-radius:var(--fm-radius-sm); font-size:13px; margin-bottom:10px; }
-    .msg.success { background:rgba(22,217,104,.10); border:1px solid rgba(22,217,104,.35); color:#8df0b6; }
-    .msg.error   { background:rgba(255,61,80,.10); border:1px solid rgba(255,61,80,.40); color:#ffb3bb; }
-
     .giornate-strip {
         display:flex; gap:6px; overflow-x:auto; padding:10px 4px; margin-bottom:16px;
         scrollbar-width:thin;
     }
     .giornata-btn {
         flex:0 0 auto; padding:6px 12px; border-radius:8px; font-weight:700; font-size:13px;
-        background:rgba(255,255,255,.05); border:1px solid var(--fm-border); color:var(--fm-text-secondary);
+        background:var(--panel-2); border:1px solid var(--line); color:var(--muted);
         text-decoration:none; display:flex; align-items:center; gap:6px;
     }
-    .giornata-btn:hover { background:rgba(255,255,255,.1); color:#fff; }
-    .giornata-btn.active { background:var(--fm-primary); border-color:var(--fm-primary-light); color:#fff; }
+    .giornata-btn:hover { background:var(--panel); color:var(--ink); }
+    .giornata-btn.active { background:var(--accent); border-color:var(--accent); color:#0a1108; }
     .giornata-btn.scored { border-color:rgba(22,217,104,.4); }
 
     .voti-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:14px; }
     @media (max-width:960px) { .voti-grid { grid-template-columns:1fr; } }
 
     .upload-card {
-        background:rgba(10,36,69,0.7); border:1px solid var(--fm-border); border-radius:14px; padding:20px;
+        background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:20px;
     }
     .drop-zone {
-        border:2px dashed rgba(85,160,230,0.3); border-radius:12px; padding:24px; text-align:center;
-        background:rgba(0,0,0,0.2); transition:all .2s ease; cursor:pointer; margin-top:12px;
+        border:2px dashed var(--line-strong); border-radius:12px; padding:24px; text-align:center;
+        background:var(--panel-2); transition:all .2s ease; cursor:pointer; margin-top:12px;
     }
-    .drop-zone:hover { border-color:var(--fm-accent); background:rgba(8,124,240,0.06); }
+    .drop-zone:hover { border-color:var(--accent); background:var(--accent-soft); }
 </style>
 
-{% include "auctions/_console_head.html" %}
-
-<div class="pg-head">
+<div class="tab-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
     <div>
         <h1>Giornate, Voti & Calcolo Partite</h1>
-        <div class="sub">Lega: <b>{{ current_league.name }}</b> · {{ season.name }}</div>
+        <p>Lega: <b>{{ current_league.name }}</b> · {{ season.name }}</p>
     </div>
-    <span class="spacer"></span>
-    <a class="fm-btn fm-btn-secondary" href="{% url 'admin_dashboard' %}">
-        <svg class="ic"><use href="#i-gavel"/></svg> Torna alla regia</a>
+    <div style="display:flex;gap:8px;">
+        <a class="fm-btn fm-btn-secondary" href="{% url 'app_regia' %}">
+            <svg class="ic"><use href="#i-gavel"/></svg> Torna alla regia</a>
+    </div>
 </div>
 
 {% for m in messages %}
@@ -169,7 +158,7 @@
         Il sistema mappa automaticamente voti, gol segnati/subiti, assist, rigori, ammonizioni ed espulsioni.
     </div>
 
-    <form method="post" action="{% url 'admin_upload_voti' %}" enctype="multipart/form-data" style="margin-top:16px;">
+    <form method="post" action="{% url 'app_voti_import' %}" enctype="multipart/form-data" style="margin-top:16px;">
         {% csrf_token %}
         <input type="hidden" name="league_id" value="{{ current_league.id }}">
         <input type="hidden" name="giornata_number" value="{{ current_giornata.number }}">

@@ -84,14 +84,14 @@ def admin_upload_voti(request):
     file_obj = request.FILES.get("voti_file")
     if not file_obj:
         messages.error(request, "Nessun file selezionato per il caricamento dei voti.")
-        return redirect(f"/admin-auction/giornate/?giornata={giornata_num}")
+        return redirect(f"/app/giornate/?giornata={giornata_num}")
 
     try:
         content = file_obj.read()
         parsed_rows = parse_voti_file(content, file_obj.name)
         if not parsed_rows:
             messages.error(request, "Il file caricato non contiene righe di voti riconoscibili o è vuoto.")
-            return redirect(f"/admin-auction/giornate/?giornata={giornata_num}")
+            return redirect(f"/app/giornate/?giornata={giornata_num}")
 
         report = import_voti_giornata(parsed_rows, giornata, league=league, recompute=True)
         messages.success(
@@ -103,7 +103,7 @@ def admin_upload_voti(request):
         logger.exception("Errore durante l'importazione dei voti: %s", e)
         messages.error(request, f"Errore durante l'importazione del file voti: {e}")
 
-    return redirect(f"/admin-auction/giornate/?giornata={giornata_num}")
+    return redirect(f"/app/giornate/?giornata={giornata_num}")
 
 
 admin_voti_import = admin_upload_voti
