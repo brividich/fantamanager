@@ -214,6 +214,7 @@ class LiveSyncManager:
         self.active_giornata_num: Optional[int] = None
         self._thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
+        self.history: List[Dict[str, Any]] = []
 
     @classmethod
     def get_instance(cls) -> "LiveSyncManager":
@@ -221,6 +222,20 @@ class LiveSyncManager:
             if cls._instance is None:
                 cls._instance = LiveSyncManager()
             return cls._instance
+
+    def _record_event(self, action: str, status: str, message: str, count: int = 0, giornata_num: Optional[int] = None):
+        entry = {
+            "time": timezone.now().strftime("%d/%m/%Y %H:%M:%S"),
+            "action": action,
+            "status": status,
+            "message": message,
+            "count": count,
+            "giornata": giornata_num or self.active_giornata_num,
+            "provider": self.provider,
+        }
+        self.history.insert(0, entry)
+        if len(self.history) > 50:
+            self.history = self.history[:50]
 
     def get_status(self) -> Dict[str, Any]:
         return {
@@ -232,6 +247,7 @@ class LiveSyncManager:
             "last_message": self.last_message,
             "last_updated_count": self.last_updated_count,
             "active_giornata_num": self.active_giornata_num,
+            "history": list(self.history),
         }
 
     def start_background(self, interval: int = 60, provider: str = "fantacalcio_web"):
@@ -240,6 +256,7 @@ class LiveSyncManager:
             self.provider = provider
             self.is_enabled = True
             self._stop_event.clear()
+            self._record_event("START", "SUCCESS", f"Polling live avviato (ogni {self.interval_seconds}s con {self.provider}).")
 
             if self._thread is None or not self._thread.is_alive():
                 self._thread = threading.Thread(target=self._worker_loop, daemon=True, name="LiveVotiWorker")
@@ -250,6 +267,7 @@ class LiveSyncManager:
         with self._lock:
             self.is_enabled = False
             self._stop_event.set()
+            self._record_event("STOP", "IDLE", "Polling live arrestato dall'amministratore.")
             logger.info("LiveSyncManager background thread arrestato.")
 
     def _worker_loop(self):
@@ -269,6 +287,7 @@ class LiveSyncManager:
                     logger.exception("Errore nel background worker LiveSync: %s", e)
                     self.last_status = "ERROR"
                     self.last_message = f"Errore durante sync automatico: {e}"
+                    self._record_event("AUTO_SYNC", "ERROR", self.last_message)
                 finally:
                     connection.close()
 
@@ -300,6 +319,7 @@ class LiveSyncManager:
         if not rows:
             self.last_status = "IDLE"
             self.last_message = f"Nessun dato live ricevuto per la Giornata {target_num}."
+            self._record_event("SYNC", "IDLE", self.last_message, 0, target_num)
             return {"updated": 0, "status": "NO_DATA"}
 
         # Distribute updates across all current seasons
@@ -360,6 +380,7 @@ class LiveSyncManager:
         self.last_updated_count = total_updated
         mode_str = "Provvisori (LIVE)" if is_provisional else "Ufficiali Definitivi"
         self.last_message = f"G{target_num} sincronizzata ({mode_str}): {total_updated} calciatori aggiornati con {self.provider}."
+        self._record_event("SYNC", "SUCCESS", self.last_message, total_updated, target_num)
         logger.info(self.last_message)
 
         return {
@@ -385,4 +406,6 @@ class LiveSyncManager:
 
         self.last_status = "SUCCESS"
         self.last_message = f"Giornata {giornata_num} consolidata ufficialmente ({count} leghe chiuse su dati definitivi)."
+        self._record_event("CONSOLIDATE", "SUCCESS", self.last_message, count, giornata_num)
+        logger.info(self.last_message)
         return {"status": "CONSOLIDATED", "giornate_count": count}
