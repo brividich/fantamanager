@@ -31,10 +31,152 @@
 </div>
 {% endif %}
 
+{% if competitions %}
+<div class="a-card" style="margin-top:14px;">
+    <div class="a-label" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <span style="display:inline-flex;align-items:center;gap:6px;"><svg class="ic"><use href="#i-trophy"/></svg> Competizioni di Lega</span>
+        {% if manages_app_league %}
+        <a href="{% url 'app_giornate' %}" class="fm-btn fm-btn-secondary" style="font-size:11px;padding:4px 9px;height:auto;text-decoration:none;">Gestisci Voti & Giornate</a>
+        {% endif %}
+    </div>
+
+    <!-- Competition selector pills -->
+    <div style="display:flex;gap:6px;overflow-x:auto;padding:8px 0 12px;scrollbar-width:thin;">
+        {% for c in competitions %}
+        <a href="?comp={{ c.id }}" class="fm-btn {% if c.id == current_competition.id %}fm-btn-primary{% else %}fm-btn-secondary{% endif %}" style="flex:0 0 auto;font-size:12px;padding:6px 12px;border-radius:8px;text-decoration:none;">
+            {{ c.name }}
+        </a>
+        {% endfor %}
+    </div>
+
+    {% if competition_data.kind == "table" %}
+    <!-- Classic Head-to-head League Table -->
+    <div style="overflow-x:auto;">
+        <table class="table" style="width:100%;font-size:13px;border-collapse:collapse;">
+            <thead>
+                <tr style="border-bottom:1px solid var(--line);color:var(--muted);text-align:left;">
+                    <th style="padding:8px;width:32px;">#</th>
+                    <th style="padding:8px;">Squadra</th>
+                    <th style="padding:8px;text-align:center;">G</th>
+                    <th style="padding:8px;text-align:center;">V</th>
+                    <th style="padding:8px;text-align:center;">P</th>
+                    <th style="padding:8px;text-align:center;">S</th>
+                    <th style="padding:8px;text-align:center;">Gol</th>
+                    <th style="padding:8px;text-align:right;">Pt</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in competition_data.standings %}
+                <tr style="border-bottom:1px solid var(--line-soft, rgba(255,255,255,.05));">
+                    <td style="padding:8px;"><b>{{ forloop.counter }}</b></td>
+                    <td style="padding:8px;">
+                        <b>{{ row.team.display_name }}</b>
+                        {% if participant and row.team.id == participant.id %}<small style="color:var(--accent)"> · tu</small>{% endif %}
+                    </td>
+                    <td style="padding:8px;text-align:center;">{{ row.played }}</td>
+                    <td style="padding:8px;text-align:center;">{{ row.won }}</td>
+                    <td style="padding:8px;text-align:center;">{{ row.drawn }}</td>
+                    <td style="padding:8px;text-align:center;">{{ row.lost }}</td>
+                    <td style="padding:8px;text-align:center;"><small class="muted">{{ row.goals_for }}:{{ row.goals_against }}</small></td>
+                    <td style="padding:8px;text-align:right;"><b style="color:var(--accent);font-size:15px;">{{ row.points }}</b></td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="8" style="padding:14px;text-align:center;" class="muted">Nessuna partita giocata ancora.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% elif competition_data.kind == "points" %}
+    <!-- Gran Premio / Total Points Table -->
+    <div style="overflow-x:auto;">
+        <table class="table" style="width:100%;font-size:13px;border-collapse:collapse;">
+            <thead>
+                <tr style="border-bottom:1px solid var(--line);color:var(--muted);text-align:left;">
+                    <th style="padding:8px;width:32px;">#</th>
+                    <th style="padding:8px;">Squadra</th>
+                    <th style="padding:8px;text-align:center;">Giornate</th>
+                    <th style="padding:8px;text-align:right;">Totale Fantapunti</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in competition_data.standings %}
+                <tr style="border-bottom:1px solid var(--line-soft, rgba(255,255,255,.05));">
+                    <td style="padding:8px;"><b>{{ forloop.counter }}</b></td>
+                    <td style="padding:8px;">
+                        <b>{{ row.team.display_name }}</b>
+                        {% if participant and row.team.id == participant.id %}<small style="color:var(--accent)"> · tu</small>{% endif %}
+                    </td>
+                    <td style="padding:8px;text-align:center;">{{ row.giornate_played }}</td>
+                    <td style="padding:8px;text-align:right;"><b style="color:var(--accent);font-size:15px;">{{ row.total|floatformat:1 }}</b></td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="4" style="padding:14px;text-align:center;" class="muted">Nessun punteggio registrato.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% elif competition_data.kind == "battle_royale" %}
+    <!-- Coppa Italia Battle Royale Table -->
+    <div style="overflow-x:auto;">
+        <table class="table" style="width:100%;font-size:13px;border-collapse:collapse;">
+            <thead>
+                <tr style="border-bottom:1px solid var(--line);color:var(--muted);text-align:left;">
+                    <th style="padding:8px;width:32px;">#</th>
+                    <th style="padding:8px;">Squadra</th>
+                    <th style="padding:8px;text-align:center;">Record (V-P-S)</th>
+                    <th style="padding:8px;text-align:center;">Fantapunti</th>
+                    <th style="padding:8px;text-align:right;">Punti Coppa</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in competition_data.standings %}
+                <tr style="border-bottom:1px solid var(--line-soft, rgba(255,255,255,.05));">
+                    <td style="padding:8px;"><b>{{ forloop.counter }}</b></td>
+                    <td style="padding:8px;">
+                        <b>{{ row.team.display_name }}</b>
+                        {% if participant and row.team.id == participant.id %}<small style="color:var(--accent)"> · tu</small>{% endif %}
+                    </td>
+                    <td style="padding:8px;text-align:center;"><small class="muted">{{ row.won }}-{{ row.drawn }}-{{ row.lost }}</small></td>
+                    <td style="padding:8px;text-align:center;">{{ row.total_fantapunti|floatformat:1 }}</td>
+                    <td style="padding:8px;text-align:right;"><b style="color:var(--paused);font-size:16px;">{{ row.battle_points }}</b></td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5" style="padding:14px;text-align:center;" class="muted">Nessun punteggio coppa calcolato.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% elif competition_data.kind == "bracket" %}
+    <!-- Knockout / Bracket Matchups -->
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px;">
+        {% for f in competition_data.fixtures %}
+        <div class="a-row" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--panel-2);border-radius:10px;border:1px solid var(--line);">
+            <div>
+                <small class="muted" style="text-transform:uppercase;font-size:10px;font-weight:800;">G{{ f.giornata.number }} · {{ f.stage }}</small>
+                <div style="margin-top:2px;"><b>{{ f.home.display_name }}</b> vs <b>{% if f.away %}{{ f.away.display_name }}{% else %}<i class="muted">Riposo</i>{% endif %}</b></div>
+            </div>
+            {% if f.computed %}
+            <div style="font-size:16px;font-weight:900;color:var(--accent);">
+                {{ f.home_goals }} - {{ f.away_goals }}
+            </div>
+            {% else %}
+            <span class="status-pill s-DRAFT" style="font-size:10px;">Da giocare</span>
+            {% endif %}
+        </div>
+        {% empty %}
+        <p class="muted" style="text-align:center;padding:12px 0;">Nessun accoppiamento programmato.</p>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% else %}
 <div class="soon">
     <svg class="ic"><use href="#i-table"/></svg>
-    <b>Calendario · Risultati · Regolamento</b>
-    <span>Giornate, scontri diretti e statistiche di lega si accenderanno all'avvio del campionato.</span>
-    <span class="soon-tag">In arrivo</span>
+    <b>Calendario · Competizioni · Risultati</b>
+    <span>Le classifiche e i calendari si attivano all'avvio della prima giornata.</span>
 </div>
+{% endif %}
 {% endblock %}

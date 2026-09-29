@@ -13,6 +13,7 @@ from .bidding import (
     SealedBid,
 )
 from .championship import (
+    Competition,
     Fixture,
     Formation,
     Giornata,
@@ -71,6 +72,7 @@ __all__ = [
     "DecreeAward",
     "UefaClubRank",
     "Formation",
+    "Competition",
     "Season",
     "Giornata",
     "PlayerPerformance",
