@@ -117,3 +117,111 @@ class VotiServicesTests(TestCase):
         self.assertEqual(standings[1]["record"], "0V-1P-1S")
         self.assertEqual(standings[2]["battle_points"], 1)
         self.assertEqual(standings[2]["record"], "0V-1P-1S")
+
+    def test_round_live_vote(self):
+        from ..services.voti_live import round_live_vote
+        # User rule verification: 7.2 -> 7.0, 6.8 -> 7.0
+        self.assertEqual(round_live_vote(Decimal("7.2")), Decimal("7.0"))
+        self.assertEqual(round_live_vote(Decimal("6.8")), Decimal("7.0"))
+        self.assertEqual(round_live_vote("7.2"), Decimal("7.0"))
+        self.assertEqual(round_live_vote("6.8"), Decimal("7.0"))
+        self.assertEqual(round_live_vote(6.8), Decimal("7.0"))
+        self.assertEqual(round_live_vote(7.2), Decimal("7.0"))
+        # 0.5 fantacalcio step rounding
+        self.assertEqual(round_live_vote("6.4"), Decimal("6.5"))
+        self.assertEqual(round_live_vote("6.6"), Decimal("6.5"))
+        self.assertEqual(round_live_vote("6.1"), Decimal("6.0"))
+        self.assertEqual(round_live_vote("7.3"), Decimal("7.5"))
+        self.assertIsNone(round_live_vote(None))
+
+    def test_live_sync_manager_simulation_and_consolidation(self):
+        from ..services.voti_live import LiveSyncManager
+        mgr = LiveSyncManager.get_instance()
+        mgr.provider = "simulation"
+
+        giornata = Giornata.objects.create(season=self.season, number=2)
+
+        # 1. Sync live ratings (simulation mode)
+        res = mgr.sync_now(giornata_num=2, is_provisional=True)
+        self.assertEqual(res["status"], "SUCCESS")
+        self.assertEqual(res["giornata"], 2)
+
+        giornata.refresh_from_db()
+        self.assertEqual(giornata.status, Giornata.Status.LIVE)
+
+        # Check performances have is_live=True
+        perfs = PlayerPerformance.objects.filter(giornata=giornata)
+        self.assertTrue(perfs.exists())
+        self.assertTrue(all(p.is_live for p in perfs))
+
+        # Check status reporting
+        status = mgr.get_status()
+        self.assertEqual(status["last_status"], "SUCCESS")
+        self.assertEqual(status["active_giornata_num"], 2)
+
+        # 2. Consolidate into official ratings
+        res_cons = mgr.consolidate_official(giornata_num=2)
+        self.assertEqual(res_cons["status"], "CONSOLIDATED")
+
+        giornata.refresh_from_db()
+        self.assertEqual(giornata.status, Giornata.Status.SCORED)
+        perfs = PlayerPerformance.objects.filter(giornata=giornata)
+        self.assertTrue(all(not p.is_live for p in perfs))
+
+    def test_live_sync_background_toggle(self):
+        from ..services.voti_live import LiveSyncManager
+        mgr = LiveSyncManager.get_instance()
+        mgr.start_background(interval=30, provider="simulation")
+        self.assertTrue(mgr.is_enabled)
+        self.assertEqual(mgr.interval_seconds, 30)
+
+        mgr.stop_background()
+        self.assertFalse(mgr.is_enabled)
+
+    def test_admin_live_voti_endpoints(self):
+        self.client.force_login(self.user)
+        # Add permission
+        self.user.is_staff = True
+        self.user.save()
+        self.league.owner = self.user
+        self.league.save()
+
+        # Trigger sync view
+        resp = self.client.post("/dashboard/giornate/live-sync/", {
+            "giornata_number": "1",
+            "provider": "simulation",
+        })
+        self.assertEqual(resp.status_code, 302)
+
+        # Trigger consolidate view
+        resp_cons = self.client.post("/dashboard/giornate/live-consolidate/", {
+            "giornata_number": "1",
+        })
+        self.assertEqual(resp_cons.status_code, 302)
+
+    def test_supervisor_live_sync_actions(self):
+        superadmin = User.objects.create_superuser("super_live", password="pw")
+        self.client.force_login(superadmin)
+
+        # Start
+        resp = self.client.post("/supervisor/", {
+            "action": "start_live_sync",
+            "interval_seconds": "60",
+            "provider": "simulation",
+            "target_giornata": "1",
+        })
+        self.assertEqual(resp.status_code, 302)
+
+        # Trigger now
+        resp_now = self.client.post("/supervisor/", {
+            "action": "trigger_live_sync",
+            "target_giornata": "1",
+            "provider": "simulation",
+        })
+        self.assertEqual(resp_now.status_code, 302)
+
+        # Stop
+        resp_stop = self.client.post("/supervisor/", {
+            "action": "stop_live_sync",
+        })
+        self.assertEqual(resp_stop.status_code, 302)

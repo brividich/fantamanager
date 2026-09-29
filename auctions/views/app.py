@@ -214,27 +214,12 @@ def app_lega(request):
     auctions = auctions.filter(league=league) if league is not None else auctions.filter(league__isnull=True)
     auctions = [a for a in auctions.order_by("-id") if a.status != Auction.Status.DRAFT]
 
-    season = Season.objects.filter(league=league, is_current=True).first() if league else None
-    competitions = []
+    from ..services.competitions import ensure_league_season_and_competitions, compute_competition_standings
+    season, competitions = ensure_league_season_and_competitions(league)
     current_competition = None
     competition_data = None
 
-    if season:
-        competitions = list(season.competitions.filter(is_active=True).order_by("id"))
-        if not competitions and league and league.participants.count() >= 2:
-            from ..services.competitions import setup_round_robin_competition
-            c1 = Competition.objects.create(
-                season=season, name="Campionato 1vs1", kind=Competition.Type.ROUND_ROBIN
-            )
-            setup_round_robin_competition(c1)
-            c2 = Competition.objects.create(
-                season=season, name="Coppa Italia Battle Royale", kind=Competition.Type.BATTLE_ROYALE
-            )
-            c3 = Competition.objects.create(
-                season=season, name="Gran Premio Punti", kind=Competition.Type.TOTAL_POINTS
-            )
-            competitions = [c1, c2, c3]
-
+    if season and competitions:
         comp_id = request.GET.get("comp")
         if comp_id:
             current_competition = next((c for c in competitions if str(c.id) == comp_id), competitions[0] if competitions else None)
@@ -242,7 +227,6 @@ def app_lega(request):
             current_competition = competitions[0] if competitions else None
 
         if current_competition:
-            from ..services.competitions import compute_competition_standings
             competition_data = compute_competition_standings(current_competition)
 
     ctx.update({

@@ -59,9 +59,9 @@ def score_participant_giornata(participant, giornata, *, persist=True):
     return res
 
 
-def compute_giornata(giornata):
+def compute_giornata(giornata, mark_scored: bool = True):
     """Score every active team in the season's league for this giornata, resolve
-    its head-to-head fixtures, and mark it SCORED. Returns the GiornataScore rows
+    its head-to-head fixtures, and mark it SCORED (or LIVE if mark_scored=False). Returns the GiornataScore rows
     (highest total first)."""
     league = giornata.season.league if giornata.season_id else None
     teams = Participant.objects.filter(is_active=True)
@@ -82,8 +82,13 @@ def compute_giornata(giornata):
         fx.home_goals, fx.away_goals, fx.home_points, fx.away_points, fx.computed = hg, ag, hp, ap, True
         fx.save(update_fields=["home_goals", "away_goals", "home_points", "away_points", "computed"])
 
-    giornata.status = Giornata.Status.SCORED
-    giornata.scored_at = timezone.now()
-    giornata.save(update_fields=["status", "scored_at"])
+    if mark_scored:
+        giornata.status = Giornata.Status.SCORED
+        giornata.scored_at = timezone.now()
+        giornata.save(update_fields=["status", "scored_at"])
+    elif giornata.status != Giornata.Status.SCORED:
+        giornata.status = Giornata.Status.LIVE
+        giornata.save(update_fields=["status"])
+
     return list(GiornataScore.objects.filter(giornata=giornata)
                 .select_related("participant").order_by("-total"))

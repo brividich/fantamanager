@@ -13,7 +13,7 @@ import time
 
 from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth import update_session_auth_hash
+from django.contrib.auth import login, update_session_auth_hash
 from django.contrib.auth.models import User
 from django.contrib.sessions.models import Session
 from django.core.exceptions import ValidationError
@@ -23,12 +23,14 @@ from django.db.models import Count, Sum
 from django.http import HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.views.decorators.http import require_POST
 from django.utils import timezone
 
 import django
 from .. import backup
 from ..models import Auction, Bid, League, Participant, Player
 from ..consumers import _ROOM_TICKERS
+from ..services.voti_live import LiveSyncManager
 
 logger = logging.getLogger(__name__)
 
@@ -361,6 +363,50 @@ def supervisor_dashboard(request):
             logger.info("Supervisor ha modificato l'utente %s (id=%s)", user_obj.username, user_obj.id)
             return redirect(f"{reverse('supervisor_dashboard')}?tab=users")
 
+        elif action == "delete_user":
+            uid = request.POST.get("user_id")
+            user_to_del = get_object_or_404(User, pk=uid)
+            if user_to_del == request.user:
+                messages.error(request, "Non puoi eliminare il tuo stesso account Superadmin.")
+            elif user_to_del.is_superuser and User.objects.filter(is_superuser=True).count() <= 1:
+                messages.error(request, "Impossibile eliminare l'unico Superadmin della piattaforma.")
+            else:
+                uname = user_to_del.username
+                League.objects.filter(owner=user_to_del).update(owner=None)
+                Participant.objects.filter(user=user_to_del).update(user=None)
+                user_to_del.delete()
+                messages.success(request, f"Account '{uname}' eliminato definitivamente.")
+                logger.info("Supervisor ha eliminato l'utente %s (id=%s)", uname, uid)
+            return redirect(f"{reverse('supervisor_dashboard')}?tab=users")
+
+        elif action == "impersonate_user":
+            uid = request.POST.get("user_id")
+            target_user = get_object_or_404(User, pk=uid)
+            if target_user == request.user:
+                messages.info(request, "Sei già collegato con questo account.")
+                return redirect(f"{reverse('supervisor_dashboard')}?tab=users")
+
+            admin_id = request.user.id
+            admin_name = request.user.username
+            login(request, target_user)
+            request.session["supervisor_impersonator_id"] = admin_id
+            request.session["supervisor_impersonator_name"] = admin_name
+            messages.success(request, f"Stai ora visualizzando la piattaforma come '{target_user.username}'.")
+
+            # Route to target user's context
+            first_team = target_user.teams.filter(is_active=True).first()
+            if first_team:
+                request.session["participant_id"] = first_team.id
+                request.session["display_name"] = first_team.display_name
+                request.session["app_league_id"] = first_team.league_id
+                return redirect("app_home")
+
+            owned_league = target_user.leagues.first() or target_user.managed_leagues.first()
+            if owned_league:
+                return redirect(f"/dashboard/{owned_league.id}/")
+
+            return redirect("home")
+
         elif action == "delete_league":
             lid = request.POST.get("league_id")
             league = get_object_or_404(League, pk=lid)
@@ -396,6 +442,39 @@ def supervisor_dashboard(request):
                 messages.error(request, f"Errore durante la pulizia delle sessioni: {e}")
             return redirect(f"{reverse('supervisor_dashboard')}?tab=reports")
 
+        elif action == "start_live_sync":
+            interval = int(request.POST.get("interval_seconds") or 60)
+            provider = request.POST.get("provider") or "fantacalcio_web"
+            target_g = int(request.POST.get("target_giornata") or 0) or None
+            mgr = LiveSyncManager.get_instance()
+            mgr.active_giornata_num = target_g
+            mgr.start_background(interval=interval, provider=provider)
+            messages.success(request, f"Sincronizzazione Live in background avviata (ogni {interval}s con {provider}).")
+            return redirect(f"{reverse('supervisor_dashboard')}?tab=live_sync")
+
+        elif action == "stop_live_sync":
+            LiveSyncManager.get_instance().stop_background()
+            messages.info(request, "Sincronizzazione Live in background arrestata.")
+            return redirect(f"{reverse('supervisor_dashboard')}?tab=live_sync")
+
+        elif action == "trigger_live_sync":
+            target_g = int(request.POST.get("target_giornata") or 0) or None
+            provider = request.POST.get("provider") or "fantacalcio_web"
+            mgr = LiveSyncManager.get_instance()
+            mgr.provider = provider
+            res = mgr.sync_now(giornata_num=target_g, is_provisional=True)
+            if res.get("status") == "SUCCESS":
+                messages.success(request, f"Sync Live completato: {res.get('total_updated')} calciatori aggiornati per G{res.get('giornata')} ({provider}).")
+            else:
+                messages.warning(request, f"Sync Live: {res.get('status')} - nessun dato disponibile per G{target_g}.")
+            return redirect(f"{reverse('supervisor_dashboard')}?tab=live_sync")
+
+        elif action == "consolidate_live_sync":
+            target_g = int(request.POST.get("target_giornata") or 0) or 1
+            res = LiveSyncManager.get_instance().consolidate_official(target_g)
+            messages.success(request, f"Giornata {target_g} consolidata ufficialmente ({res.get('giornate_count')} leghe chiuse su voti definitivi).")
+            return redirect(f"{reverse('supervisor_dashboard')}?tab=live_sync")
+
     # Metrics & System Health
     metrics = _get_server_metrics()
 
@@ -403,6 +482,7 @@ def supervisor_dashboard(request):
     users = list(
         User.objects.prefetch_related(
             "leagues",
+            "managed_leagues",
             "teams__league",
         ).annotate(
             owned_leagues_count=Count("leagues", distinct=True),
@@ -481,5 +561,20 @@ def supervisor_dashboard(request):
                 "total_bids": total_bids,
                 "total_credits_spent": total_credits_spent,
             },
+            "live_sync": LiveSyncManager.get_instance().get_status(),
         },
     )
+
+
+def supervisor_impersonate_exit(request):
+    """Exit impersonation and restore original superadmin account."""
+    orig_id = request.session.pop("supervisor_impersonator_id", None)
+    request.session.pop("supervisor_impersonator_name", None)
+    if orig_id:
+        orig_user = User.objects.filter(pk=orig_id, is_superuser=True).first()
+        if orig_user:
+            login(request, orig_user)
+            messages.success(request, f"Sessione ripristinata: sei tornato come Superadmin ({orig_user.username}).")
+            return redirect(f"{reverse('supervisor_dashboard')}?tab=users")
+    return redirect("supervisor_dashboard")
+

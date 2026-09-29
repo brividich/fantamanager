@@ -322,7 +322,8 @@ the same league.
         <div class="rg-tools">
             <a class="rg-tool primary" href="{% url 'dashboard_league' app_league.id %}"><svg class="ic"><use href="#i-table"/></svg>Dashboard<small>Rose, crediti, assegnazioni</small></a>
             <a class="rg-tool" href="{% url 'admin_players' %}{{ league_q }}"><svg class="ic"><use href="#i-users"/></svg>Giocatori<small>Listone e svincolati</small></a>
-            <a class="rg-tool" href="{% url 'app_giornate' %}{{ league_q }}"><svg class="ic"><use href="#i-trophy"/></svg>Giornate & Voti<small>Voti e calcolo partite</small></a>
+            <a class="rg-tool" href="{% url 'admin_competitions' %}{{ league_q }}"><svg class="ic"><use href="#i-trophy"/></svg>Competizioni<small>1vs1, coppe, calendari</small></a>
+            <a class="rg-tool" href="{% url 'app_giornate' %}{{ league_q }}"><svg class="ic"><use href="#i-pulse"/></svg>Giornate & Voti<small>Voti e calcolo partite</small></a>
             <a class="rg-tool" href="{% url 'admin_participants' %}{{ league_q }}"><svg class="ic"><use href="#i-shield"/></svg>Squadre<small>PIN, inviti, loghi</small></a>
             <a class="rg-tool" href="{% url 'admin_contracts' %}{{ league_q }}"><svg class="ic"><use href="#i-doc"/></svg>Contratti<small>Dadi e rinnovi</small></a>
             <a class="rg-tool" href="{% url 'admin_season' %}{{ league_q }}"><svg class="ic"><use href="#i-trophy"/></svg>Stagione<small>Economia e passaggi</small></a>

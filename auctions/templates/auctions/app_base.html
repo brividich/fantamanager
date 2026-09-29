@@ -200,7 +200,7 @@ app through one of their teams — a banner with the way back.
     .app-viewas button { height: 30px; padding: 0 12px; font-size: 12px; }
     .app-nav.is-wide a { font-size: 8.5px; letter-spacing: .01em; }
     .app-nav.is-wide a .ic { width: 20px; height: 20px; }
-    .app-nav .nav-sep, .app-nav .nav-console { display: none; }
+    .app-nav .nav-sep, .app-nav .nav-console, .app-nav .nav-portal { display: none; }
     .app-nav a.nav-regia.active { color: var(--paused); }
     .app-nav a.nav-regia.active .ic { filter: drop-shadow(0 0 6px rgba(255,181,38,.45)); }
 
@@ -225,7 +225,8 @@ app through one of their teams — a banner with the way back.
             display: block; margin: 10px 14px 4px; font-size: 9.5px; font-weight: 800;
             letter-spacing: .2em; text-transform: uppercase; color: var(--muted); opacity: .8;
         }
-        .app-nav a.nav-console { display: flex; margin-top: auto; color: var(--accent); border: 1px dashed var(--accent-line); }
+        .app-nav a.nav-portal { display: flex; margin-top: auto; color: var(--muted); border: 1px dashed var(--line); }
+        .app-nav a.nav-console { display: flex; color: var(--accent); border: 1px dashed var(--accent-line); }
         .app-viewas { top: 56px; margin-left: 216px; }
         .app-main {
             margin: 0 0 0 216px; max-width: 960px;
@@ -369,6 +370,8 @@ app through one of their teams — a banner with the way back.
     {% endif %}
     <a href="{% url 'app_altro' %}"   class="{% if active_tab == 'altro' %}active{% endif %}">
         <svg class="ic"><use href="#i-menu"/></svg>Altro</a>
+    <a class="nav-portal" href="{% url 'home_portal' %}" title="Torna al Portale Web">
+        <svg class="ic"><use href="#i-home"/></svg>Portale Web</a>
     {% if manages_app_league %}
     <a class="nav-console" href="{% url 'dashboard_league' app_league.id %}">
         <svg class="ic"><use href="#i-table"/></svg>Console completa</a>

@@ -139,7 +139,7 @@ class RemoteAccessTests(TestCase):
         r = self.client.post("/regia/unlock/",
                              {"pin": "424242", "next": "https://evil.example/x"},
                              HTTP_HOST="abc-def.trycloudflare.com")
-        self.assertEqual(r["Location"], "/admin-auction/")
+        self.assertEqual(r["Location"], "/dashboard/")
 
     # --- join links --------------------------------------------------------
 

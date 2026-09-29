@@ -50,7 +50,7 @@
     {% for g in giornate %}
     <a href="?giornata={{ g.number }}" class="giornata-btn {% if g.number == current_giornata.number %}active{% endif %} {% if g.status == 'SCORED' %}scored{% endif %}">
         <span>G{{ g.number }}</span>
-        {% if g.status == 'SCORED' %}<span style="font-size:10px;color:var(--fm-success);">●</span>{% endif %}
+        {% if g.status == 'SCORED' %}<span style="font-size:10px;color:var(--fm-success);">●</span>{% elif g.status == 'LIVE' %}<span style="font-size:10px;color:#facc15;">●</span>{% endif %}
     </a>
     {% endfor %}
 </div>
@@ -59,15 +59,53 @@
 <div class="card" style="padding:16px 20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
     <div>
         <div style="font-size:11px;font-weight:800;color:var(--fm-text-muted);text-transform:uppercase;">Giornata Selezionata</div>
-        <div style="font-size:22px;font-weight:900;color:#fff;">Giornata {{ current_giornata.number }}</div>
-        <div class="muted" style="font-size:12px;margin-top:2px;">
-            Stato: <b style="color:{% if current_giornata.status == 'SCORED' %}var(--fm-success){% else %}var(--fm-warning){% endif %}">{{ current_giornata.get_status_display }}</b> ·
-            Calciatori a voto registrati: <b>{{ performances_count }}</b>
+        <div style="font-size:22px;font-weight:900;color:#fff;display:flex;align-items:center;gap:12px;margin:2px 0 4px">
+            <span>Giornata {{ current_giornata.number }}</span>
+            {% if is_live %}
+                <span style="background:rgba(234,179,8,0.2);color:#facc15;border:1px solid rgba(234,179,8,0.4);padding:3px 9px;border-radius:6px;font-weight:800;font-size:11.5px;letter-spacing:.03em">
+                    🟡 LIVE PROVVISORIO ({{ live_count }} voti live)
+                </span>
+            {% elif current_giornata.status == 'SCORED' %}
+                <span style="background:rgba(34,197,94,0.2);color:#4ade80;border:1px solid rgba(34,197,94,0.4);padding:3px 9px;border-radius:6px;font-weight:800;font-size:11.5px;letter-spacing:.03em">
+                    🟢 UFFICIALE DEFINITIVO ({{ official_count }} voti)
+                </span>
+            {% else %}
+                <span style="background:rgba(255,255,255,0.06);color:var(--muted);padding:3px 9px;border-radius:6px;font-weight:700;font-size:11.5px">
+                    {{ current_giornata.get_status_display }}
+                </span>
+            {% endif %}
+        </div>
+        <div class="muted" style="font-size:12px">
+            Totale calciatori a referto: <b>{{ performances_count }}</b>
+            {% if live_sync_status.is_enabled %}
+                · Sync automatico attivo (ogni {{ live_sync_status.interval_seconds }}s)
+            {% endif %}
         </div>
     </div>
-    <div style="display:flex;gap:8px;">
-        <a href="#upload-section" class="fm-btn fm-btn-primary fm-btn-sm">
-            📥 Importa Voti Excel / CSV
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <!-- Live Sync Now -->
+        <form method="post" action="{% url 'app_live_voti_sync' %}" style="display:inline">
+            {% csrf_token %}
+            <input type="hidden" name="giornata_number" value="{{ current_giornata.number }}">
+            <input type="hidden" name="provider" value="fantacalcio_web">
+            <button type="submit" class="fm-btn fm-btn-secondary fm-btn-sm" style="color:#60a5fa;border-color:rgba(59,130,246,0.3)" title="Aggiorna voti e bonus/malus in tempo reale">
+                ⚡ Sincronizza Live
+            </button>
+        </form>
+
+        {% if is_live %}
+        <!-- Consolidate Official -->
+        <form method="post" action="{% url 'app_live_voti_consolidate' %}" style="display:inline" onsubmit="return confirm('Vuoi consolidare definitivamente i voti di questa giornata come ufficiali?');">
+            {% csrf_token %}
+            <input type="hidden" name="giornata_number" value="{{ current_giornata.number }}">
+            <button type="submit" class="fm-btn fm-btn-primary fm-btn-sm" style="background:#22c55e;color:#fff;border:none;font-weight:700">
+                ✅ Consolida Ufficiale
+            </button>
+        </form>
+        {% endif %}
+
+        <a href="#upload-section" class="fm-btn fm-btn-ghost fm-btn-sm">
+            📥 Importa File Excel / CSV
         </a>
     </div>
 </div>

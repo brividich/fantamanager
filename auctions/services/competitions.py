@@ -325,3 +325,35 @@ def _compute_bracket_standings(competition):
     """Match results and bracket structure for knockout and supercoppa."""
     fixtures = list(competition.fixtures.select_related("home", "away", "giornata").order_by("giornata__number", "id"))
     return {"kind": "bracket", "fixtures": fixtures}
+
+
+@transaction.atomic
+def ensure_league_season_and_competitions(league):
+    """Ensure active Season, matchdays (1..38), and standard competitions exist for a league."""
+    if not league:
+        return None, []
+    season, _ = Season.objects.get_or_create(
+        league=league,
+        is_current=True,
+        defaults={"name": f"Stagione 2026/27 · {league.name}", "matchdays": 38}
+    )
+    if season.giornate.count() == 0:
+        for num in range(1, (season.matchdays or 38) + 1):
+            Giornata.objects.create(season=season, number=num)
+
+    competitions = list(season.competitions.filter(is_active=True).order_by("id"))
+    if not competitions and league.participants.count() >= 2:
+        c1 = Competition.objects.create(
+            season=season, name="Campionato 1vs1", kind=Competition.Type.ROUND_ROBIN
+        )
+        setup_round_robin_competition(c1)
+        c2 = Competition.objects.create(
+            season=season, name="Coppa Italia Battle Royale", kind=Competition.Type.BATTLE_ROYALE
+        )
+        c3 = Competition.objects.create(
+            season=season, name="Gran Premio Punti", kind=Competition.Type.TOTAL_POINTS
+        )
+        competitions = [c1, c2, c3]
+
+    return season, competitions
+

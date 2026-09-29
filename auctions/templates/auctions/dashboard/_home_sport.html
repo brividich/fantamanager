@@ -187,13 +187,18 @@
                 <use href="#i-users" />
             </svg> Iscritti & Manager
             <span class="tab-badge">{{ participants|length }}</span>
-        </button>
         <button type="button" class="fm-league-tab-btn" id="tabbtn-aste" onclick="switchLeagueTab('aste')">
             <svg class="ic">
                 <use href="#i-gavel" />
             </svg> Mercato & Aste
             <span class="tab-badge">{{ auctions|length }}</span>
         </button>
+        <a class="fm-league-tab-btn" href="{% url 'admin_competitions' %}?league={{ current_league.id }}" style="text-decoration:none">
+            <svg class="ic">
+                <use href="#i-trophy" />
+            </svg> Competizioni & Calendari
+            {% if competitions %}<span class="tab-badge">{{ competitions|length }}</span>{% endif %}
+        </a>
         <button type="button" class="fm-league-tab-btn" id="tabbtn-regole" onclick="switchLeagueTab('regole')">
             <svg class="ic">
                 <use href="#i-gear" />
@@ -474,6 +479,28 @@
                                 <div class="tool-desc">Credenziali, PIN e link WhatsApp</div>
                             </div>
                         </button>
+
+                        <a class="sport-tool-tile"
+                            href="{% url 'admin_competitions' %}?league={{ current_league.id }}">
+                            <div class="tool-icon icon-amber"><svg class="ic">
+                                    <use href="#i-trophy" />
+                                </svg></div>
+                            <div class="tool-content">
+                                <div class="tool-title">Competizioni & Calendari</div>
+                                <div class="tool-desc">1vs1, Coppa Battle Royale, Gran Premio, Tabelloni</div>
+                            </div>
+                        </a>
+
+                        <a class="sport-tool-tile"
+                            href="{% url 'admin_giornate' %}?league={{ current_league.id }}">
+                            <div class="tool-icon icon-cyan"><svg class="ic">
+                                    <use href="#i-pulse" />
+                                </svg></div>
+                            <div class="tool-content">
+                                <div class="tool-title">Giornate & Voti</div>
+                                <div class="tool-desc">Import voti ufficiali, calcolo partite e punteggi</div>
+                            </div>
+                        </a>
 
                         <a class="sport-tool-tile"
                             href="{% url 'admin_market_dashboard' %}?league={{ current_league.id }}">
@@ -1047,9 +1074,45 @@
             </div>
         </div>
 
+        <!-- Toolbar Ricerca e Filtri Iscritti -->
+        <div style="background:var(--fm-surface-card);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                <!-- Search input -->
+                <div style="position:relative">
+                    <input type="text" id="iscritti-search-input" oninput="filterIscritti()"
+                        placeholder="🔍 Cerca manager, squadra, PIN..."
+                        style="background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.12);color:#fff;padding:7px 12px 7px 30px;border-radius:6px;font-size:12.5px;width:240px">
+                    <span style="position:absolute;left:9px;top:7px;opacity:0.5;font-size:12px">🔍</span>
+                </div>
+                <!-- Filter Pills -->
+                <div style="display:flex;gap:4px;background:rgba(0,0,0,0.25);padding:3px;border-radius:7px;border:1px solid rgba(255,255,255,0.06)">
+                    <button type="button" class="iscritti-filter-chip active" onclick="setIscrittiFilter('all', this)" style="padding:4px 10px;border-radius:5px;font-size:12px;font-weight:700;border:none;background:var(--fm-accent,#3b82f6);color:#fff;cursor:pointer">
+                        Tutti (<span id="chip-count-all">{{ participants|length }}</span>)
+                    </button>
+                    <button type="button" class="iscritti-filter-chip" onclick="setIscrittiFilter('has-account', this)" style="padding:4px 10px;border-radius:5px;font-size:12px;font-weight:700;border:none;background:transparent;color:var(--fm-text-secondary);cursor:pointer">
+                        Con Account
+                    </button>
+                    <button type="button" class="iscritti-filter-chip" onclick="setIscrittiFilter('no-account', this)" style="padding:4px 10px;border-radius:5px;font-size:12px;font-weight:700;border:none;background:transparent;color:var(--fm-text-secondary);cursor:pointer">
+                        Senza Account
+                    </button>
+                    <button type="button" class="iscritti-filter-chip" onclick="setIscrittiFilter('staff', this)" style="padding:4px 10px;border-radius:5px;font-size:12px;font-weight:700;border:none;background:transparent;color:var(--fm-text-secondary);cursor:pointer">
+                        Staff / Admin
+                    </button>
+                </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px">
+                <span id="iscritti-filter-counter" style="font-size:12px;color:var(--fm-text-secondary)">
+                    Mostrati <b>{{ participants|length }}</b> su <b>{{ participants|length }}</b>
+                </span>
+                <button type="button" class="fm-btn fm-btn-secondary fm-btn-xs" onclick="openCredentialsSummaryModal()" style="display:inline-flex;align-items:center;gap:5px">
+                    📋 Riepilogo Credenziali
+                </button>
+            </div>
+        </div>
+
         <div class="fm-sport-card">
             <div class="sport-table-wrap">
-                <table class="sport-table">
+                <table class="sport-table" id="iscritti-table">
                     <thead>
                         <tr>
                             <th style="width:36px;text-align:center">#</th>
@@ -1062,7 +1125,13 @@
                     </thead>
                     <tbody>
                         {% for p in participants %}
-                        <tr>
+                        <tr class="iscritto-row"
+                            data-team="{{ p.display_name|lower }}"
+                            data-manager="{% if p.user %}{{ p.user.username|lower }} {{ p.user.email|lower|default:'' }}{% endif %}"
+                            data-pin="{{ p.access_code|default:''|lower }}"
+                            data-role="{% if p.is_league_owner %}owner{% elif p.is_league_admin %}admin{% elif p.user %}coach{% else %}none{% endif %}"
+                            data-has-account="{% if p.user %}yes{% else %}no{% endif %}"
+                            data-is-staff="{% if p.is_league_owner or p.is_league_admin %}yes{% else %}no{% endif %}">
                             <td class="col-rank">{{ forloop.counter }}</td>
                             <td>
                                 <div class="sport-team-cell">
@@ -1493,6 +1562,34 @@
                         <label class="fm-form-label">Logo / Stemma Squadra</label>
                         <input type="file" name="logo" accept="image/*" class="fm-form-input" style="padding-top:5px">
                     </div>
+
+                    {% if can_manage_accounts %}
+                    <div style="border-top:1px solid rgba(255,255,255,0.08);margin-top:14px;padding-top:14px">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+                            <span style="font-weight:700;font-size:12.5px;color:#93c5fd;display:flex;align-items:center;gap:6px">
+                                <span>👤</span> Crea subito account di accesso (opzionale)
+                            </span>
+                            <span style="font-size:11px;color:var(--fm-text-muted)">Alternativo alla lista sopra</span>
+                        </div>
+                        <div style="font-size:11.5px;color:var(--fm-text-secondary);margin-bottom:10px">
+                            Se compili i campi qui sotto, il sistema crea un nuovo account e lo assegna direttamente a questa squadra.
+                        </div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+                            <div class="fm-form-group" style="margin:0">
+                                <label class="fm-form-label" style="font-size:11px">Nuovo Username</label>
+                                <input type="text" name="new_user_username" class="fm-form-input" placeholder="es. marco_coach">
+                            </div>
+                            <div class="fm-form-group" style="margin:0">
+                                <label class="fm-form-label" style="font-size:11px">Email Manager</label>
+                                <input type="email" name="new_user_email" class="fm-form-input" placeholder="es. marco@email.com">
+                            </div>
+                        </div>
+                        <div class="fm-form-group" style="margin:0">
+                            <label class="fm-form-label" style="font-size:11px">Password iniziale (se vuoto viene autogenerata)</label>
+                            <input type="password" name="new_user_password" class="fm-form-input" placeholder="Minimo 6 caratteri o generata">
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
                 <div class="fm-modal-footer">
                     <button type="button" class="fm-btn fm-btn-ghost fm-btn-sm"
@@ -1684,6 +1781,88 @@
                     <button type="submit" class="fm-btn fm-btn-primary fm-btn-sm" id="btn-save-manage-user">Salva Modifiche</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- MODALE RIEPILOGO CREDENZIALI & WHATSAPP EXPORT -->
+    <div id="modal-credentials-summary" class="fm-modal-backdrop" style="display:none"
+        onclick="if(event.target===this)closeModal('modal-credentials-summary')">
+        <div class="fm-modal-dialog" style="max-width:680px">
+            <div class="fm-modal-header">
+                <div>
+                    <h3 class="fm-modal-title" style="display:flex;align-items:center;gap:8px">
+                        <span>📋</span> Riepilogo Credenziali Iscritti & Condivisione
+                    </h3>
+                    <div style="font-size:12px;color:var(--fm-text-secondary);margin-top:2px">
+                        Lega: <b>{{ current_league.name }}</b> · PIN e accessi di tutte le squadre per WhatsApp o invito rapido
+                    </div>
+                </div>
+                <button type="button" class="fm-modal-close" onclick="closeModal('modal-credentials-summary')">&times;</button>
+            </div>
+            <div class="fm-modal-body" style="max-height:480px;overflow-y:auto">
+                <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+                    <button type="button" class="fm-btn fm-btn-primary fm-btn-sm" onclick="copyAllCredentialsToClipboard()">
+                        📋 Copia Tutto negli Appunti
+                    </button>
+                    <a id="btn-whatsapp-all-teams" class="fm-btn fm-btn-ghost fm-btn-sm" style="color:#22c55e;border:1px solid rgba(34,197,94,0.3)"
+                        href="#" target="_blank" onclick="prepareWhatsAppAllLink(event, this)">
+                        💬 Invia Lista Completa su WhatsApp
+                    </a>
+                </div>
+                <div style="background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:10px 14px;margin-bottom:14px">
+                    <div style="font-size:11px;font-weight:700;color:var(--fm-text-secondary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">
+                        Anteprima Testo WhatsApp
+                    </div>
+                    <textarea id="credentials-summary-raw" readonly style="width:100%;height:110px;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.06);border-radius:6px;color:#94a3b8;font-family:monospace;font-size:11px;padding:8px;resize:none">🏆 CREDENZIALI LEGA {{ current_league.name|upper }}
+
+{% for p in participants %}⚽ {{ p.display_name }}
+Manager: {% if p.user %}{{ p.user.username }}{% else %}Da registrare{% endif %}
+PIN: {{ p.access_code|default:"----" }}
+Link: {{ p.join_url }}
+
+{% endfor %}</textarea>
+                </div>
+
+                <table class="sport-table" style="font-size:12px">
+                    <thead>
+                        <tr>
+                            <th>Squadra</th>
+                            <th>Manager</th>
+                            <th>PIN</th>
+                            <th style="text-align:right">Copia Singola</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in participants %}
+                        <tr>
+                            <td><b>{{ p.display_name }}</b></td>
+                            <td>
+                                {% if p.user %}
+                                    <span style="color:#60a5fa">{{ p.user.username }}</span>
+                                {% else %}
+                                    <span style="color:var(--fm-text-muted)">Non collegato</span>
+                                {% endif %}
+                            </td>
+                            <td><code style="background:rgba(0,0,0,0.3);padding:2px 6px;border-radius:4px;color:#facc15">{{ p.access_code|default:"----" }}</code></td>
+                            <td style="text-align:right;white-space:nowrap">
+                                <button type="button" class="fm-btn fm-btn-ghost fm-btn-xs"
+                                    onclick="copyToClipboard('⚽ {{ p.display_name|escapejs }}\nManager: {% if p.user %}{{ p.user.username|escapejs }}{% else %}Non registrato{% endif %}\nPIN: {{ p.access_code|default:"----" }}\nLink: {{ p.join_url|escapejs }}', 'Credenziali di {{ p.display_name|escapejs }} copiate!')">
+                                    📋 Copia
+                                </button>
+                                <a class="fm-btn fm-btn-ghost fm-btn-xs" style="color:#22c55e"
+                                    href="https://api.whatsapp.com/send?text={{ 'Credenziali '|urlencode }}{{ p.display_name|urlencode }}:%0AManager:%20{% if p.user %}{{ p.user.username|urlencode }}{% else %}Non%20registrato{% endif %}%0APIN:%20{{ p.access_code|default:'----'|urlencode }}%0ALink:%20{{ p.join_url|urlencode }}"
+                                    target="_blank" title="Invia su WhatsApp">
+                                    💬
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="fm-modal-footer">
+                <button type="button" class="fm-btn fm-btn-ghost fm-btn-sm" onclick="closeModal('modal-credentials-summary')">Chiudi</button>
+            </div>
         </div>
     </div>
 

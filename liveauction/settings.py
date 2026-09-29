@@ -92,6 +92,8 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # Device routing: smartphone -> app, PC -> web
+    "auctions.middleware.DeviceRoutingMiddleware",
     # Keeps debug tracebacks off the public tunnel (the desktop app runs with
     # DEBUG on so one process can also serve static/media). No-op locally.
     "auctions.middleware.RemoteErrorShield",

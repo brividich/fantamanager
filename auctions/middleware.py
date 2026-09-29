@@ -11,10 +11,53 @@ in through the tunnel, while local/LAN requests keep the useful debug page.
 ``FriendlyErrorPages`` gives the short plain-text refusals views return a real
 page when a person, not a script, is on the other end.
 """
+import re
+
 from django.http import HttpResponse
 from django.template.loader import render_to_string
 
 from . import remote
+
+MOBILE_USER_AGENT_RE = re.compile(
+    r"(iphone|ipod|blackberry|android.*mobile|mobile.*firefox|iemobile|opera mini|webos|windows phone)",
+    re.IGNORECASE,
+)
+
+
+class DeviceRoutingMiddleware:
+    """Detects whether incoming requests come from a smartphone (mobile) or PC (desktop).
+
+    Sets `request.is_mobile = True|False`.
+    Supports manual override via ?view=app or ?view=web or ?view=auto stored in session.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        if hasattr(request, "session"):
+            view_param = (request.GET.get("view") or "").strip().lower()
+            if view_param in ("app", "mobile"):
+                request.session["view_mode"] = "app"
+            elif view_param in ("web", "desktop"):
+                request.session["view_mode"] = "web"
+            elif view_param == "auto":
+                request.session.pop("view_mode", None)
+
+            view_mode = request.session.get("view_mode")
+        else:
+            view_mode = None
+
+        if view_mode == "app":
+            request.is_mobile = True
+        elif view_mode == "web":
+            request.is_mobile = False
+        else:
+            user_agent = request.META.get("HTTP_USER_AGENT", "")
+            request.is_mobile = bool(MOBILE_USER_AGENT_RE.search(user_agent))
+
+        return self.get_response(request)
+
 
 _PLAIN_500 = (
     "<!doctype html><meta charset='utf-8'>"

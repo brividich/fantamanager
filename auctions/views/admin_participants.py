@@ -212,13 +212,48 @@ def admin_create_participant(request):
         credits=dec("credits", str(league.budget) if league else "500"),
         is_active=True,
     )
+    if "logo" in request.FILES:
+        p.logo = request.FILES["logo"]
+
+    new_user_username = (request.POST.get("new_user_username") or "").strip()
+    if new_user_username and can_manage_accounts(request.user, league):
+        username, error = _clean_username(new_user_username)
+        if error:
+            messages.error(request, error)
+            return redirect(safe_next(request, fallback))
+        email, error = _clean_email(request.POST.get("new_user_email"))
+        if error:
+            messages.error(request, error)
+            return redirect(safe_next(request, fallback))
+        password = request.POST.get("new_user_password") or ""
+        generated = not password
+        if generated:
+            password = generate_password()
+        elif len(password) < MIN_PASSWORD_LENGTH:
+            messages.error(request, f"La password deve contenere almeno {MIN_PASSWORD_LENGTH} caratteri.")
+            return redirect(safe_next(request, fallback))
+
+        User = get_user_model()
+        with transaction.atomic():
+            account = User.objects.create_user(
+                username=username,
+                email=email,
+                password=password,
+                first_name=(request.POST.get("new_user_first_name") or "").strip()[:150],
+            )
+            ManagedAccount.objects.create(user=account, created_by=request.user)
+            p.user = account
+            p.save()
+        _remember_secret(request, p, account, password)
+        messages.success(request, f"Squadra «{p.display_name}» creata e associata al nuovo account «{account.username}».")
+        return redirect(safe_next(request, fallback))
+
     user_id = request.POST.get("user_id")
     if user_id and user_id.isdigit():
         usr = linkable_users(request.user).filter(pk=int(user_id)).first()
         if usr:
             p.user = usr
-    if "logo" in request.FILES:
-        p.logo = request.FILES["logo"]
+
     p.save()
     if league is not None:
         messages.success(request, f"Squadra «{p.display_name}» aggiunta a {league.name}.")

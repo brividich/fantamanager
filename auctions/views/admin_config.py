@@ -182,6 +182,7 @@ def admin_config_action(request):
         league.slots_p = pint("slots_p", league.slots_p)
         league.slots_d = pint("slots_d", league.slots_d)
         league.slots_c = pint("slots_c", league.slots_c)
+        league.slots_a = pint("slots_a", league.slots_a)
         new_mode = _game_mode(request.POST.get("game_mode"), league.game_mode)
         if new_mode != league.game_mode:
             if getattr(league, "is_locked_style", False):

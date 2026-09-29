@@ -59,7 +59,13 @@ from .admin_team_sheets import (
     admin_print_team_sheets,
 )
 from .admin_season import admin_season, admin_season_action
-from .admin_voti import admin_giornate, admin_upload_voti, admin_voti_import
+from .admin_competitions import (
+    admin_competitions,
+    admin_competition_create,
+    admin_competition_regenerate,
+    admin_competition_delete,
+)
+from .admin_voti import admin_giornate, admin_upload_voti, admin_voti_import, admin_live_voti_sync, admin_live_voti_consolidate
 from .admin_mail import admin_mail_settings
 from .admin_market import (
     admin_market_buste,
@@ -213,6 +219,7 @@ from .auth import (
 )
 from .supervisor import (
     supervisor_dashboard,
+    supervisor_impersonate_exit,
     supervisor_required,
 )
 from .screen import screen
@@ -226,6 +233,7 @@ __all__ = [
     "onboarding_view",
     # supervisor
     "supervisor_dashboard",
+    "supervisor_impersonate_exit",
     "supervisor_required",
     # common
     "staff_member_required",
@@ -419,4 +427,11 @@ __all__ = [
     "admin_giornate",
     "admin_upload_voti",
     "admin_voti_import",
+    "admin_live_voti_sync",
+    "admin_live_voti_consolidate",
+    # competitions
+    "admin_competitions",
+    "admin_competition_create",
+    "admin_competition_regenerate",
+    "admin_competition_delete",
 ]

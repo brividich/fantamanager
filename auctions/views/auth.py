@@ -14,7 +14,7 @@ from django.urls import reverse
 from .. import throttle
 
 from ..models import Auction, League, Participant
-from .common import SESSION_LEAGUE_KEY, safe_next, target_league
+from .common import SESSION_LEAGUE_KEY, _session_participant, safe_next, target_league
 
 logger = logging.getLogger(__name__)
 
@@ -29,21 +29,23 @@ def _spectator_auctions(*statuses):
 
 
 def portal_view(request):
-    """Unified SaaS Gateway.
+    """Unified SaaS Gateway with automatic device routing.
 
-    - Authenticated Superadmin -> /supervisor/
-    - Authenticated League Admin -> /admin-auction/
-    - Authenticated Manager -> /app/
-    - Authenticated user without league/team -> /onboarding/
-    - Unauthenticated -> Elegant SaaS Portal (Login / Register / Guest Bidder)
+    - Smartphone: always routes to the mobile app experience (/app/ or /app/login/)
+    - PC / Desktop: routes to Web portal or Web Regia/Dashboard
+    - Admin (Regia): always has access to Regia (Dashboard on PC, App Regia on mobile)
     """
+    is_mobile = getattr(request, "is_mobile", False)
+
     if request.user.is_authenticated:
         if request.user.is_superuser:
             return redirect("supervisor_dashboard")
 
-        # Check if user owns leagues
+        # Check if user owns leagues (Admin / Regia)
         owned_leagues = League.objects.filter(owner=request.user)
         if owned_leagues.exists():
+            if is_mobile:
+                return redirect("app_regia")
             return redirect("dashboard")
 
         # Check if user has teams
@@ -54,9 +56,18 @@ def portal_view(request):
             request.session["display_name"] = team.display_name
             if team.league_id:
                 request.session[SESSION_LEAGUE_KEY] = team.league_id
-            return redirect("app_home")
+            if is_mobile:
+                return redirect("app_home")
+            return redirect("home_portal")
 
         return redirect("onboarding")
+
+    # Unauthenticated visitor:
+    if is_mobile:
+        participant = _session_participant(request)
+        if participant:
+            return redirect("app_home")
+        return redirect("app_login")
 
     # Unauthenticated visitor: collect joinable auctions for spectator quick links
     live_auctions = _spectator_auctions(Auction.Status.LIVE, Auction.Status.PAUSED, Auction.Status.READY)
