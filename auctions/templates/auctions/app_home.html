@@ -1,9 +1,36 @@
 {% extends "auctions/app_base.html" %}
 {% block title %}Home — FantaManager{% endblock %}
 {% block app %}
-<div class="tab-head">
-    <h1>Ciao, {{ participant.display_name }}</h1>
-    <p>{% if app_league %}{{ app_league.name }}{% else %}La tua area FantaManager{% endif %}</p>
+<style>
+    .home-hero {
+        display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px;
+    }
+    .home-quick-grid {
+        display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 14px;
+    }
+    .home-quick-tile {
+        display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 14px;
+        background: var(--panel-2); border: 1px solid var(--line); text-decoration: none; color: var(--ink);
+        transition: transform .12s, border-color .12s, background .12s; touch-action: manipulation;
+    }
+    .home-quick-tile:active { transform: scale(0.96); background: rgba(255,255,255,0.06); }
+    .home-quick-tile .hq-icon {
+        width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+        background: var(--accent-soft); color: var(--accent); flex-shrink: 0;
+    }
+    .home-quick-tile .hq-icon .ic { width: 20px; height: 20px; }
+    .home-quick-tile .hq-txt b { display: block; font-size: 13.5px; font-weight: 800; line-height: 1.15; }
+    .home-quick-tile .hq-txt span { font-size: 11px; color: var(--muted); font-weight: 600; }
+</style>
+
+<div class="home-hero">
+    <div class="tab-head">
+        <h1 style="display:flex;align-items:center;gap:8px;">
+            <span>Ciao, {{ participant.display_name }}</span>
+            <span style="font-size:20px;">👋</span>
+        </h1>
+        <p>{% if app_league %}{{ app_league.name }}{% else %}La tua area FantaManager{% endif %}</p>
+    </div>
 </div>
 
 {% if manages_app_league %}
@@ -18,13 +45,16 @@
 {% endif %}
 
 {% if active_auction %}
-<a class="a-cta" href="{% url 'bid' active_auction.id %}">
-    <svg class="ic"><use href="#i-gavel"/></svg>
+<a class="a-cta" href="{% url 'bid' active_auction.id %}" style="background:linear-gradient(135deg,rgba(239,68,68,0.15),rgba(19,181,255,0.08));border-color:rgba(239,68,68,0.4)">
+    <svg class="ic" style="color:#ef4444"><use href="#i-gavel"/></svg>
     <span class="t">
-        <b>Asta in corso</b>
-        <span>{{ active_auction.title }} · {{ active_auction.get_status_display }}</span>
+        <b style="display:flex;align-items:center;gap:6px;">
+            <span style="width:8px;height:8px;border-radius:50%;background:#ef4444;box-shadow:0 0 8px #ef4444;display:inline-block;animation:pulse-dot 1.2s infinite;"></span>
+            Asta in corso: {{ active_auction.title }}
+        </b>
+        <span>{{ active_auction.get_status_display }} · Entra nella sala offerte</span>
     </span>
-    <span class="go">›</span>
+    <span class="go" style="color:#ef4444">›</span>
 </a>
 {% endif %}
 
@@ -33,7 +63,7 @@
     <svg class="ic" style="color:var(--paused)"><use href="#i-table"/></svg>
     <span class="t">
         <b>Schiera la formazione</b>
-        <span>{{ lineup_done }}/{{ lineup_target }} titolari — completala</span>
+        <span>{{ lineup_done }}/{{ lineup_target }} titolari — completala prima del fischio d'inizio</span>
     </span>
     <span class="go" style="color:var(--paused)">›</span>
 </a>
@@ -41,7 +71,7 @@
 
 <div class="a-stats">
     <div class="a-stat">
-        <div class="v">{{ participant.remaining_credits|floatformat:0 }}<small> FM</small></div>
+        <div class="v" style="color:var(--accent);">{{ participant.remaining_credits|floatformat:0 }}<small> FM</small></div>
         <div class="k">Crediti</div>
     </div>
     <div class="a-stat">
@@ -55,9 +85,41 @@
 </div>
 {% include "auctions/_slot_strip.html" with hide_credits=True %}
 
+<!-- Mobile Quick Action Shortcuts -->
+<div class="home-quick-grid">
+    <a href="{% url 'app_formazione' %}" class="home-quick-tile">
+        <div class="hq-icon" style="background:rgba(34,197,94,0.15);color:#22c55e;"><svg class="ic"><use href="#i-table"/></svg></div>
+        <div class="hq-txt">
+            <b>Formazione</b>
+            <span>Schiera gli 11</span>
+        </div>
+    </a>
+    <a href="{% url 'app_rosa' %}" class="home-quick-tile">
+        <div class="hq-icon"><svg class="ic"><use href="#i-shirt"/></svg></div>
+        <div class="hq-txt">
+            <b>La mia Rosa</b>
+            <span>{{ roster_count }} calciatori</span>
+        </div>
+    </a>
+    <a href="{% url 'app_mercato' %}" class="home-quick-tile">
+        <div class="hq-icon" style="background:rgba(19,181,255,0.15);color:#13b5ff;"><svg class="ic"><use href="#i-swap"/></svg></div>
+        <div class="hq-txt">
+            <b>Mercato</b>
+            <span>Buste e svincolati</span>
+        </div>
+    </a>
+    <a href="{% url 'app_scambi' %}" class="home-quick-tile">
+        <div class="hq-icon" style="background:rgba(245,158,11,0.15);color:#f59e0b;"><svg class="ic"><use href="#i-users"/></svg></div>
+        <div class="hq-txt">
+            <b>Scambi</b>
+            <span>Trattative di lega</span>
+        </div>
+    </a>
+</div>
+
 {% if open_market %}
-<a class="a-cta" href="{% url 'app_mercato' %}" style="margin-bottom:14px">
-    <svg class="ic"><use href="#i-mail"/></svg>
+<a class="a-cta" href="{% url 'app_mercato' %}" style="margin-top:14px">
+    <svg class="ic" style="color:var(--accent)"><use href="#i-mail"/></svg>
     <span class="t">
         <b>Buste aperte: {{ open_market.title }}</b>
         <span>{% if open_market.closes_at %}Chiude il {{ open_market.closes_at|date:"d/m H:i" }}{% else %}Consegna le tue offerte{% endif %}{% if my_open_bids %} · {{ my_open_bids }} bust{{ my_open_bids|pluralize:"a,e" }} inviat{{ my_open_bids|pluralize:"a,e" }}{% endif %}</span>
@@ -66,22 +128,22 @@
 </a>
 {% endif %}
 {% if incoming_trades %}
-<a class="a-cta" href="{% url 'app_scambi' %}" style="margin-bottom:14px">
-    <svg class="ic"><use href="#i-swap"/></svg>
+<a class="a-cta" href="{% url 'app_scambi' %}" style="margin-top:14px;background:rgba(245,158,11,0.12);border-color:rgba(245,158,11,0.35);">
+    <svg class="ic" style="color:var(--paused)"><use href="#i-swap"/></svg>
     <span class="t">
-        <b>{{ incoming_trades }} propost{{ incoming_trades|pluralize:"a,e" }} di scambio</b>
+        <b>{{ incoming_trades }} propost{{ incoming_trades|pluralize:"a,e" }} di scambio ricevuta</b>
         <span>Accetta o rifiuta dalla pagina Scambi</span>
     </span>
-    <span class="go">›</span>
+    <span class="go" style="color:var(--paused)">›</span>
 </a>
 {% endif %}
 
-<div class="a-card">
+<div class="a-card" style="margin-top:14px">
     <div class="a-label"><svg class="ic"><use href="#i-trophy"/></svg> Classifica lampo</div>
     {% for row in standings %}
     <div class="a-row">
         <span class="a-rank {% if forloop.counter <= 3 %}top{% endif %}">{{ forloop.counter }}</span>
-        <span class="nm">{{ row.name }}{% if row.is_me %} <small style="display:inline;color:var(--accent)">· tu</small>{% endif %}</span>
+        <span class="nm">{{ row.name }}{% if row.is_me %} <small style="display:inline;color:var(--accent);font-weight:700;">· tu</small>{% endif %}</span>
         <span class="val">{{ row.owned }} <span class="muted" style="font-weight:600;font-size:12px">gioc.</span></span>
     </div>
     {% empty %}

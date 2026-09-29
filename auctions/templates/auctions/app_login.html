@@ -8,7 +8,16 @@
     .login-container {
         max-width: 440px;
         margin: 40px auto;
-        padding: 0 16px;
+        padding: 0 16px calc(24px + env(safe-area-inset-bottom));
+    }
+    @media (max-width: 480px) {
+        .login-container {
+            margin: 20px auto;
+            padding: 0 14px calc(24px + env(safe-area-inset-bottom));
+        }
+        .login-card {
+            padding: 20px 16px;
+        }
     }
 
     .brand-hero {
@@ -51,7 +60,7 @@
     }
     .tab-btn {
         flex: 1;
-        padding: 8px 12px;
+        padding: 10px 12px;
         font-size: 12px;
         font-weight: 700;
         text-transform: uppercase;
@@ -63,7 +72,10 @@
         color: var(--muted);
         cursor: pointer;
         transition: all .15s;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
     }
+    .tab-btn:active { transform: scale(0.97); }
     .tab-btn.is-active {
         background: var(--accent);
         color: #0a1108;
@@ -89,7 +101,7 @@
         border: 1px solid var(--line);
         background: rgba(0, 0, 0, 0.25);
         color: var(--ink);
-        font-size: 15px;
+        font-size: 16px;
         transition: border-color .15s;
         box-sizing: border-box;
     }
@@ -107,6 +119,7 @@
 
     .btn-submit {
         width: 100%;
+        min-height: 48px;
         padding: 14px;
         font-size: 15px;
         font-weight: 800;
@@ -120,9 +133,11 @@
         justify-content: center;
         gap: 8px;
         transition: opacity .15s, transform .1s;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
     }
     .btn-submit:hover { opacity: .95; }
-    .btn-submit:active { transform: scale(0.99); }
+    .btn-submit:active { transform: scale(0.97); }
 
     .error-flash {
         background: rgba(239, 68, 68, 0.12);

@@ -659,8 +659,9 @@
                 <div class="hp-unlocked-card">
                     <div class="hp-unlocked-status">
                         <span class="hp-pulse-green"></span>
-                        <span>Autenticato come Amministratore</span>
+                        <span>Autenticato come Amministratore{% if request.user.is_authenticated and request.user.username %} ({{ request.user.username }}){% endif %}</span>
                     </div>
+                    {% if not has_admin %}
                     <form method="post" action="{% url 'home_portal' %}" style="display:inline">
                         {% csrf_token %}
                         <input type="hidden" name="action" value="logout">
@@ -668,6 +669,7 @@
                             Blocca Regia
                         </button>
                     </form>
+                    {% endif %}
                 </div>
                 <a class="hp-btn-large hp-btn-cyan" href="{% if current_league %}{% url 'dashboard_league' current_league.id %}{% else %}{% url 'dashboard' %}{% endif %}">
                     <svg class="ic" style="width:20px;height:20px"><use href="#i-arrow-right"/></svg>

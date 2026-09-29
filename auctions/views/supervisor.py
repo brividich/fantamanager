@@ -6,7 +6,10 @@ import json
 import logging
 import os
 import platform
-import resource
+try:
+    import resource
+except ImportError:
+    resource = None
 import shutil
 import sys
 import time
@@ -58,12 +61,17 @@ def _get_server_metrics():
     uptime_str = f"{uptime_seconds // 3600}h {(uptime_seconds % 3600) // 60}m {uptime_seconds % 60}s"
 
     # Memory RSS
-    rusage = resource.getrusage(resource.RUSAGE_SELF)
-    # macOS reports in bytes, Linux in KB
-    if sys.platform == "darwin":
-        rss_mb = rusage.ru_maxrss / (1024 * 1024)
-    else:
-        rss_mb = rusage.ru_maxrss / 1024
+    rss_mb = 0
+    if resource:
+        try:
+            rusage = resource.getrusage(resource.RUSAGE_SELF)
+            # macOS reports in bytes, Linux in KB
+            if sys.platform == "darwin":
+                rss_mb = rusage.ru_maxrss / (1024 * 1024)
+            else:
+                rss_mb = rusage.ru_maxrss / 1024
+        except Exception:
+            pass
 
     # Disk usage
     disk_total_gb = 0
