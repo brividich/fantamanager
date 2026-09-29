@@ -18,6 +18,9 @@ class League(models.Model):
         settings.AUTH_USER_MODEL, null=True, blank=True,
         on_delete=models.SET_NULL, related_name="leagues",
     )
+    admins      = models.ManyToManyField(
+        settings.AUTH_USER_MODEL, blank=True, related_name="managed_leagues"
+    )
     source_site = models.CharField(max_length=40, blank=True)   # e.g. "fantapazz"
     external_id = models.CharField(max_length=60, blank=True)   # league id on source site
 
@@ -127,6 +130,17 @@ class League(models.Model):
         if self.is_mantra:
             return f"{self.slots_gk} Por + {self.slots_out} mov."
         return f"{self.slots_p}/{self.slots_d}/{self.slots_c}/{self.slots_a}"
+
+    @property
+    def is_locked_style(self):
+        """True when the league's style (Classic vs Mantra) cannot be modified anymore.
+        Locked if any auction has been run/started or players have been assigned to teams.
+        """
+        if self.auctions.exclude(status="DRAFT").exists():
+            return True
+        if self.players.filter(owner__isnull=False).exists():
+            return True
+        return False
 
     def __str__(self):
         shape = "nessun limite slot" if not self.slot_limits else self.slots_label

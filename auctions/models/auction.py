@@ -26,6 +26,8 @@ class Auction(models.Model):
         PURCHASE = "purchase", "Costo di acquisto"          # Player.cost paid at auction
         CURRENT  = "current",  "Costo attuale (quotazione)" # Player.initial_price from the listone
         NONE     = "none",     "Nessun rimborso"
+        LUGNANO_SEPT = "lugnano_sept", "Fantalugnano Settembre (100% estero/svincolato, o quotazione)"
+        LUGNANO_JAN  = "lugnano_jan",  "Fantalugnano Gennaio (50% estero min quotaz, o quotazione)"
 
     class FlowMode(models.TextChoices):
         # How the auction steps from one player to the next.
@@ -124,7 +126,7 @@ class Auction(models.Model):
     # How many credits a manager gets back when releasing (svincolo) a player.
     # Configurable both at creation (wizard) and later (auction settings).
     release_refund_mode = models.CharField(
-        max_length=10, choices=RefundMode.choices, default=RefundMode.PURCHASE
+        max_length=20, choices=RefundMode.choices, default=RefundMode.PURCHASE
     )
 
     # How the auction advances (call / continuous / manual), the order in which

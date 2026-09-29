@@ -182,9 +182,12 @@ def admin_config_action(request):
         league.slots_p = pint("slots_p", league.slots_p)
         league.slots_d = pint("slots_d", league.slots_d)
         league.slots_c = pint("slots_c", league.slots_c)
-        league.slots_a = pint("slots_a", league.slots_a)
-        league.game_mode = _game_mode(request.POST.get("game_mode"), league.game_mode)
-        league.slots_gk = pint("slots_gk", league.slots_gk)
+        new_mode = _game_mode(request.POST.get("game_mode"), league.game_mode)
+        if new_mode != league.game_mode:
+            if getattr(league, "is_locked_style", False):
+                messages.error(request, "Non è possibile cambiare stile (Classic/Mantra) a stagione o asta avviata.")
+            else:
+                league.game_mode = new_mode
         league.slots_out = pint("slots_out", league.slots_out)
         # The rule switches only move when the form actually carried them (an
         # unchecked box is simply absent from a POST).

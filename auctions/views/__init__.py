@@ -59,6 +59,7 @@ from .admin_team_sheets import (
     admin_print_team_sheets,
 )
 from .admin_season import admin_season, admin_season_action
+from .admin_voti import admin_giornate, admin_upload_voti, admin_voti_import
 from .admin_mail import admin_mail_settings
 from .admin_market import (
     admin_market_buste,
@@ -414,4 +415,8 @@ __all__ = [
     # home
     "home_portal",
     "version_status_api",
+    # voti
+    "admin_giornate",
+    "admin_upload_voti",
+    "admin_voti_import",
 ]

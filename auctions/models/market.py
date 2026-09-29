@@ -32,7 +32,7 @@ class MarketSession(models.Model):
     # Regole svincoli condizionati
     allow_conditional_release = models.BooleanField(default=True)
     release_refund_mode = models.CharField(
-        max_length=10,
+        max_length=20,
         choices=Auction.RefundMode.choices,
         default=Auction.RefundMode.PURCHASE,
     )
