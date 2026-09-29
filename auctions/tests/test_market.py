@@ -799,6 +799,26 @@ class MarketPerLeagueTests(TestCase):
         self.assertEqual(draft_a.status, MarketSession.Status.OPEN)
         self.assertEqual(draft_b.status, MarketSession.Status.DRAFT)
 
+    def test_hub_and_regia_always_offer_a_new_market(self):
+        # Trades open all season count as a running market: the button stays.
+        self.league_a.trades_enabled = True
+        self.league_a.save()
+        new_url = reverse("admin_market_buste") + f"?league={self.league_a.id}&new=1"
+        self.client.force_login(self.owner)
+        hub = self.client.get(reverse("admin_market_dashboard") + f"?league={self.league_a.id}")
+        self.assertGreater(hub.context["n_live"], 0)
+        self.assertContains(hub, new_url)
+        regia = self.client.get(reverse("app_regia") + f"?league={self.league_a.id}")
+        self.assertContains(regia, new_url)
+
+    def test_coadmin_lands_on_the_console_from_the_portal(self):
+        self.client.force_login(self.coadmin)
+        resp = self.client.get(reverse("home"))
+        self.assertRedirects(resp, reverse("dashboard"), fetch_redirect_response=False)
+        dash = self.client.get(reverse("dashboard"))
+        self.assertEqual(dash.status_code, 200)
+        self.assertEqual(dash.context["current_league"], self.league_a)
+
     def test_coadmin_gets_the_regia_of_their_league(self):
         self.client.force_login(self.coadmin)
         resp = self.client.get(reverse("app_regia"))
