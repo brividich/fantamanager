@@ -6,6 +6,13 @@
     <p>{{ standings|length }} squadre</p>
 </div>
 
+<div class="a-seg" data-asec-default="classifica" style="margin-bottom:14px;">
+    <button type="button" data-asec-go="classifica">Classifica</button>
+    <button type="button" data-asec-go="competizioni">Competizioni</button>
+</div>
+
+<div data-asec="classifica">
+
 <div class="a-card">
     <div class="a-label"><svg class="ic"><use href="#i-trophy"/></svg> Classifica rose</div>
     {% for row in standings %}
@@ -29,8 +36,9 @@
     </a>
     {% endfor %}
 </div>
-{% endif %}
+</div> <!-- fine classifica -->
 
+<div data-asec="competizioni">
 {% if competitions %}
 <div class="a-card" style="margin-top:14px;">
     <div class="a-label" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
@@ -179,4 +187,5 @@
     <span>Le classifiche e i calendari si attivano all'avvio della prima giornata.</span>
 </div>
 {% endif %}
+</div> <!-- fine competizioni -->
 {% endblock %}

@@ -118,7 +118,7 @@
     <div class="a-label"><svg class="ic"><use href="#i-users"/></svg> Panchina (riserve in ordine) · {{ bench|length }}</div>
     <div class="fit-scroll">
     {% for pl in bench %}
-    <div class="a-row" style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px">
+    <div class="a-row bench-player" data-pid="{{ pl.id }}" draggable="true" style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px; cursor:grab;">
         <div style="display:flex;align-items:center;gap:8px">
             <span style="font-size:11px;font-weight:800;color:var(--muted);width:22px">R{{ forloop.counter }}</span>
             <span class="role-badge bench-badge role-{{ pl.role }}">{% if is_mantra and pl.roles_display %}{{ pl.roles_display }}{% else %}{{ pl.role }}{% endif %}</span>
@@ -153,6 +153,78 @@
         }
         sels.forEach(s => s.addEventListener('change', refresh));
         refresh();
+
+        // Drag and drop su mobile/desktop
+        let draggedPid = null, clone = null;
+        document.querySelectorAll('.bench-player').forEach(row => {
+            row.addEventListener('dragstart', e => {
+                draggedPid = row.dataset.pid;
+                e.dataTransfer.setData('text/plain', draggedPid);
+            });
+
+            row.addEventListener('touchstart', e => {
+                draggedPid = row.dataset.pid;
+                clone = row.cloneNode(true);
+                clone.style.position = 'fixed';
+                clone.style.opacity = '0.9';
+                clone.style.zIndex = '9999';
+                clone.style.width = row.offsetWidth + 'px';
+                clone.style.pointerEvents = 'none';
+                clone.style.background = 'var(--panel-2)';
+                clone.style.border = '1px solid var(--accent)';
+                clone.style.borderRadius = 'var(--radius)';
+                const touch = e.touches[0];
+                clone.style.left = (touch.clientX - row.offsetWidth/2) + 'px';
+                clone.style.top = (touch.clientY - row.offsetHeight/2) + 'px';
+                document.body.appendChild(clone);
+            }, {passive: true});
+
+            row.addEventListener('touchmove', e => {
+                if (!clone) return;
+                const touch = e.touches[0];
+                clone.style.left = (touch.clientX - clone.offsetWidth/2) + 'px';
+                clone.style.top = (touch.clientY - clone.offsetHeight/2) + 'px';
+            }, {passive: true});
+
+            row.addEventListener('touchend', e => {
+                if (!clone) return;
+                const touch = e.changedTouches[0];
+                clone.remove();
+                clone = null;
+                const dropTarget = document.elementFromPoint(touch.clientX, touch.clientY);
+                const slot = dropTarget ? dropTarget.closest('.slot') : null;
+                if (slot && draggedPid) {
+                    const select = slot.querySelector('select');
+                    const option = Array.from(select.options).find(o => o.value === draggedPid);
+                    if (option && !option.disabled) {
+                        select.value = draggedPid;
+                        select.dispatchEvent(new Event('change'));
+                    } else if (option && option.disabled) {
+                        if(window.showToast) showToast("Giocatore già in campo", "bad");
+                        else alert("Giocatore già in campo");
+                    } else {
+                        if(window.showToast) showToast("Ruolo non compatibile", "bad");
+                        else alert("Ruolo non compatibile");
+                    }
+                }
+                draggedPid = null;
+            });
+        });
+
+        document.querySelectorAll('.slot').forEach(slot => {
+            slot.addEventListener('dragover', e => e.preventDefault());
+            slot.addEventListener('drop', e => {
+                e.preventDefault();
+                const pid = e.dataTransfer.getData('text/plain');
+                if (!pid) return;
+                const select = slot.querySelector('select');
+                const option = Array.from(select.options).find(o => o.value === pid);
+                if (option && !option.disabled) {
+                    select.value = pid;
+                    select.dispatchEvent(new Event('change'));
+                }
+            });
+        });
     })();
 </script>
 {% endblock %}
