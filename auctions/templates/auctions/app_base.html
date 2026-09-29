@@ -71,12 +71,24 @@ app through one of their teams — a banner with the way back.
         height: 56px; padding: 0 14px;
         background: var(--bg-deep); border-bottom: 1px solid var(--line);
     }
+    .app-hamburger {
+        display: none; align-items: center; justify-content: center;
+        background: transparent; border: none; color: var(--ink);
+        padding: 4px; margin-left: -4px; cursor: pointer; border-radius: 8px;
+    }
+    .app-hamburger .ic { width: 26px; height: 26px; }
+    .app-hamburger:active { background: rgba(255,255,255,0.05); }
+
     .app-top .app-mark {
         width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0;
         display: flex; align-items: center; justify-content: center;
         font-family: var(--display); font-weight: 900; font-size: 15px; letter-spacing: .02em;
         color: #0a1108; background: var(--accent);
         box-shadow: 0 0 18px -4px var(--accent-glow);
+    }
+    @media (max-width: 879px) {
+        .app-hamburger { display: flex; }
+        .app-mark { display: none !important; }
     }
     .app-ctx {
         flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center;
@@ -343,6 +355,9 @@ app through one of their teams — a banner with the way back.
 </style>
 
 <header class="app-top">
+    <button type="button" class="app-hamburger" onclick="openFmSidebar()">
+        <svg class="ic"><use href="#i-menu"/></svg>
+    </button>
     <div class="app-mark">FM</div>
     <a class="app-ctx" href="{% url 'join' %}" title="Cambia lega / squadra">
         <span class="ac-league">{% if app_league %}{{ app_league.name }}{% else %}FantaManager{% endif %}</span>
@@ -434,9 +449,78 @@ function closePlayerModal() {
     m.style.opacity = '0';
     c.style.transform = 'translateY(20px)';
     setTimeout(() => { m.style.display = 'none'; }, 200);
+    setTimeout(() => { m.style.display = 'none'; }, 200);
 }
 </script>
 
+<!-- Toast Notifications System -->
+<div id="fm-toast-container" style="position:fixed; top:70px; left:50%; transform:translateX(-50%); z-index:9999; display:flex; flex-direction:column; gap:10px; pointer-events:none; width:90%; max-width:400px;"></div>
+<script>
+window.showToast = function(msg, type) {
+    const container = document.getElementById('fm-toast-container');
+    const toast = document.createElement('div');
+    toast.style.cssText = `background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 16px; color:var(--ink); font-weight:700; font-size:14px; box-shadow:0 8px 24px rgba(0,0,0,0.3); opacity:0; transform:translateY(-20px); transition:all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); display:flex; align-items:center; gap:10px; pointer-events:auto;`;
+    
+    if(type === 'good' || type === 'success') {
+        toast.style.borderLeft = '4px solid #22c55e';
+        toast.innerHTML = `<svg style="width:20px;height:20px;color:#22c55e"><use href="#i-check"/></svg> <span>${msg}</span>`;
+    } else if (type === 'bad' || type === 'error') {
+        toast.style.borderLeft = '4px solid #ef4444';
+        toast.innerHTML = `<svg style="width:20px;height:20px;color:#ef4444"><use href="#i-alert"/></svg> <span>${msg}</span>`;
+    } else {
+        toast.style.borderLeft = '4px solid var(--accent)';
+        toast.innerHTML = `<svg style="width:20px;height:20px;color:var(--accent)"><use href="#i-bell"/></svg> <span>${msg}</span>`;
+    }
+    
+    container.appendChild(toast);
+    void toast.offsetWidth;
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateY(0)';
+    
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(-20px)';
+        setTimeout(() => { toast.remove(); }, 300);
+    }, 4000);
+};
+</script>
+
+<!-- Mobile Sidebar Hamburger Menu -->
+<div id="fm-sidebar-overlay" style="display:none; position:fixed; inset:0; z-index:90; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); opacity:0; transition:opacity 0.3s;" onclick="closeFmSidebar()"></div>
+<div id="fm-sidebar" style="position:fixed; top:0; left:0; bottom:0; width:280px; max-width:85vw; background:var(--bg-deep); z-index:91; transform:translateX(-100%); transition:transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); border-right:1px solid var(--line); box-shadow:4px 0 24px rgba(0,0,0,0.5); display:flex; flex-direction:column; padding-bottom:env(safe-area-inset-bottom);">
+    <div style="padding:20px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center;">
+        <div style="font-family:var(--display); font-weight:900; font-size:22px; color:var(--ink);">FantaManager</div>
+        <button type="button" onclick="closeFmSidebar()" style="background:none;border:none;color:var(--muted);font-size:24px;line-height:1;padding:0;">&times;</button>
+    </div>
+    <div style="flex:1; overflow-y:auto; padding:10px 0;">
+        <a href="{% url 'app_home' %}" style="display:flex; align-items:center; gap:12px; padding:14px 20px; text-decoration:none; color:var(--ink); font-weight:700;"><svg class="ic" style="color:var(--muted)"><use href="#i-home"/></svg> Home</a>
+        <a href="{% url 'app_rosa' %}" style="display:flex; align-items:center; gap:12px; padding:14px 20px; text-decoration:none; color:var(--ink); font-weight:700;"><svg class="ic" style="color:var(--muted)"><use href="#i-shirt"/></svg> La tua Rosa</a>
+        <a href="{% url 'app_formazione' %}" style="display:flex; align-items:center; gap:12px; padding:14px 20px; text-decoration:none; color:var(--ink); font-weight:700;"><svg class="ic" style="color:var(--muted)"><use href="#i-table"/></svg> Formazione</a>
+        <a href="{% url 'app_mercato' %}" style="display:flex; align-items:center; gap:12px; padding:14px 20px; text-decoration:none; color:var(--ink); font-weight:700;"><svg class="ic" style="color:var(--muted)"><use href="#i-swap"/></svg> Mercato / Buste</a>
+        <a href="{% url 'app_live' %}" style="display:flex; align-items:center; gap:12px; padding:14px 20px; text-decoration:none; color:var(--ink); font-weight:700;"><svg class="ic" style="color:var(--muted)"><use href="#i-pulse"/></svg> Live Risultati</a>
+        <a href="{% url 'app_lega' %}" style="display:flex; align-items:center; gap:12px; padding:14px 20px; text-decoration:none; color:var(--ink); font-weight:700;"><svg class="ic" style="color:var(--muted)"><use href="#i-trophy"/></svg> Classifiche e Lega</a>
+        <hr style="border:0; border-top:1px solid var(--line); margin:10px 0;">
+        <a href="{% url 'app_altro' %}" style="display:flex; align-items:center; gap:12px; padding:14px 20px; text-decoration:none; color:var(--ink); font-weight:700;"><svg class="ic" style="color:var(--muted)"><use href="#i-gear"/></svg> Impostazioni (Altro)</a>
+        <a href="#" onclick="toggleFmTheme(event)" style="display:flex; align-items:center; gap:12px; padding:14px 20px; text-decoration:none; color:var(--ink); font-weight:700;"><svg class="ic" style="color:var(--muted)"><use href="#i-pulse"/></svg> Cambia Tema</a>
+    </div>
+</div>
+<script>
+function openFmSidebar() {
+    const ov = document.getElementById('fm-sidebar-overlay');
+    const sb = document.getElementById('fm-sidebar');
+    ov.style.display = 'block';
+    void ov.offsetWidth;
+    ov.style.opacity = '1';
+    sb.style.transform = 'translateX(0)';
+}
+function closeFmSidebar() {
+    const ov = document.getElementById('fm-sidebar-overlay');
+    const sb = document.getElementById('fm-sidebar');
+    ov.style.opacity = '0';
+    sb.style.transform = 'translateX(-100%)';
+    setTimeout(() => { ov.style.display = 'none'; }, 300);
+}
+</script>
 <main class="app-main {% block mainclass %}{% endblock %}">
     {% if messages %}
     <div style="margin-bottom:14px">
