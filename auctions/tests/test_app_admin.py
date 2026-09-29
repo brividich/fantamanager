@@ -280,3 +280,45 @@ class SetupWizardSmartsTests(TestCase):
         resp = self.client.get(reverse("admin_setup"))
         self.assertIn("Già Qui", resp.context["existing_names"])
         self.assertContains(resp, 'id="existing-names"')
+
+
+class SupervisorUserManagementTests(TestCase):
+    def setUp(self):
+        self.superadmin = User.objects.create_superuser("root", "root@x.local", "pass_root")
+        self.user = User.objects.create_user("testuser", email="old@x.local", password="pass_old")
+        self.client.force_login(self.superadmin)
+
+    def test_supervisor_edit_user_success(self):
+        resp = self.client.post(reverse("supervisor_dashboard"), {
+            "action": "edit_user",
+            "user_id": self.user.id,
+            "username": "testuser_renamed",
+            "email": "new@x.local",
+            "first_name": "Mario",
+            "last_name": "Rossi",
+            "password": "new_secret_pwd",
+            "role": "staff",
+            "is_active": "1",
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.username, "testuser_renamed")
+        self.assertEqual(self.user.email, "new@x.local")
+        self.assertEqual(self.user.first_name, "Mario")
+        self.assertTrue(self.user.is_staff)
+        self.assertFalse(self.user.is_superuser)
+        self.assertTrue(self.user.check_password("new_secret_pwd"))
+
+    def test_supervisor_cannot_demote_self(self):
+        resp = self.client.post(reverse("supervisor_dashboard"), {
+            "action": "edit_user",
+            "user_id": self.superadmin.id,
+            "username": "root",
+            "email": "root@x.local",
+            "role": "user",
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.superadmin.refresh_from_db()
+        self.assertTrue(self.superadmin.is_superuser)
+        self.assertTrue(self.superadmin.is_active)
+

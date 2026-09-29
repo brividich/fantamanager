@@ -64,7 +64,7 @@ class ParticipantAccountTests(TestCase):
         self.assertContains(resp, "Account portale")
         self.assertContains(resp, "mario")
         self.assertContains(resp, "Crea account")
-        self.assertContains(resp, f'/admin-auction/participants/{self.free_team.id}/account/')
+        self.assertContains(resp, f'/dashboard/participants/{self.free_team.id}/account/')
 
     def test_page_hides_accounts_in_an_ownerless_league_to_non_superusers(self):
         legacy = League.objects.create(name="Lega Legacy")
@@ -297,3 +297,63 @@ class ParticipantAccountTests(TestCase):
         resp = self._post(self.free_team, action="create", username="anon", password="segreta123")
         self.assertEqual(resp.status_code, 401)
         self.assertFalse(User.objects.filter(username="anon").exists())
+
+    # --- Manage Action (Dashboard & Modal) -----------------------------------
+
+    def test_manage_update_email_and_password(self):
+        self._managed(username="coach_edit", password="old_password", team=self.free_team)
+        self._as(self.owner)
+        resp = self._post(
+            self.free_team,
+            action="manage",
+            username="coach_edit",
+            email="coach_new@x.local",
+            password="new_password_123",
+            league_role="admin",
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.free_team.refresh_from_db()
+        self.assertEqual(self.free_team.user.email, "coach_new@x.local")
+        self.assertTrue(self.free_team.user.check_password("new_password_123"))
+        self.assertTrue(self.league.admins.filter(pk=self.free_team.user.pk).exists())
+
+    def test_manage_create_new_account_if_unlinked(self):
+        self._as(self.owner)
+        resp = self._post(
+            self.free_team,
+            action="manage",
+            username="nuovo_mister",
+            email="mister@x.local",
+            password="password_sicura_456",
+            league_role="manager",
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.free_team.refresh_from_db()
+        self.assertIsNotNone(self.free_team.user)
+        self.assertEqual(self.free_team.user.username, "nuovo_mister")
+        self.assertEqual(self.free_team.user.email, "mister@x.local")
+        self.assertTrue(self.free_team.user.check_password("password_sicura_456"))
+
+    def test_manage_unlink_account(self):
+        self._managed(username="coach_to_unlink", team=self.free_team)
+        self._as(self.owner)
+        resp = self._post(self.free_team, action="manage", unlink_account="1")
+        self.assertEqual(resp.status_code, 302)
+        self.free_team.refresh_from_db()
+        self.assertIsNone(self.free_team.user)
+
+    def test_coadmin_can_manage_team_accounts(self):
+        coadmin = User.objects.create_user("coadmin1", password="pw")
+        self.league.admins.add(coadmin)
+        self._managed(username="coach_by_admin", team=self.free_team)
+        self._as(coadmin)
+        resp = self._post(
+            self.free_team,
+            action="manage",
+            username="coach_by_admin",
+            email="coadmin_set@x.local",
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.free_team.refresh_from_db()
+        self.assertEqual(self.free_team.user.email, "coadmin_set@x.local")
+

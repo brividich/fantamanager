@@ -359,6 +359,7 @@ def linkable_users(user):
     qs = get_user_model().objects.all()
     if not user.is_superuser:
         qs = qs.filter(Q(pk=user.pk) | Q(teams__league__owner=user)
+                       | Q(teams__league__admins=user)
                        | Q(managed_account__created_by=user)).distinct()
     return qs.order_by("username")
 

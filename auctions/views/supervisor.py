@@ -13,8 +13,11 @@ import time
 
 from django.conf import settings
 from django.contrib import messages
+from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.models import User
 from django.contrib.sessions.models import Session
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 from django.db import connection, transaction
 from django.db.models import Count, Sum
 from django.http import HttpResponseForbidden, JsonResponse
@@ -276,6 +279,86 @@ def supervisor_dashboard(request):
                 logger.exception("Errore durante la creazione dell'utente: %s", e)
                 messages.error(request, f"Errore durante la creazione dell'utente: {e}")
 
+            return redirect(f"{reverse('supervisor_dashboard')}?tab=users")
+
+        elif action == "edit_user":
+            uid = request.POST.get("user_id")
+            user_obj = get_object_or_404(User, pk=uid)
+            username = (request.POST.get("username") or "").strip()
+            email = (request.POST.get("email") or "").strip()
+            first_name = (request.POST.get("first_name") or "").strip()[:150]
+            last_name = (request.POST.get("last_name") or "").strip()[:150]
+            new_password = (request.POST.get("password") or "").strip()
+            role = request.POST.get("role", "user")  # "superadmin", "staff", "user"
+            is_active = request.POST.get("is_active") == "on" or request.POST.get("is_active") == "1"
+
+            if not username:
+                messages.error(request, "Il nome utente non può essere vuoto.")
+                return redirect(f"{reverse('supervisor_dashboard')}?tab=users")
+
+            if User.objects.filter(username__iexact=username).exclude(pk=user_obj.pk).exists():
+                messages.error(request, f"Lo username '{username}' è già utilizzato da un altro utente.")
+                return redirect(f"{reverse('supervisor_dashboard')}?tab=users")
+
+            if email:
+                try:
+                    validate_email(email)
+                except ValidationError:
+                    messages.error(request, "L'indirizzo email specificato non è valido.")
+                    return redirect(f"{reverse('supervisor_dashboard')}?tab=users")
+                if User.objects.filter(email__iexact=email).exclude(pk=user_obj.pk).exists():
+                    messages.error(request, f"L'email '{email}' è già associata a un altro account.")
+                    return redirect(f"{reverse('supervisor_dashboard')}?tab=users")
+
+            # Protezione auto-disattivazione o auto-revoca superadmin
+            if user_obj == request.user:
+                if not is_active:
+                    messages.error(request, "Non puoi disattivare il tuo stesso account superadmin.")
+                    is_active = True
+                if role != "superadmin":
+                    messages.error(request, "Non puoi revocare il ruolo Superadmin dal tuo stesso account.")
+                    role = "superadmin"
+
+            user_obj.username = username
+            user_obj.email = email
+            user_obj.first_name = first_name
+            user_obj.last_name = last_name
+            user_obj.is_active = is_active
+
+            if role == "superadmin":
+                user_obj.is_superuser = True
+                user_obj.is_staff = True
+            elif role == "staff":
+                user_obj.is_superuser = False
+                user_obj.is_staff = True
+            else:
+                user_obj.is_superuser = False
+                user_obj.is_staff = False
+
+            password_changed = False
+            if new_password:
+                if len(new_password) < 4:
+                    messages.error(request, "La password deve contenere almeno 4 caratteri.")
+                    return redirect(f"{reverse('supervisor_dashboard')}?tab=users")
+                user_obj.set_password(new_password)
+                password_changed = True
+
+            user_obj.save()
+
+            if password_changed and user_obj == request.user:
+                update_session_auth_hash(request, user_obj)
+
+            # Assegnazione o rimozione presidenza lega (opzionale da supervisor)
+            assign_owner_lid = request.POST.get("assign_owner_league_id")
+            if assign_owner_lid and assign_owner_lid.isdigit():
+                target_lg = League.objects.filter(pk=int(assign_owner_lid)).first()
+                if target_lg:
+                    target_lg.owner = user_obj
+                    target_lg.save(update_fields=["owner"])
+
+            pwd_note = " (con nuova password)" if password_changed else ""
+            messages.success(request, f"Profilo e credenziali di '{user_obj.username}' aggiornati con successo{pwd_note}.")
+            logger.info("Supervisor ha modificato l'utente %s (id=%s)", user_obj.username, user_obj.id)
             return redirect(f"{reverse('supervisor_dashboard')}?tab=users")
 
         elif action == "delete_league":

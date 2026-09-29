@@ -13,6 +13,7 @@ from django.views.decorators.http import require_POST
 
 from .. import remote, services
 from ..models import Auction, AuctionCycleResult, Bid, League, MarketSession, Participant, Player
+from .admin_participants import SESSION_ACCOUNT_SECRET_KEY, can_manage_accounts
 from .common import (
     SESSION_AUCTION_KEY,
     SESSION_LEAGUE_KEY,
@@ -143,6 +144,7 @@ def admin_dashboard(request, league_id=None, hub=False, auction_id=None):
     league_cards = []
     available_users = []
     free_players_sample = []
+    league_admin_ids = set()
     if current_league is not None:
         auctions = Auction.objects.filter(league=current_league)
         participants = Participant.objects.filter(league=current_league).select_related("user")
@@ -176,6 +178,9 @@ def admin_dashboard(request, league_id=None, hub=False, auction_id=None):
             "A": current_league.slots_a if current_league.slot_limits else 0,
         }
 
+        league_admin_ids = set(current_league.admins.values_list("id", flat=True)) if current_league else set()
+        owner_id = current_league.owner_id if current_league else None
+
         for p in participants:
             p.roster_by_role = rosters_by_participant.get(p.id, {"P": [], "D": [], "C": [], "A": []})
             p.role_spent = roster_spent_by_participant.get(p.id, {"P": Decimal("0"), "D": Decimal("0"), "C": Decimal("0"), "A": Decimal("0")})
@@ -188,6 +193,23 @@ def admin_dashboard(request, league_id=None, hub=False, auction_id=None):
             p.empty_slots_ranges = {
                 r: range(p.empty_slots[r]) for r in ("P", "D", "C", "A")
             }
+            if p.user_id:
+                p.is_league_owner = (p.user_id == owner_id)
+                p.is_league_admin = (p.user_id in league_admin_ids)
+                if p.is_league_owner:
+                    p.league_role = "owner"
+                    p.league_role_label = "Presidente"
+                elif p.is_league_admin:
+                    p.league_role = "admin"
+                    p.league_role_label = "Amministratore"
+                else:
+                    p.league_role = "manager"
+                    p.league_role_label = "Allenatore"
+            else:
+                p.is_league_owner = False
+                p.is_league_admin = False
+                p.league_role = "none"
+                p.league_role_label = "Nessun Account"
 
         available_users = list(linkable_users(user))
     else:
@@ -313,6 +335,9 @@ def admin_dashboard(request, league_id=None, hub=False, auction_id=None):
         "queue_preview": queue_preview,
         "queue_pending": queue_pending,
         "storico": storico,
+        "account_secret": request.session.pop(SESSION_ACCOUNT_SECRET_KEY, None) if can_manage_accounts(user, current_league) else None,
+        "can_manage_accounts": can_manage_accounts(user, current_league),
+        "league_admin_ids": league_admin_ids,
         "error_labels_json": json.dumps(services.ERROR_LABELS),
         # The tunnel status carries the regia PIN: superadmin only.
         "remote_json": json.dumps(remote.status()) if user.is_superuser else "null",
