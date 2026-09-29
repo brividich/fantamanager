@@ -120,7 +120,7 @@ class PinNextTests(TestCase):
             with self.subTest(target=target):
                 r = self.client_class().post("/regia/unlock/?" + urlencode({"next": target}),
                                              {"pin": "424242"}, HTTP_HOST=self.host)
-                self.assertRedirects(r, "/admin-auction/", fetch_redirect_response=False)
+                self.assertRedirects(r, "/dashboard/", fetch_redirect_response=False)
 
     def test_unlock_same_site_next_is_kept(self):
         r = self.client.post("/regia/unlock/", {"pin": "424242", "next": "/admin-auction/players/"},

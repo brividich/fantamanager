@@ -407,7 +407,7 @@ def admin_create_auction(request):
         within_role_order=_within_role(request),
         status=Auction.Status.READY,
     )
-    return redirect(f"/admin-auction/?auction={auction.id}")
+    return redirect(f"/dashboard/?auction={auction.id}")
 
 
 def _pool_player_or_error(request, auction, player_id):

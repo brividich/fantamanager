@@ -176,7 +176,7 @@ def admin_participant_profile(request, participant_id):
             setattr(p, key, None)
     p.save()
     messages.success(request, f"Scheda di «{p.display_name}» aggiornata.")
-    fallback = f"/admin-auction/participants/?league={p.league_id}" if p.league_id else "/admin-auction/participants/"
+    fallback = f"/dashboard/participants/?league={p.league_id}" if p.league_id else "/dashboard/participants/"
     return redirect(safe_next(request, fallback))
 
 

@@ -214,7 +214,7 @@
     const errLabel = (code) => ERROR_LABEL[code] || code || "Errore";
 
     async function control(action) {
-        const r = await fetch(`/admin-auction/${AUCTION_ID}/${action}/`, {
+        const r = await fetch(`/dashboard/${AUCTION_ID}/${action}/`, {
             method: "POST", headers: { "X-CSRFToken": CSRF },
         });
         const data = await r.json();
@@ -226,7 +226,7 @@
         const msg = (text != null ? text : (input ? input.value : "")).trim();
         if (!msg) { if (input) input.focus(); return; }
         const body = new URLSearchParams({ text: msg, level: level || "info" });
-        const r = await fetch(`/admin-auction/${AUCTION_ID}/announce/`, {
+        const r = await fetch(`/dashboard/${AUCTION_ID}/announce/`, {
             method: "POST", body,
             headers: { "X-CSRFToken": CSRF, "Content-Type": "application/x-www-form-urlencoded" },
         });
@@ -246,7 +246,7 @@
     }
     async function adjustTimer(delta) {
         const body = new URLSearchParams({ delta });
-        const r = await fetch(`/admin-auction/${AUCTION_ID}/timer/`, {
+        const r = await fetch(`/dashboard/${AUCTION_ID}/timer/`, {
             method: "POST", body,
             headers: { "X-CSRFToken": CSRF, "Content-Type": "application/x-www-form-urlencoded" },
         });
@@ -291,7 +291,7 @@
     }
 
     async function openSealed() {
-        const r = await fetch(`/admin-auction/${AUCTION_ID}/open-sealed/`, {
+        const r = await fetch(`/dashboard/${AUCTION_ID}/open-sealed/`, {
             method: "POST", headers: { "X-CSRFToken": CSRF },
         });
         const d = await r.json();
@@ -301,7 +301,7 @@
 
     async function resolveSealed() {
         if (!confirm("Aprire subito le buste consegnate finora?")) return;
-        const r = await fetch(`/admin-auction/${AUCTION_ID}/resolve-sealed/`, {
+        const r = await fetch(`/dashboard/${AUCTION_ID}/resolve-sealed/`, {
             method: "POST", headers: { "X-CSRFToken": CSRF },
         });
         const d = await r.json();
@@ -312,7 +312,7 @@
     }
 
     async function turnAction(action) {
-        const r = await fetch(`/admin-auction/${AUCTION_ID}/turns/`, {
+        const r = await fetch(`/dashboard/${AUCTION_ID}/turns/`, {
             method: "POST",
             headers: { "X-CSRFToken": CSRF, "Content-Type": "application/x-www-form-urlencoded" },
             body: new URLSearchParams({ action }),
@@ -339,7 +339,7 @@
 
     async function forceCloseLot() {
         if (!confirm("Saltare questo giocatore (invenduto) e passare al prossimo?")) return;
-        const r = await fetch(`/admin-auction/${AUCTION_ID}/force-close/`, {
+        const r = await fetch(`/dashboard/${AUCTION_ID}/force-close/`, {
             method: "POST", headers: { "X-CSRFToken": CSRF },
         });
         const d = await r.json();
@@ -371,7 +371,7 @@
         const inc = document.getElementById("bidfor-inc").value || "1";
         if (!pid) return;
         const body = new URLSearchParams({ participant_id: pid, increment: inc });
-        const r = await fetch(`/admin-auction/${AUCTION_ID}/bid-for/`, {
+        const r = await fetch(`/dashboard/${AUCTION_ID}/bid-for/`, {
             method: "POST", body,
             headers: { "X-CSRFToken": CSRF, "Content-Type": "application/x-www-form-urlencoded" },
         });
@@ -382,7 +382,7 @@
     async function callPlayer(playerId, btn) {
         if (btn) { btn.disabled = true; btn.textContent = "…"; }
         const body = new URLSearchParams({ player_id: playerId });
-        const r = await fetch(`/admin-auction/${AUCTION_ID}/call-player/`, {
+        const r = await fetch(`/dashboard/${AUCTION_ID}/call-player/`, {
             method: "POST", body,
             headers: { "X-CSRFToken": CSRF, "Content-Type": "application/x-www-form-urlencoded" },
         });
@@ -529,7 +529,7 @@
             .scrollIntoView({ block: "nearest", behavior: "smooth" });
     }
     async function buildQueue() {
-        const r = await fetch(`/admin-auction/${AUCTION_ID}/build-queue/`, {
+        const r = await fetch(`/dashboard/${AUCTION_ID}/build-queue/`, {
             method: "POST", headers: { "X-CSRFToken": CSRF },
         });
         const data = await r.json();
@@ -572,7 +572,7 @@
 
     async function refreshQueue() {
         try {
-            const r = await fetch(`/admin-auction/${AUCTION_ID}/queue/`);
+            const r = await fetch(`/dashboard/${AUCTION_ID}/queue/`);
             const data = await r.json();
             if (data.ok) {
                 renderQueueTable(data.items);
@@ -586,7 +586,7 @@
 
     async function prioritizeQueuePlayer(playerId) {
         const body = new URLSearchParams({ player_id: playerId });
-        const r = await fetch(`/admin-auction/${AUCTION_ID}/queue/prioritize/`, {
+        const r = await fetch(`/dashboard/${AUCTION_ID}/queue/prioritize/`, {
             method: "POST", body,
             headers: { "X-CSRFToken": CSRF, "Content-Type": "application/x-www-form-urlencoded" },
         });
@@ -600,7 +600,7 @@
 
     async function postponeQueuePlayer(playerId) {
         const body = new URLSearchParams({ player_id: playerId });
-        const r = await fetch(`/admin-auction/${AUCTION_ID}/queue/postpone/`, {
+        const r = await fetch(`/dashboard/${AUCTION_ID}/queue/postpone/`, {
             method: "POST", body,
             headers: { "X-CSRFToken": CSRF, "Content-Type": "application/x-www-form-urlencoded" },
         });
@@ -615,7 +615,7 @@
     async function excludeQueuePlayer(playerId) {
         if (!confirm("Vuoi davvero escludere questo giocatore dalla coda?")) return;
         const body = new URLSearchParams({ player_id: playerId });
-        const r = await fetch(`/admin-auction/${AUCTION_ID}/queue/exclude/`, {
+        const r = await fetch(`/dashboard/${AUCTION_ID}/queue/exclude/`, {
             method: "POST", body,
             headers: { "X-CSRFToken": CSRF, "Content-Type": "application/x-www-form-urlencoded" },
         });
@@ -640,7 +640,7 @@
     }
 
     async function setAutoAdvance(on) {
-        const r = await fetch(`/admin-auction/${AUCTION_ID}/auto-advance/`, {
+        const r = await fetch(`/dashboard/${AUCTION_ID}/auto-advance/`, {
             method: "POST", body: new URLSearchParams({ on: on ? "1" : "0" }),
             headers: { "X-CSRFToken": CSRF, "Content-Type": "application/x-www-form-urlencoded" },
         });
@@ -655,7 +655,7 @@
     }
 
     async function confirmAdvance() {
-        const r = await fetch(`/admin-auction/${AUCTION_ID}/confirm-advance/`, {
+        const r = await fetch(`/dashboard/${AUCTION_ID}/confirm-advance/`, {
             method: "POST",
             headers: { "X-CSRFToken": CSRF, "Content-Type": "application/x-www-form-urlencoded" },
         });
@@ -671,7 +671,7 @@
     async function manualStep(direction, undoSale) {
         const body = new URLSearchParams({ direction });
         if (undoSale) body.append("undo_sale", "1");
-        const r = await fetch(`/admin-auction/${AUCTION_ID}/step/`, {
+        const r = await fetch(`/dashboard/${AUCTION_ID}/step/`, {
             method: "POST", body,
             headers: { "X-CSRFToken": CSRF, "Content-Type": "application/x-www-form-urlencoded" },
         });
@@ -699,7 +699,7 @@
     }
     async function refreshClassifica() {
         try {
-            const r = await fetch(`/admin-auction/${AUCTION_ID}/classifica/`);
+            const r = await fetch(`/dashboard/${AUCTION_ID}/classifica/`);
             const d = await r.json();
             if (!d.ok) return;
             const tbody = document.getElementById("classifica-tbody");
@@ -709,7 +709,7 @@
 
     async function refreshStorico() {
         try {
-            const r = await fetch(`/admin-auction/${AUCTION_ID}/storico/`);
+            const r = await fetch(`/dashboard/${AUCTION_ID}/storico/`);
             const d = await r.json();
             if (!d.ok) return;
             const tbody = document.getElementById("storico-tbody");
@@ -725,7 +725,7 @@
     async function retryFromStorico(playerId, btn) {
         if (btn) { btn.disabled = true; btn.textContent = "…"; }
         const body = new URLSearchParams({ player_id: playerId });
-        const r = await fetch(`/admin-auction/${AUCTION_ID}/call-player/`, {
+        const r = await fetch(`/dashboard/${AUCTION_ID}/call-player/`, {
             method: "POST", body,
             headers: { "X-CSRFToken": CSRF, "Content-Type": "application/x-www-form-urlencoded" },
         });
@@ -744,7 +744,7 @@
         if (!confirm("Svincolare il giocatore? L'aggiudicazione viene annullata e il costo riaccreditato alla squadra.")) return;
         if (btn) { btn.disabled = true; btn.textContent = "…"; }
         const body = new URLSearchParams({ auction_id: AUCTION_ID });
-        const r = await fetch(`/admin-auction/players/${playerId}/release/`, {
+        const r = await fetch(`/dashboard/players/${playerId}/release/`, {
             method: "POST", body,
             headers: { "X-CSRFToken": CSRF, "Content-Type": "application/x-www-form-urlencoded" },
         });
@@ -764,7 +764,7 @@
             "Annullare questa offerta?\n\nSe il round è già concluso, il giocatore " +
             "verrà svincolato e i crediti rimborsati alla squadra."
         )) return;
-        const r = await fetch(`/admin-auction/bid/${bidId}/cancel/`, {
+        const r = await fetch(`/dashboard/bid/${bidId}/cancel/`, {
             method: "POST", headers: { "X-CSRFToken": CSRF },
         });
         const data = await r.json();
@@ -897,7 +897,7 @@
         const fb = document.getElementById("ea-feedback");
         btn.disabled = true; btn.textContent = "Salvataggio…";
         const body = new FormData(e.target);
-        const r = await fetch(`/admin-auction/${AUCTION_ID}/edit/`, { method: "POST", body, headers: { "X-CSRFToken": CSRF } });
+        const r = await fetch(`/dashboard/${AUCTION_ID}/edit/`, { method: "POST", body, headers: { "X-CSRFToken": CSRF } });
         const data = await r.json();
         btn.disabled = false; btn.textContent = "Salva";
         if (data.ok) {

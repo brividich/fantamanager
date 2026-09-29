@@ -641,13 +641,13 @@
 
     async function deletePlayer(id, btn) {
         if (!confirm("Eliminare questo giocatore dal listone?")) return;
-        await fetch(`/admin-auction/players/${id}/delete/`, { method: "POST", headers: { "X-CSRFToken": CSRF } });
+        await fetch(`/dashboard/players/${id}/delete/`, { method: "POST", headers: { "X-CSRFToken": CSRF } });
         btn.closest("tr").remove();
     }
 
     async function releasePlayer(id, btn) {
         if (!confirm("Svincolare il giocatore? Tornerà tra i liberi.")) return;
-        await fetch(`/admin-auction/players/${id}/release/`, { method: "POST", headers: { "X-CSRFToken": CSRF } });
+        await fetch(`/dashboard/players/${id}/release/`, { method: "POST", headers: { "X-CSRFToken": CSRF } });
         location.reload();
     }
 
@@ -703,7 +703,7 @@
         const form = new FormData();
         form.append("participant_id", team);
         form.append("price", price);
-        const r = await fetch(`/admin-auction/players/${assignId}/assign/`,
+        const r = await fetch(`/dashboard/players/${assignId}/assign/`,
             { method: "POST", body: form, headers: { "X-CSRFToken": CSRF } });
         btn.disabled = false;
         const data = await r.json();

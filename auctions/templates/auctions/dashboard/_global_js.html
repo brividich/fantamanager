@@ -12,7 +12,7 @@
         const el = document.getElementById("system-logs-content");
         if (!el) return;
         try {
-            const r = await fetch("/admin-auction/logs/");
+            const r = await fetch("/dashboard/logs/");
             const data = await r.json();
             if (data.ok && Array.isArray(data.lines)) {
                 if (data.lines.length === 0) {
@@ -81,7 +81,7 @@
         rosterEscape = (e) => { if (e.key === "Escape") closeRoster(); };
         document.addEventListener("keydown", rosterEscape);
         try {
-            const d = await (await fetch(`/admin-auction/participants/${id}/roster/`)).json();
+            const d = await (await fetch(`/dashboard/participants/${id}/roster/`)).json();
             if (!d.ok) throw new Error();
             body.innerHTML = d.roster.length ? d.roster.map(pl => `
                 <tr id="rosterrow-${pl.id}">
@@ -116,7 +116,7 @@
         const body = new URLSearchParams();
         if (SELECTED_AUCTION_ID) body.set("auction_id", String(SELECTED_AUCTION_ID));
         try {
-            const r = await fetch(`/admin-auction/players/${playerId}/release/`, {
+            const r = await fetch(`/dashboard/players/${playerId}/release/`, {
                 method: "POST",
                 headers: { "X-CSRFToken": _csrf(), "Content-Type": "application/x-www-form-urlencoded" },
                 body,
@@ -212,7 +212,7 @@
         const form = document.getElementById('form-edit-team');
         const nameInput = document.getElementById('edit-team-name');
         const userInput = document.getElementById('edit-team-user');
-        if (form) form.action = `/admin-auction/participants/${id}/edit/`;
+        if (form) form.action = `/dashboard/participants/${id}/edit/`;
         if (nameInput) nameInput.value = name;
         if (userInput) userInput.value = userId || 'none';
         if (m) m.style.display = 'flex';
@@ -278,7 +278,7 @@
         if (!confirm(`Svincolare ${playerName}? I crediti verranno rimborsati secondo il regolamento di lega.`)) return;
         try {
             const body = new URLSearchParams();
-            const r = await fetch(`/admin-auction/players/${playerId}/release/`, {
+            const r = await fetch(`/dashboard/players/${playerId}/release/`, {
                 method: 'POST',
                 headers: { 'X-CSRFToken': _csrf(), 'Content-Type': 'application/x-www-form-urlencoded' },
                 body
@@ -300,7 +300,7 @@
         if (!select) return;
         if (query.trim().length < 2) return;
         try {
-            const res = await (await fetch(`/admin-auction/players/search/?q=${encodeURIComponent(query)}`)).json();
+            const res = await (await fetch(`/dashboard/players/search/?q=${encodeURIComponent(query)}`)).json();
             if (res.ok && res.results) {
                 select.innerHTML = '';
                 if (res.results.length === 0) {
