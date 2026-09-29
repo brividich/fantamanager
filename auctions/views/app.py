@@ -284,7 +284,9 @@ def app_mercato(request):
     refund_mode = active_auc.release_refund_mode if active_auc else "purchase"
 
     # Market sessions
-    services.sync_market_schedule(league)
+    # Only this league's sessions: a market opened elsewhere isn't this team's.
+    if league is not None:
+        services.sync_market_schedule(league)
     sessions_qs = MarketSession.objects.filter(league=league).exclude(status=MarketSession.Status.DRAFT) if league else MarketSession.objects.none()
     
     # Session selection
