@@ -237,6 +237,159 @@
     .btn-super-danger:hover {
         background: rgba(239, 68, 68, 0.15);
     }
+
+    /* Mail & Platform Configuration styling */
+    .sup-mail-state {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+        padding: 16px 20px;
+        margin-bottom: 20px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: var(--panel, #12151c);
+    }
+    .sup-mail-state.ok {
+        border-color: rgba(34, 197, 94, 0.35);
+        background: linear-gradient(135deg, rgba(34, 197, 94, 0.08), rgba(18, 21, 28, 0.95));
+    }
+    .sup-mail-state.warn {
+        border-color: rgba(234, 179, 8, 0.35);
+        background: linear-gradient(135deg, rgba(234, 179, 8, 0.08), rgba(18, 21, 28, 0.95));
+    }
+    .sup-mail-state.off {
+        border-color: rgba(255, 255, 255, 0.08);
+    }
+    .sup-mail-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 340px;
+        gap: 20px;
+        align-items: start;
+    }
+    @media (max-width: 992px) {
+        .sup-mail-layout { grid-template-columns: 1fr; }
+    }
+    .sup-card {
+        background: var(--panel, #12151c);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    .sup-card-title {
+        font-size: 15px;
+        font-weight: 800;
+        margin: 0 0 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .sup-providers-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+        gap: 8px;
+    }
+    .sup-provider-label {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0;
+        padding: 10px 12px;
+        cursor: pointer;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.02);
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--text, #f8fafc);
+        transition: all .15s ease;
+    }
+    .sup-provider-label input { position: absolute; opacity: 0; pointer-events: none; }
+    .sup-provider-label:has(input:checked) {
+        border-color: #3b82f6;
+        background: rgba(59, 130, 246, 0.16);
+        box-shadow: inset 0 0 0 1px #3b82f6;
+        color: #93c5fd;
+    }
+    .sup-form-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+    }
+    .sup-form-grid.grid-3 {
+        grid-template-columns: 2fr 1fr 1fr;
+    }
+    @media (max-width: 640px) {
+        .sup-form-grid, .sup-form-grid.grid-3 { grid-template-columns: 1fr; }
+    }
+    .sup-input {
+        width: 100%;
+        background: #1e2430;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        color: #fff;
+        padding: 9px 12px;
+        border-radius: 7px;
+        font-size: 13px;
+        box-sizing: border-box;
+    }
+    .sup-input:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+    }
+    .sup-label {
+        display: block;
+        font-size: 12px;
+        font-weight: 700;
+        margin-bottom: 5px;
+        color: var(--text, #f8fafc);
+    }
+    .sup-hint {
+        font-size: 11.5px;
+        color: var(--muted, #94a3b8);
+        margin-top: 4px;
+    }
+    .sup-param-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        font-size: 13px;
+        gap: 12px;
+    }
+    .sup-param-row:last-child {
+        border-bottom: none;
+    }
+    .sup-param-label {
+        color: var(--muted, #94a3b8);
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    .sup-param-val {
+        color: #fff;
+        font-weight: 700;
+        text-align: right;
+        word-break: break-all;
+    }
+    .sup-op-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 16px;
+    }
+    .sup-op-card {
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 10px;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 12px;
+    }
 </style>
 
 <!-- Messages alert -->
@@ -285,11 +438,19 @@
     <a href="?tab=leagues" class="super-tab-link {% if tab == 'leagues' %}active{% endif %}">
         🏆 Gestione Leghe ({{ leagues|length }})
     </a>
-    <a href="?tab=logs" class="super-tab-link {% if tab == 'logs' %}active{% endif %}">
-        📜 Log di Sistema & Lega
+    <a href="?tab=mail" class="super-tab-link {% if tab == 'mail' %}active{% endif %}" style="position:relative">
+        ✉️ Server SMTP & Posta
+        {% if mail_ready and mail_cfg.enabled %}
+            <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 6px #22c55e" title="Posta Operativa"></span>
+        {% elif mail_cfg.enabled %}
+            <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#eab308" title="Configurazione Incompleta"></span>
+        {% endif %}
     </a>
     <a href="?tab=reports" class="super-tab-link {% if tab == 'reports' %}active{% endif %}">
-        ⚙️ Setup & Reportistica
+        ⚙️ Piattaforma & Manutenzione
+    </a>
+    <a href="?tab=logs" class="super-tab-link {% if tab == 'logs' %}active{% endif %}">
+        📜 Log di Sistema & Lega
     </a>
     <a href="?tab=live_sync" class="super-tab-link {% if tab == 'live_sync' %}active{% endif %}" style="border:1px solid rgba(234,179,8,0.3)">
         ⚡ Live Matchday & Voti
@@ -353,6 +514,23 @@
         <div class="metric-label">Ambiente & Sistema</div>
         <div class="metric-value" style="font-size:18px">{{ metrics.django_version }} <span style="font-size:12px;color:var(--muted)">Django</span></div>
         <div class="metric-sub" style="font-size:11px;overflow:hidden;text-overflow:ellipsis">{{ metrics.os_name }}</div>
+    </div>
+
+    <div class="metric-card">
+        <div class="metric-label">
+            <span>Server Posta & Alert</span>
+            {% if metrics.mail_ready %}
+                <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#22c55e"></span>
+            {% else %}
+                <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#94a3b8"></span>
+            {% endif %}
+        </div>
+        <div class="metric-value" style="font-size:18px;{% if metrics.mail_ready %}color:#4ade80{% else %}color:var(--muted){% endif %}">
+            {{ metrics.mail_status }}
+        </div>
+        <div class="metric-sub">
+            <a href="?tab=mail" style="color:#60a5fa;text-decoration:none;font-weight:700">Configura server SMTP &rarr;</a>
+        </div>
     </div>
 </div>
 {% endif %}
@@ -1057,7 +1235,304 @@
 </div>
 {% endif %}
 
-<!-- 5. TAB: REPORTS & MAINTENANCE -->
+<!-- TAB: SERVER SMTP & POSTA -->
+{% if tab == 'mail' %}
+<div class="sup-mail-state {% if mail_ready and mail_cfg.enabled %}ok{% elif mail_cfg.enabled %}warn{% else %}off{% endif %}">
+    <div style="display:flex;align-items:center;gap:14px">
+        <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:{% if mail_ready and mail_cfg.enabled %}#22c55e;box-shadow:0 0 10px #22c55e{% elif mail_cfg.enabled %}#eab308;box-shadow:0 0 10px #eab308{% else %}#94a3b8{% endif %};flex-shrink:0"></span>
+        <div>
+            <div style="font-size:15px;font-weight:800;color:#fff">
+                {% if mail_ready and mail_source == "db" %}
+                    Posta Elettronica Attiva &bull; {{ mail_cfg.get_provider_display }}
+                {% elif mail_ready and mail_source == "env" %}
+                    Posta Elettronica Attiva &bull; Variabili d'Ambiente Server (ENV)
+                {% elif mail_cfg.enabled %}
+                    Posta Abilitata ma Incompleta
+                {% else %}
+                    Servizio Posta Disattivato
+                {% endif %}
+            </div>
+            <div style="font-size:12.5px;color:var(--muted);margin-top:2px">
+                {% if mail_ready and mail_source == "db" %}
+                    {% if mail_cfg.provider == "console" %}
+                        Modalità test/debug: le email non vengono inviate su internet ma scritte nei log del server.
+                    {% else %}
+                        Invio tramite {{ mail_cfg.host }}:{{ mail_cfg.port }} ({{ mail_cfg.get_security_display }}) &bull; Mittente: <b>{{ mail_cfg.from_name|default:"FantaManager" }} &lt;{{ mail_cfg.from_email }}&gt;</b>
+                    {% endif %}
+                {% elif mail_ready and mail_source == "env" %}
+                    Si utilizzano le impostazioni <code>EMAIL_HOST</code> del server. Abilita la configurazione qui sotto per gestirla dal Cockpit.
+                {% elif mail_cfg.enabled %}
+                    Mancano l'indirizzo del server SMTP (host) o l'email del mittente: nessun messaggio può partire.
+                {% else %}
+                    Nessuna email viene inviata: seleziona un provider, compila le credenziali e attiva l'interruttore.
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% if mail_cfg.last_test_at %}
+    <div>
+        <span style="font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:6px;background:{% if mail_cfg.last_test_ok %}rgba(34,197,94,0.18);color:#4ade80;border:1px solid rgba(34,197,94,0.35){% else %}rgba(239,68,68,0.18);color:#f87171;border:1px solid rgba(239,68,68,0.35){% endif %}">
+            Ultima prova: {{ mail_cfg.last_test_at|date:"d/m/Y H:i" }} &bull; {% if mail_cfg.last_test_ok %}OK Consegna Riuscita{% else %}Fallita{% endif %}
+        </span>
+    </div>
+    {% endif %}
+</div>
+
+<div class="sup-mail-layout">
+    <!-- Main Form Column -->
+    <div>
+        <form method="post" autocomplete="off" id="sup-mail-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="save_mail">
+
+            <!-- Card 1: Toggle & Provider Selection -->
+            <div class="sup-card">
+                <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,0.08)">
+                    <div>
+                        <b style="font-size:14px;color:#fff;display:block">Abilita invio email con questa configurazione</b>
+                        <span style="font-size:12px;color:var(--muted)">Se disattivata, la piattaforma non invierà email o userà le variabili di sistema del server.</span>
+                    </div>
+                    <label style="position:relative;width:44px;height:24px;flex-shrink:0;cursor:pointer;margin:0">
+                        <input type="checkbox" name="enabled" value="1" {% if mail_cfg.enabled %}checked{% endif %} style="opacity:0;position:absolute;width:100%;height:100%;margin:0;cursor:pointer;z-index:2" id="chk-mail-enabled">
+                        <span style="position:absolute;inset:0;border-radius:999px;background:{% if mail_cfg.enabled %}#22c55e{% else %}rgba(255,255,255,0.15){% endif %};transition:background .2s" id="sw-mail-bg">
+                            <span style="position:absolute;top:3px;left:{% if mail_cfg.enabled %}23px{% else %}3px{% endif %};width:18px;height:18px;border-radius:50%;background:#fff;transition:left .2s" id="sw-mail-knob"></span>
+                        </span>
+                    </label>
+                </div>
+
+                <div class="sup-card-title">
+                    <span>1.</span> Seleziona Provider di Posta
+                </div>
+
+                <div class="sup-providers-grid" role="radiogroup" aria-label="Provider di posta">
+                    {% for value, label in mail_providers %}
+                    <label class="sup-provider-label">
+                        <input type="radio" name="provider" value="{{ value }}" {% if mail_cfg.provider == value %}checked{% endif %}>
+                        <span>{{ label }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+
+                <div id="sup-mail-hint" style="margin-top:12px;padding:10px 14px;border-radius:8px;font-size:12.5px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.25);color:#93c5fd"></div>
+            </div>
+
+            <!-- Card 2: Server e Credenziali -->
+            <div class="sup-card" id="sup-smtp-card">
+                <div class="sup-card-title">
+                    <span>2.</span> Server SMTP & Autenticazione
+                </div>
+
+                <div class="sup-form-grid grid-3" style="margin-bottom:14px">
+                    <div>
+                        <label class="sup-label" for="sup-host">Server SMTP (Host) *</label>
+                        <input class="sup-input" id="sup-host" name="host" value="{{ mail_cfg.host }}" placeholder="smtp.gmail.com" spellcheck="false">
+                    </div>
+                    <div>
+                        <label class="sup-label" for="sup-port">Porta *</label>
+                        <input class="sup-input" id="sup-port" name="port" value="{{ mail_cfg.port }}" inputmode="numeric" placeholder="587">
+                    </div>
+                    <div>
+                        <label class="sup-label" for="sup-sec">Sicurezza</label>
+                        <select class="sup-input" id="sup-sec" name="security">
+                            {% for value, label in mail_securities %}
+                            <option value="{{ value }}" {% if mail_cfg.security == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="sup-form-grid">
+                    <div>
+                        <label class="sup-label" for="sup-user">Nome Utente / Account SMTP</label>
+                        <input class="sup-input" id="sup-user" name="username" value="{{ mail_cfg.username }}" autocomplete="off" spellcheck="false" placeholder="utente@dominio.it oppure apikey">
+                    </div>
+                    <div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+                            <label class="sup-label" for="sup-pass" style="margin:0">Password / Chiave API</label>
+                            <button type="button" onclick="togglePasswordVisibility('sup-pass', this)" style="background:transparent;border:none;color:#60a5fa;font-size:11px;cursor:pointer;padding:0">👁️ Mostra</button>
+                        </div>
+                        <input class="sup-input" id="sup-pass" type="password" name="password" autocomplete="new-password" placeholder="{% if mail_cfg.password %}•••••••• salvata (lascia vuoto per mantenerla){% else %}Nessuna password salvata{% endif %}">
+                        {% if mail_cfg.password %}
+                        <label style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);margin-top:6px;cursor:pointer">
+                            <input type="checkbox" name="clear_password" value="1"> Cancella password attualmente salvata
+                        </label>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div style="margin-top:14px;max-width:200px">
+                    <label class="sup-label" for="sup-timeout">Timeout Connessione (secondi)</label>
+                    <input class="sup-input" id="sup-timeout" name="timeout" value="{{ mail_cfg.timeout }}" inputmode="numeric" placeholder="15">
+                </div>
+            </div>
+
+            <!-- Card 3: Mittente -->
+            <div class="sup-card">
+                <div class="sup-card-title">
+                    <span>3.</span> Indirizzo & Nome Mittente
+                </div>
+
+                <div class="sup-form-grid" style="margin-bottom:14px">
+                    <div>
+                        <label class="sup-label" for="sup-from">Indirizzo Email Mittente *</label>
+                        <input class="sup-input" id="sup-from" type="email" name="from_email" value="{{ mail_cfg.from_email }}" placeholder="notifiche@miodominio.it">
+                        <div class="sup-hint">Con Gmail/Outlook deve coincidere con l'indirizzo dell'account.</div>
+                    </div>
+                    <div>
+                        <label class="sup-label" for="sup-name">Nome Mittente Visualizzato</label>
+                        <input class="sup-input" id="sup-name" type="text" name="from_name" value="{{ mail_cfg.from_name|default:'FantaManager' }}" placeholder="FantaManager Master" maxlength="80">
+                        <div class="sup-hint">Nome che appare come mittente nella casella di posta dei destinatari.</div>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="sup-label" for="sup-reply">Rispondi a / Reply-To (Facoltativo)</label>
+                    <input class="sup-input" id="sup-reply" type="email" name="reply_to" value="{{ mail_cfg.reply_to }}" placeholder="supporto@miodominio.it">
+                    <div class="sup-hint">Se impostato, le risposte manuali degli utenti andranno a questo indirizzo invece che al mittente.</div>
+                </div>
+
+                <div style="display:flex;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.08)">
+                    <button type="submit" class="btn-super-action" style="background:#2563eb;color:#fff;border:none;padding:10px 22px;font-size:13px;font-weight:700">
+                        💾 Salva Configurazione SMTP
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Sidebar Column -->
+    <div>
+        <!-- Invia Email di Prova -->
+        <div class="sup-card" style="border-color:rgba(59,130,246,0.3)">
+            <h3 class="sup-card-title" style="color:#60a5fa">
+                <span>✉️</span> Invia Email di Prova
+            </h3>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:12px">
+                Invia un messaggio di test immediato per verificare che host, porta, credenziali e certificati SSL/TLS rispondano correttamente.
+            </div>
+
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="test_mail">
+                <label class="sup-label" for="test-to-input">Invia a:</label>
+                <input class="sup-input" id="test-to-input" type="email" name="test_to" value="{{ request.user.email }}" placeholder="tuamail@dominio.it" required style="margin-bottom:12px">
+
+                <button type="submit" class="btn-super-action" style="width:100%;padding:10px;background:#2563eb;color:#fff;border:none;font-weight:700">
+                    🚀 Invia Email di Test
+                </button>
+            </form>
+
+            {% if mail_cfg.last_test_at %}
+            <div style="margin-top:14px;padding:10px;border-radius:8px;font-size:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08)">
+                <div style="font-weight:700;color:{% if mail_cfg.last_test_ok %}#4ade80{% else %}#f87171{% endif %};margin-bottom:3px">
+                    {% if mail_cfg.last_test_ok %}✓ Ultimo invio riuscito{% else %}✗ Ultimo invio fallito{% endif %}
+                </div>
+                <div style="color:var(--muted);font-size:11px">
+                    {{ mail_cfg.last_test_at|date:"d/m/Y H:i:s" }}
+                </div>
+                {% if mail_cfg.last_test_error %}
+                <div style="margin-top:5px;color:#fca5a5;font-size:11px;font-family:monospace;word-break:break-all">
+                    {{ mail_cfg.last_test_error }}
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- A cosa serve la posta -->
+        <div class="sup-card">
+            <h3 class="sup-card-title">
+                <span>ℹ️</span> Cosa invia la piattaforma
+            </h3>
+            <ul style="margin:0;padding:0;list-style:none;font-size:12.5px;color:var(--muted);display:flex;flex-direction:column;gap:12px">
+                <li style="display:flex;gap:10px;align-items:flex-start">
+                    <span style="font-size:16px">🔗</span>
+                    <div><b style="color:#fff">Inviti e Magic Link</b>: i manager delle leghe ricevono link diretti tokenizzati e PIN per accedere alla propria squadra.</div>
+                </li>
+                <li style="display:flex;gap:10px;align-items:flex-start">
+                    <span style="font-size:16px">📬</span>
+                    <div><b style="color:#fff">Mercato a Buste Chiuse</b>: promemoria di scadenza per l'invio offerte e pubblicazione buste aggiudicate.</div>
+                </li>
+                <li style="display:flex;gap:10px;align-items:flex-start">
+                    <span style="font-size:16px">📊</span>
+                    <div><b style="color:#fff">Report Fine Asta</b>: tabellini riepilogativi rose e crediti spesi al termine delle aste live o manuali.</div>
+                </li>
+                <li style="display:flex;gap:10px;align-items:flex-start">
+                    <span style="font-size:16px">🔐</span>
+                    <div><b style="color:#fff">Reset Password</b>: link di recupero credenziali per tutti gli utenti e amministratori di lega.</div>
+                </li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+{{ mail_presets|json_script:"sup-mail-presets-data" }}
+<script>
+(function() {
+    const PRESETS = JSON.parse(document.getElementById("sup-mail-presets-data").textContent || "{}");
+    const form = document.getElementById("sup-mail-form");
+    if (!form) return;
+    const host = form.elements.host;
+    const port = form.elements.port;
+    const sec = form.elements.security;
+    const hint = document.getElementById("sup-mail-hint");
+    const smtpCard = document.getElementById("sup-smtp-card");
+    const chkEnabled = document.getElementById("chk-mail-enabled");
+    const swBg = document.getElementById("sw-mail-bg");
+    const swKnob = document.getElementById("sw-mail-knob");
+
+    if (chkEnabled && swBg && swKnob) {
+        chkEnabled.addEventListener("change", function() {
+            swBg.style.background = this.checked ? "#22c55e" : "rgba(255,255,255,0.15)";
+            swKnob.style.left = this.checked ? "23px" : "3px";
+        });
+    }
+
+    function applyProvider(val, fillDefaults) {
+        const p = PRESETS[val] || {};
+        if (hint) {
+            hint.textContent = p.hint || "";
+            hint.style.display = p.hint ? "block" : "none";
+        }
+        if (smtpCard) {
+            smtpCard.style.display = (val === "console") ? "none" : "block";
+        }
+        if (!fillDefaults || val === "console") return;
+        if (p.host !== undefined && val !== "smtp") host.value = p.host;
+        if (p.port !== undefined && val !== "smtp") port.value = p.port;
+        if (p.security !== undefined && val !== "smtp") sec.value = p.security;
+    }
+
+    form.querySelectorAll('input[name="provider"]').forEach(radio => {
+        radio.addEventListener("change", () => applyProvider(radio.value, true));
+    });
+
+    const activeRadio = form.querySelector('input[name="provider"]:checked');
+    applyProvider(activeRadio ? activeRadio.value : "smtp", false);
+
+    if (sec) {
+        sec.addEventListener("change", () => {
+            if (sec.value === "ssl" && port.value === "587") port.value = "465";
+            if (sec.value === "starttls" && port.value === "465") port.value = "587";
+        });
+    }
+})();
+
+function togglePasswordVisibility(inputId, btn) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    if (input.type === "password") {
+        input.type = "text";
+        btn.textContent = "🙈 Nascondi";
+    } else {
+        input.type = "password";
+        btn.textContent = "👁️ Mostra";
+    }
+}
+</script>
+{% endif %}
+
+<!-- 5. TAB: PLATFORM CONFIGURATION & MAINTENANCE -->
 {% if tab == 'reports' %}
 <div class="metric-grid">
     <div class="metric-card">
@@ -1096,25 +1571,230 @@
     </div>
 </div>
 
-<div class="super-table-wrap" style="padding:24px">
-    <h3 style="margin:0 0 14px">Manutenzione & Operazioni di Sistema</h3>
-    <div style="display:flex;gap:14px;flex-wrap:wrap">
-        <form method="post" style="display:inline">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="vacuum_db">
-            <button type="submit" class="btn-super-action" style="padding:10px 16px;background:rgba(59,130,246,0.15);border-color:#3b82f6;color:#60a5fa">
-                🧹 Ottimizza Database (VACUUM)
-            </button>
-        </form>
+<!-- Parametri di Sistema & Audit Sicurezza -->
+<div class="sup-card">
+    <h3 class="sup-card-title">
+        <span>🛡️</span> Parametri di Sistema & Audit Sicurezza Piattaforma
+    </h3>
+    <div style="font-size:12.5px;color:var(--muted);margin-bottom:16px">
+        Stato in tempo reale delle configurazioni attive del runtime Django e dell'ambiente di rete.
+    </div>
 
-        <form method="post" style="display:inline">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));gap:20px">
+        <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:14px 18px">
+            <div class="sup-param-row">
+                <span class="sup-param-label">Modalità Runtime (DEBUG):</span>
+                <span class="sup-param-val">
+                    {% if system_settings.debug %}
+                        <span style="background:rgba(234,179,8,0.2);color:#facc15;padding:2px 8px;border-radius:4px;font-size:11px">🟡 SVILUPPO (Debug Attivo)</span>
+                    {% else %}
+                        <span style="background:rgba(34,197,94,0.2);color:#4ade80;padding:2px 8px;border-radius:4px;font-size:11px">🟢 PRODUZIONE SICURA</span>
+                    {% endif %}
+                </span>
+            </div>
+            <div class="sup-param-row">
+                <span class="sup-param-label">SECRET_KEY Piattaforma:</span>
+                <span class="sup-param-val">
+                    {% if system_settings.secret_key_safe %}
+                        <span style="color:#4ade80">✓ Personalizzata & Crittografica</span>
+                    {% else %}
+                        <span style="color:#f87171">⚠️ Default Dev (Imposta DJANGO_SECRET_KEY)</span>
+                    {% endif %}
+                </span>
+            </div>
+            <div class="sup-param-row">
+                <span class="sup-param-label">Host Ammessi (ALLOWED_HOSTS):</span>
+                <span class="sup-param-val" style="font-family:monospace;font-size:12px">
+                    {{ system_settings.allowed_hosts|join:", "|default:"*" }}
+                </span>
+            </div>
+            <div class="sup-param-row">
+                <span class="sup-param-label">Origini CSRF Attendibili:</span>
+                <span class="sup-param-val" style="font-family:monospace;font-size:11.5px">
+                    {{ system_settings.csrf_trusted_origins|join:", "|default:"Default Locali" }}
+                </span>
+            </div>
+            <div class="sup-param-row">
+                <span class="sup-param-label">Gestore Sessioni Utente:</span>
+                <span class="sup-param-val">{{ system_settings.session_engine }}</span>
+            </div>
+        </div>
+
+        <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:14px 18px">
+            <div class="sup-param-row">
+                <span class="sup-param-label">Database Engine:</span>
+                <span class="sup-param-val">{{ metrics.db_engine }} ({{ system_settings.db_engine_name }})</span>
+            </div>
+            <div class="sup-param-row">
+                <span class="sup-param-label">Archiviazione Database:</span>
+                <span class="sup-param-val" style="font-size:12px">{{ metrics.db_where }}</span>
+            </div>
+            <div class="sup-param-row">
+                <span class="sup-param-label">Fuso Orario & Lingua:</span>
+                <span class="sup-param-val">{{ system_settings.time_zone }} · {{ system_settings.language_code }}</span>
+            </div>
+            <div class="sup-param-row">
+                <span class="sup-param-label">Cartella Upload Media:</span>
+                <span class="sup-param-val" style="font-family:monospace;font-size:11px" title="{{ system_settings.media_root }}">
+                    {{ system_settings.media_root }}
+                </span>
+            </div>
+            <div class="sup-param-row">
+                <span class="sup-param-label">File Statici (WhiteNoise):</span>
+                <span class="sup-param-val">
+                    {% if system_settings.has_whitenoise %}
+                        <span style="color:#4ade80">✓ WhiteNoise Attivo</span>
+                    {% else %}
+                        <span style="color:var(--muted)">Django Staticfiles</span>
+                    {% endif %}
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Centro Operazioni di Manutenzione -->
+<div class="sup-card">
+    <h3 class="sup-card-title">
+        <span>⚡</span> Centro Operazioni & Manutenzione Sistema
+    </h3>
+    <div style="font-size:12.5px;color:var(--muted);margin-bottom:18px">
+        Strumenti amministrativi per la sicurezza del database, pulizia sessioni e ottimizzazione della cache.
+    </div>
+
+    <div class="sup-op-grid">
+        <!-- 1. Backup Istantaneo -->
+        <div class="sup-op-card">
+            <div>
+                <b style="font-size:14px;color:#fff;display:flex;align-items:center;gap:6px">
+                    <span>💾</span> Backup Database Istantaneo
+                </b>
+                <div style="font-size:12px;color:var(--muted);margin-top:6px">
+                    Esegue uno snapshot consistente a caldo salvando una copia timestamped nella cartella backups.
+                </div>
+            </div>
+            <form method="post" style="margin:0">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="manual_backup">
+                <button type="submit" class="btn-super-action" style="width:100%;padding:9px;background:rgba(34,197,94,0.18);border-color:#22c55e;color:#4ade80;font-weight:700">
+                    💾 Esegui Backup Adesso
+                </button>
+            </form>
+        </div>
+
+        <!-- 2. Svuota Cache -->
+        <div class="sup-op-card">
+            <div>
+                <b style="font-size:14px;color:#fff;display:flex;align-items:center;gap:6px">
+                    <span>⚡</span> Svuota Cache Piattaforma
+                </b>
+                <div style="font-size:12px;color:var(--muted);margin-top:6px">
+                    Cancella tutti i dati memorizzati nella cache per forzare il refresh immediato dei calcoli e query.
+                </div>
+            </div>
+            <form method="post" style="margin:0">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="clear_cache">
+                <button type="submit" class="btn-super-action" style="width:100%;padding:9px;background:rgba(59,130,246,0.18);border-color:#3b82f6;color:#60a5fa;font-weight:700">
+                    ⚡ Svuota Cache Ora
+                </button>
+            </form>
+        </div>
+
+        <!-- 3. VACUUM Database -->
+        <div class="sup-op-card">
+            <div>
+                <b style="font-size:14px;color:#fff;display:flex;align-items:center;gap:6px">
+                    <span>🧹</span> Ottimizza DB (VACUUM)
+                </b>
+                <div style="font-size:12px;color:var(--muted);margin-top:6px">
+                    Compatta lo spazio su disco, deframmenta le pagine del database e ottimizza gli indici.
+                </div>
+            </div>
+            <form method="post" style="margin:0">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="vacuum_db">
+                <button type="submit" class="btn-super-action" style="width:100%;padding:9px;background:rgba(234,179,8,0.18);border-color:#eab308;color:#facc15;font-weight:700">
+                    🧹 Esegui VACUUM
+                </button>
+            </form>
+        </div>
+
+        <!-- 4. Pulisci Sessioni Scadute -->
+        <div class="sup-op-card">
+            <div>
+                <b style="font-size:14px;color:#fff;display:flex;align-items:center;gap:6px">
+                    <span>🗑️</span> Pulisci Sessioni Scadute
+                </b>
+                <div style="font-size:12px;color:var(--muted);margin-top:6px">
+                    Elimina le sessioni non più valide dal database per liberare spazio e alleggerire le tabelle di autenticazione.
+                </div>
+            </div>
+            <form method="post" style="margin:0">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="clear_sessions">
+                <button type="submit" class="btn-super-action" style="width:100%;padding:9px;background:rgba(239,68,68,0.15);border-color:rgba(239,68,68,0.4);color:#f87171;font-weight:700">
+                    🗑️ Elimina Sessioni
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Registro Snapshot di Backup su Disco -->
+<div class="sup-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+        <div>
+            <h3 class="sup-card-title" style="margin:0">
+                <span>📁</span> Snapshot di Backup su Disco
+            </h3>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">
+                Posizione directory: <code style="color:#93c5fd">{{ backups_folder }}</code>
+            </div>
+        </div>
+        <form method="post" style="margin:0">
             {% csrf_token %}
-            <input type="hidden" name="action" value="clear_sessions">
-            <button type="submit" class="btn-super-action" style="padding:10px 16px;background:rgba(234,179,8,0.15);border-color:#eab308;color:#facc15">
-                🗑️ Pulisci Sessioni Scadute
+            <input type="hidden" name="action" value="manual_backup">
+            <button type="submit" class="btn-super-action" style="background:#2563eb;color:#fff;border:none;padding:7px 14px;font-weight:700">
+                + Nuovo Backup Istantaneo
             </button>
         </form>
     </div>
+
+    {% if recent_backups %}
+    <table class="super-table" style="margin-top:8px">
+        <thead>
+            <tr>
+                <th>Nome File Snapshot</th>
+                <th>Dimensione</th>
+                <th>Data & Ora Creazione</th>
+                <th>Stato</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for b in recent_backups %}
+            <tr>
+                <td>
+                    <b style="color:#fff;font-family:monospace">{{ b.name }}</b>
+                </td>
+                <td style="color:#60a5fa;font-weight:700">{{ b.size_str }}</td>
+                <td style="color:var(--muted)">{{ b.mtime|date:"d/m/Y H:i:s" }}</td>
+                <td>
+                    {% if forloop.first %}
+                        <span style="background:rgba(34,197,94,0.2);color:#4ade80;font-size:10px;font-weight:800;padding:2px 6px;border-radius:4px">PIÙ RECENTE</span>
+                    {% else %}
+                        <span style="color:var(--muted);font-size:11px">Archiviato</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div style="padding:24px;text-align:center;color:var(--muted);background:rgba(255,255,255,0.02);border-radius:8px">
+        Nessun backup presente in questa directory. Clicca su "Nuovo Backup Istantaneo" per generare il primo snapshot.
+    </div>
+    {% endif %}
 </div>
 {% endif %}
 
