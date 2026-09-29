@@ -3,86 +3,105 @@
 {% block app %}
 <style>
     @keyframes live-pulse {
-        0% { box-shadow: 0 0 0 0 rgba(19,181,255,0.4); }
-        70% { box-shadow: 0 0 0 10px rgba(19,181,255,0); }
+        0% { box-shadow: 0 0 0 0 rgba(19,181,255,0.5); }
+        70% { box-shadow: 0 0 0 12px rgba(19,181,255,0); }
         100% { box-shadow: 0 0 0 0 rgba(19,181,255,0); }
     }
     .live-score-card {
-        padding: 20px; border-radius: 16px;
-        background: linear-gradient(135deg, rgba(19,181,255,.15), rgba(0,229,153,.1));
-        border: 1px solid rgba(19,181,255,.3);
+        padding: 18px 20px; border-radius: 18px;
+        background: linear-gradient(135deg, rgba(8,124,240,.20), rgba(16,185,129,.15));
+        border: 1px solid rgba(19,181,255,.4);
         display: flex; align-items: center; justify-content: space-between;
-        box-shadow: inset 0 0 20px rgba(19,181,255,.05);
-        animation: live-pulse 2s infinite;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.35), inset 0 0 25px rgba(19,181,255,.1);
+        position: relative; overflow: hidden;
     }
-    .ls-total { font-family: var(--display); font-weight: 900; font-size: 38px; color: var(--ink); line-height: 1; text-shadow: 0 2px 10px rgba(19,181,255,0.5); }
-    .ls-goals { font-size: 16px; color: var(--accent); font-weight: 800; display: block; margin-top: 4px; }
+    .live-badge {
+        display: inline-flex; align-items: center; gap: 6px;
+        font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em;
+        color: var(--accent); background: rgba(16,185,129,0.15); border: 1px solid var(--accent-line);
+        padding: 3px 8px; border-radius: 6px; margin-bottom: 6px;
+    }
+    .live-dot {
+        width: 7px; height: 7px; border-radius: 50%; background: #22c55e;
+        box-shadow: 0 0 8px #22c55e; animation: live-pulse 1.8s infinite;
+    }
+    .ls-total { font-family: var(--display); font-weight: 900; font-size: 42px; color: var(--ink); line-height: 1; text-shadow: 0 2px 14px var(--accent-glow); }
+    .ls-goals { font-size: 15px; color: var(--accent); font-weight: 800; display: block; margin-top: 4px; }
+    
     .perf-row {
         padding: 12px 14px; border-bottom: 1px solid var(--line);
-        display: flex; align-items: center; justify-content: space-between; gap: 8px;
+        display: flex; align-items: center; justify-content: space-between; gap: 10px;
+        transition: background .12s;
     }
     .perf-row:last-child { border-bottom: none; }
-    .perf-info { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .perf-row:hover { background: rgba(255,255,255,.02); }
+    .perf-info { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; cursor: pointer; }
     .perf-name { font-weight: 800; font-size: 14.5px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .perf-bonus { display: flex; gap: 6px; font-size: 13px; margin-top: 2px; }
-    .perf-vote { font-family: var(--display); font-weight: 900; font-size: 18px; color: var(--ink); text-align: right; }
-    .perf-vote.sv { color: var(--muted); font-size: 14px; font-weight: 700; }
+    .perf-bonus { display: flex; gap: 6px; font-size: 13px; margin-top: 3px; flex-wrap: wrap; }
+    .perf-vote-badge {
+        min-width: 44px; text-align: right;
+    }
+    .perf-vote { font-family: var(--display); font-weight: 900; font-size: 20px; color: var(--ink); }
+    .perf-vote.high { color: #22c55e; }
+    .perf-vote.low { color: #ef4444; }
+    .perf-vote.sv { color: var(--muted); font-size: 15px; font-weight: 700; }
 </style>
 
 <div class="tab-head">
-    <h1>Live</h1>
+    <h1>Live Risultati</h1>
     <p>Voti e punteggi della giornata in diretta</p>
 </div>
 
 {% if active_auction %}
-<a class="a-cta" href="{% url 'bid' active_auction.id %}">
-    <svg class="ic"><use href="#i-gavel"/></svg>
+<a class="a-cta" href="{% url 'bid' active_auction.id %}" style="background:rgba(239,68,68,0.15);border-color:rgba(239,68,68,0.4)">
+    <svg class="ic" style="color:#ef4444"><use href="#i-gavel"/></svg>
     <span class="t">
-        <b>Asta in diretta</b>
-        <span>{{ active_auction.title }} · entra nella sala</span>
+        <b>Asta in diretta: {{ active_auction.title }}</b>
+        <span>Entra subito nella sala offerte</span>
     </span>
-    <span class="go">›</span>
+    <span class="go" style="color:#ef4444">›</span>
 </a>
 {% endif %}
 
 {% if giornata %}
 <div class="live-score-card">
     <div>
-        <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">
-            Giornata {{ giornata.number }} · {{ giornata.get_status_display }}
+        <div class="live-badge">
+            <span class="live-dot"></span>
+            <span>Giornata {{ giornata.number }} · {{ giornata.get_status_display }}</span>
         </div>
-        <div style="font-size:14px;font-weight:800;color:var(--ink);margin-top:2px">
+        <div style="font-size:16px;font-weight:900;color:var(--ink);letter-spacing:.02em">
             {{ participant.display_name }}
         </div>
     </div>
     {% if my_score %}
     <div style="text-align:right">
         <span class="ls-total">{{ my_score.total|floatformat:1 }}</span>
-        <span class="ls-goals">({{ my_score.goals }} gol)</span>
+        <span class="ls-goals">{% if my_score.goals > 0 %}⚽ {{ my_score.goals }} gol{% else %}0 gol{% endif %}</span>
     </div>
     {% endif %}
 </div>
 
 {% if lineup_performances %}
 <div class="a-card" style="margin-top:14px">
-    <div class="a-label"><svg class="ic"><use href="#i-shield"/></svg> Titolari schierati</div>
+    <div class="a-label"><svg class="ic"><use href="#i-shield"/></svg> Titolari schierati ({{ lineup_performances|length }})</div>
     {% for item in lineup_performances %}
     <div class="perf-row">
-        <div class="perf-info">
-            <span class="role-badge role-{{ item.player.role }}">{{ item.player.role }}</span>
-            <div>
+        <div class="perf-info" onclick="openPlayerModal('{{ item.player.name|escapejs }}', '{{ item.player.role }}', '{{ item.player.team|escapejs }}', '{{ item.vote|floatformat:1|default:'' }}', '{{ item.goals|default:0 }}', '{{ item.assists|default:0 }}', '{{ item.player.initial_price|floatformat:0 }}')">
+            <span class="role-badge role-{{ item.player.role }}" style="flex-shrink:0;">{{ item.player.role }}</span>
+            <div style="min-width:0;">
                 <div class="perf-name">{{ item.player.name }}</div>
                 <div class="perf-bonus">
-                    {% if item.goals %}<span title="Gol">⚽ {{ item.goals }}</span>{% endif %}
-                    {% if item.assists %}<span title="Assist">🎯 {{ item.assists }}</span>{% endif %}
+                    {% if item.goals %}<span title="Gol" style="font-weight:700;">⚽ {{ item.goals }}</span>{% endif %}
+                    {% if item.assists %}<span title="Assist" style="font-weight:700;">🎯 {{ item.assists }}</span>{% endif %}
                     {% if item.yellow %}<span title="Ammonizione">🟨</span>{% endif %}
                     {% if item.red %}<span title="Espulsione">🟥</span>{% endif %}
                 </div>
             </div>
         </div>
-        <div>
+        <div class="perf-vote-badge">
             {% if item.has_vote %}
-            <span class="perf-vote">{{ item.vote|floatformat:1 }}</span>
+            <span class="perf-vote {% if item.vote >= 6.5 %}high{% elif item.vote < 5.5 %}low{% endif %}">{{ item.vote|floatformat:1 }}</span>
             {% else %}
             <span class="perf-vote sv">s.v.</span>
             {% endif %}

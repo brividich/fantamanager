@@ -54,8 +54,13 @@
     <span>L'admin della lega non ha abilitato gli scambi tra squadre.</span>
 </div></div>
 {% else %}
+<div class="a-seg" data-asec-default="{% if partner %}nuovo{% else %}trattative{% endif %}" style="margin-bottom:14px;">
+    <button type="button" data-asec-go="trattative">Trattative {% if incoming %}<span class="n" style="background:#ef4444;color:#fff;">{{ incoming|length }}</span>{% endif %}</button>
+    <button type="button" data-asec-go="nuovo">Nuovo Scambio</button>
+</div>
+
 <div class="sc-grid fit-body">
-<div class="sc-col">
+<div class="sc-col" data-asec="trattative">
 
 {% if incoming %}
 <div class="a-card">
@@ -80,7 +85,7 @@
 </div>
 {% endif %}
 </div>
-<div class="sc-col">
+<div class="sc-col" data-asec="nuovo">
 
 <div class="a-card">
     <div class="a-label"><svg class="ic"><use href="#i-plus"/></svg> Nuovo scambio</div>
