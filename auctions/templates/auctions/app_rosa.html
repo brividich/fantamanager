@@ -150,7 +150,7 @@
         <div class="fit-scroll">
             {% for pl in group.list %}
             <div class="pl-row{% if contracts_on %} ct{% endif %}" title="{% if pl.avg_vote %}Mv {{ pl.avg_vote|floatformat:2 }} · {% endif %}{% if pl.presences %}{{ pl.presences }} presenze · {% endif %}{% if pl.goals %}{{ pl.goals }} gol · {% endif %}{% if pl.assists %}{{ pl.assists }} assist · {% endif %}Quotazione {{ pl.initial_price|floatformat:0 }}">
-                <div class="pl-id">
+                <div class="pl-id" style="cursor:pointer;" onclick="openPlayerModal('{{ pl.name|escapejs }}', '{{ pl.role }}', '{{ pl.team|escapejs }}', '{{ pl.fanta_avg|floatformat:2|default:'' }}', '{{ pl.goals|default:0 }}', '{{ pl.assists|default:0 }}', '{{ pl.initial_price|floatformat:0 }}')">
                     {% if pl.photo_url %}<span class="pl-ava"><img src="{{ pl.photo_url }}" alt="" loading="lazy"></span>{% endif %}
                     <span class="pl-txt">
                         <span class="pl-name">{{ pl.name }}</span>

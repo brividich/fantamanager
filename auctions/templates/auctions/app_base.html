@@ -30,6 +30,37 @@ app through one of their teams — a banner with the way back.
         --radius: 16px;
         --radius-sm: 10px;
     }
+
+    html.light-theme body.role-player, html.light-theme {
+        --bg-deep: #f0fdf4;
+        --panel: #ffffff;
+        --panel-2: #f8fafc;
+        --line: rgba(16,185,129,0.3);
+        --accent: #059669;
+        --accent-glow: rgba(5,150,105,0.2);
+        --accent-line: rgba(5,150,105,0.3);
+        --accent-soft: rgba(5,150,105,0.1);
+        --ink: #0f172a;
+        --muted: #475569;
+        --fm-bg: #f0fdf4;
+        --fm-bg-alt: #ffffff;
+        --fm-surface: #ffffff;
+        --fm-surface-2: #f8fafc;
+        --fm-border: rgba(16,185,129,0.3);
+        --fm-text: #0f172a;
+        --fm-text-secondary: #475569;
+        background: var(--bg-deep) !important;
+        color: var(--ink) !important;
+    }
+    html.light-theme .app-nav {
+        background: rgba(255,255,255,0.85);
+        border: 1px solid rgba(0,0,0,0.08);
+        box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+    }
+    html.light-theme .app-nav a.active {
+        background: rgba(16,185,129,0.15);
+    }
+
     /* Neutralise base .wrap constraints — the shell owns the whole viewport */
     .wrap.app-wrap { max-width: none; margin: 0; padding: 0; }
 
@@ -346,6 +377,65 @@ app through one of their teams — a banner with the way back.
     </form>
 </div>
 {% endif %}
+
+<!-- Player Detail Modal -->
+<div id="fm-player-modal" style="display:none; position:fixed; inset:0; z-index:100; background:rgba(0,0,0,0.6); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); align-items:center; justify-content:center; opacity:0; transition:opacity 0.2s;">
+    <div style="background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); width:90%; max-width:340px; padding:20px; box-shadow:0 10px 40px rgba(0,0,0,0.5); transform:translateY(20px); transition:transform 0.2s;" id="fm-pm-content">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px;">
+            <div>
+                <h2 id="fm-pm-name" style="margin:0; font-family:var(--display); font-size:22px; color:var(--ink); line-height:1.1;"></h2>
+                <div style="font-size:12px; color:var(--muted); font-weight:700; margin-top:4px;">
+                    <span id="fm-pm-role" class="role-badge" style="padding:2px 6px; font-size:10px;"></span>
+                    <span id="fm-pm-team" style="margin-left:6px;"></span>
+                </div>
+            </div>
+            <button type="button" onclick="closePlayerModal()" style="background:transparent; border:none; color:var(--muted); font-size:24px; cursor:pointer; line-height:1; padding:0;">&times;</button>
+        </div>
+        <div class="a-stats" style="margin-bottom:16px;">
+            <div class="a-stat" style="background:rgba(255,255,255,0.03);">
+                <div class="v" id="fm-pm-fanta" style="color:var(--accent);"></div>
+                <div class="k">FantaMedia</div>
+            </div>
+            <div class="a-stat" style="background:rgba(255,255,255,0.03);">
+                <div class="v" id="fm-pm-goals"></div>
+                <div class="k">Gol</div>
+            </div>
+            <div class="a-stat" style="background:rgba(255,255,255,0.03);">
+                <div class="v" id="fm-pm-assists"></div>
+                <div class="k">Assist</div>
+            </div>
+        </div>
+        <div style="text-align:center; font-size:12px; color:var(--muted);">
+            Quotazione attuale: <b id="fm-pm-price" style="color:var(--ink); font-size:14px;"></b> FM
+        </div>
+    </div>
+</div>
+<script>
+function openPlayerModal(name, role, team, fanta, goals, assists, price) {
+    document.getElementById('fm-pm-name').innerText = name;
+    document.getElementById('fm-pm-role').innerText = role;
+    document.getElementById('fm-pm-role').className = 'role-badge role-' + role;
+    document.getElementById('fm-pm-team').innerText = team;
+    document.getElementById('fm-pm-fanta').innerText = fanta || '—';
+    document.getElementById('fm-pm-goals').innerText = goals || '0';
+    document.getElementById('fm-pm-assists').innerText = assists || '0';
+    document.getElementById('fm-pm-price').innerText = price || '0';
+    
+    const m = document.getElementById('fm-player-modal');
+    const c = document.getElementById('fm-pm-content');
+    m.style.display = 'flex';
+    void m.offsetWidth;
+    m.style.opacity = '1';
+    c.style.transform = 'translateY(0)';
+}
+function closePlayerModal() {
+    const m = document.getElementById('fm-player-modal');
+    const c = document.getElementById('fm-pm-content');
+    m.style.opacity = '0';
+    c.style.transform = 'translateY(20px)';
+    setTimeout(() => { m.style.display = 'none'; }, 200);
+}
+</script>
 
 <main class="app-main {% block mainclass %}{% endblock %}">
     {% if messages %}

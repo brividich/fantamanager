@@ -91,6 +91,22 @@
 {% endif %}
 {% endif %}
 
+<a class="btn btn-ghost" href="#" onclick="toggleFmTheme(event)" style="width:100%;justify-content:center;margin-bottom:14px">
+    <svg class="ic"><use href="#i-pulse"/></svg> Cambia Tema (Chiaro/Scuro)
+</a>
+<script>
+function toggleFmTheme(e) {
+    e.preventDefault();
+    if (document.documentElement.classList.contains('light-theme')) {
+        document.documentElement.classList.remove('light-theme');
+        localStorage.setItem('fm-theme', 'dark');
+    } else {
+        document.documentElement.classList.add('light-theme');
+        localStorage.setItem('fm-theme', 'light');
+    }
+}
+</script>
+
 <a class="btn btn-ghost" href="{% url 'app_login' %}?switch=1" style="width:100%;justify-content:center">
     <svg class="ic"><use href="#i-swap"/></svg> {% if participant %}Cambia squadra / Account{% else %}Collega una squadra{% endif %}
 </a>

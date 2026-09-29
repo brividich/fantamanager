@@ -2,24 +2,31 @@
 {% block title %}Live — FantaManager{% endblock %}
 {% block app %}
 <style>
-    .live-score-card {
-        padding: 16px; border-radius: 14px;
-        background: linear-gradient(135deg, rgba(19,181,255,.12), rgba(0,229,153,.06));
-        border: 1px solid rgba(19,181,255,.25);
-        display: flex; align-items: center; justify-content: space-between;
+    @keyframes live-pulse {
+        0% { box-shadow: 0 0 0 0 rgba(19,181,255,0.4); }
+        70% { box-shadow: 0 0 0 10px rgba(19,181,255,0); }
+        100% { box-shadow: 0 0 0 0 rgba(19,181,255,0); }
     }
-    .ls-total { font-family: var(--display); font-weight: 900; font-size: 32px; color: var(--ink); line-height: 1; }
-    .ls-goals { font-size: 18px; color: var(--accent); font-weight: 800; margin-left: 6px; }
+    .live-score-card {
+        padding: 20px; border-radius: 16px;
+        background: linear-gradient(135deg, rgba(19,181,255,.15), rgba(0,229,153,.1));
+        border: 1px solid rgba(19,181,255,.3);
+        display: flex; align-items: center; justify-content: space-between;
+        box-shadow: inset 0 0 20px rgba(19,181,255,.05);
+        animation: live-pulse 2s infinite;
+    }
+    .ls-total { font-family: var(--display); font-weight: 900; font-size: 38px; color: var(--ink); line-height: 1; text-shadow: 0 2px 10px rgba(19,181,255,0.5); }
+    .ls-goals { font-size: 16px; color: var(--accent); font-weight: 800; display: block; margin-top: 4px; }
     .perf-row {
-        padding: 10px 14px; border-bottom: 1px solid var(--line);
+        padding: 12px 14px; border-bottom: 1px solid var(--line);
         display: flex; align-items: center; justify-content: space-between; gap: 8px;
     }
     .perf-row:last-child { border-bottom: none; }
-    .perf-info { display: flex; align-items: center; gap: 8px; min-width: 0; }
-    .perf-name { font-weight: 800; font-size: 14px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .perf-bonus { display: flex; gap: 4px; font-size: 12px; }
-    .perf-vote { font-family: var(--display); font-weight: 900; font-size: 16px; color: var(--ink); text-align: right; }
-    .perf-vote.sv { color: var(--muted); font-size: 13px; font-weight: 700; }
+    .perf-info { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .perf-name { font-weight: 800; font-size: 14.5px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .perf-bonus { display: flex; gap: 6px; font-size: 13px; margin-top: 2px; }
+    .perf-vote { font-family: var(--display); font-weight: 900; font-size: 18px; color: var(--ink); text-align: right; }
+    .perf-vote.sv { color: var(--muted); font-size: 14px; font-weight: 700; }
 </style>
 
 <div class="tab-head">

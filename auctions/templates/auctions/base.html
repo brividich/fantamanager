@@ -17,6 +17,12 @@
     </noscript>
     {% load static %}
     <link rel="stylesheet" href="{% static 'css/console.css' %}">
+    <script>
+        // Apply light mode instantly to prevent flash of unstyled content
+        if (localStorage.getItem('fm-theme') === 'light') {
+            document.documentElement.classList.add('light-theme');
+        }
+    </script>
 </head>
 <body class="{% block bodyclass %}role-player{% endblock %}">
     {% include "auctions/_icons.html" %}
