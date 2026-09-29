@@ -200,6 +200,18 @@
                     if (option && !option.disabled) {
                         select.value = draggedPid;
                         select.dispatchEvent(new Event('change'));
+
+                        // "Pop" animation
+                        slot.style.transition = 'all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+                        slot.style.transform = 'scale(1.1)';
+                        slot.style.boxShadow = '0 0 25px rgba(16,185,129,0.8)';
+                        slot.style.zIndex = '10';
+                        if(window.showToast) window.showToast('Schierato!', 'good');
+                        setTimeout(() => {
+                            slot.style.transform = 'scale(1)';
+                            slot.style.boxShadow = 'none';
+                            slot.style.zIndex = '1';
+                        }, 300);
                     } else if (option && option.disabled) {
                         if(window.showToast) showToast("Giocatore già in campo", "bad");
                         else alert("Giocatore già in campo");
@@ -220,10 +232,22 @@
                 if (!pid) return;
                 const select = slot.querySelector('select');
                 const option = Array.from(select.options).find(o => o.value === pid);
-                if (option && !option.disabled) {
-                    select.value = pid;
-                    select.dispatchEvent(new Event('change'));
-                }
+                    if (option && !option.disabled) {
+                        select.value = pid;
+                        select.dispatchEvent(new Event('change'));
+                        
+                        // "Pop" animation
+                        slot.style.transition = 'all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+                        slot.style.transform = 'scale(1.1)';
+                        slot.style.boxShadow = '0 0 25px rgba(16,185,129,0.8)';
+                        slot.style.zIndex = '10';
+                        if(window.showToast) window.showToast('Schierato!', 'good');
+                        setTimeout(() => {
+                            slot.style.transform = 'scale(1)';
+                            slot.style.boxShadow = 'none';
+                            slot.style.zIndex = '1';
+                        }, 300);
+                    }
             });
         });
     })();

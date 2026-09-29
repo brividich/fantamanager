@@ -843,18 +843,17 @@
             </div>
             {% endif %}
 
-            <div style="background:rgba(255,255,255,.04);padding:10px 12px;border-radius:10px;margin-bottom:14px;font-size:12px">
-                <div style="display:flex;justify-content:space-between">
-                    <span style="color:var(--muted)">Crediti attuali:</span>
-                    <b>{{ participant.remaining_credits|floatformat:0 }} FM</b>
+            <div style="background:rgba(255,255,255,.04);padding:14px;border-radius:12px;margin-bottom:14px;font-size:12px">
+                <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+                    <span style="color:var(--muted);font-weight:700">Crediti Rimanenti Stimati</span>
+                    <b id="calc-max-spendable-txt" style="font-size:14px">{{ participant.remaining_credits|floatformat:0 }} FM</b>
                 </div>
-                <div style="display:flex;justify-content:space-between;margin-top:3px" id="calc-refund-row">
-                    <span style="color:var(--muted)">Recupero da taglio:</span>
-                    <b style="color:var(--accent)" id="calc-refund">+0 FM</b>
+                <div style="height:8px; background:var(--panel); border-radius:4px; overflow:hidden; border:1px solid var(--line); margin-bottom:8px">
+                    <div id="credit-progress-bar" style="height:100%; width:100%; background:var(--accent); transition:width 0.2s, background-color 0.2s;"></div>
                 </div>
-                <div style="display:flex;justify-content:space-between;margin-top:3px;border-top:1px dashed rgba(255,255,255,.1);padding-top:4px">
-                    <span style="color:var(--muted)">Budget massimo spendibile:</span>
-                    <b id="calc-max-spendable">{{ participant.remaining_credits|floatformat:0 }} FM</b>
+                <div style="display:flex;justify-content:space-between;font-size:11px" id="calc-refund-row">
+                    <span style="color:var(--muted)">Budget base: {{ participant.remaining_credits|floatformat:0 }} FM</span>
+                    <span style="color:var(--accent);font-weight:700" id="calc-refund">+0 FM da svincolo</span>
                 </div>
             </div>
 
@@ -943,10 +942,34 @@
             refund = parseInt(opt.dataset.refund || "0", 10) || 0;
         }
         const refEl = document.getElementById("calc-refund");
-        if (refEl) refEl.textContent = "+" + refund + " FM";
+        if (refEl) refEl.textContent = "+" + refund + " FM da svincolo";
         const maxSpend = REMAINING_CREDITS + refund;
-        const maxEl = document.getElementById("calc-max-spendable");
-        if (maxEl) maxEl.textContent = maxSpend + " FM";
+        
+        const amount = parseInt(document.getElementById("bid-amount").value, 10) || 0;
+        const remaining = maxSpend - amount;
+        
+        const txtEl = document.getElementById("calc-max-spendable-txt");
+        if (txtEl) txtEl.textContent = remaining + " FM";
+        
+        const bar = document.getElementById("credit-progress-bar");
+        if (bar) {
+            let pct = Math.max(0, Math.min(100, (remaining / Math.max(1, maxSpend)) * 100));
+            bar.style.width = pct + "%";
+            if (remaining < 0) {
+                bar.style.width = "100%";
+                bar.style.background = "#ef4444";
+                txtEl.style.color = "#ef4444";
+            } else if (pct < 25) {
+                bar.style.background = "#ef4444";
+                txtEl.style.color = "var(--ink)";
+            } else if (pct < 50) {
+                bar.style.background = "#f59e0b";
+                txtEl.style.color = "var(--ink)";
+            } else {
+                bar.style.background = "var(--accent)";
+                txtEl.style.color = "var(--ink)";
+            }
+        }
     }
 
     async function submitBid(e) {
@@ -960,13 +983,18 @@
             const res = await r.json();
             if (res.ok) {
                 closeBidModal();
-                location.reload();
+                if(window.showToast) {
+                    window.showToast("Busta inviata correttamente!", "success");
+                    setTimeout(() => location.reload(), 800);
+                } else location.reload();
             } else {
-                alert(res.message || "Errore durante l'invio della busta");
+                if(window.showToast) window.showToast(res.message || "Errore durante l'invio della busta", "error");
+                else alert(res.message || "Errore durante l'invio della busta");
             }
         } catch (err) {
             console.error(err);
-            alert("Errore di connessione");
+            if(window.showToast) window.showToast("Errore di connessione", "error");
+            else alert("Errore di connessione");
         }
     }
 
@@ -983,13 +1011,18 @@
             if (res.ok) {
                 const row = document.getElementById("bid-row-" + bidId);
                 if (row) row.remove();
-                location.reload();
+                if(window.showToast) {
+                    window.showToast("Busta ritirata con successo", "success");
+                    setTimeout(() => location.reload(), 800);
+                } else location.reload();
             } else {
-                alert(res.message || "Impossibile eliminare l'offerta");
+                if(window.showToast) window.showToast(res.message || "Impossibile eliminare l'offerta", "error");
+                else alert(res.message || "Impossibile eliminare l'offerta");
             }
         } catch (err) {
             console.error(err);
-            alert("Errore di connessione");
+            if(window.showToast) window.showToast("Errore di connessione", "error");
+            else alert("Errore di connessione");
         }
     }
 </script>
