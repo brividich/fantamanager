@@ -10,6 +10,7 @@ from decimal import Decimal
 
 from django.contrib.auth.models import User
 from django.test import Client, TestCase
+from django.urls import reverse
 
 from ..models import League, ManagedAccount, Participant
 from ..views.admin_participants import SESSION_ACCOUNT_SECRET_KEY
@@ -356,4 +357,57 @@ class ParticipantAccountTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         self.free_team.refresh_from_db()
         self.assertEqual(self.free_team.user.email, "coadmin_set@x.local")
+
+    def test_admin_create_participant_with_direct_user_account(self):
+        self._as(self.owner)
+        resp = self.client.post("/admin-auction/participants/create/", {
+            "league_id": self.league.id,
+            "display_name": "Nuovo Team Express",
+            "credits": "500",
+            "access_code": "9999",
+            "new_user_username": "coach_express",
+            "new_user_email": "express@x.local",
+            "new_user_password": "express_pass_123",
+        })
+        self.assertEqual(resp.status_code, 302)
+        p = Participant.objects.filter(display_name="Nuovo Team Express").first()
+        self.assertIsNotNone(p)
+        self.assertIsNotNone(p.user)
+        self.assertEqual(p.user.username, "coach_express")
+        self.assertEqual(p.user.email, "express@x.local")
+        self.assertTrue(p.user.check_password("express_pass_123"))
+        self.assertTrue(ManagedAccount.objects.filter(user=p.user).exists())
+
+    def test_supervisor_impersonate_and_exit(self):
+        self._as(self.superadmin)
+        # Impersonate mario
+        resp = self.client.post("/supervisor/", {
+            "action": "impersonate_user",
+            "user_id": self.coach.id,
+        })
+        self.assertEqual(resp.status_code, 302)
+        # Verify current logged in user is mario
+        self.assertEqual(int(self.client.session["_auth_user_id"]), self.coach.id)
+        self.assertEqual(self.client.session.get("supervisor_impersonator_id"), self.superadmin.id)
+
+        # Exit impersonation
+        exit_resp = self.client.get(reverse("supervisor_impersonate_exit"))
+        self.assertEqual(exit_resp.status_code, 302)
+        self.assertEqual(int(self.client.session["_auth_user_id"]), self.superadmin.id)
+        self.assertNotIn("supervisor_impersonator_id", self.client.session)
+
+    def test_supervisor_delete_user(self):
+        temp_user = User.objects.create_user("user_to_delete", password="pw")
+        self.team.user = temp_user
+        self.team.save(update_fields=["user"])
+
+        self._as(self.superadmin)
+        resp = self.client.post("/supervisor/", {
+            "action": "delete_user",
+            "user_id": temp_user.id,
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(User.objects.filter(pk=temp_user.id).exists())
+        self.team.refresh_from_db()
+        self.assertIsNone(self.team.user)
 

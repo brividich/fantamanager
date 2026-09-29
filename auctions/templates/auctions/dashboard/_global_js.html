@@ -465,6 +465,79 @@
         copyToClipboard(url, 'Link invito lega copiato!');
     }
 
+    let currentIscrittiFilterType = 'all';
+
+    function setIscrittiFilter(type, btn) {
+        currentIscrittiFilterType = type;
+        document.querySelectorAll('.iscritti-filter-chip').forEach(b => {
+            b.style.background = 'transparent';
+            b.style.color = 'var(--fm-text-secondary)';
+            b.classList.remove('active');
+        });
+        if (btn) {
+            btn.style.background = 'var(--fm-accent, #3b82f6)';
+            btn.style.color = '#fff';
+            btn.classList.add('active');
+        }
+        filterIscritti();
+    }
+
+    function filterIscritti() {
+        const query = (document.getElementById('iscritti-search-input')?.value || '').toLowerCase().trim();
+        const rows = document.querySelectorAll('#iscritti-table tbody tr.iscritto-row');
+        let visibleCount = 0;
+
+        rows.forEach(tr => {
+            const team = tr.getAttribute('data-team') || '';
+            const manager = tr.getAttribute('data-manager') || '';
+            const pin = tr.getAttribute('data-pin') || '';
+            const hasAccount = tr.getAttribute('data-has-account') || '';
+            const isStaff = tr.getAttribute('data-is-staff') || '';
+
+            const matchQuery = !query || team.includes(query) || manager.includes(query) || pin.includes(query);
+
+            let matchType = true;
+            if (currentIscrittiFilterType === 'has-account') {
+                matchType = (hasAccount === 'yes');
+            } else if (currentIscrittiFilterType === 'no-account') {
+                matchType = (hasAccount === 'no');
+            } else if (currentIscrittiFilterType === 'staff') {
+                matchType = (isStaff === 'yes');
+            }
+
+            if (matchQuery && matchType) {
+                tr.style.display = '';
+                visibleCount++;
+            } else {
+                tr.style.display = 'none';
+            }
+        });
+
+        const counter = document.getElementById('iscritti-filter-counter');
+        if (counter) {
+            counter.innerHTML = `Mostrati <b>${visibleCount}</b> su <b>${rows.length}</b>`;
+        }
+    }
+
+    function openCredentialsSummaryModal() {
+        const m = document.getElementById('modal-credentials-summary');
+        if (m) m.style.display = 'flex';
+    }
+
+    function copyAllCredentialsToClipboard() {
+        const raw = document.getElementById('credentials-summary-raw')?.value || '';
+        if (raw) {
+            copyToClipboard(raw, 'Credenziali di tutti gli iscritti copiate negli appunti!');
+        }
+    }
+
+    function prepareWhatsAppAllLink(event, anchor) {
+        const raw = document.getElementById('credentials-summary-raw')?.value || '';
+        if (raw && anchor) {
+            anchor.href = 'https://api.whatsapp.com/send?text=' + encodeURIComponent(raw);
+        }
+    }
+
     // Restore tab from URL query param or hash on page load
     document.addEventListener('DOMContentLoaded', () => {
         const urlParams = new URLSearchParams(window.location.search);

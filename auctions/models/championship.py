@@ -76,6 +76,7 @@ class Giornata(models.Model):
         SCHEDULED = "SCHEDULED", "In programma"
         OPEN      = "OPEN",      "Formazioni aperte"
         LOCKED    = "LOCKED",    "Bloccata"
+        LIVE      = "LIVE",      "Live in corso"
         SCORED    = "SCORED",    "Calcolata"
 
     season     = models.ForeignKey(Season, on_delete=models.CASCADE, related_name="giornate")
@@ -98,18 +99,21 @@ class PlayerPerformance(models.Model):
     """A player's raw stat line for one giornata. ``vote`` None = senza voto
     (didn't play / no grade) — a substitution trigger. Fantavoto is derived by
     the scoring engine, never stored here."""
-    giornata       = models.ForeignKey(Giornata, on_delete=models.CASCADE, related_name="performances")
-    player         = models.ForeignKey("Player", on_delete=models.CASCADE, related_name="performances")
-    vote           = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True)
-    goals          = models.PositiveSmallIntegerField(default=0)
-    assists        = models.PositiveSmallIntegerField(default=0)
-    own_goals      = models.PositiveSmallIntegerField(default=0)
-    pen_scored     = models.PositiveSmallIntegerField(default=0)   # informativo; già nei goals
-    pen_missed     = models.PositiveSmallIntegerField(default=0)
-    pen_saved      = models.PositiveSmallIntegerField(default=0)
-    goals_conceded = models.PositiveSmallIntegerField(default=0)   # portiere
-    yellow         = models.BooleanField(default=False)
-    red            = models.BooleanField(default=False)
+    giornata        = models.ForeignKey(Giornata, on_delete=models.CASCADE, related_name="performances")
+    player          = models.ForeignKey("Player", on_delete=models.CASCADE, related_name="performances")
+    vote            = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True)
+    goals           = models.PositiveSmallIntegerField(default=0)
+    assists         = models.PositiveSmallIntegerField(default=0)
+    own_goals       = models.PositiveSmallIntegerField(default=0)
+    pen_scored      = models.PositiveSmallIntegerField(default=0)   # informativo; già nei goals
+    pen_missed      = models.PositiveSmallIntegerField(default=0)
+    pen_saved       = models.PositiveSmallIntegerField(default=0)
+    goals_conceded  = models.PositiveSmallIntegerField(default=0)   # portiere
+    yellow          = models.BooleanField(default=False)
+    red             = models.BooleanField(default=False)
+    is_live         = models.BooleanField(default=False)
+    live_source     = models.CharField(max_length=40, blank=True, default="")
+    live_updated_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         constraints = [

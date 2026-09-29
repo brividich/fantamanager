@@ -46,10 +46,18 @@ def admin_giornate(request):
     scores = []
     battle_royale = []
     performances_count = 0
+    is_live = False
+    live_count = 0
+    official_count = 0
     if current_giornata:
         scores = list(current_giornata.scores.select_related("participant").order_by("-total"))
         battle_royale = compute_coppa_italia_battle_royale(current_giornata) if scores else []
         performances_count = current_giornata.performances.count()
+        live_count = current_giornata.performances.filter(is_live=True).count()
+        official_count = current_giornata.performances.filter(is_live=False).count()
+        is_live = (current_giornata.status == Giornata.Status.LIVE) or (live_count > 0 and current_giornata.status != Giornata.Status.SCORED)
+
+    from ..services.voti_live import LiveSyncManager
 
     return render(request, "auctions/admin_giornate.html", {
         "current_league": league,
@@ -60,6 +68,10 @@ def admin_giornate(request):
         "scores": scores,
         "battle_royale": battle_royale,
         "performances_count": performances_count,
+        "is_live": is_live,
+        "live_count": live_count,
+        "official_count": official_count,
+        "live_sync_status": LiveSyncManager.get_instance().get_status(),
         "console_section": "Giornate & Voti",
         "console_active": "giornate",
     })
@@ -94,10 +106,12 @@ def admin_upload_voti(request):
             return redirect(f"/app/giornate/?giornata={giornata_num}")
 
         report = import_voti_giornata(parsed_rows, giornata, league=league, recompute=True)
+        # Mark as official
+        giornata.performances.filter(giornata=giornata).update(is_live=False, live_source="official_upload")
         messages.success(
             request,
-            f"Voti Giornata {giornata_num} importati con successo: "
-            f"{report['total_imported']} calciatori aggiornati ({report['unmatched']} non associati)."
+            f"Voti Ufficiali Giornata {giornata_num} importati con successo: "
+            f"{report['total_imported']} calciatori consolidati in via definitiva."
         )
     except Exception as e:
         logger.exception("Errore durante l'importazione dei voti: %s", e)
@@ -107,4 +121,39 @@ def admin_upload_voti(request):
 
 
 admin_voti_import = admin_upload_voti
+
+
+@staff_member_required
+@require_POST
+def admin_live_voti_sync(request):
+    """Trigger on-demand live matchday rating synchronization."""
+    from ..services.voti_live import LiveSyncManager
+    giornata_num = int(request.POST.get("giornata_number") or 1)
+    provider = request.POST.get("provider") or "fantacalcio_web"
+
+    mgr = LiveSyncManager.get_instance()
+    mgr.provider = provider
+    res = mgr.sync_now(giornata_num=giornata_num, is_provisional=True)
+
+    if res.get("status") == "SUCCESS":
+        messages.success(
+            request,
+            f"🔴 Sync Live completato: {res.get('total_updated')} calciatori aggiornati in tempo reale per Giornata {giornata_num} ({provider})."
+        )
+    else:
+        messages.warning(request, f"Sync Live: {res.get('status')} - nessun dato disponibile al momento per G{giornata_num}.")
+
+    return redirect(f"/app/giornate/?giornata={giornata_num}")
+
+
+@staff_member_required
+@require_POST
+def admin_live_voti_consolidate(request):
+    """Consolidate provisional live votes into official final scored matchday."""
+    from ..services.voti_live import LiveSyncManager
+    giornata_num = int(request.POST.get("giornata_number") or 1)
+    res = LiveSyncManager.get_instance().consolidate_official(giornata_num)
+    messages.success(request, f"✅ Giornata {giornata_num} consolidata ufficialmente su voti definitivi ({res.get('giornate_count')} leghe chiuse).")
+    return redirect(f"/app/giornate/?giornata={giornata_num}")
+
 

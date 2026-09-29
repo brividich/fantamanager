@@ -271,7 +271,11 @@ def admin_dashboard(request, league_id=None, hub=False, auction_id=None):
     role_assigned = {}
     recent_assignments = []
 
+    competitions = []
+    season = None
     if selected is None and current_league is not None:
+        from ..services.competitions import ensure_league_season_and_competitions
+        season, competitions = ensure_league_season_and_competitions(current_league)
         active_auction = auctions.filter(status__in=[Auction.Status.LIVE, Auction.Status.PAUSED]).first()
         market_sessions = list(MarketSession.objects.filter(league=current_league).order_by("-created_at")[:6])
 
@@ -306,6 +310,8 @@ def admin_dashboard(request, league_id=None, hub=False, auction_id=None):
         "console_section": "Live auction" if selected else "Dashboard",
         "console_active":  "live" if selected else "dashboard",
         "current_league": current_league,
+        "season": season,
+        "competitions": competitions,
         "selected":     selected,
         "active_auction": active_auction,
         "market_sessions": market_sessions,

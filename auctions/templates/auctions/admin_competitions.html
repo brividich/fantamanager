@@ -1,0 +1,416 @@
+{% extends "auctions/base.html" %}
+{% block title %}Competizioni & Calendari — FantaManager{% endblock %}
+{% block bodyclass %}role-admin{% endblock %}
+{% block wrapclass %}wrap-wide{% endblock %}
+
+{% block content %}
+<style>
+    .comp-header {
+        display: flex; align-items: flex-end; justify-content: space-between;
+        gap: 16px; margin-bottom: 20px; flex-wrap: wrap;
+    }
+    .comp-pills {
+        display: flex; gap: 8px; overflow-x: auto; padding: 4px 0 14px;
+        scrollbar-width: thin;
+    }
+    .comp-pill {
+        flex: 0 0 auto; display: flex; align-items: center; gap: 8px;
+        padding: 8px 14px; border-radius: 10px; font-weight: 800; font-size: 13px;
+        background: var(--panel-2); border: 1px solid var(--line); color: var(--muted);
+        text-decoration: none; transition: all .15s ease;
+    }
+    .comp-pill:hover { background: var(--panel); color: var(--ink); border-color: var(--line-strong); }
+    .comp-pill.active { background: var(--accent); border-color: var(--accent); color: #0a1108; box-shadow: 0 0 14px -2px var(--accent-glow); }
+    .comp-pill .kind-tag {
+        font-size: 10px; padding: 2px 6px; border-radius: 4px;
+        background: rgba(0,0,0,0.25); text-transform: uppercase; letter-spacing: .04em;
+    }
+
+    .comp-grid {
+        display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 18px;
+    }
+    @media (max-width: 1080px) {
+        .comp-grid { grid-template-columns: 1fr; }
+    }
+
+    .card-box {
+        background: var(--panel); border: 1px solid var(--line);
+        border-radius: var(--radius); padding: 18px;
+    }
+    .card-title {
+        display: flex; align-items: center; justify-content: space-between;
+        margin-bottom: 14px; gap: 10px; flex-wrap: wrap;
+    }
+    .card-title h3 {
+        margin: 0; font-family: var(--display); font-size: 17px; font-weight: 900;
+        text-transform: uppercase; letter-spacing: .03em; color: var(--ink);
+        display: flex; align-items: center; gap: 8px;
+    }
+    .card-title h3 .ic { width: 18px; height: 18px; color: var(--accent); }
+
+    .tbl-clean { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .tbl-clean th {
+        text-align: left; padding: 8px 10px; font-size: 11px;
+        text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
+        border-bottom: 1px solid var(--line);
+    }
+    .tbl-clean td {
+        padding: 9px 10px; border-bottom: 1px solid var(--line-soft, rgba(255,255,255,0.05));
+    }
+    .tbl-clean tr:last-child td { border-bottom: none; }
+
+    .g-accordion {
+        display: flex; flex-direction: column; gap: 10px; max-height: 580px;
+        overflow-y: auto; padding-right: 4px;
+    }
+    .g-card {
+        background: var(--panel-2); border: 1px solid var(--line);
+        border-radius: 10px; padding: 10px 14px;
+    }
+    .g-card-head {
+        display: flex; justify-content: space-between; align-items: center;
+        font-weight: 800; font-size: 12px; text-transform: uppercase;
+        color: var(--accent); margin-bottom: 8px;
+    }
+    .fix-row {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 6px 0; border-top: 1px solid var(--line-soft, rgba(255,255,255,0.04));
+        font-size: 13px;
+    }
+    .fix-teams { display: flex; align-items: center; gap: 6px; }
+    .fix-score { font-weight: 900; font-variant-numeric: tabular-nums; }
+</style>
+
+{% include "auctions/_console_head.html" %}
+
+<div class="comp-header">
+    <div>
+        <h1 style="margin:0;font-size:26px;font-family:var(--display);font-weight:900;text-transform:uppercase;">
+            Competizioni & Calendari
+        </h1>
+        <div class="muted" style="font-size:13px;margin-top:4px">
+            Lega: <b>{{ current_league.name }}</b> · {{ season.name }} ({{ season.matchdays }} Giornate)
+        </div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <a class="fm-btn fm-btn-secondary" href="{% url 'admin_giornate' %}?league={{ current_league.id }}">
+            <svg class="ic"><use href="#i-pulse"/></svg> Giornate & Voti
+        </a>
+        <button type="button" class="fm-btn fm-btn-primary" onclick="document.getElementById('modal-new-comp').showModal()">
+            <svg class="ic"><use href="#i-plus"/></svg> Nuova Competizione
+        </button>
+    </div>
+</div>
+
+{% if messages %}
+<div style="margin-bottom:16px">
+    {% for msg in messages %}
+    <div class="saved-flash" style="{% if msg.tags == 'error' %}background:rgba(239,68,68,0.15);color:#ef4444;border-color:rgba(239,68,68,0.3){% elif msg.tags == 'warning' %}background:rgba(234,179,8,0.15);color:#eab308;border-color:rgba(234,179,8,0.3){% else %}background:var(--accent-soft);color:var(--accent-bright);border-color:var(--accent-line){% endif %}">
+        {{ msg }}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Competition Selection Pills -->
+<div class="comp-pills">
+    {% for c in competitions %}
+    <a href="?league={{ current_league.id }}&comp={{ c.id }}" class="comp-pill {% if selected_competition and selected_competition.id == c.id %}active{% endif %}">
+        <span>{{ c.name }}</span>
+        <span class="kind-tag">{{ c.get_kind_display }}</span>
+    </a>
+    {% empty %}
+    <div class="muted" style="padding:10px;font-size:13px">Nessuna competizione configurata. Clicca su «Nuova Competizione» per iniziare.</div>
+    {% endfor %}
+</div>
+
+{% if selected_competition %}
+<div class="card-box" style="margin-bottom:18px;">
+    <div class="card-title">
+        <div>
+            <h3 style="font-size:20px;">
+                <svg class="ic"><use href="#i-trophy"/></svg>
+                {{ selected_competition.name }}
+            </h3>
+            <div class="muted" style="font-size:12px;margin-top:2px;">
+                Formato: <b>{{ selected_competition.get_kind_display }}</b> ·
+                Partite registrate: <b>{{ selected_competition.fixtures.count }}</b>
+            </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            {% if selected_competition.kind in "ROUND_ROBIN KNOCKOUT SEASON_SPLIT" %}
+            <form method="post" action="{% url 'admin_competition_regenerate' selected_competition.id %}" onsubmit="return confirm('Rigenerare gli accoppiamenti cancellerà le partite correnti di questo torneo. Continuare?');" style="margin:0">
+                {% csrf_token %}
+                <button type="submit" class="fm-btn fm-btn-secondary fm-btn-sm" title="Rigenera calendario con le squadre correnti">
+                    <svg class="ic"><use href="#i-refresh"/></svg> Rigenera Calendario
+                </button>
+            </form>
+            {% endif %}
+            <form method="post" action="{% url 'admin_competition_delete' selected_competition.id %}" onsubmit="return confirm('Sei sicuro di voler eliminare la competizione «{{ selected_competition.name }}»?');" style="margin:0">
+                {% csrf_token %}
+                <button type="submit" class="fm-btn fm-btn-ghost fm-btn-sm" style="color:#ef4444;" title="Elimina competizione">
+                    <svg class="ic"><use href="#i-trash"/></svg> Elimina
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="comp-grid">
+    <!-- LEFT COLUMN: STANDINGS / BRACKET TABLE -->
+    <div class="card-box">
+        <div class="card-title">
+            <h3><svg class="ic"><use href="#i-table"/></svg> Classifica & Punteggi</h3>
+            <span class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase;">Aggiornamento Live</span>
+        </div>
+
+        {% if competition_data.kind == "table" %}
+        <!-- Round Robin Standings Table -->
+        <div style="overflow-x:auto">
+            <table class="tbl-clean">
+                <thead>
+                    <tr>
+                        <th style="width:36px;text-align:center">#</th>
+                        <th>Club</th>
+                        <th style="text-align:center">G</th>
+                        <th style="text-align:center">V</th>
+                        <th style="text-align:center">P</th>
+                        <th style="text-align:center">S</th>
+                        <th style="text-align:center">Gol</th>
+                        <th style="text-align:right">Pt</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in competition_data.standings %}
+                    <tr>
+                        <td style="text-align:center;font-weight:900;color:var(--accent);">{{ forloop.counter }}</td>
+                        <td><b>{{ row.team.display_name }}</b></td>
+                        <td style="text-align:center">{{ row.played }}</td>
+                        <td style="text-align:center;color:var(--fm-success)">{{ row.won }}</td>
+                        <td style="text-align:center;color:var(--muted)">{{ row.drawn }}</td>
+                        <td style="text-align:center;color:#ef4444">{{ row.lost }}</td>
+                        <td style="text-align:center;font-size:12px;color:var(--muted)">{{ row.goals_for }}:{{ row.goals_against }}</td>
+                        <td style="text-align:right;font-size:16px;font-weight:900;color:var(--accent)">{{ row.points }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="8" class="muted" style="text-align:center;padding:16px">Nessuna partita disputata.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% elif competition_data.kind == "points" %}
+        <!-- Gran Premio Standings -->
+        <div style="overflow-x:auto">
+            <table class="tbl-clean">
+                <thead>
+                    <tr>
+                        <th style="width:36px;text-align:center">#</th>
+                        <th>Club</th>
+                        <th style="text-align:center">Giornate a voto</th>
+                        <th style="text-align:right">Totale Fantapunti</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in competition_data.standings %}
+                    <tr>
+                        <td style="text-align:center;font-weight:900;color:var(--accent);">{{ forloop.counter }}</td>
+                        <td><b>{{ row.team.display_name }}</b></td>
+                        <td style="text-align:center">{{ row.giornate_played }}</td>
+                        <td style="text-align:right;font-size:16px;font-weight:900;color:var(--accent)">{{ row.total|floatformat:1 }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="4" class="muted" style="text-align:center;padding:16px">Nessun punteggio registrato.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% elif competition_data.kind == "battle_royale" %}
+        <!-- Battle Royale Standings -->
+        <div style="overflow-x:auto">
+            <table class="tbl-clean">
+                <thead>
+                    <tr>
+                        <th style="width:36px;text-align:center">#</th>
+                        <th>Club</th>
+                        <th style="text-align:center">Record (V-P-S)</th>
+                        <th style="text-align:center">Fantapunti Totali</th>
+                        <th style="text-align:right">Punti Coppa</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in competition_data.standings %}
+                    <tr>
+                        <td style="text-align:center;font-weight:900;color:var(--accent);">{{ forloop.counter }}</td>
+                        <td><b>{{ row.team.display_name }}</b></td>
+                        <td style="text-align:center;font-size:12px;color:var(--muted)">{{ row.won }}-{{ row.drawn }}-{{ row.lost }}</td>
+                        <td style="text-align:center">{{ row.total_fantapunti|floatformat:1 }}</td>
+                        <td style="text-align:right;font-size:16px;font-weight:900;color:var(--paused)">{{ row.battle_points }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="5" class="muted" style="text-align:center;padding:16px">Nessun punteggio calcolato.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% elif competition_data.kind == "bracket" %}
+        <!-- Knockout / Bracket List -->
+        <div style="display:flex;flex-direction:column;gap:8px;">
+            {% for f in competition_data.fixtures %}
+            <div style="background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                    <span style="font-size:10px;font-weight:800;text-transform:uppercase;color:var(--muted)">G{{ f.giornata.number }} · {{ f.stage }}</span>
+                    <div style="font-size:14px;font-weight:700;margin-top:2px">
+                        {{ f.home.display_name }} vs {% if f.away %}{{ f.away.display_name }}{% else %}<i class="muted">Riposo</i>{% endif %}
+                    </div>
+                </div>
+                <div>
+                    {% if f.computed %}
+                    <span style="font-size:16px;font-weight:900;color:var(--accent)">{{ f.home_goals }} - {{ f.away_goals }}</span>
+                    {% else %}
+                    <span class="status-pill s-DRAFT" style="font-size:10px">Da disputare</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% empty %}
+            <div class="muted" style="text-align:center;padding:16px">Nessun accoppiamento programmato.</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- RIGHT COLUMN: CALENDARIO & ACCOPPIAMENTI PER GIORNATA -->
+    <div class="card-box">
+        <div class="card-title">
+            <h3><svg class="ic"><use href="#i-calendar"/></svg> Calendario Incontri</h3>
+            <span class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase;">Tutte le Giornate</span>
+        </div>
+
+        {% if fixtures_by_giornata %}
+        <div class="g-accordion">
+            {% for grp in fixtures_by_giornata %}
+            <div class="g-card">
+                <div class="g-card-head">
+                    <span>Giornata {{ grp.giornata.number }}</span>
+                    <span style="color:var(--muted);font-weight:600;font-size:11px">{{ grp.giornata.get_status_display }}</span>
+                </div>
+                {% for f in grp.fixtures %}
+                <div class="fix-row">
+                    <div class="fix-teams">
+                        <b>{{ f.home.display_name }}</b>
+                        <span class="muted" style="font-size:11px">vs</span>
+                        <b>{% if f.away %}{{ f.away.display_name }}{% else %}<i class="muted">Riposo</i>{% endif %}</b>
+                    </div>
+                    <div class="fix-score">
+                        {% if f.computed %}
+                        <span style="color:var(--accent)">{{ f.home_goals }} - {{ f.away_goals }}</span>
+                        {% else %}
+                        <span class="muted" style="font-size:11px;font-weight:500">— : —</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="muted" style="text-align:center;padding:32px 14px;">
+            Nessun calendario a scontri diretti per questa competizione.<br>
+            <small>I tornei a somma punti (Formula 1) e Battle Royale si calcolano automaticamente dai punteggi delle singole giornate.</small>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- MODAL: CREA NUOVA COMPETIZIONE -->
+<dialog id="modal-new-comp" class="panel" style="max-width:540px;width:90%;border:1px solid var(--line);border-radius:14px;background:var(--bg-deep);color:var(--ink);padding:24px;box-shadow:0 24px 60px rgba(0,0,0,0.8);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h3 style="margin:0;font-family:var(--display);font-size:20px;font-weight:900;text-transform:uppercase;">
+            Nuova Competizione
+        </h3>
+        <button type="button" class="fm-btn fm-btn-ghost fm-btn-sm" onclick="document.getElementById('modal-new-comp').close()">✕</button>
+    </div>
+
+    <form method="post" action="{% url 'admin_competition_create' %}">
+        {% csrf_token %}
+        <input type="hidden" name="league_id" value="{{ current_league.id }}">
+
+        <div style="margin-bottom:14px;">
+            <label style="display:block;font-size:11px;font-weight:800;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Nome Torneo</label>
+            <input type="text" name="name" class="input" style="width:100%;height:38px;border-radius:8px;padding:0 12px;background:var(--panel-2);color:#fff;border:1px solid var(--line);box-sizing:border-box;" placeholder="Es: Coppa di Lega, Champions Cup, Gran Premio..." required>
+        </div>
+
+        <div style="margin-bottom:14px;">
+            <label style="display:block;font-size:11px;font-weight:800;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Formato Competizione</label>
+            <select name="kind" id="comp-kind-select" class="input" style="width:100%;height:38px;border-radius:8px;padding:0 12px;background:var(--panel-2);color:#fff;border:1px solid var(--line);box-sizing:border-box;" onchange="toggleKindFields(this.value)">
+                {% for code, label in competition_types %}
+                <option value="{{ code }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+            <div>
+                <label style="display:block;font-size:11px;font-weight:800;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Da Giornata</label>
+                <select name="start_giornata" class="input" style="width:100%;height:38px;border-radius:8px;padding:0 10px;background:var(--panel-2);color:#fff;border:1px solid var(--line);box-sizing:border-box;">
+                    {% for g in giornate %}
+                    <option value="{{ g.number }}">Giornata {{ g.number }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div id="field-end-giornata">
+                <label style="display:block;font-size:11px;font-weight:800;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">A Giornata (opzionale)</label>
+                <select name="end_giornata" class="input" style="width:100%;height:38px;border-radius:8px;padding:0 10px;background:var(--panel-2);color:#fff;border:1px solid var(--line);box-sizing:border-box;">
+                    <option value="">Tutta la stagione ({{ season.matchdays }})</option>
+                    {% for g in giornate %}
+                    <option value="{{ g.number }}">Giornata {{ g.number }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div id="field-two-legged" style="margin-bottom:14px;display:none;">
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+                <input type="checkbox" name="two_legged" value="1">
+                <span>Sfide di Andata e Ritorno (Eliminazione diretta a 2 gambe)</span>
+            </label>
+        </div>
+
+        <div id="field-supercoppa" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;display:none;">
+            <div>
+                <label style="display:block;font-size:11px;font-weight:800;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Squadra Casa</label>
+                <select name="home_id" class="input" style="width:100%;height:38px;border-radius:8px;padding:0 10px;background:var(--panel-2);color:#fff;border:1px solid var(--line);box-sizing:border-box;">
+                    {% for t in teams %}
+                    <option value="{{ t.id }}">{{ t.display_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label style="display:block;font-size:11px;font-weight:800;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Squadra Trasferta</label>
+                <select name="away_id" class="input" style="width:100%;height:38px;border-radius:8px;padding:0 10px;background:var(--panel-2);color:#fff;border:1px solid var(--line);box-sizing:border-box;">
+                    {% for t in teams %}
+                    <option value="{{ t.id }}">{{ t.display_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;">
+            <button type="button" class="fm-btn fm-btn-ghost" onclick="document.getElementById('modal-new-comp').close()">Annulla</button>
+            <button type="submit" class="fm-btn fm-btn-primary">Crea e Genera Torneo</button>
+        </div>
+    </form>
+</dialog>
+
+<script>
+function toggleKindFields(kind) {
+    var twoLegged = document.getElementById('field-two-legged');
+    var supercoppa = document.getElementById('field-supercoppa');
+    if (twoLegged) twoLegged.style.display = (kind === 'KNOCKOUT') ? 'block' : 'none';
+    if (supercoppa) supercoppa.style.display = (kind === 'SUPERCOPPA') ? 'grid' : 'none';
+}
+</script>
+{% endblock %}

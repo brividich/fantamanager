@@ -86,3 +86,55 @@ class CompetitionsEngineTests(TestCase):
         self.assertEqual(fixtures[0].stage, "Finale Secca")
         self.assertEqual(fixtures[0].home_id, self.teams[0].id)
         self.assertEqual(fixtures[0].away_id, self.teams[1].id)
+
+    def test_ensure_league_season_and_competitions(self):
+        from auctions.services.competitions import ensure_league_season_and_competitions
+        new_league = League.objects.create(name="Nuova Lega")
+        Participant.objects.create(display_name="Team A", league=new_league, credits=500)
+        Participant.objects.create(display_name="Team B", league=new_league, credits=500)
+
+        season, comps = ensure_league_season_and_competitions(new_league)
+        self.assertIsNotNone(season)
+        self.assertEqual(season.giornate.count(), 38)
+        self.assertEqual(len(comps), 3)
+        self.assertTrue(any(c.kind == Competition.Type.ROUND_ROBIN for c in comps))
+        self.assertTrue(any(c.kind == Competition.Type.BATTLE_ROYALE for c in comps))
+        self.assertTrue(any(c.kind == Competition.Type.TOTAL_POINTS for c in comps))
+
+    def test_admin_competitions_views(self):
+        from django.contrib.auth.models import User
+        from django.urls import reverse
+
+        user = User.objects.create_superuser("admin_comp", "admin@example.com", "pass123")
+        self.client.force_login(user)
+
+        # GET console view
+        url = reverse("admin_competitions") + f"?league={self.league.id}"
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Competizioni")
+
+        # POST create knockout cup
+        create_url = reverse("admin_competition_create")
+        resp = self.client.post(create_url, {
+            "league_id": self.league.id,
+            "name": "Coppa Italia Eliminazione",
+            "kind": Competition.Type.KNOCKOUT,
+            "start_giornata": 5,
+        })
+        self.assertEqual(resp.status_code, 302)
+        new_comp = Competition.objects.filter(season=self.season, name="Coppa Italia Eliminazione").first()
+        self.assertIsNotNone(new_comp)
+        self.assertEqual(new_comp.fixtures.count(), 4)
+
+        # POST regenerate
+        regen_url = reverse("admin_competition_regenerate", args=[new_comp.id])
+        resp = self.client.post(regen_url, {"start_giornata": 6})
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(new_comp.fixtures.first().giornata.number, 6)
+
+        # POST delete
+        del_url = reverse("admin_competition_delete", args=[new_comp.id])
+        resp = self.client.post(del_url)
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(Competition.objects.filter(id=new_comp.id).exists())

@@ -291,6 +291,9 @@
     <a href="?tab=reports" class="super-tab-link {% if tab == 'reports' %}active{% endif %}">
         ⚙️ Setup & Reportistica
     </a>
+    <a href="?tab=live_sync" class="super-tab-link {% if tab == 'live_sync' %}active{% endif %}" style="border:1px solid rgba(234,179,8,0.3)">
+        ⚡ Live Matchday & Voti
+    </a>
 </div>
 
 <!-- 1. TAB: SERVER HEALTH -->
@@ -357,49 +360,101 @@
 <!-- 2. TAB: USERS MANAGEMENT -->
 {% if tab == 'users' %}
 <div class="super-table-wrap">
-    <div class="super-table-head">
-        <h2 class="super-table-title">Utenti Registrati sulla Piattaforma</h2>
-        <button onclick="document.getElementById('modal-create-user').style.display='block'" class="btn-super-action" style="background:#2563eb;color:#fff;border:none;padding:8px 14px">
-            + Crea Nuovo Utente
-        </button>
+    <div class="super-table-head" style="gap:14px;align-items:flex-start">
+        <div>
+            <h2 class="super-table-title">Utenti Registrati sulla Piattaforma</h2>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px" id="super-user-counter">
+                Totale utenti: <b>{{ users|length }}</b>
+            </div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+            <!-- Search input -->
+            <div style="position:relative">
+                <input type="text" id="super-user-search" oninput="filterSupervisorUsers()" placeholder="🔍 Cerca per username, email, lega..." style="background:#1e2430;border:1px solid rgba(255,255,255,0.15);color:#fff;padding:7px 12px 7px 30px;border-radius:7px;font-size:12px;width:240px">
+                <span style="position:absolute;left:9px;top:7px;opacity:0.5;font-size:13px">🔍</span>
+            </div>
+            <!-- Role filter -->
+            <select id="super-user-role-filter" onchange="filterSupervisorUsers()" style="background:#1e2430;border:1px solid rgba(255,255,255,0.15);color:#fff;padding:7px 10px;border-radius:7px;font-size:12px">
+                <option value="ALL">Tutti i Ruoli</option>
+                <option value="superadmin">Superadmin</option>
+                <option value="admin">Admin / Co-Admin Lega</option>
+                <option value="manager">Manager / Coach</option>
+            </select>
+            <!-- Status filter -->
+            <select id="super-user-status-filter" onchange="filterSupervisorUsers()" style="background:#1e2430;border:1px solid rgba(255,255,255,0.15);color:#fff;padding:7px 10px;border-radius:7px;font-size:12px">
+                <option value="ALL">Tutti gli Stati</option>
+                <option value="1">Solo Attivi</option>
+                <option value="0">Solo Disattivati</option>
+            </select>
+            <button onclick="document.getElementById('modal-create-user').style.display='block'" class="btn-super-action" style="background:#2563eb;color:#fff;border:none;padding:8px 14px;font-weight:700">
+                + Crea Nuovo Utente
+            </button>
+        </div>
     </div>
 
-    <table class="super-table">
+    <table class="super-table" id="supervisor-users-table">
         <thead>
             <tr>
-                <th>Username</th>
+                <th>Username & Anagrafica</th>
                 <th>Email</th>
                 <th>Ruolo</th>
-                <th>Leghe Possedute</th>
+                <th>Leghe (Presidenza & Co-Admin)</th>
                 <th>Squadre</th>
                 <th>Stato</th>
-                <th>Data Iscrizione</th>
+                <th>Ultimo Accesso</th>
+                <th>Iscrizione</th>
                 <th style="text-align:right">Azioni</th>
             </tr>
         </thead>
         <tbody>
             {% for u in users %}
-            <tr>
-                <td><b>{{ u.username }}</b></td>
+            <tr class="sup-user-row"
+                data-username="{{ u.username|lower }}"
+                data-email="{{ u.email|lower|default:'' }}"
+                data-fullname="{{ u.first_name|lower }} {{ u.last_name|lower }}"
+                data-role="{% if u.is_superuser %}superadmin{% elif u.owned_leagues_count > 0 or u.managed_leagues.all %}admin{% else %}manager{% endif %}"
+                data-active="{% if u.is_active %}1{% else %}0{% endif %}"
+                data-leagues="{% for lg in u.leagues.all %}{{ lg.name|lower }} {% endfor %}{% for lg in u.managed_leagues.all %}{{ lg.name|lower }} {% endfor %}"
+                data-teams="{% for t in u.teams.all %}{{ t.display_name|lower }} {% endfor %}">
+                <td>
+                    <b>{{ u.username }}</b>
+                    {% if u == request.user %}
+                        <span style="background:rgba(59,130,246,0.25);color:#93c5fd;font-size:10px;font-weight:800;padding:1px 5px;border-radius:4px;margin-left:4px">TU</span>
+                    {% endif %}
+                    {% if u.first_name or u.last_name %}
+                        <div style="font-size:11px;color:var(--muted)">{{ u.first_name }} {{ u.last_name }}</div>
+                    {% endif %}
+                </td>
                 <td style="color:var(--muted)">{{ u.email|default:"—" }}</td>
                 <td>
                     {% if u.is_superuser %}
                         <span style="background:rgba(239,68,68,0.2);color:#f87171;padding:3px 8px;border-radius:4px;font-weight:800;font-size:11px">SUPERADMIN</span>
                     {% elif u.owned_leagues_count > 0 %}
                         <span style="background:rgba(37,99,235,0.2);color:#60a5fa;padding:3px 8px;border-radius:4px;font-weight:800;font-size:11px">ADMIN LEGA</span>
+                    {% elif u.managed_leagues.all %}
+                        <span style="background:rgba(14,165,233,0.2);color:#38bdf8;padding:3px 8px;border-radius:4px;font-weight:800;font-size:11px">CO-ADMIN</span>
                     {% else %}
-                        <span style="background:rgba(255,255,255,0.06);color:var(--muted);padding:3px 8px;border-radius:4px;font-weight:700;font-size:11px">MANAGER</span>
+                        <span style="background:rgba(255,255,255,0.06);color:var(--muted);padding:3px 8px;border-radius:4px;font-weight:700;font-size:11px">COACH / MANAGER</span>
                     {% endif %}
                 </td>
                 <td>
-                    {% if u.leagues.all %}
+                    {% if u.leagues.all or u.managed_leagues.all %}
                         <div style="display:flex;flex-direction:column;gap:3px">
                         {% for lg in u.leagues.all %}
-                            <a href="{% url 'dashboard_league' lg.id %}" style="text-decoration:none;display:inline-block">
+                            <a href="{% url 'dashboard_league' lg.id %}" style="text-decoration:none;display:inline-block" title="Presidente">
                                 <span style="background:rgba(59,130,246,0.18);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:600">
                                     🏆 {{ lg.name }}
                                 </span>
                             </a>
+                        {% endfor %}
+                        {% for lg in u.managed_leagues.all %}
+                            {% if lg not in u.leagues.all %}
+                            <a href="{% url 'dashboard_league' lg.id %}" style="text-decoration:none;display:inline-block" title="Co-Amministratore">
+                                <span style="background:rgba(14,165,233,0.15);border:1px solid rgba(14,165,233,0.3);color:#7dd3fc;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:600">
+                                    🛡️ {{ lg.name }}
+                                </span>
+                            </a>
+                            {% endif %}
                         {% endfor %}
                         </div>
                     {% else %}
@@ -426,15 +481,37 @@
                         <span style="color:#f87171;font-weight:700">Disattivato</span>
                     {% endif %}
                 </td>
+                <td style="color:var(--muted);font-size:12px">
+                    {% if u.last_login %}
+                        {{ u.last_login|date:"d/m/Y H:i" }}
+                    {% else %}
+                        <span style="opacity:0.6">Mai</span>
+                    {% endif %}
+                </td>
                 <td style="color:var(--muted);font-size:12px">{{ u.date_joined|date:"d/m/Y H:i" }}</td>
-                <td style="text-align:right">
-                    <button type="button" class="btn-super-action" style="background:rgba(59,130,246,0.2);color:#93c5fd;border:1px solid rgba(59,130,246,0.3);margin-right:4px"
+                <td style="text-align:right;white-space:nowrap">
+                    {% if u != request.user %}
+                    <!-- Impersonate -->
+                    <form method="post" style="display:inline" onsubmit="return confirm('Vuoi accedere subito come \'{{ u.username|escapejs }}\'? Potrai tornare a Supervisor in qualsiasi momento.');">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="impersonate_user">
+                        <input type="hidden" name="user_id" value="{{ u.id }}">
+                        <button type="submit" class="btn-super-action" style="background:rgba(16,185,129,0.15);color:#34d399;border:1px solid rgba(16,185,129,0.3);margin-right:3px" title="Accedi come questo utente">
+                            👁️ Accedi come
+                        </button>
+                    </form>
+                    {% endif %}
+
+                    <!-- Edit modal -->
+                    <button type="button" class="btn-super-action" style="background:rgba(59,130,246,0.2);color:#93c5fd;border:1px solid rgba(59,130,246,0.3);margin-right:3px"
                         onclick="openSupervisorEditUser({{ u.id }}, '{{ u.username|escapejs }}', '{{ u.email|default:''|escapejs }}', '{{ u.first_name|default:''|escapejs }}', '{{ u.last_name|default:''|escapejs }}', '{% if u.is_superuser %}superadmin{% elif u.is_staff %}staff{% else %}user{% endif %}', {{ u.is_active|lower }}, {% if u == request.user %}true{% else %}false{% endif %})"
                         title="Modifica anagrafica, email, reset password e ruolo">
                         ⚙️ Gestisci
                     </button>
+
                     {% if u != request.user %}
-                    <form method="post" style="display:inline">
+                    <!-- Toggle Active -->
+                    <form method="post" style="display:inline;margin-right:3px">
                         {% csrf_token %}
                         <input type="hidden" name="action" value="toggle_user_active">
                         <input type="hidden" name="user_id" value="{{ u.id }}">
@@ -442,16 +519,22 @@
                             {% if u.is_active %}Disattiva{% else %}Attiva{% endif %}
                         </button>
                     </form>
-                    <form method="post" style="display:inline;margin-left:4px">
+
+                    <!-- Delete User -->
+                    <form method="post" style="display:inline" onsubmit="return confirm('Sei sicuro di voler eliminare definitivamente l\'account \'{{ u.username|escapejs }}\'? Tutte le sue squadre e leghe collegate verranno dissociate.');">
                         {% csrf_token %}
-                        <input type="hidden" name="action" value="toggle_user_admin">
+                        <input type="hidden" name="action" value="delete_user">
                         <input type="hidden" name="user_id" value="{{ u.id }}">
-                        <button type="submit" class="btn-super-action" title="Promuovi/Revoca Superadmin">
-                            {% if u.is_superuser %}Revoca Admin{% else %}Fai Superadmin{% endif %}
+                        <button type="submit" class="btn-super-action" style="background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.3)" title="Elimina definitivamente utente">
+                            🗑️
                         </button>
                     </form>
                     {% endif %}
                 </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="9" style="text-align:center;padding:24px;color:var(--muted)">Nessun utente registrato.</td>
             </tr>
             {% endfor %}
         </tbody>
@@ -742,6 +825,47 @@
             });
         }
     }
+
+    function filterSupervisorUsers() {
+        const query = (document.getElementById('super-user-search')?.value || '').toLowerCase().trim();
+        const role = document.getElementById('super-user-role-filter')?.value || 'ALL';
+        const status = document.getElementById('super-user-status-filter')?.value || 'ALL';
+
+        const rows = document.querySelectorAll('#supervisor-users-table tbody tr.sup-user-row');
+        let visibleCount = 0;
+
+        rows.forEach(tr => {
+            const uName = tr.getAttribute('data-username') || '';
+            const email = tr.getAttribute('data-email') || '';
+            const fullName = tr.getAttribute('data-fullname') || '';
+            const uRole = tr.getAttribute('data-role') || '';
+            const uActive = tr.getAttribute('data-active') || '';
+            const leagues = tr.getAttribute('data-leagues') || '';
+            const teams = tr.getAttribute('data-teams') || '';
+
+            const matchQuery = !query || 
+                uName.includes(query) || 
+                email.includes(query) || 
+                fullName.includes(query) || 
+                leagues.includes(query) || 
+                teams.includes(query);
+
+            const matchRole = (role === 'ALL') || (uRole === role);
+            const matchStatus = (status === 'ALL') || (uActive === status);
+
+            if (matchQuery && matchRole && matchStatus) {
+                tr.style.display = '';
+                visibleCount++;
+            } else {
+                tr.style.display = 'none';
+            }
+        });
+
+        const counterElem = document.getElementById('super-user-counter');
+        if (counterElem) {
+            counterElem.innerHTML = `Mostrati <b>${visibleCount}</b> di <b>${rows.length}</b> utenti`;
+        }
+    }
     const LEAGUE_TEAMS_DATA = {{ league_teams_json|safe }};
     let teamNameManuallyTouched = false;
 
@@ -985,6 +1109,180 @@
                 🗑️ Pulisci Sessioni Scadute
             </button>
         </form>
+    </div>
+</div>
+{% endif %}
+
+<!-- 6. TAB: LIVE SYNC & MATCHDAY RATINGS -->
+{% if tab == 'live_sync' %}
+<div class="metric-grid">
+    <div class="metric-card">
+        <div class="metric-label">Stato Sync Background</div>
+        <div class="metric-value">
+            {% if live_sync.is_enabled %}
+                <span style="color:#4ade80;font-size:20px;display:flex;align-items:center;gap:8px">
+                    <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#22c55e;box-shadow:0 0 10px #22c55e"></span>
+                    ATTIVO (ogni {{ live_sync.interval_seconds }}s)
+                </span>
+            {% else %}
+                <span style="color:var(--muted);font-size:20px;display:flex;align-items:center;gap:8px">
+                    <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#94a3b8"></span>
+                    NON ATTIVO
+                </span>
+            {% endif %}
+        </div>
+        <div class="metric-sub">Sincronizzazione in tempo reale delle partite</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">Provider Attivo</div>
+        <div class="metric-value" style="font-size:20px;color:#60a5fa">
+            {% if live_sync.provider == 'fantacalcio_web' %}
+                ⚽ Fantacalcio.it Live
+            {% elif live_sync.provider == 'simulation' %}
+                🧪 Simulazione Test
+            {% else %}
+                {{ live_sync.provider }}
+            {% endif %}
+        </div>
+        <div class="metric-sub">Fonte dati voti e bonus/malus</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">Ultimo Aggiornamento</div>
+        <div class="metric-value" style="font-size:18px">{{ live_sync.last_sync_time }}</div>
+        <div class="metric-sub">
+            Esito: <b style="color:{% if live_sync.last_status == 'SUCCESS' %}#4ade80{% elif live_sync.last_status == 'ERROR' %}#f87171{% else %}var(--muted){% endif %}">{{ live_sync.last_status }}</b>
+            · {{ live_sync.last_updated_count }} calciatori aggiornati
+        </div>
+    </div>
+</div>
+
+<div class="super-table-wrap" style="padding:22px;margin-bottom:24px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px">
+        <div>
+            <h3 style="margin:0;font-size:17px;display:flex;align-items:center;gap:8px">
+                <span>⚡</span> Controllo Sincronizzazione in Background
+            </h3>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">
+                Esegue la scansione automatica ogni minuto durante le partite, aggiornando formazioni, bonus/malus e punteggi live.
+            </div>
+        </div>
+        <div>
+            {% if live_sync.is_enabled %}
+            <form method="post" style="display:inline">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="stop_live_sync">
+                <button type="submit" class="btn-super-action" style="background:rgba(239,68,68,0.2);color:#f87171;border:1px solid rgba(239,68,68,0.4);padding:9px 18px;font-weight:700">
+                    ⏹️ Arresta Sincronizzazione Background
+                </button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if not live_sync.is_enabled %}
+    <form method="post" style="background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px;margin-bottom:20px">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="start_live_sync">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:14px;align-items:flex-end">
+            <div>
+                <label style="font-size:12px;font-weight:700;display:block;margin-bottom:5px">Intervallo di Sincronizzazione</label>
+                <select name="interval_seconds" style="width:100%;padding:8px 12px;background:#1e2430;border:1px solid rgba(255,255,255,0.15);color:#fff;border-radius:6px;font-size:13px">
+                    <option value="60" selected>Ogni 60 Secondi (Consigliato)</option>
+                    <option value="30">Ogni 30 Secondi (Alta Frequenza)</option>
+                    <option value="120">Ogni 2 Minuti</option>
+                    <option value="300">Ogni 5 Minuti</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-size:12px;font-weight:700;display:block;margin-bottom:5px">Provider Sorgente Voti</label>
+                <select name="provider" style="width:100%;padding:8px 12px;background:#1e2430;border:1px solid rgba(255,255,255,0.15);color:#fff;border-radius:6px;font-size:13px">
+                    <option value="fantacalcio_web" selected>Fantacalcio.it Live / Statistico (Zero API Key)</option>
+                    <option value="simulation">Simulazione Test (Genera flussi live di prova)</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-size:12px;font-weight:700;display:block;margin-bottom:5px">Giornata Bersaglio</label>
+                <select name="target_giornata" style="width:100%;padding:8px 12px;background:#1e2430;border:1px solid rgba(255,255,255,0.15);color:#fff;border-radius:6px;font-size:13px">
+                    <option value="" selected>Rileva Automaticamente (Prima attiva)</option>
+                    {% for n in "x"|rjust:"38" %}
+                    <option value="{{ forloop.counter }}">Giornata {{ forloop.counter }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <button type="submit" class="btn-super-action" style="width:100%;padding:9px 16px;background:#2563eb;color:#fff;border:none;font-weight:700">
+                    ▶️ Avvia Background Sync (Ogni 1 min)
+                </button>
+            </div>
+        </div>
+    </form>
+    {% endif %}
+
+    <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:12px 16px;font-size:12.5px;color:var(--muted)">
+        Messaggio ultimo ciclo: <b>{{ live_sync.last_message }}</b>
+    </div>
+</div>
+
+<div class="super-table-wrap" style="padding:22px">
+    <h3 style="margin:0 0 6px;font-size:17px">Operazioni Manuali & Consolidamento Ufficiale</h3>
+    <div style="font-size:12.5px;color:var(--muted);margin-bottom:16px">
+        Puoi forzare una sincronizzazione manuale istantanea oppure consolidare i voti provvisori come voti ufficiali definitivi.
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+        <!-- Manual Sync Now -->
+        <div style="background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px">
+            <h4 style="margin:0 0 6px;font-size:14px;color:#60a5fa">⚡ Sincronizza Subito Adesso (Provvisorio LIVE)</h4>
+            <div style="font-size:11.5px;color:var(--muted);margin-bottom:12px">
+                Esegue immediatamente una richiesta al provider e aggiorna le formazioni live senza attendere il ticker.
+            </div>
+            <form method="post" style="display:flex;gap:10px;align-items:flex-end">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="trigger_live_sync">
+                <div style="flex:1">
+                    <label style="font-size:11px;font-weight:700;display:block;margin-bottom:4px">Giornata</label>
+                    <select name="target_giornata" style="width:100%;padding:7px 10px;background:#1e2430;border:1px solid rgba(255,255,255,0.12);color:#fff;border-radius:6px;font-size:12px">
+                        <option value="" selected>Auto</option>
+                        {% for n in "x"|rjust:"38" %}
+                        <option value="{{ forloop.counter }}">G{{ forloop.counter }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div style="flex:1">
+                    <label style="font-size:11px;font-weight:700;display:block;margin-bottom:4px">Provider</label>
+                    <select name="provider" style="width:100%;padding:7px 10px;background:#1e2430;border:1px solid rgba(255,255,255,0.12);color:#fff;border-radius:6px;font-size:12px">
+                        <option value="fantacalcio_web" selected>Fantacalcio.it</option>
+                        <option value="simulation">Simulazione</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn-super-action" style="padding:8px 14px;background:rgba(59,130,246,0.2);border-color:#3b82f6;color:#93c5fd;font-weight:700;white-space:nowrap">
+                    ⚡ Esegui Ora
+                </button>
+            </form>
+        </div>
+
+        <!-- Official Consolidation -->
+        <div style="background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px">
+            <h4 style="margin:0 0 6px;font-size:14px;color:#4ade80">✅ Consolida Voti Ufficiali Definitivi</h4>
+            <div style="font-size:11.5px;color:var(--muted);margin-bottom:12px">
+                Sostituisce lo stato Provvisorio con Ufficiale Definitivo, congela la giornata come CALCOLATA e consolida le classifiche.
+            </div>
+            <form method="post" style="display:flex;gap:10px;align-items:flex-end" onsubmit="return confirm('Confermi il consolidamento ufficiale definitivo di questa giornata per tutte le leghe?');">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="consolidate_live_sync">
+                <div style="flex:1">
+                    <label style="font-size:11px;font-weight:700;display:block;margin-bottom:4px">Giornata da Chiudere</label>
+                    <select name="target_giornata" style="width:100%;padding:7px 10px;background:#1e2430;border:1px solid rgba(255,255,255,0.12);color:#fff;border-radius:6px;font-size:12px">
+                        {% for n in "x"|rjust:"38" %}
+                        <option value="{{ forloop.counter }}">Giornata {{ forloop.counter }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit" class="btn-super-action" style="padding:8px 14px;background:rgba(34,197,94,0.2);border-color:#22c55e;color:#4ade80;font-weight:700;white-space:nowrap">
+                    ✅ Consolida Definitivo
+                </button>
+            </form>
+        </div>
     </div>
 </div>
 {% endif %}
