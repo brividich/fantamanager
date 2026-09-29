@@ -428,6 +428,11 @@
                 </td>
                 <td style="color:var(--muted);font-size:12px">{{ u.date_joined|date:"d/m/Y H:i" }}</td>
                 <td style="text-align:right">
+                    <button type="button" class="btn-super-action" style="background:rgba(59,130,246,0.2);color:#93c5fd;border:1px solid rgba(59,130,246,0.3);margin-right:4px"
+                        onclick="openSupervisorEditUser({{ u.id }}, '{{ u.username|escapejs }}', '{{ u.email|default:''|escapejs }}', '{{ u.first_name|default:''|escapejs }}', '{{ u.last_name|default:''|escapejs }}', '{% if u.is_superuser %}superadmin{% elif u.is_staff %}staff{% else %}user{% endif %}', {{ u.is_active|lower }}, {% if u == request.user %}true{% else %}false{% endif %})"
+                        title="Modifica anagrafica, email, reset password e ruolo">
+                        ⚙️ Gestisci
+                    </button>
                     {% if u != request.user %}
                     <form method="post" style="display:inline">
                         {% csrf_token %}
@@ -445,8 +450,6 @@
                             {% if u.is_superuser %}Revoca Admin{% else %}Fai Superadmin{% endif %}
                         </button>
                     </form>
-                    {% else %}
-                    <span style="font-size:11px;color:var(--muted);font-weight:700">Il tuo account</span>
                     {% endif %}
                 </td>
             </tr>
@@ -586,7 +589,159 @@
     </div>
 </div>
 
+<!-- Modal Edit User Master (Supervisor) -->
+<div id="modal-supervisor-edit-user" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.75);z-index:999;align-items:center;justify-content:center;overflow-y:auto;padding:20px">
+    <div style="background:var(--panel,#12151c);border:1px solid rgba(255,255,255,0.15);border-radius:14px;padding:24px;width:100%;max-width:540px;margin:40px auto;box-shadow:0 20px 45px rgba(0,0,0,0.6)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <h3 style="margin:0;font-size:18px;display:flex;align-items:center;gap:8px" id="sup-edit-user-title">
+                <span>⚙️</span> Modifica Utente & Credenziali
+            </h3>
+            <button type="button" onclick="document.getElementById('modal-supervisor-edit-user').style.display='none'" style="background:transparent;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1">&times;</button>
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="edit_user">
+            <input type="hidden" name="user_id" id="sup-edit-user-id">
+
+            <!-- Credenziali e Anagrafica -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+                <div>
+                    <label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">Username *</label>
+                    <input type="text" name="username" id="sup-edit-username" required style="width:100%;padding:8px 12px;background:#1e2430;border:1px solid rgba(255,255,255,0.12);color:#fff;border-radius:6px;font-size:13px">
+                </div>
+                <div>
+                    <label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">Email</label>
+                    <input type="email" name="email" id="sup-edit-email" style="width:100%;padding:8px 12px;background:#1e2430;border:1px solid rgba(255,255,255,0.12);color:#fff;border-radius:6px;font-size:13px" placeholder="mario@example.com">
+                </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+                <div>
+                    <label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">Nome</label>
+                    <input type="text" name="first_name" id="sup-edit-firstname" style="width:100%;padding:8px 12px;background:#1e2430;border:1px solid rgba(255,255,255,0.12);color:#fff;border-radius:6px;font-size:13px">
+                </div>
+                <div>
+                    <label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">Cognome</label>
+                    <input type="text" name="last_name" id="sup-edit-lastname" style="width:100%;padding:8px 12px;background:#1e2430;border:1px solid rgba(255,255,255,0.12);color:#fff;border-radius:6px;font-size:13px">
+                </div>
+            </div>
+
+            <!-- Password Reset -->
+            <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:12px;margin-bottom:14px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                    <label style="font-size:12px;font-weight:700;margin:0">🔑 Nuova Password / Reset</label>
+                    <button type="button" class="btn-super-action" style="padding:3px 8px;font-size:11px;background:rgba(59,130,246,0.15);color:#60a5fa" onclick="generateSupervisorPassword()">
+                        ⚡ Genera Casuale
+                    </button>
+                </div>
+                <div style="display:flex;gap:6px">
+                    <input type="text" name="password" id="sup-edit-password" style="width:100%;padding:8px 12px;background:#1e2430;border:1px solid rgba(255,255,255,0.12);color:#fff;border-radius:6px;font-size:13px" placeholder="Lascia vuoto per non cambiare la password" autocomplete="new-password">
+                    <button type="button" id="sup-edit-copy-btn" class="btn-super-action" style="display:none;padding:8px 12px;white-space:nowrap" onclick="copySupPassword()">
+                        📋 Copia
+                    </button>
+                </div>
+                <div style="font-size:11px;color:var(--muted);margin-top:4px">
+                    Se lasci il campo vuoto, la password corrente dell'utente non verrà modificata.
+                </div>
+            </div>
+
+            <!-- Ruolo di Sistema -->
+            <div style="margin-bottom:14px">
+                <label style="font-size:12px;font-weight:700;display:block;margin-bottom:6px">Ruolo Piattaforma</label>
+                <select name="role" id="sup-edit-role" style="width:100%;padding:9px 12px;background:#1e2430;border:1px solid rgba(255,255,255,0.15);color:#fff;border-radius:6px;font-size:13px">
+                    <option value="superadmin">👑 SUPERADMIN (Controllo totale piattaforma e Cockpit)</option>
+                    <option value="staff">🛡️ STAFF (Amministratore tecnico)</option>
+                    <option value="user">⚽ UTENTE / MANAGER REGOLARE</option>
+                </select>
+                <div id="sup-edit-self-warning" style="display:none;font-size:11px;color:#f87171;margin-top:4px">
+                    Stai modificando il tuo account personale: non puoi revocarti il ruolo Superadmin né disattivarti.
+                </div>
+            </div>
+
+            <!-- Assegnazione Proprietà Lega (Opzionale) -->
+            <div style="margin-bottom:14px">
+                <label style="font-size:12px;font-weight:700;display:block;margin-bottom:6px">🏆 Trasferisci / Assegna Presidenza Lega (Opzionale)</label>
+                <select name="assign_owner_league_id" style="width:100%;padding:9px 12px;background:#1e2430;border:1px solid rgba(255,255,255,0.15);color:#fff;border-radius:6px;font-size:13px">
+                    <option value="">-- Nessuna modifica presidenza lega --</option>
+                    {% for lg in leagues %}
+                    <option value="{{ lg.id }}">Imposta come Presidente di: {{ lg.name }} (attuale: {{ lg.owner.username|default:"Nessuno" }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Stato Attivo -->
+            <div style="margin-bottom:18px;background:rgba(255,255,255,0.02);padding:10px 14px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);display:flex;justify-content:space-between;align-items:center">
+                <div>
+                    <div style="font-size:13px;font-weight:700">Account Attivo</div>
+                    <div style="font-size:11px;color:var(--muted)">Se disattivato, l'utente viene bloccato dal login</div>
+                </div>
+                <input type="checkbox" name="is_active" id="sup-edit-is-active" style="transform:scale(1.2);cursor:pointer">
+            </div>
+
+            <!-- Azioni Modal -->
+            <div style="display:flex;justify-content:flex-end;gap:10px;border-top:1px solid rgba(255,255,255,0.08);padding-top:14px">
+                <button type="button" onclick="document.getElementById('modal-supervisor-edit-user').style.display='none'" class="btn-super-action" style="padding:8px 14px">
+                    Annulla
+                </button>
+                <button type="submit" class="btn-super-action" style="background:#2563eb;color:#fff;border:none;padding:8px 18px;font-weight:700">
+                    Salva Modifiche
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
+    function openSupervisorEditUser(id, username, email, firstName, lastName, role, isActive, isSelf) {
+        document.getElementById('sup-edit-user-id').value = id;
+        document.getElementById('sup-edit-username').value = username;
+        document.getElementById('sup-edit-email').value = email;
+        document.getElementById('sup-edit-firstname').value = firstName;
+        document.getElementById('sup-edit-lastname').value = lastName;
+        document.getElementById('sup-edit-password').value = '';
+        document.getElementById('sup-edit-copy-btn').style.display = 'none';
+        document.getElementById('sup-edit-role').value = role;
+        document.getElementById('sup-edit-is-active').checked = isActive;
+        document.getElementById('sup-edit-user-title').innerHTML = `<span>⚙️</span> Modifica Utente · <b>${username}</b>`;
+        
+        const selfWarning = document.getElementById('sup-edit-self-warning');
+        const roleSelect = document.getElementById('sup-edit-role');
+        const activeCheck = document.getElementById('sup-edit-is-active');
+        if (isSelf) {
+            if (selfWarning) selfWarning.style.display = 'block';
+            if (roleSelect) roleSelect.disabled = true;
+            if (activeCheck) activeCheck.disabled = true;
+        } else {
+            if (selfWarning) selfWarning.style.display = 'none';
+            if (roleSelect) roleSelect.disabled = false;
+            if (activeCheck) activeCheck.disabled = false;
+        }
+
+        const m = document.getElementById('modal-supervisor-edit-user');
+        if (m) m.style.display = 'flex';
+    }
+
+    function generateSupervisorPassword() {
+        const chars = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!#';
+        let pwd = '';
+        for (let i = 0; i < 10; i++) {
+            pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        const pInput = document.getElementById('sup-edit-password');
+        const copyBtn = document.getElementById('sup-edit-copy-btn');
+        if (pInput) pInput.value = pwd;
+        if (copyBtn) copyBtn.style.display = 'inline-block';
+    }
+
+    function copySupPassword() {
+        const pInput = document.getElementById('sup-edit-password');
+        if (pInput && pInput.value) {
+            navigator.clipboard.writeText(pInput.value).then(() => {
+                alert('Password copiata negli appunti!');
+            });
+        }
+    }
     const LEAGUE_TEAMS_DATA = {{ league_teams_json|safe }};
     let teamNameManuallyTouched = false;
 

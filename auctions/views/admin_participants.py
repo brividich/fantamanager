@@ -14,6 +14,7 @@ from django.contrib.auth import get_user_model, update_session_auth_hash
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.db import transaction
+from django.db.models import Q
 from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -469,13 +470,18 @@ def can_manage_accounts(user, league):
 
     Stricter than ``user_can_manage_league``: an ownerless legacy league lets
     any logged-in user into its console, but an account is a person's login,
-    not a team setting — only the league's owner or a superuser touch those.
+    not a team setting — only the league's owner, co-admins or a superuser touch those.
     """
     if user is None or not user.is_authenticated:
         return False
     if user.is_superuser:
         return True
-    return league is not None and league.owner_id == user.id
+    if league is not None:
+        if league.owner_id == user.id:
+            return True
+        if hasattr(league, "admins") and league.admins.filter(pk=user.id).exists():
+            return True
+    return False
 
 
 def _is_managed(account):
@@ -485,28 +491,39 @@ def _is_managed(account):
         return False
 
 
-def account_lock_reason(actor, account):
+def account_lock_reason(actor, account, action=None):
     """Why ``actor`` may not change ``account``'s credentials, "" when they may.
 
-    Superusers change any account. A league president changes only an account
-    created from this page (``ManagedAccount``) whose teams are all in leagues
-    they own, and that holds no power of its own: otherwise linking somebody
-    else's login to one of their teams and resetting its password would be a
-    way to take it over.
+    Superusers change any account. A league president or co-admin changes an account
+    participating in their leagues, provided it holds no superadmin status or foreign
+    league presidency.
     """
     if actor.is_superuser:
         return ""
-    if account.pk == actor.pk:
-        return "È il tuo account."
     if account.is_superuser or account.is_staff:
         return "È l'account di un amministratore della piattaforma."
-    if League.objects.filter(owner=account).exists():
-        return "È l'account del presidente di una lega."
+    if account.pk == actor.pk:
+        if action == "manage":
+            return ""
+        return "È il tuo account."
+
+    actor_leagues = League.objects.filter(
+        Q(owner=actor) | Q(admins=actor)
+    ).distinct()
+
+    # If the target account owns any leagues not administered by actor
+    if League.objects.filter(owner=account).exclude(id__in=actor_leagues.values_list("id", flat=True)).exists():
+        return "È l'account del presidente di un'altra lega."
+
+    # If the target account plays in leagues not administered by actor
+    if Participant.objects.filter(user=account).exclude(league__in=actor_leagues).exists():
+        return "Guida anche squadre di leghe che non gestisci."
+
     if not _is_managed(account):
+        if action == "manage":
+            return ""
         return ("L'allenatore se l'è registrato da solo: password, nome utente ed email "
                 "li può cambiare solo il superadmin.")
-    if Participant.objects.filter(user=account).exclude(league__owner=actor).exists():
-        return "Guida anche squadre di leghe che non gestisci."
     return ""
 
 
@@ -642,6 +659,136 @@ def admin_participant_account(request, participant_id):
         p.user = found
         p.save(update_fields=["user"])
         messages.success(request, f"Account «{found.username}» collegato a «{p.display_name}».")
+        return redirect(back)
+
+    if action == "manage":
+        # Handle unlinking directly if requested
+        if request.POST.get("unlink_account") == "1":
+            if account is not None:
+                uname = account.username
+                p.user = None
+                p.save(update_fields=["user"])
+                messages.success(request, f"Account «{uname}» scollegato da «{p.display_name}».")
+            return redirect(back)
+
+        # Team has no account linked yet: create or link
+        if account is None:
+            subaction = request.POST.get("manage_subaction", "")
+            link_uid = request.POST.get("link_user_id")
+            link_ident = (request.POST.get("link_identifier") or "").strip()
+            if subaction == "link" or link_uid or link_ident:
+                found = None
+                if link_uid:
+                    found = User.objects.filter(pk=link_uid).first()
+                elif link_ident:
+                    found = User.objects.filter(username__iexact=link_ident).first()
+                    if found is None and "@" in link_ident:
+                        found = User.objects.filter(email__iexact=link_ident).first()
+                if found is None:
+                    return fail("Nessun account utente valido trovato da collegare.")
+                p.user = found
+                p.save(update_fields=["user"])
+                account = found
+            else:
+                # Create brand-new user
+                username, error = _clean_username(request.POST.get("username"))
+                if error:
+                    return fail(error)
+                email, error = _clean_email(request.POST.get("email"))
+                if error:
+                    return fail(error)
+                password = request.POST.get("password") or ""
+                gen_pwd = (request.POST.get("generate_password") == "1") or not password
+                if gen_pwd and not password:
+                    password = generate_password()
+                elif len(password) < MIN_PASSWORD_LENGTH:
+                    return fail(f"La password deve contenere almeno {MIN_PASSWORD_LENGTH} caratteri.")
+                with transaction.atomic():
+                    account = User.objects.create_user(
+                        username=username,
+                        email=email,
+                        password=password,
+                        first_name=(request.POST.get("first_name") or "").strip()[:150],
+                    )
+                    ManagedAccount.objects.create(user=account, created_by=request.user)
+                    p.user = account
+                    p.save(update_fields=["user"])
+                if gen_pwd:
+                    _remember_secret(request, p, account, password)
+
+        # Verify permissions on this account
+        lock = account_lock_reason(request.user, account, action="manage")
+        if lock:
+            return fail(f"Non puoi modificare l'account «{account.username}». {lock}")
+
+        # Update username
+        req_username = request.POST.get("username")
+        if req_username and req_username.strip() != account.username:
+            new_u, err = _clean_username(req_username, exclude=account)
+            if err:
+                return fail(err)
+            account.username = new_u
+
+        # Update email
+        req_email = request.POST.get("email")
+        if req_email is not None and req_email.strip() != account.email:
+            new_e, err = _clean_email(req_email, exclude=account)
+            if err:
+                return fail(err)
+            account.email = new_e
+
+        # Update first_name
+        req_first_name = request.POST.get("first_name")
+        if req_first_name is not None:
+            account.first_name = req_first_name.strip()[:150]
+
+        # Update is_active
+        req_active = request.POST.get("is_active")
+        if req_active is not None:
+            new_active = (req_active in ("1", "on", "true", True))
+            if account.pk == request.user.pk and not new_active:
+                messages.warning(request, "Non puoi disattivare il tuo stesso account.")
+            else:
+                account.is_active = new_active
+
+        # Reset password if requested or generated
+        new_password = (request.POST.get("password") or "").strip()
+        gen_pwd = request.POST.get("generate_password") == "1"
+        pwd_reset_done = False
+        if gen_pwd and not new_password:
+            new_password = generate_password()
+        if new_password:
+            if len(new_password) < MIN_PASSWORD_LENGTH:
+                return fail(f"La password deve contenere almeno {MIN_PASSWORD_LENGTH} caratteri.")
+            account.set_password(new_password)
+            pwd_reset_done = True
+            if account.pk == request.user.pk:
+                update_session_auth_hash(request, account)
+            if gen_pwd:
+                _remember_secret(request, p, account, new_password)
+
+        account.save()
+
+        # Update League Role
+        league_role = request.POST.get("league_role")
+        if league_role and p.league:
+            if league_role == "owner":
+                if request.user.is_superuser or p.league.owner_id == request.user.id:
+                    p.league.owner = account
+                    p.league.admins.remove(account)
+                    p.league.save(update_fields=["owner"])
+                else:
+                    messages.warning(request, "Solo il presidente attuale o un superadmin può trasferire la presidenza della lega.")
+            elif league_role == "admin":
+                p.league.admins.add(account)
+            elif league_role == "manager":
+                p.league.admins.remove(account)
+                if p.league.owner_id == account.id and (request.user.is_superuser or p.league.owner_id == request.user.id):
+                    p.league.owner = None
+                    p.league.save(update_fields=["owner"])
+
+        pwd_msg = " (password aggiornata)" if pwd_reset_done else ""
+        messages.success(request, f"Dati e ruolo di «{account.username}» aggiornati con successo{pwd_msg}.")
         return redirect(back)
 
     if account is None:

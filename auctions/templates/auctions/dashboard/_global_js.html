@@ -274,6 +274,126 @@
         if (m) m.style.display = 'flex';
     }
 
+    function openManageUserModal(id, name, userId, username, email, firstName, leagueRole, isActive) {
+        const m = document.getElementById('modal-manage-user');
+        const form = document.getElementById('form-manage-user');
+        const title = document.getElementById('manage-user-modal-title');
+        const sub = document.getElementById('manage-user-modal-subtitle');
+        const unlinkedBox = document.getElementById('manage-unlinked-box');
+        const linkGroup = document.getElementById('manage-link-existing-group');
+        const accountFields = document.getElementById('manage-account-fields-group');
+        const unlinkGroup = document.getElementById('manage-unlink-group');
+        const activeGroup = document.getElementById('manage-active-group');
+        const uInput = document.getElementById('manage-user-username');
+        const eInput = document.getElementById('manage-user-email');
+        const fInput = document.getElementById('manage-user-firstname');
+        const pInput = document.getElementById('manage-user-password');
+        const copyBtn = document.getElementById('btn-copy-manage-pwd');
+        const genPwdInput = document.getElementById('manage-user-gen-pwd');
+        const unlinkInput = document.getElementById('manage-user-unlink');
+        const subactionInput = document.getElementById('manage-user-subaction');
+        const activeInput = document.getElementById('manage-user-active');
+        const hint = document.getElementById('manage-pwd-hint');
+
+        if (form) form.action = `/dashboard/team/${id}/account/`;
+        if (title) title.textContent = `👤 Gestione Utente & Ruolo · ${name}`;
+        if (pInput) pInput.value = '';
+        if (copyBtn) copyBtn.style.display = 'none';
+        if (genPwdInput) genPwdInput.value = '0';
+        if (unlinkInput) unlinkInput.value = '0';
+
+        const hasAccount = !!userId && userId !== '';
+
+        if (hasAccount) {
+            if (sub) sub.textContent = `Modifica anagrafica, email, password e permessi di ${username}.`;
+            if (unlinkedBox) unlinkedBox.style.display = 'none';
+            if (linkGroup) linkGroup.style.display = 'none';
+            if (accountFields) accountFields.style.display = 'flex';
+            if (unlinkGroup) unlinkGroup.style.display = 'flex';
+            if (activeGroup) activeGroup.style.display = 'flex';
+            if (uInput) { uInput.value = username || ''; uInput.required = true; }
+            if (eInput) eInput.value = email || '';
+            if (fInput) fInput.value = firstName || '';
+            if (activeInput) activeInput.checked = (isActive !== false && isActive !== 'false');
+            if (subactionInput) subactionInput.value = 'edit';
+            if (hint) hint.textContent = 'Minimo 4 caratteri. Se lasci vuoto, la password corrente rimarrà invariata.';
+        } else {
+            if (sub) sub.textContent = `Nessun account collegato a ${name}. Crea un nuovo login o collegagliene uno esistente.`;
+            if (unlinkedBox) unlinkedBox.style.display = 'block';
+            if (unlinkGroup) unlinkGroup.style.display = 'none';
+            if (activeGroup) activeGroup.style.display = 'none';
+            if (uInput) { uInput.value = ''; uInput.required = true; }
+            if (eInput) eInput.value = '';
+            if (fInput) fInput.value = '';
+            if (activeInput) activeInput.checked = true;
+            if (hint) hint.textContent = 'Se lasci vuoto, verrà generata automaticamente una password casuale sicura.';
+            toggleManageUnlinkedMode('create');
+        }
+
+        const rOwner = document.getElementById('manage-role-owner');
+        const rAdmin = document.getElementById('manage-role-admin');
+        const rManager = document.getElementById('manage-role-manager');
+        if (rOwner && rAdmin && rManager) {
+            if (leagueRole === 'owner') rOwner.checked = true;
+            else if (leagueRole === 'admin') rAdmin.checked = true;
+            else rManager.checked = true;
+        }
+
+        if (m) m.style.display = 'flex';
+    }
+
+    function toggleManageUnlinkedMode(mode) {
+        const linkGroup = document.getElementById('manage-link-existing-group');
+        const accountFields = document.getElementById('manage-account-fields-group');
+        const uInput = document.getElementById('manage-user-username');
+        const subactionInput = document.getElementById('manage-user-subaction');
+        if (mode === 'link') {
+            if (linkGroup) linkGroup.style.display = 'block';
+            if (accountFields) accountFields.style.display = 'none';
+            if (uInput) uInput.required = false;
+            if (subactionInput) subactionInput.value = 'link';
+        } else {
+            if (linkGroup) linkGroup.style.display = 'none';
+            if (accountFields) accountFields.style.display = 'flex';
+            if (uInput) uInput.required = true;
+            if (subactionInput) subactionInput.value = 'create';
+        }
+    }
+
+    function generateRandomPasswordForManage() {
+        const chars = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!#';
+        let pwd = '';
+        for (let i = 0; i < 10; i++) {
+            pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        const pInput = document.getElementById('manage-user-password');
+        const copyBtn = document.getElementById('btn-copy-manage-pwd');
+        const genPwdInput = document.getElementById('manage-user-gen-pwd');
+        if (pInput) {
+            pInput.type = 'text';
+            pInput.value = pwd;
+        }
+        if (copyBtn) copyBtn.style.display = 'inline-block';
+        if (genPwdInput) genPwdInput.value = '1';
+    }
+
+    function copyManagePassword() {
+        const pInput = document.getElementById('manage-user-password');
+        if (pInput && pInput.value) {
+            copyToClipboard(pInput.value, 'Password copiata negli appunti!');
+        }
+    }
+
+    function unlinkAccountFromManage() {
+        if (!confirm('Sei sicuro di voler scollegare questo account dalla squadra?')) return;
+        const unlinkInput = document.getElementById('manage-user-unlink');
+        const form = document.getElementById('form-manage-user');
+        if (unlinkInput && form) {
+            unlinkInput.value = '1';
+            form.submit();
+        }
+    }
+
     async function quickReleasePlayer(playerId, playerName) {
         if (!confirm(`Svincolare ${playerName}? I crediti verranno rimborsati secondo il regolamento di lega.`)) return;
         try {
