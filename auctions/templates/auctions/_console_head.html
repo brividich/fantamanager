@@ -44,9 +44,9 @@ button) and everything else opens as a full-screen menu: ``.fm-chrome`` is
 
     <div class="fm-topbar-meta">
         <!-- Engine Status Indicator -->
-        <div class="fm-engine-pill" title="Motore locale Daphne ASGI attivo su porta 8001">
+        <div class="fm-engine-pill" title="Server Daphne ASGI attivo su {{ request.get_host }}">
             <span class="engine-dot"></span>
-            <span>ASGI 8001</span>
+            <span>ASGI LIVE</span>
         </div>
 
         {# Same league, other half of the product: the app's Regia (phone-sized). #}
@@ -183,3 +183,5 @@ document.addEventListener("keydown", function (e) {
     if (e.key === "Escape" && document.documentElement.classList.contains("fm-menu-open")) fmToggleMenu(false);
 });
 </script>
+
+{% include "auctions/dashboard/_home_cmd_palette.html" %}
