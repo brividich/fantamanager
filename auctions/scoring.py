@@ -34,6 +34,12 @@ DEFAULTS = {
     "modificatore_difesa": False,
     # media (portiere + migliori 3 difensori) → bonus, applicata solo se attiva.
     "modif_table": [(6.5, 3), (6.0, 1)],
+    # Regola Capitano: personalizzabile (on/off, soglie e valori bonus/malus)
+    "captain_enabled":         True,
+    "captain_bonus_threshold": 6.5,
+    "captain_bonus_value":     0.5,
+    "captain_malus_threshold": 5.5,
+    "captain_malus_value":    -0.5,
 }
 
 
@@ -72,11 +78,16 @@ def player_fantavoto(perf, role, rules):
         total += _d(r["goal_conceded"]) * conceded
         if r.get("clean_sheet") and conceded == 0:
             total += _d(r["clean_sheet"])
-    if perf.get("is_captain"):
-        if _d(vote) >= Decimal("6.5"):
-            total += Decimal("0.5")
-        elif _d(vote) <= Decimal("5.5"):
-            total -= Decimal("0.5")
+    if perf.get("is_captain") and r.get("captain_enabled", True):
+        v = _d(vote)
+        b_thresh = _d(r.get("captain_bonus_threshold", 6.5))
+        b_val    = _d(r.get("captain_bonus_value", 0.5))
+        m_thresh = _d(r.get("captain_malus_threshold", 5.5))
+        m_val    = _d(r.get("captain_malus_value", -0.5))
+        if v >= b_thresh:
+            total += b_val
+        elif v <= m_thresh:
+            total += m_val
     return total, True
 
 
