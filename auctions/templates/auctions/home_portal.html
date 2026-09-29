@@ -514,7 +514,7 @@
         <div class="hp-meta">
             <div class="hp-status-chip">
                 <span class="hp-pulse-green"></span>
-                <span>Server Locale Attivo · Porta 8001</span>
+                <span>Server Locale Attivo ({{ request.get_host }})</span>
             </div>
             {% if current_league %}
             <div class="hp-status-chip">
@@ -721,7 +721,7 @@
     <footer class="hp-footbar">
         <div class="foot-left">
             <span><b>FantaManager Studio Core</b> · Esecuzione Standalone locale</span> · 
-            <span>Rete Locale: <b>http://localhost:8001/</b></span>
+            <span>Rete Locale: <b>http://{{ request.get_host }}/</b></span>
         </div>
         <div class="foot-right">
             {% if request.user.is_superuser %}
