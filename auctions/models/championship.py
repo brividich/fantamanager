@@ -40,6 +40,35 @@ class Season(models.Model):
         return f"{self.name} ({self.league_id})"
 
 
+class Competition(models.Model):
+    """A specific tournament or championship within a Season.
+    Supports classic 1vs1 round robin, total points (formula 1),
+    Battle Royale, knockout cup brackets, groups + playoffs,
+    Apertura/Clausura splits, and Supercoppa.
+    """
+    class Type(models.TextChoices):
+        ROUND_ROBIN     = "ROUND_ROBIN",     "Campionato (Scontri Diretti 1vs1)"
+        TOTAL_POINTS    = "TOTAL_POINTS",    "Gran Premio (Somma Punti)"
+        BATTLE_ROYALE   = "BATTLE_ROYALE",   "Battle Royale (Tutti contro Tutti)"
+        KNOCKOUT        = "KNOCKOUT",        "Coppa a Eliminazione (Tabellone)"
+        GROUPS_KNOCKOUT = "GROUPS_KNOCKOUT", "Coppa a Gironi + Fase Finale"
+        SEASON_SPLIT    = "SEASON_SPLIT",    "Torneo a Fasi (Apertura / Clausura)"
+        SUPERCOPPA      = "SUPERCOPPA",      "Supercoppa di Lega (Sfida Secca)"
+
+    season     = models.ForeignKey(Season, on_delete=models.CASCADE, related_name="competitions")
+    name       = models.CharField(max_length=120)
+    kind       = models.CharField(max_length=20, choices=Type.choices, default=Type.ROUND_ROBIN)
+    is_active  = models.BooleanField(default=True)
+    settings   = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["id"]
+
+    def __str__(self):
+        return f"{self.name} ({self.get_kind_display()})"
+
+
 class Giornata(models.Model):
     """One matchday. Lineups are editable while OPEN; LOCKED freezes them (voti
     get entered); SCORED means scores + fixtures have been computed."""
@@ -125,6 +154,10 @@ class Fixture(models.Model):
     each side's GiornataScore.goals; points are 3/1/0. A bye (odd team count)
     is a fixture with ``away`` null."""
     giornata    = models.ForeignKey(Giornata, on_delete=models.CASCADE, related_name="fixtures")
+    competition = models.ForeignKey(
+        Competition, null=True, blank=True, on_delete=models.CASCADE, related_name="fixtures"
+    )
+    stage       = models.CharField(max_length=60, blank=True)
     home        = models.ForeignKey("Participant", on_delete=models.CASCADE, related_name="home_fixtures")
     away        = models.ForeignKey("Participant", null=True, blank=True,
                                     on_delete=models.CASCADE, related_name="away_fixtures")
