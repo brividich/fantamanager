@@ -15,6 +15,9 @@ of a market's content is on this page: every item opens its own screen.
 {% if current_league %}
 <a class="fm-btn fm-btn-secondary" href="{% url 'app_regia' %}?league={{ current_league.id }}" title="La stessa lega nell'app, come la vedono le squadre">
     <svg class="ic"><use href="#i-shirt"/></svg> Apri nell'app</a>
+{# Always at hand: trades open all season would otherwise hide the only way to open a market. #}
+<a class="fm-btn fm-btn-primary" href="{% url 'admin_market_buste' %}?league={{ current_league.id }}&new=1" title="Una nuova sessione a buste, solo per {{ current_league.name }}">
+    <svg class="ic"><use href="#i-plus"/></svg> Nuovo mercato a buste</a>
 {% endif %}
 {% endblock %}
 

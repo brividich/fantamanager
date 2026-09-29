@@ -14,7 +14,7 @@ from django.urls import reverse
 from .. import throttle
 
 from ..models import Auction, League, Participant
-from .common import SESSION_LEAGUE_KEY, _session_participant, safe_next, target_league
+from .common import SESSION_LEAGUE_KEY, _session_participant, manageable_leagues, safe_next, target_league
 
 logger = logging.getLogger(__name__)
 
@@ -41,9 +41,8 @@ def portal_view(request):
         if request.user.is_superuser:
             return redirect("supervisor_dashboard")
 
-        # Check if user owns leagues (Admin / Regia)
-        owned_leagues = League.objects.filter(owner=request.user)
-        if owned_leagues.exists():
+        # Check if user runs leagues, as owner or co-admin (Admin / Regia)
+        if manageable_leagues(request.user).exists():
             if is_mobile:
                 return redirect("app_regia")
             return redirect("dashboard")

@@ -34,6 +34,7 @@ from .common import (
     staff_member_required,
     target_league,
     user_can_manage,
+    manageable_leagues,
     user_can_manage_league,
 )
 
@@ -67,7 +68,7 @@ def admin_dashboard(request, league_id=None, hub=False, auction_id=None):
     user = request.user
 
     if not user.is_superuser:
-        owned_leagues = list(League.objects.filter(owner=user))
+        owned_leagues = list(manageable_leagues(user))
         if not owned_leagues:
             if Participant.objects.filter(user=user, is_active=True).exists():
                 return redirect("app_home")
@@ -84,7 +85,7 @@ def admin_dashboard(request, league_id=None, hub=False, auction_id=None):
 
     if check_league_id is not None and not hub:
         req_lg = League.objects.filter(pk=check_league_id).first()
-        if req_lg and not user.is_superuser and req_lg.owner_id != user.id:
+        if req_lg and not user_can_manage_league(user, req_lg):
             return HttpResponseForbidden("Non hai i permessi per accedere a questa lega.")
 
     # Clean URL redirect for legacy /admin-auction/?league=X (when not a test ?home=1 query)
@@ -98,12 +99,12 @@ def admin_dashboard(request, league_id=None, hub=False, auction_id=None):
         current_league = None
     elif league_id is not None:
         current_league = get_object_or_404(League, pk=league_id)
-        if not user.is_superuser and current_league.owner_id != user.id:
+        if not user_can_manage_league(user, current_league):
             return HttpResponseForbidden("Non hai i permessi per accedere a questa lega.")
         request.session[SESSION_LEAGUE_KEY] = current_league.id
     else:
         current_league = target_league(request)
-        if current_league and not user.is_superuser and current_league.owner_id != user.id:
+        if current_league and not user_can_manage_league(user, current_league):
             return HttpResponseForbidden("Non hai i permessi per gestire questa lega.")
 
     selected_id = auction_id or request.GET.get("auction")
@@ -115,7 +116,7 @@ def admin_dashboard(request, league_id=None, hub=False, auction_id=None):
         selected = get_object_or_404(Auction, pk=selected_id)
         current_league = selected.league
         if not user.is_superuser:
-            if current_league is None or current_league.owner_id != user.id:
+            if not user_can_manage_league(user, current_league):
                 return HttpResponseForbidden("Non hai i permessi per gestire le aste di questa lega.")
         if current_league is not None:
             request.session[SESSION_LEAGUE_KEY] = current_league.id
