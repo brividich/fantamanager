@@ -283,25 +283,77 @@ def app_mercato(request):
     active_auc = ctx.get("active_auction")
     refund_mode = active_auc.release_refund_mode if active_auc else "purchase"
 
-    # Market session (buste di riparazione): the open one, else the latest
-    # closed/resolved one so the manager can read how their envelopes went.
+    # Market sessions
     services.sync_market_schedule(league)
-    sessions = MarketSession.objects.filter(league=league).exclude(status=MarketSession.Status.DRAFT)
-    market_session = (
-        sessions.filter(status=MarketSession.Status.OPEN).first()
-        or sessions.order_by("-updated_at").first()
-    )
+    sessions_qs = MarketSession.objects.filter(league=league).exclude(status=MarketSession.Status.DRAFT) if league else MarketSession.objects.none()
+    
+    # Session selection
+    requested_session_id = request.GET.get("session_id")
+    market_session = None
+    if requested_session_id:
+        try:
+            market_session = sessions_qs.filter(id=int(requested_session_id)).first()
+        except (ValueError, TypeError):
+            market_session = None
+    if not market_session:
+        market_session = (
+            sessions_qs.filter(status=MarketSession.Status.OPEN).first()
+            or sessions_qs.order_by("-updated_at").first()
+        )
+
+    # Build detailed sessions list for the hub
+    sessions_list = []
+    status_order = {MarketSession.Status.OPEN: 0, MarketSession.Status.CLOSED: 1, MarketSession.Status.RESOLVED: 2}
+    for s in sessions_qs:
+        s_bids = services.get_participant_market_bids(s.id, participant.id)
+        s_bids_count = len(s_bids)
+        s_bids_total = sum(b["amount"] for b in s_bids)
+        s_won_count = sum(1 for b in s_bids if b["status"] == MarketBid.Status.WON)
+        sessions_list.append({
+            "session": s,
+            "id": s.id,
+            "title": s.title,
+            "status": s.status,
+            "status_display": s.get_status_display(),
+            "is_open": s.is_open,
+            "closes_at": s.closes_at,
+            "opens_at": s.opens_at,
+            "bids_count": s_bids_count,
+            "bids_total": s_bids_total,
+            "won_count": s_won_count,
+            "max_bids": s.max_bids,
+            "budget_rule": s.budget_rule,
+            "tie_break": s.tie_break,
+            "allow_conditional_release": s.allow_conditional_release,
+            "require_same_role_release": s.require_same_role_release,
+            "is_selected": bool(market_session and s.id == market_session.id),
+            "max_acquisitions_p": s.max_acquisitions_p,
+            "max_acquisitions_d": s.max_acquisitions_d,
+            "max_acquisitions_c": s.max_acquisitions_c,
+            "max_acquisitions_a": s.max_acquisitions_a,
+        })
+    sessions_list.sort(key=lambda item: (status_order.get(item["status"], 3), -(item["closes_at"].timestamp() if item["closes_at"] else 0)))
+    active_sessions = [s for s in sessions_list if s["is_open"]]
+    past_sessions = [s for s in sessions_list if not s["is_open"]]
+
     market_open = bool(market_session and market_session.is_open)
     my_bids = []
     if market_session:
         my_bids = services.get_participant_market_bids(market_session.id, participant.id)
         for rp in my_roster:
             rp.market_refund = int(services.market_release_refund(market_session, rp))
-    my_bid_player_ids = {b["player_id"] for b in my_bids}
+    my_bid_player_ids = {b["player_id"]: b for b in my_bids}
     my_bids_total = sum(b["amount"] for b in my_bids)
     bids_left = None
     if market_session and market_session.max_bids:
         bids_left = max(0, market_session.max_bids - len(my_bids))
+
+    # Initial view: hub or workspace
+    has_active_query = bool(requested_session_id or q or role or in_budget or request.GET.get("page") or request.GET.get("sort") != "-quota" or request.GET.get("view") == "workspace")
+    initial_view = "workspace" if has_active_query else "hub"
+
+    active_auc = ctx.get("active_auction")
+    active_markets_count = len(active_sessions) + (1 if (league and league.trades_enabled) else 0) + (1 if active_auc else 0)
 
     ctx.update({
         "free_agents": page.object_list,
@@ -313,6 +365,11 @@ def app_mercato(request):
         "cap": _cap_ctx(participant),
         "my_roster": my_roster,
         "market_session": market_session,
+        "sessions_list": sessions_list,
+        "active_sessions": active_sessions,
+        "past_sessions": past_sessions,
+        "active_markets_count": active_markets_count,
+        "initial_view": initial_view,
         "market_open": market_open,
         "my_bids": my_bids,
         "my_bid_player_ids": my_bid_player_ids,

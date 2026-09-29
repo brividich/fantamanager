@@ -1,8 +1,203 @@
 {% extends "auctions/app_base.html" %}
-{% block title %}Mercato & Buste — FantaManager{% endblock %}
+{% block title %}Mercato & Sessioni — FantaManager{% endblock %}
 {% block mainclass %}fit{% endblock %}
 {% block app %}
 <style>
+    /* ==========================================================================
+       MERCATO HUB & WORKSPACE DESIGN SYSTEM (Mobile-first, Premium App Aesthetic)
+       ========================================================================== */
+
+    /* Top Breadcrumb & Switcher */
+    .merc-top-bar {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 12px; margin-bottom: 14px; flex-wrap: wrap;
+    }
+    .merc-title-group h1 {
+        font-family: var(--display); font-weight: 900; font-size: 24px;
+        text-transform: uppercase; letter-spacing: .02em; margin: 0; line-height: 1.1;
+    }
+    .merc-title-group p {
+        font-size: 12px; color: var(--muted); font-weight: 600; margin: 3px 0 0;
+    }
+
+    .merc-view-toggle {
+        display: inline-flex; background: var(--panel-2); border: 1px solid var(--line);
+        border-radius: 12px; padding: 3px; gap: 3px;
+    }
+    .merc-toggle-btn {
+        padding: 6px 12px; border-radius: 9px; font-size: 11.5px; font-weight: 800;
+        border: none; background: none; color: var(--muted); cursor: pointer;
+        display: inline-flex; align-items: center; gap: 6px; transition: all .15s ease;
+        text-decoration: none;
+    }
+    .merc-toggle-btn.active {
+        background: var(--accent); color: #0a1108; box-shadow: 0 2px 8px -2px var(--accent-glow);
+    }
+    .merc-toggle-btn .badge-pill {
+        padding: 2px 6px; border-radius: 10px; font-size: 10px; font-weight: 900;
+        background: rgba(0,0,0,.15);
+    }
+    .merc-toggle-btn.active .badge-pill {
+        background: rgba(10,17,8,.2); color: #0a1108;
+    }
+
+    /* Status Pills */
+    .status-pill {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 800;
+        text-transform: uppercase; letter-spacing: .04em;
+    }
+    .status-open {
+        background: rgba(0, 229, 153, 0.15); color: #00e599; border: 1px solid rgba(0, 229, 153, 0.35);
+    }
+    .status-open::before {
+        content: ""; width: 7px; height: 7px; border-radius: 50%;
+        background: #00e599; box-shadow: 0 0 8px #00e599;
+        animation: pulse-dot 1.8s infinite;
+    }
+    .status-closed {
+        background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.35);
+    }
+    .status-closed::before {
+        content: ""; width: 7px; height: 7px; border-radius: 50%; background: #f59e0b;
+    }
+    .status-resolved {
+        background: rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.35);
+    }
+    .status-live {
+        background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.4);
+    }
+    .status-live::before {
+        content: ""; width: 7px; height: 7px; border-radius: 50%;
+        background: #ef4444; box-shadow: 0 0 8px #ef4444;
+        animation: pulse-dot 1.2s infinite;
+    }
+    @keyframes pulse-dot {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: .4; transform: scale(1.3); }
+    }
+
+    /* ---- HUB VIEW (PANORAMICA MERCATI ATTIVI) ---- */
+    .hub-section-title {
+        display: flex; align-items: center; justify-content: space-between;
+        margin: 16px 0 10px; font-family: var(--display); font-weight: 900;
+        font-size: 15px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink);
+    }
+    .hub-section-title small {
+        font-family: var(--sans); font-size: 11.5px; font-weight: 700; color: var(--muted); text-transform: none;
+    }
+
+    .markets-grid {
+        display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 14px; margin-bottom: 20px;
+    }
+
+    .market-card {
+        background: var(--panel-2); border: 1px solid var(--line); border-radius: 16px;
+        padding: 16px; display: flex; flex-direction: column; justify-content: space-between;
+        transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
+        position: relative; overflow: hidden;
+    }
+    .market-card:hover {
+        border-color: rgba(255,255,255,.2);
+        box-shadow: 0 8px 24px -6px rgba(0,0,0,.45);
+        transform: translateY(-2px);
+    }
+    .market-card.highlight {
+        background: linear-gradient(145deg, rgba(8, 124, 240, 0.12), rgba(0, 229, 153, 0.08));
+        border-color: rgba(0, 229, 153, 0.35);
+    }
+
+    .mc-header {
+        display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 10px;
+    }
+    .mc-title {
+        font-family: var(--display); font-weight: 900; font-size: 18px; color: var(--ink); line-height: 1.15;
+    }
+    .mc-type {
+        font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em;
+        color: var(--muted); margin-bottom: 3px; display: flex; align-items: center; gap: 6px;
+    }
+    .mc-desc {
+        font-size: 12.5px; color: var(--muted); line-height: 1.4; margin-bottom: 14px;
+    }
+    .mc-meta-chips {
+        display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px;
+    }
+    .mc-chip {
+        padding: 4px 8px; border-radius: 8px; font-size: 11px; font-weight: 700;
+        background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08); color: var(--ink);
+    }
+    .mc-chip.active-bids {
+        background: rgba(0, 229, 153, 0.15); color: #00e599; border-color: rgba(0, 229, 153, 0.3);
+    }
+
+    .mc-action {
+        display: flex; align-items: center; justify-content: space-between; gap: 10px;
+        padding-top: 12px; border-top: 1px solid var(--line);
+    }
+    .mc-action-btn {
+        width: 100%; padding: 10px 14px; border-radius: 10px; font-weight: 800; font-size: 13px;
+        border: none; cursor: pointer; text-align: center; text-decoration: none;
+        display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+        background: var(--panel-3, rgba(255,255,255,.08)); color: var(--ink);
+        transition: all .15s ease;
+    }
+    .mc-action-btn:hover {
+        background: var(--accent); color: #0a1108;
+    }
+    .mc-action-btn.primary {
+        background: var(--accent); color: #0a1108;
+    }
+    .mc-action-btn.primary:hover {
+        opacity: .92; box-shadow: 0 4px 14px -2px var(--accent-glow);
+    }
+
+    /* ---- WORKSPACE VIEW (IL MERCATO SELEZIONATO) ---- */
+    .workspace-top-bar {
+        display: flex; align-items: center; justify-content: space-between; gap: 10px;
+        background: var(--panel-2); border: 1px solid var(--line); border-radius: 14px;
+        padding: 12px 14px; margin-bottom: 12px; flex-wrap: wrap;
+    }
+    .ws-nav-left {
+        display: flex; align-items: center; gap: 10px; min-width: 0;
+    }
+    .ws-back-btn {
+        padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 800;
+        background: rgba(255,255,255,.08); color: var(--ink); border: 1px solid var(--line);
+        cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;
+    }
+    .ws-back-btn:hover { background: rgba(255,255,255,.14); }
+    .ws-title {
+        font-family: var(--display); font-weight: 900; font-size: 16px; color: var(--ink);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .ws-stats {
+        display: flex; align-items: center; gap: 12px; font-size: 12px; font-weight: 700; color: var(--muted);
+    }
+    .ws-stats b { color: var(--ink); }
+
+    /* Segmented Navigation in Workspace */
+    .ws-tabs {
+        display: flex; gap: 6px; margin-bottom: 14px; overflow-x: auto; padding-bottom: 2px;
+    }
+    .ws-tab-btn {
+        flex: 1; min-width: 120px; padding: 10px 14px; border-radius: 10px; font-size: 13px; font-weight: 800;
+        background: var(--panel-2); border: 1px solid var(--line); color: var(--muted);
+        cursor: pointer; text-align: center; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+        transition: all .12s ease;
+    }
+    .ws-tab-btn.active {
+        background: rgba(255,255,255,.1); color: var(--ink); border-color: rgba(255,255,255,.25);
+    }
+    .ws-tab-btn .tab-count {
+        padding: 2px 7px; border-radius: 99px; font-size: 11px; background: rgba(255,255,255,.1); color: var(--ink);
+    }
+    .ws-tab-btn.active .tab-count {
+        background: var(--accent); color: #0a1108;
+    }
+
+    /* Filters row */
     .market-filters { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
     .search-row { display: flex; gap: 8px; }
     .search-input {
@@ -19,55 +214,52 @@
         transition: all .12s;
     }
     .role-chip.on { background: var(--accent); color: #0a1108; border-color: var(--accent); }
+    .role-chip.r-P.on { background: #f59e0b; border-color: #f59e0b; color: #000; }
+    .role-chip.r-D.on { background: #10b981; border-color: #10b981; color: #000; }
+    .role-chip.r-C.on { background: #3b82f6; border-color: #3b82f6; color: #fff; }
+    .role-chip.r-A.on { background: #ef4444; border-color: #ef4444; color: #fff; }
+
+    /* Free agents list */
+    .fa-card { margin-bottom: 14px; }
     .free-agent-row {
         padding: 10px 14px; border-bottom: 1px solid var(--line);
         display: flex; align-items: center; justify-content: space-between; gap: 10px;
+        transition: background .12s ease;
     }
     .free-agent-row:last-child { border-bottom: none; }
+    .free-agent-row:hover { background: rgba(255,255,255,.02); }
     .fa-main { display: flex; align-items: center; gap: 10px; min-width: 0; }
     .fa-meta { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
     .fa-name { font-weight: 800; font-size: 14px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .fa-sub { font-size: 11.5px; color: var(--muted); font-weight: 600; }
     .fa-quota { font-family: var(--display); font-weight: 900; font-size: 15px; color: var(--ink); text-align: right; white-space: nowrap; }
     .fa-quota small { font-size: 11px; color: var(--muted); font-weight: 600; }
-    .fa-main .role-badge { flex-shrink: 0; }
-    .fa-offer { padding: 6px 10px; font-size: 11px; letter-spacing: .04em; flex-shrink: 0; }
-
-    /* Market session card */
-    .market-banner {
-        background: linear-gradient(135deg, rgba(8,124,240,.18), rgba(0,229,153,.12));
-        border: 1px solid rgba(8,124,240,.35); border-radius: 14px; padding: 14px; margin-bottom: 14px;
+    .fa-offer-btn {
+        padding: 7px 14px; font-size: 12px; font-weight: 800; border-radius: 8px;
+        border: none; cursor: pointer; flex-shrink: 0; background: var(--accent); color: #0a1108;
+        transition: opacity .12s ease;
     }
-    .mb-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    .mb-title { font-family: var(--display); font-weight: 900; font-size: 17px; color: var(--ink); }
-    .mb-badge {
-        padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 800;
-        background: var(--accent); color: #0a1108; text-transform: uppercase;
-    }
-    .mb-meta { font-size: 12px; color: var(--muted); margin-top: 4px; line-height: 1.4; }
-    .mb-rules {
-        display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; padding-top: 8px;
-        border-top: 1px dashed rgba(255,255,255,.1); font-size: 11.5px; color: var(--ink);
-    }
+    .fa-offer-btn:hover { opacity: .9; }
+    .fa-offer-btn.modify { background: rgba(59, 130, 246, 0.2); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.4); }
 
     /* Bids list */
     .bids-card { margin-bottom: 14px; }
     .bid-row {
-        padding: 10px 14px; border-bottom: 1px solid var(--line);
-        display: flex; align-items: center; justify-content: space-between; gap: 8px;
+        padding: 12px 14px; border-bottom: 1px solid var(--line);
+        display: flex; align-items: center; justify-content: space-between; gap: 10px;
     }
     .bid-row:last-child { border-bottom: none; }
     .bid-prio {
-        width: 22px; height: 22px; border-radius: 6px; background: rgba(255,255,255,.08);
-        display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800;
+        width: 24px; height: 24px; border-radius: 6px; background: rgba(255,255,255,.08);
+        display: flex; align-items: center; justify-content: center; font-size: 11.5px; font-weight: 900;
     }
     .bid-del-btn {
         background: none; border: 1px solid rgba(239,68,68,.3); color: #ef4444; border-radius: 6px;
-        padding: 4px 8px; font-size: 11px; font-weight: 700; cursor: pointer;
+        padding: 5px 10px; font-size: 11px; font-weight: 700; cursor: pointer;
     }
     .bid-del-btn:hover { background: rgba(239,68,68,.15); }
 
-    /* Bid modal */
+    /* Modal */
     .modal-overlay {
         position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.75);
         display: flex; align-items: flex-end; justify-content: center;
@@ -94,258 +286,518 @@
     }
     .btn-submit { background: var(--accent); color: #0a1108; }
     .btn-cancel { background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); }
-    .merc-grid { display: flex; flex-direction: column; gap: 14px; }
-    .merc-side > * + *, .merc-main > * + * { margin-top: 12px; }
-    @media (min-width: 1000px) {
-        .merc-grid { display: grid; grid-template-columns: minmax(320px, 400px) minmax(0, 1fr); gap: 18px; }
-        .merc-side { min-height: 0; overflow-y: auto; padding-right: 4px; }
-        .merc-main { min-height: 0; display: flex; flex-direction: column; }
-        .merc-main .fa-card { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-        .merc-main .fa-card .fa-list { flex: 1; min-height: 0; overflow-y: auto; }
-        .merc-side .a-cta, .merc-side .market-banner, .merc-side .bids-card, .merc-side .slot-strip { margin-bottom: 0 !important; }
-        .merc-main .market-filters { margin-bottom: 0; }
-        .merc-main nav.search-row { margin: 0 !important; }
-        .merc-main .free-agent-row { padding: 6px 14px; }
-        .merc-main .market-filters { gap: 8px; }
+
+    /* Responsive adjustments */
+    @media (min-width: 640px) {
+        .modal-overlay { align-items: center; }
+        .modal-sheet { border-radius: 20px; transform: scale(.95); transition: transform .2s ease-out; }
+        .modal-overlay.open .modal-sheet { transform: scale(1); }
     }
 </style>
 
-<div class="tab-head">
-    <h1>Mercato & Buste</h1>
-    <p>Calciatori liberi e mercato di riparazione · <b>{{ participant.remaining_credits|floatformat:0 }} FM</b> disponibili</p>
-</div>
-<div class="merc-grid fit-body">
-<div class="merc-side">
+<!-- =========================================================================
+     TOP BAR: HEADER & VIEW TOGGLE
+     ========================================================================= -->
+<div class="merc-top-bar">
+    <div class="merc-title-group">
+        <h1>Mercato & Trattative</h1>
+        <p>{{ league.name }} · <b>{{ participant.remaining_credits|floatformat:0 }} FM</b> disponibili · Rosa: <b>{{ my_roster|length }}</b> calciatori</p>
+    </div>
 
-{% if active_auction %}
-<a class="a-cta" href="{% url 'bid' active_auction.id %}" style="margin-bottom:14px">
-    <svg class="ic"><use href="#i-gavel"/></svg>
-    <span class="t">
-        <b>Asta live in corso: {{ active_auction.title }}</b>
-        <span>Entra nella sala d'asta per rilanciare</span>
-    </span>
-    <span class="go">›</span>
-</a>
-{% endif %}
+    <!-- Toggle tra Panoramica Mercati e Spazio Operativo -->
+    <div class="merc-view-toggle">
+        <button type="button" class="merc-toggle-btn {% if initial_view == 'hub' %}active{% endif %}" id="btn-show-hub" onclick="switchMainView('hub')">
+            <span>⚡ Mercati</span>
+            <span class="badge-pill">{{ active_markets_count }}</span>
+        </button>
+        {% if market_session %}
+        <button type="button" class="merc-toggle-btn {% if initial_view == 'workspace' %}active{% endif %}" id="btn-show-workspace" onclick="switchMainView('workspace')">
+            <span>🎯 {{ market_session.title|truncatechars:18 }}</span>
+            {% if my_bids %}<span class="badge-pill">{{ my_bids|length }}</span>{% endif %}
+        </button>
+        {% endif %}
+    </div>
+</div>
 
 {% include "auctions/_slot_strip.html" %}
-{% if cap and cap.extra_open %}
-<form method="post" action="{% url 'app_extra_cap' %}" class="a-card" style="display:flex;gap:8px;align-items:center;padding:10px 14px;font-size:12.5px;flex-wrap:wrap"
-      onsubmit="return confirm('Convertire budget in tetto salariale? L\'operazione non si annulla.');">
-    {% csrf_token %}
-    <span style="flex:1 1 100%"><b>Extra salary cap</b>: {{ cap.extra_cost }} FM di budget → {{ cap.extra_gain }} FM di tetto</span>
-    <span style="display:flex;gap:8px;align-items:center">
-        <select name="blocks" style="padding:5px 8px;font-size:12px;border-radius:8px;background:var(--panel-2);border:1px solid var(--line);color:var(--ink)">
-            {% for n in "1234" %}<option value="{{ n }}">{{ n }}× (−{% widthratio cap.extra_cost 1 n %} FM, +{% widthratio cap.extra_gain 1 n %} tetto)</option>{% endfor %}
-        </select>
-        <button type="submit" class="role-chip on" style="border:none;cursor:pointer;padding:6px 12px">Converti</button>
-    </span>
-</form>
-{% endif %}
 
-{% if trades_enabled %}
-<a class="a-cta" href="{% url 'app_scambi' %}" style="margin-bottom:14px">
-    <svg class="ic"><use href="#i-swap"/></svg>
-    <span class="t">
-        <b>Scambi{% if incoming_trades %} · {{ incoming_trades }} da valutare{% endif %}</b>
-        <span>Proponi calciatori e crediti alle altre squadre</span>
-    </span>
-    <span class="go">›</span>
-</a>
-{% endif %}
+<!-- =========================================================================
+     1. VISTA: HUB DEI MERCATI ATTIVI ("vedo i mercati attivi -> seleziono")
+     ========================================================================= -->
+<div id="view-hub" style="{% if initial_view != 'hub' %}display:none;{% endif %}">
 
-<!-- Sessione di mercato a buste (aperta, oppure l'ultima chiusa/scrutinata) -->
-{% if market_session %}
-{# Phone: the list of free agents and the envelopes are two sections. #}
-<div class="a-seg" role="tablist" aria-label="Sezioni del mercato" data-asec-default="svincolati" style="margin-bottom:12px">
-    <button type="button" role="tab" data-asec-go="svincolati">Svincolati</button>
-    <button type="button" role="tab" data-asec-go="buste">Le mie buste <span class="n">{{ my_bids|length }}</span></button>
-</div>
-<div class="market-banner" data-asec="buste">
-    <div class="mb-head">
-        <div class="mb-title">{{ market_session.title }}</div>
-        {% if market_open %}
-        <span class="mb-badge">Buste Aperte</span>
-        {% elif market_session.status == "resolved" %}
-        <span class="mb-badge" style="background:#3b82f6;color:#fff">Spoglio eseguito</span>
-        {% else %}
-        <span class="mb-badge" style="background:var(--muted);color:#0a1108">Consegna chiusa</span>
-        {% endif %}
-    </div>
-    <div class="mb-meta">
-        {% if not market_open %}
-        {% if market_session.status == "resolved" %}Ecco com'è andata: l'esito di ogni busta è qui sotto.{% else %}Consegna chiusa: in attesa dello spoglio da parte dell'admin.{% endif %}
-        {% elif market_session.closes_at %}
-        Chiusura consegna buste: <b>{{ market_session.closes_at|date:"d/m/Y H:i" }}</b>
-        {% else %}
-        Finestra di mercato aperta · Consegna le tue offerte prima dello spoglio
-        {% endif %}
-    </div>
-    <div class="mb-rules">
-        {% if market_session.max_bids %}<span>Offerte: <b>{{ my_bids|length }}/{{ market_session.max_bids }}</b></span>{% endif %}
-        {% if market_session.budget_rule == "total" %}<span>Totale offerte <b>≤ budget</b></span>{% endif %}
-        {% if market_session.require_same_role_release %}<span>Ogni acquisto sostituisce un <b>pari ruolo</b></span>
-        {% else %}<span>Tagli condizionati: <b>{% if market_session.allow_conditional_release %}Sì{% else %}No{% endif %}</b></span>{% endif %}
-        {% if market_session.require_same_role_release or market_session.allow_conditional_release %}<span>Rimborso taglio: <b>{{ market_session.get_release_refund_mode_display|lower }}</b></span>{% endif %}
-        {% if market_session.tie_break == "first" %}<span>Pari merito: <b>vince chi offre prima</b></span>{% endif %}
-        {% if market_session.max_acquisitions_p or market_session.max_acquisitions_d or market_session.max_acquisitions_c or market_session.max_acquisitions_a %}
-        <span>Tetti acquisti:
-            {% if market_session.max_acquisitions_p %}{{ market_session.max_acquisitions_p }}P {% endif %}
-            {% if market_session.max_acquisitions_d %}{{ market_session.max_acquisitions_d }}D {% endif %}
-            {% if market_session.max_acquisitions_c %}{{ market_session.max_acquisitions_c }}C {% endif %}
-            {% if market_session.max_acquisitions_a %}{{ market_session.max_acquisitions_a }}A{% endif %}
-        </span>
-        {% endif %}
-    </div>
-</div>
-
-<!-- Le tue buste consegnate -->
-<div class="a-card bids-card" id="my-bids-card" data-asec="buste">
-    <div class="a-label">
-        <svg class="ic"><use href="#i-shield"/></svg>
-        Le tue buste consegnate (<span id="bids-count">{{ my_bids|length }}</span>)
-    </div>
-    {% if market_open and my_bids %}
-    <div style="padding:0 14px 8px;font-size:12px;color:var(--muted);font-weight:600">
-        Offerte totali: <b style="color:{% if my_bids_total > participant.remaining_credits %}#eab308{% else %}var(--ink){% endif %}">{{ my_bids_total }} FM</b>
-        su {{ participant.remaining_credits|floatformat:0 }} FM disponibili{% if my_bids_total > participant.remaining_credits %}{% if market_session.budget_rule == "total" %} — oltre il budget: allo spoglio verranno annullate le offerte più alte finché il totale non rientra{% else %} — allo spoglio vale l'ordine di priorità{% endif %}{% endif %}
+    <!-- Se c'è asta live in corso -->
+    {% if active_auction %}
+    <div class="market-card highlight" style="margin-bottom:16px;border-color:rgba(239,68,68,.5)">
+        <div class="mc-header">
+            <div>
+                <div class="mc-type"><svg class="ic" style="width:14px;height:14px"><use href="#i-gavel"/></svg> Asta Live in Sala</div>
+                <div class="mc-title">{{ active_auction.title }}</div>
+            </div>
+            <span class="status-pill status-live">Live Ora</span>
+        </div>
+        <div class="mc-desc">La sala d'asta live è attiva. Partecipa con rilanci istantanei in tempo reale.</div>
+        <div class="mc-action">
+            <a class="mc-action-btn primary" href="{% url 'bid' active_auction.id %}">
+                <span>Entra nella Sala Asta</span>
+                <span>→</span>
+            </a>
+        </div>
     </div>
     {% endif %}
-    <div id="my-bids-list">
-    {% for b in my_bids %}
-    <div class="bid-row" id="bid-row-{{ b.id }}">
-        <div style="display:flex;align-items:center;gap:8px;min-width:0">
-            <span class="bid-prio" title="Priorità">{{ b.priority }}</span>
-            <span class="role-badge role-{{ b.player_role }}">{{ b.player_role }}</span>
-            <div style="min-width:0">
-                <div style="font-weight:800;font-size:13.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-                    {{ b.player_name }}
-                </div>
-                <div style="font-size:11px;color:var(--muted)">
-                    {{ b.player_team }}
-                    {% if b.release_player_name %}
-                    · <span style="color:#ef4444">Taglio: {{ b.release_player_name }} (+{{ b.refund }} FM)</span>
+
+    <!-- Sezione: Sessioni di Riparazione (Buste) -->
+    <div class="hub-section-title">
+        <span>Sessioni di Mercato a Buste</span>
+        <small>{{ active_sessions|length }} aperte</small>
+    </div>
+
+    <div class="markets-grid">
+        {% for s in sessions_list %}
+        <div class="market-card {% if s.is_open %}highlight{% endif %}">
+            <div>
+                <div class="mc-header">
+                    <div>
+                        <div class="mc-type">
+                            <svg class="ic" style="width:13px;height:13px"><use href="#i-shield"/></svg>
+                            Mercato di Riparazione
+                        </div>
+                        <div class="mc-title">{{ s.title }}</div>
+                    </div>
+                    {% if s.is_open %}
+                    <span class="status-pill status-open">Aperto</span>
+                    {% elif s.status == "resolved" %}
+                    <span class="status-pill status-resolved">Spoglio Eseguito</span>
+                    {% else %}
+                    <span class="status-pill status-closed">Consegna Chiusa</span>
                     {% endif %}
                 </div>
-                {% if b.status != "pending" %}
-                <div style="font-size:11px;font-weight:700;color:{% if b.status == 'won' %}#22c55e{% elif b.status == 'tied' %}#eab308{% else %}#ef4444{% endif %}">
-                    {{ b.status_label }}{% if b.note %} · <span style="font-weight:600;color:var(--muted)">{{ b.note }}</span>{% endif %}
+
+                <div class="mc-desc">
+                    {% if s.is_open %}
+                        {% if s.closes_at %}Chiusura offerte: <b>{{ s.closes_at|date:"d/m/Y H:i" }}</b>{% else %}Finestra aperta: consegna le tue buste segrete prima dello spoglio.{% endif %}
+                    {% elif s.status == "resolved" %}
+                        Spoglio completato: visualizza le assegnazioni e l'esito delle tue buste.
+                    {% else %}
+                        In attesa dello scrutinio da parte dell'amministratore.
+                    {% endif %}
+                </div>
+
+                <div class="mc-meta-chips">
+                    {% if s.bids_count > 0 %}
+                    <span class="mc-chip active-bids">✉ {{ s.bids_count }} tue buste ({{ s.bids_total }} FM)</span>
+                    {% else %}
+                    <span class="mc-chip">Nessuna busta inviata</span>
+                    {% endif %}
+
+                    {% if s.max_bids %}
+                    <span class="mc-chip">Max {{ s.max_bids }} offerte</span>
+                    {% endif %}
+
+                    {% if s.require_same_role_release %}
+                    <span class="mc-chip">Taglio pari ruolo obbligatorio</span>
+                    {% elif s.allow_conditional_release %}
+                    <span class="mc-chip">Tagli condizionati abilitati</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="mc-action">
+                {% if s.is_selected %}
+                <button type="button" class="mc-action-btn primary" onclick="switchMainView('workspace')">
+                    <span>{% if s.is_open %}Entra nel Mercato & Offri{% else %}Vedi Esiti & Buste{% endif %}</span>
+                    <span>→</span>
+                </button>
+                {% else %}
+                <a href="?session_id={{ s.id }}&view=workspace" class="mc-action-btn {% if s.is_open %}primary{% endif %}">
+                    <span>Seleziona questo Mercato</span>
+                    <span>→</span>
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        {% empty %}
+        <div class="a-card" style="grid-column: 1 / -1; padding: 24px; text-align: center">
+            <svg class="ic" style="width:36px;height:36px;margin:0 auto 10px;color:var(--muted)"><use href="#i-shield"/></svg>
+            <div style="font-weight:900;font-size:16px;color:var(--ink);margin-bottom:4px">Nessuna sessione a buste attiva</div>
+            <div style="font-size:13px;color:var(--muted)">L'amministratore di lega aprirà le prossime finestre di riparazione non appena programmate.</div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Sezione: Altri Mercati (Scambi, Salary Cap) -->
+    <div class="hub-section-title">
+        <span>Altri Mercati & Trattative</span>
+    </div>
+
+    <div class="markets-grid">
+        <!-- Card Scambi -->
+        {% if trades_enabled %}
+        <div class="market-card">
+            <div>
+                <div class="mc-header">
+                    <div>
+                        <div class="mc-type"><svg class="ic" style="width:13px;height:13px"><use href="#i-swap"/></svg> Trattative Dirette</div>
+                        <div class="mc-title">Scambi tra Squadre</div>
+                    </div>
+                    <span class="status-pill status-open">Attivo</span>
+                </div>
+                <div class="mc-desc">
+                    Proponi scambi di calciatori e crediti alle altre squadre per rinforzare la tua rosa.
+                </div>
+                <div class="mc-meta-chips">
+                    {% if incoming_trades %}
+                    <span class="mc-chip active-bids" style="background:rgba(239,68,68,.2);color:#ef4444;border-color:rgba(239,68,68,.4)">
+                        {{ incoming_trades }} da valutare
+                    </span>
+                    {% else %}
+                    <span class="mc-chip">Nessuna proposta in sospeso</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="mc-action">
+                <a href="{% url 'app_scambi' %}" class="mc-action-btn">
+                    <span>Vai agli Scambi</span>
+                    <span>→</span>
+                </a>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Card Extra Salary Cap (se aperto) -->
+        {% if cap and cap.extra_open %}
+        <div class="market-card">
+            <div>
+                <div class="mc-header">
+                    <div>
+                        <div class="mc-type"><svg class="ic" style="width:13px;height:13px"><use href="#i-award"/></svg> Finanze & Monte Ingaggi</div>
+                        <div class="mc-title">Extra salary cap</div>
+                    </div>
+                    <span class="status-pill status-open">Aperto</span>
+                </div>
+                <div class="mc-desc">
+                    <b>Tetto salariale</b>: converti il tuo budget residuo per ampliare il tetto consentito per gli stipendi.
+                    <br><small style="color:var(--muted)">{{ cap.extra_cost }} FM di budget → {{ cap.extra_gain }} FM di tetto.</small>
+                </div>
+                <form method="post" action="{% url 'app_extra_cap' %}" onsubmit="return confirm('Convertire budget in tetto salariale? L\'operazione non si annulla.');" style="margin-top:10px">
+                    {% csrf_token %}
+                    <div style="display:flex;gap:8px;align-items:center">
+                        <select name="blocks" style="flex:1;padding:8px;font-size:12px;border-radius:8px;background:var(--panel-2);border:1px solid var(--line);color:var(--ink)">
+                            {% for n in "1234" %}<option value="{{ n }}">{{ n }}× (−{% widthratio cap.extra_cost 1 n %} FM, +{% widthratio cap.extra_gain 1 n %} Tetto)</option>{% endfor %}
+                        </select>
+                        <button type="submit" class="role-chip on" style="border:none;cursor:pointer;padding:8px 14px">Converti</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Consultazione Svincolati Rapida -->
+    {% if market_session %}
+    <div class="a-card" style="padding:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+        <div>
+            <div style="font-weight:900;font-size:15px;color:var(--ink)">Listone Svincolati</div>
+            <div style="font-size:12.5px;color:var(--muted)">Esplora tutti i calciatori liberi, controlla le quotazioni e prepara le tue offerte.</div>
+        </div>
+        <button type="button" class="mc-action-btn primary" style="width:auto;padding:8px 16px" onclick="switchMainView('workspace'); switchWsTab('svincolati')">
+            <span>Sfoglia Svincolati ({{ page.paginator.count }})</span>
+            <span>→</span>
+        </button>
+    </div>
+    {% endif %}
+
+</div>
+
+
+<!-- =========================================================================
+     2. VISTA: WORKSPACE MERCATO SELEZIONATO ("vedo il mercato e agisco")
+     ========================================================================= -->
+<div id="view-workspace" style="{% if initial_view == 'hub' %}display:none;{% endif %}">
+
+    {% if market_session %}
+    <!-- Top Bar Mercato Selezionato -->
+    <div class="workspace-top-bar">
+        <div class="ws-nav-left">
+            <button type="button" class="ws-back-btn" onclick="switchMainView('hub')">
+                <span>‹</span>
+                <span>Tutti i Mercati</span>
+            </button>
+            <div>
+                <div class="ws-title">{{ market_session.title }}</div>
+                <div style="display:flex;align-items:center;gap:6px;margin-top:2px">
+                    {% if market_open %}
+                    <span class="status-pill status-open" style="font-size:10px;padding:2px 8px">Buste Aperte</span>
+                    {% elif market_session.status == "resolved" %}
+                    <span class="status-pill status-resolved" style="font-size:10px;padding:2px 8px">Spoglio eseguito</span>
+                    {% else %}
+                    <span class="status-pill status-closed" style="font-size:10px;padding:2px 8px">Consegna chiusa</span>
+                    {% endif %}
+                    {% if market_session.closes_at %}
+                    <span style="font-size:11px;color:var(--muted)">· Chiusura: <b>{{ market_session.closes_at|date:"d/m/Y H:i" }}</b></span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="ws-stats">
+            <span>Budget: <b style="color:var(--accent)">{{ participant.remaining_credits|floatformat:0 }} FM</b></span>
+            <span>·</span>
+            <span>Buste inviate: <b>{{ my_bids|length }}{% if market_session.max_bids %}/{{ market_session.max_bids }}{% endif %}</b></span>
+            {% if my_bids_total %}
+            <span>·</span>
+            <span>Totale offerto: <b>{{ my_bids_total }} FM</b></span>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Schede di navigazione interna al mercato -->
+    <div class="ws-tabs">
+        <button type="button" class="ws-tab-btn active" id="ws-btn-svincolati" onclick="switchWsTab('svincolati')">
+            <span>Svincolati & Offerte</span>
+        </button>
+        <button type="button" class="ws-tab-btn" id="ws-btn-buste" onclick="switchWsTab('buste')">
+            <span>Le mie Buste</span>
+            <span class="tab-count" id="tab-bids-badge">{{ my_bids|length }}</span>
+        </button>
+        <button type="button" class="ws-tab-btn" id="ws-btn-regole" onclick="switchWsTab('regole')">
+            <span>Regolamento Sessione</span>
+        </button>
+    </div>
+    {% else %}
+    <!-- Top Bar Consultazione Svincolati (quando non c'è una sessione a buste) -->
+    <div class="workspace-top-bar">
+        <div class="ws-nav-left">
+            <button type="button" class="ws-back-btn" onclick="switchMainView('hub')">
+                <span>‹</span>
+                <span>Tutti i Mercati</span>
+            </button>
+            <div>
+                <div class="ws-title">Listone Svincolati</div>
+                <div style="font-size:11px;color:var(--muted)">Consultazione calciatori liberi e quotazioni</div>
+            </div>
+        </div>
+        <div class="ws-stats">
+            <span>Budget disponibile: <b style="color:var(--accent)">{{ participant.remaining_credits|floatformat:0 }} FM</b></span>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ---------------------------------------------------------------------
+         TAB 1: SVINCOLATI & RICERCA (Sempre consultabile!)
+         --------------------------------------------------------------------- -->
+    <div id="ws-pane-svincolati">
+        <!-- Filtri ricerca svincolati -->
+        <form method="get" class="market-filters" id="fa-filters">
+            {% if market_session %}<input type="hidden" name="session_id" value="{{ market_session.id }}">{% endif %}
+            <input type="hidden" name="view" value="workspace">
+            <div class="search-row">
+                <input type="search" name="q" value="{{ q }}" placeholder="Cerca calciatore o squadra..." class="search-input" aria-label="Cerca calciatore o squadra">
+                <button type="submit" class="role-chip on" style="cursor:pointer;border:none;padding:0 18px;font-size:13px">Cerca</button>
+            </div>
+            <div class="role-chips" role="radiogroup" aria-label="Ruolo">
+                {% for code, label in role_filters %}
+                <label class="role-chip r-{{ code }} {% if role == code %}on{% endif %}" style="cursor:pointer">
+                    <input type="radio" name="role" value="{{ code }}" {% if role == code %}checked{% endif %} onchange="this.form.submit()" style="display:none">{{ label }}
+                </label>
+                {% endfor %}
+            </div>
+            <div class="search-row" style="align-items:center;flex-wrap:wrap">
+                <select name="sort" class="search-input" style="flex:0 1 auto;padding:7px 10px;font-size:12.5px" onchange="this.form.submit()" aria-label="Ordina per">
+                    <option value="-quota" {% if sort == "-quota" %}selected{% endif %}>Quotazione ↓</option>
+                    <option value="quota" {% if sort == "quota" %}selected{% endif %}>Quotazione ↑</option>
+                    <option value="-fm" {% if sort == "-fm" %}selected{% endif %}>Fantamedia ↓</option>
+                    <option value="name" {% if sort == "name" %}selected{% endif %}>Nome A→Z</option>
+                </select>
+                <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--muted);cursor:pointer">
+                    <input type="checkbox" name="budget" value="1" {% if in_budget %}checked{% endif %} onchange="this.form.submit()" style="accent-color:var(--accent)">
+                    Solo nel mio budget
+                </label>
+            </div>
+        </form>
+
+        <!-- Elenco svincolati -->
+        <div class="a-card fa-card">
+            <div class="a-label">
+                <svg class="ic"><use href="#i-users"/></svg>
+                Calciatori Svincolati ({{ page.paginator.count }}){% if page.paginator.num_pages > 1 %} · pagina {{ page.number }}/{{ page.paginator.num_pages }}{% endif %}
+            </div>
+            <div class="fa-list">
+            {% for pl in free_agents %}
+            <div class="free-agent-row">
+                <div class="fa-main">
+                    <span class="role-badge role-{{ pl.role }}">{{ pl.role }}</span>
+                    <div class="fa-meta">
+                        <span class="fa-name">{% if pl.watched %}<span title="Nei tuoi obiettivi">🎯 </span>{% endif %}{{ pl.name }}</span>
+                        <span class="fa-sub">
+                            {{ pl.team }}
+                            {% if is_mantra and pl.roles_display %} · <span style="color:var(--accent)">{{ pl.roles_display }}</span>{% endif %}
+                            {% if pl.fanta_avg %} · Fm: <b>{{ pl.fanta_avg|floatformat:2 }}</b>{% endif %}
+                            {% if market_open and pl.id in my_bid_player_ids %}
+                            <br><span style="color:var(--accent);font-weight:800">✉ Busta inviata</span>
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px">
+                    <div class="fa-quota">
+                        {{ pl.quota|floatformat:0 }} <small>FM</small>
+                    </div>
+                    {% if market_open %}
+                    <button type="button" class="fa-offer-btn {% if pl.id in my_bid_player_ids %}modify{% endif %}"
+                            {% if bids_left == 0 and not pl.id in my_bid_player_ids %}disabled title="Hai già usato tutte le offerte"{% endif %}
+                            onclick="openBidModal({{ pl.id }}, '{{ pl.name|escapejs }}', '{{ pl.role }}', '{{ pl.team|escapejs }}', {{ pl.quota|floatformat:0 }})">
+                        {% if pl.id in my_bid_player_ids and market_session.budget_rule != "total" %}Modifica{% elif bids_left == 0 %}Limite{% else %}Offri{% endif %}
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+            {% empty %}
+            <div class="soon" style="border:none;background:none;padding:28px 10px">
+                <svg class="ic"><use href="#i-search"/></svg>
+                <b>Nessun calciatore trovato</b>
+                <span>Nessuno svincolato corrisponde ai criteri di ricerca impostati.</span>
+            </div>
+            {% endfor %}
+            </div>
+        </div>
+
+        {% if page.has_other_pages %}
+        <nav class="search-row" style="justify-content:space-between;align-items:center;margin:8px 0 16px" aria-label="Pagine svincolati">
+            {% if page.has_previous %}
+            <a class="role-chip" href="?{{ base_query }}&page={{ page.previous_page_number }}&view=workspace">‹ Precedenti</a>
+            {% else %}<span></span>{% endif %}
+            <span style="font-size:12px;color:var(--muted);font-weight:700">{{ page.number }} / {{ page.paginator.num_pages }}</span>
+            {% if page.has_next %}
+            <a class="role-chip" href="?{{ base_query }}&page={{ page.next_page_number }}&view=workspace">Successivi ›</a>
+            {% else %}<span></span>{% endif %}
+        </nav>
+        {% endif %}
+    </div>
+
+    {% if market_session %}
+    <!-- ---------------------------------------------------------------------
+         TAB 2: LE MIE BUSTE CONSEGNATE
+         --------------------------------------------------------------------- -->
+    <div id="ws-pane-buste" style="display:none">
+        <div class="a-card bids-card" id="my-bids-card">
+            <div class="a-label">
+                <svg class="ic"><use href="#i-shield"/></svg>
+                Le tue buste consegnate (<span id="bids-count">{{ my_bids|length }}</span>)
+            </div>
+
+            {% if market_open and my_bids %}
+            <div style="padding:10px 14px 6px;font-size:12.5px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--line)">
+                Offerte totali: <b style="color:{% if my_bids_total > participant.remaining_credits %}#eab308{% else %}var(--ink){% endif %}">{{ my_bids_total }} FM</b>
+                su {{ participant.remaining_credits|floatformat:0 }} FM disponibili{% if my_bids_total > participant.remaining_credits %}{% if market_session.budget_rule == "total" %} — oltre il budget: allo spoglio verranno annullate le offerte più alte finché il totale non rientra{% else %} — allo spoglio vale l'ordine di priorità{% endif %}{% endif %}
+            </div>
+            {% endif %}
+
+            <div id="my-bids-list">
+            {% for b in my_bids %}
+            <div class="bid-row" id="bid-row-{{ b.id }}">
+                <div style="display:flex;align-items:center;gap:10px;min-width:0">
+                    <span class="bid-prio" title="Priorità">{{ b.priority }}</span>
+                    <span class="role-badge role-{{ b.player_role }}">{{ b.player_role }}</span>
+                    <div style="min-width:0">
+                        <div style="font-weight:800;font-size:14px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                            {{ b.player_name }}
+                        </div>
+                        <div style="font-size:11.5px;color:var(--muted)">
+                            {{ b.player_team }}
+                            {% if b.release_player_name %}
+                            · <span style="color:#ef4444">Taglio: {{ b.release_player_name }} (+{{ b.refund }} FM)</span>
+                            {% endif %}
+                        </div>
+                        {% if b.status != "pending" %}
+                        <div style="font-size:11.5px;font-weight:800;margin-top:2px;color:{% if b.status == 'won' %}#22c55e{% elif b.status == 'tied' %}#eab308{% else %}#ef4444{% endif %}">
+                            {{ b.status_label }}{% if b.note %} · <span style="font-weight:600;color:var(--muted)">{{ b.note }}</span>{% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px">
+                    <div style="text-align:right">
+                        <span style="font-family:var(--display);font-weight:900;font-size:16px;color:var(--accent)">{{ b.amount }} FM</span>
+                    </div>
+                    {% if market_open %}
+                    <button type="button" class="bid-del-btn" onclick="deleteBid({{ b.id }})" title="Ritira questa offerta">✕ Ritira</button>
+                    {% endif %}
+                </div>
+            </div>
+            {% empty %}
+            <div class="soon" style="border:none;background:none;padding:28px 10px" id="bids-empty">
+                <svg class="ic"><use href="#i-shield"/></svg>
+                <b>Nessuna busta consegnata</b>
+                <span>Scegli uno svincolato dalla lista e premi “Offri” per consegnare la tua prima busta.</span>
+            </div>
+            {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- ---------------------------------------------------------------------
+         TAB 3: REGOLAMENTO & ESITI SPOGLIO
+         --------------------------------------------------------------------- -->
+    <div id="ws-pane-regole" style="display:none">
+        <div class="a-card" style="padding:16px;margin-bottom:14px">
+            <div style="font-family:var(--display);font-weight:900;font-size:16px;color:var(--ink);margin-bottom:10px">Regole di questa Sessione</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(240px, 1fr));gap:12px;font-size:13px">
+                <div style="background:rgba(255,255,255,.04);padding:10px 12px;border-radius:10px">
+                    <span style="color:var(--muted);display:block;font-size:11px;font-weight:700">REGOLA BUDGET</span>
+                    <b>{% if market_session.budget_rule == "total" %}Totale offerte ≤ budget{% else %}Ogni offerta ≤ budget, conta priorità{% endif %}</b>
+                </div>
+                <div style="background:rgba(255,255,255,.04);padding:10px 12px;border-radius:10px">
+                    <span style="color:var(--muted);display:block;font-size:11px;font-weight:700">SPAREGGIO PARI MERITO</span>
+                    <b>{% if market_session.tie_break == "first" %}Vince chi offre per primo{% else %}Decide l'amministratore / sorteggio{% endif %}</b>
+                </div>
+                <div style="background:rgba(255,255,255,.04);padding:10px 12px;border-radius:10px">
+                    <span style="color:var(--muted);display:block;font-size:11px;font-weight:700">SOSTITUZIONE ROSA</span>
+                    <b>{% if market_session.require_same_role_release %}Obbligatoria con pari ruolo{% elif market_session.allow_conditional_release %}Taglio condizionato facoltativo{% else %}Nessun taglio consentito{% endif %}</b>
+                </div>
+                <div style="background:rgba(255,255,255,.04);padding:10px 12px;border-radius:10px">
+                    <span style="color:var(--muted);display:block;font-size:11px;font-weight:700">RIMBORSO SVINCOLI</span>
+                    <b>{{ market_session.get_release_refund_mode_display }}</b>
+                </div>
+                {% if market_session.max_bids %}
+                <div style="background:rgba(255,255,255,.04);padding:10px 12px;border-radius:10px">
+                    <span style="color:var(--muted);display:block;font-size:11px;font-weight:700">OFFERTE MASSIME</span>
+                    <b>{{ market_session.max_bids }} buste per squadra</b>
                 </div>
                 {% endif %}
             </div>
         </div>
-        <div style="display:flex;align-items:center;gap:8px">
-            <div style="text-align:right">
-                <span style="font-family:var(--display);font-weight:900;font-size:15px;color:var(--accent)">{{ b.amount }} FM</span>
-            </div>
-            {% if market_open %}<button type="button" class="bid-del-btn" onclick="deleteBid({{ b.id }})">✕</button>{% endif %}
-        </div>
-    </div>
-    {% empty %}
-    <div class="soon" style="border:none;background:none;padding:18px 10px" id="bids-empty">
-        <b>Nessuna busta consegnata</b>
-        <span>Scegli uno svincolato dall'elenco e premi “Offri”.</span>
-    </div>
-    {% endfor %}
-    </div>
-</div>
-{% endif %}
-</div>
-<div class="merc-main" data-asec="svincolati">
 
-<!-- Filtri ricerca svincolati -->
-<form method="get" class="market-filters" id="fa-filters">
-    <div class="search-row">
-        <input type="search" name="q" value="{{ q }}" placeholder="Cerca calciatore o squadra..." class="search-input" aria-label="Cerca calciatore o squadra">
-        <button type="submit" class="role-chip on" style="cursor:pointer;border:none;padding:0 16px;font-size:13px">Cerca</button>
-    </div>
-    <div class="role-chips" role="radiogroup" aria-label="Ruolo">
-        {% for code, label in role_filters %}
-        <label class="role-chip {% if role == code %}on{% endif %}" style="cursor:pointer">
-            <input type="radio" name="role" value="{{ code }}" {% if role == code %}checked{% endif %} onchange="this.form.submit()" style="display:none">{{ label }}
-        </label>
-        {% endfor %}
-    </div>
-    <div class="search-row" style="align-items:center;flex-wrap:wrap">
-        <select name="sort" class="search-input" style="flex:0 1 auto;padding:7px 10px;font-size:12.5px" onchange="this.form.submit()" aria-label="Ordina per">
-            <option value="-quota" {% if sort == "-quota" %}selected{% endif %}>Quotazione ↓</option>
-            <option value="quota" {% if sort == "quota" %}selected{% endif %}>Quotazione ↑</option>
-            <option value="-fm" {% if sort == "-fm" %}selected{% endif %}>Fantamedia ↓</option>
-            <option value="name" {% if sort == "name" %}selected{% endif %}>Nome A→Z</option>
-        </select>
-        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--muted);cursor:pointer">
-            <input type="checkbox" name="budget" value="1" {% if in_budget %}checked{% endif %} onchange="this.form.submit()" style="accent-color:var(--accent)">
-            Solo nel mio budget
-        </label>
-    </div>
-</form>
-
-<!-- Elenco svincolati -->
-<div class="a-card fa-card">
-    <div class="a-label">
-        <svg class="ic"><use href="#i-users"/></svg>
-        Svincolati ({{ page.paginator.count }}){% if page.paginator.num_pages > 1 %} · pagina {{ page.number }}/{{ page.paginator.num_pages }}{% endif %}
-    </div>
-    <div class="fa-list">
-    {% for pl in free_agents %}
-    <div class="free-agent-row">
-        <div class="fa-main">
-            <span class="role-badge role-{{ pl.role }}">{{ pl.role }}</span>
-            <div class="fa-meta">
-                <span class="fa-name">{% if pl.watched %}<span title="Nei tuoi obiettivi">🎯 </span>{% endif %}{{ pl.name }}</span>
-                <span class="fa-sub">
-                    {{ pl.team }}
-                    {% if is_mantra and pl.roles_display %} · <span style="color:var(--accent)">{{ pl.roles_display }}</span>{% endif %}
-                    {% if pl.fanta_avg %} · Fm: <b>{{ pl.fanta_avg|floatformat:2 }}</b>{% endif %}
-                    {% if market_open and pl.id in my_bid_player_ids %}<br><span style="color:var(--accent);font-weight:800">✉ Busta inviata</span>{% endif %}
-                </span>
+        {% if market_session.status == "resolved" and market_session.results_summary %}
+        <div class="a-card" style="padding:16px">
+            <div style="font-family:var(--display);font-weight:900;font-size:16px;color:var(--ink);margin-bottom:10px">Esiti dello Spoglio Ufficiale</div>
+            <div style="font-size:13px;color:var(--muted);line-height:1.5">
+                Spoglio eseguito regolarmente dall'amministrazione. Controlla lo stato delle tue buste nella scheda "Le mie Buste".
             </div>
         </div>
-        <div style="display:flex;align-items:center;gap:10px">
-            <div class="fa-quota">
-                {{ pl.quota|floatformat:0 }} <small>FM</small>
-            </div>
-            {% if market_open %}
-            <button type="button" class="role-chip on fa-offer" style="cursor:pointer;border:none"{% if bids_left == 0 and not pl.id in my_bid_player_ids %} disabled title="Hai già usato tutte le offerte"{% endif %}
-                    onclick="openBidModal({{ pl.id }}, '{{ pl.name|escapejs }}', '{{ pl.role }}', '{{ pl.team|escapejs }}', {{ pl.quota|floatformat:0 }})">
-                {% if pl.id in my_bid_player_ids and market_session.budget_rule != "total" %}Modifica{% elif bids_left == 0 %}Limite{% else %}Offri{% endif %}
-            </button>
-            {% endif %}
-        </div>
+        {% endif %}
     </div>
-    {% empty %}
-    <div class="soon" style="border:none;background:none;padding:24px 10px">
-        <svg class="ic"><use href="#i-search"/></svg>
-        <b>Nessun calciatore trovato</b>
-        <span>Nessuno svincolato corrisponde ai criteri di ricerca impostati.</span>
-    </div>
-    {% endfor %}
-    </div>
-</div>
-{% if page.has_other_pages %}
-<nav class="search-row" style="justify-content:space-between;align-items:center;margin:-4px 0 14px" aria-label="Pagine svincolati">
-    {% if page.has_previous %}<a class="role-chip" href="?{{ base_query }}&page={{ page.previous_page_number }}">‹ Precedenti</a>{% else %}<span></span>{% endif %}
-    <span style="font-size:12px;color:var(--muted);font-weight:700">{{ page.number }} / {{ page.paginator.num_pages }}</span>
-    {% if page.has_next %}<a class="role-chip" href="?{{ base_query }}&page={{ page.next_page_number }}">Successivi ›</a>{% else %}<span></span>{% endif %}
-</nav>
-{% endif %}
-</div>
+    {% endif %}
+
 </div>
 
-<!-- Modal Invia Busta -->
-{% if market_open %}
+
+<!-- =========================================================================
+     3. MODAL: INVIA / MODIFICA BUSTA
+     ========================================================================= -->
+{% if market_open and market_session %}
 <div class="modal-overlay" id="bid-modal" onclick="if(event.target===this) closeBidModal()">
     <div class="modal-sheet">
         <h2>Invia Busta di Mercato</h2>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;padding:10px;border-radius:10px;background:var(--panel-2)">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:12px;border-radius:12px;background:var(--panel-2)">
             <span class="role-badge" id="modal-role"></span>
             <div>
                 <div style="font-weight:800;font-size:15px;color:var(--ink)" id="modal-name"></div>
-                <div style="font-size:11px;color:var(--muted)" id="modal-team"></div>
+                <div style="font-size:11.5px;color:var(--muted)" id="modal-team"></div>
             </div>
             <div style="margin-left:auto;text-align:right">
                 <div style="font-size:11px;color:var(--muted)">Quotazione</div>
-                <div style="font-weight:900;font-size:14px;color:var(--ink)" id="modal-quota"></div>
+                <div style="font-weight:900;font-size:15px;color:var(--ink)" id="modal-quota"></div>
             </div>
         </div>
 
@@ -354,8 +806,8 @@
             <input type="hidden" name="session_id" value="{{ market_session.id }}">
 
             <div class="form-group">
-                <label>Offerta (FM)</label>
-                <input type="number" id="bid-amount" name="amount" min="1" required style="font-size:18px;font-weight:900;color:var(--accent)" oninput="updateBudgetCalc()">
+                <label>Offerta Segreta (FM)</label>
+                <input type="number" id="bid-amount" name="amount" min="1" required style="font-size:20px;font-weight:900;color:var(--accent)" oninput="updateBudgetCalc()">
             </div>
 
             {% if market_session.budget_rule == "total" %}
@@ -386,7 +838,7 @@
                     {% endfor %}
                 </select>
                 <small style="color:var(--muted);font-size:11px;display:block;margin-top:4px">
-                    Il giocatore selezionato verrà svincolato solo se ti aggiudicherai questo calciatore.
+                    Il giocatore selezionato verrà svincolato solo se ti aggiudicherai questo calciatore allo spoglio.
                 </small>
             </div>
             {% endif %}
@@ -413,12 +865,50 @@
         </form>
     </div>
 </div>
+{% endif %}
 
+<!-- =========================================================================
+     JAVASCRIPT: CLIENT INTERACTION & STATE
+     ========================================================================= -->
 <script>
     const REMAINING_CREDITS = {{ participant.remaining_credits|floatformat:0 }};
     const CSRF_TOKEN = '{{ csrf_token }}';
 
+    function switchMainView(viewName) {
+        const hubEl = document.getElementById("view-hub");
+        const wsEl = document.getElementById("view-workspace");
+        const btnHub = document.getElementById("btn-show-hub");
+        const btnWs = document.getElementById("btn-show-workspace");
+
+        if (viewName === 'workspace') {
+            if (hubEl) hubEl.style.display = "none";
+            if (wsEl) wsEl.style.display = "block";
+            if (btnHub) btnHub.classList.remove("active");
+            if (btnWs) btnWs.classList.add("active");
+        } else {
+            if (wsEl) wsEl.style.display = "none";
+            if (hubEl) hubEl.style.display = "block";
+            if (btnHub) btnHub.classList.add("active");
+            if (btnWs) btnWs.classList.remove("active");
+        }
+    }
+
+    function switchWsTab(tabName) {
+        const tabs = ['svincolati', 'buste', 'regole'];
+        tabs.forEach(t => {
+            const pane = document.getElementById("ws-pane-" + t);
+            const btn = document.getElementById("ws-btn-" + t);
+            if (pane) pane.style.display = (t === tabName) ? "block" : "none";
+            if (btn) {
+                if (t === tabName) btn.classList.add("active");
+                else btn.classList.remove("active");
+            }
+        });
+    }
+
     function openBidModal(id, name, role, team, quota) {
+        const modal = document.getElementById("bid-modal");
+        if (!modal) return;
         document.getElementById("bid-player-id").value = id;
         document.getElementById("modal-name").textContent = name;
         document.getElementById("modal-team").textContent = team;
@@ -430,7 +920,6 @@
         const rel = document.getElementById("bid-release-player");
         if (rel) {
             rel.value = "";
-            // Con la sostituzione obbligatoria si può tagliare solo un pari ruolo.
             if (rel.dataset.sameRole) {
                 Array.from(rel.options).forEach(o => {
                     if (o.value) o.hidden = o.disabled = o.dataset.role !== role;
@@ -438,11 +927,12 @@
             }
         }
         updateBudgetCalc();
-        document.getElementById("bid-modal").classList.add("open");
+        modal.classList.add("open");
     }
 
     function closeBidModal() {
-        document.getElementById("bid-modal").classList.remove("open");
+        const modal = document.getElementById("bid-modal");
+        if (modal) modal.classList.remove("open");
     }
 
     function updateBudgetCalc() {
@@ -452,9 +942,11 @@
             const opt = relSel.options[relSel.selectedIndex];
             refund = parseInt(opt.dataset.refund || "0", 10) || 0;
         }
-        document.getElementById("calc-refund").textContent = "+" + refund + " FM";
+        const refEl = document.getElementById("calc-refund");
+        if (refEl) refEl.textContent = "+" + refund + " FM";
         const maxSpend = REMAINING_CREDITS + refund;
-        document.getElementById("calc-max-spendable").textContent = maxSpend + " FM";
+        const maxEl = document.getElementById("calc-max-spendable");
+        if (maxEl) maxEl.textContent = maxSpend + " FM";
     }
 
     async function submitBid(e) {
@@ -501,5 +993,4 @@
         }
     }
 </script>
-{% endif %}
 {% endblock %}

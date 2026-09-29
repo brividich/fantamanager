@@ -1032,7 +1032,7 @@
 {% if tab == 'logs' %}
 <div class="super-table-wrap">
     <div class="super-table-head">
-        <h2 class="super-table-title">Log in Tempo Reale (server.log)</h2>
+        <h2 class="super-table-title">Log in Tempo Reale ({{ log_filename|default:"fantamanager.log" }})</h2>
         <form method="get" style="display:flex;gap:8px;align-items:center">
             <input type="hidden" name="tab" value="logs">
             <select name="level" style="background:#1e2430;border:1px solid rgba(255,255,255,0.1);color:#fff;padding:6px 10px;border-radius:6px;font-size:12px">
@@ -1051,7 +1051,7 @@
         {% for line in recent_logs %}
             <div class="log-line {% if '[ERROR]' in line %}error{% elif '[WARNING]' in line %}warn{% elif '[INFO]' in line %}info{% endif %}">{{ line }}</div>
         {% empty %}
-            <div style="color:var(--muted);text-align:center">Nessun log trovato con i filtri correnti.</div>
+            <div style="color:var(--muted);text-align:center">Nessun log trovato con i filtri correnti in {{ log_filename|default:"fantamanager.log" }}.</div>
         {% endfor %}
     </div>
 </div>
@@ -1075,6 +1075,11 @@
     <div class="metric-card">
         <div class="metric-label">Calciatori in Anagrafica</div>
         <div class="metric-value">{{ kpis.total_players }}</div>
+        {% if kpis.raw_players_count and kpis.raw_players_count != kpis.total_players %}
+            <div class="metric-sub">{{ kpis.total_players }} unici Serie A ({{ kpis.raw_players_count }} record DB)</div>
+        {% else %}
+            <div class="metric-sub">{{ kpis.total_players }} calciatori Serie A</div>
+        {% endif %}
     </div>
     <div class="metric-card">
         <div class="metric-label">Aste Totali</div>
@@ -1221,6 +1226,23 @@
     <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:12px 16px;font-size:12.5px;color:var(--muted)">
         Messaggio ultimo ciclo: <b>{{ live_sync.last_message }}</b>
     </div>
+
+    {% if live_sync.history %}
+    <div style="margin-top:14px">
+        <h4 style="font-size:12.5px;margin:0 0 8px;color:#94a3b8;font-weight:700">📜 Registro Attività Live Sync (Ultime Esecuzioni)</h4>
+        <div style="background:#0f172a;border:1px solid rgba(255,255,255,0.08);border-radius:8px;max-height:220px;overflow-y:auto;font-family:monospace;font-size:11.5px;padding:8px 12px">
+            {% for ev in live_sync.history %}
+                <div style="padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.04);display:flex;gap:10px;align-items:center">
+                    <span style="color:var(--muted);white-space:nowrap">{{ ev.time }}</span>
+                    <span style="font-weight:700;font-size:10px;padding:2px 6px;border-radius:4px;background:{% if ev.status == 'SUCCESS' %}rgba(34,197,94,0.2);color:#4ade80{% elif ev.status == 'ERROR' %}rgba(239,68,68,0.2);color:#f87171{% else %}rgba(59,130,246,0.2);color:#60a5fa{% endif %}">
+                        {{ ev.status }}
+                    </span>
+                    <span style="color:#cbd5e1;flex:1">{{ ev.message }}</span>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
 </div>
 
 <div class="super-table-wrap" style="padding:22px">

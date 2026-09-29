@@ -10,6 +10,7 @@ import resource
 import shutil
 import sys
 import time
+from pathlib import Path
 
 from django.conf import settings
 from django.contrib import messages
@@ -134,11 +135,33 @@ def _get_server_metrics():
     }
 
 
+def _get_active_log_file():
+    """Detect the active log file location."""
+    candidates = []
+    if hasattr(settings, "LOG_FILE_PATH") and settings.LOG_FILE_PATH:
+        candidates.append(Path(settings.LOG_FILE_PATH))
+    candidates.extend([
+        settings.BASE_DIR / "logs" / "fantamanager.log",
+        settings.BASE_DIR / "server.log",
+    ])
+    for c in candidates:
+        if c and c.exists() and c.is_file():
+            return c
+    # Fallback to any .log file in logs directory
+    logs_dir = settings.BASE_DIR / "logs"
+    if logs_dir.exists() and logs_dir.is_dir():
+        log_files = sorted(logs_dir.glob("*.log"), key=lambda f: f.stat().st_mtime, reverse=True)
+        if log_files:
+            return log_files[0]
+    return candidates[0] if candidates else settings.BASE_DIR / "logs" / "fantamanager.log"
+
+
 def _read_recent_logs(max_lines=250, level_filter=None, query_filter=None):
-    """Read and parse recent log lines from server.log."""
-    log_file = settings.BASE_DIR / "server.log"
-    if not os.path.exists(log_file):
-        return []
+    """Read and parse recent log lines from the active application log file."""
+    log_file = _get_active_log_file()
+    log_name = log_file.name if log_file else "fantamanager.log"
+    if not log_file or not os.path.exists(log_file):
+        return [], log_name
 
     lines = []
     try:
@@ -165,9 +188,9 @@ def _read_recent_logs(max_lines=250, level_filter=None, query_filter=None):
                 lines.append(line_str)
     except Exception as e:
         logger.exception("Errore durante la lettura dei log: %s", e)
-        lines.append(f"[ERROR] Impossibile leggere server.log: {e}")
+        lines.append(f"[ERROR] Impossibile leggere {log_name}: {e}")
 
-    return lines
+    return lines, log_name
 
 
 @supervisor_required
@@ -527,13 +550,17 @@ def supervisor_dashboard(request):
     # Logs Data
     level_filter = request.GET.get("level", "ALL")
     query_filter = request.GET.get("q", "").strip()
-    recent_logs = _read_recent_logs(max_lines=200, level_filter=level_filter, query_filter=query_filter)
+    recent_logs, log_filename = _read_recent_logs(max_lines=200, level_filter=level_filter, query_filter=query_filter)
 
     # Reporting & Global KPIs
     total_users = User.objects.count()
     total_leagues = len(leagues)
     total_teams = Participant.objects.count()
-    total_players = Player.objects.count()
+    raw_players_count = Player.objects.count()
+    unique_players_count = (
+        Player.objects.values("name", "team").distinct().count()
+        if raw_players_count > 0 else 0
+    )
     total_auctions = Auction.objects.count()
     live_auctions_count = Auction.objects.filter(status=Auction.Status.LIVE).count()
     total_bids = Bid.objects.count()
@@ -549,13 +576,15 @@ def supervisor_dashboard(request):
             "leagues": leagues,
             "league_teams_json": league_teams_json,
             "recent_logs": recent_logs,
+            "log_filename": log_filename,
             "level_filter": level_filter,
             "query_filter": query_filter,
             "kpis": {
                 "total_users": total_users,
                 "total_leagues": total_leagues,
                 "total_teams": total_teams,
-                "total_players": total_players,
+                "total_players": unique_players_count or raw_players_count,
+                "raw_players_count": raw_players_count,
                 "total_auctions": total_auctions,
                 "live_auctions_count": live_auctions_count,
                 "total_bids": total_bids,
