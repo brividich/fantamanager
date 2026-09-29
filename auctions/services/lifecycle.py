@@ -1,7 +1,7 @@
 """Auction lifecycle, control endpoints, and roster assignments/releases."""
 import logging
 from datetime import timedelta
-from decimal import Decimal
+from decimal import Decimal, ROUND_FLOOR
 
 from django.db import transaction
 from django.db.models import F
@@ -761,6 +761,20 @@ def release_player(player_id, *, auction_id=None, by_admin=False, participant_id
         refund = player.initial_price or Decimal("0")
     elif refund_mode == Auction.RefundMode.NONE:
         refund = Decimal("0")
+    elif refund_mode == getattr(Auction.RefundMode, "LUGNANO_SEPT", "lugnano_sept"):
+        is_abroad_or_free = getattr(player, "abroad_list", False) or (player.team in ("Svincolato", "Estero", "")) or (not player.initial_price)
+        if is_abroad_or_free:
+            refund = player.cost or Decimal("0")
+        else:
+            refund = player.initial_price or Decimal("0")
+    elif refund_mode == getattr(Auction.RefundMode, "LUGNANO_JAN", "lugnano_jan"):
+        is_abroad = getattr(player, "abroad_list", False) or (player.team in ("Svincolato", "Estero", ""))
+        if is_abroad:
+            half_cost = ((player.cost or Decimal("0")) / Decimal("2")).quantize(Decimal("1"), rounding=ROUND_FLOOR)
+            curr = player.initial_price or Decimal("0")
+            refund = max(half_cost, curr)
+        else:
+            refund = player.initial_price or Decimal("0")
     else:
         refund = player.cost or Decimal("0")
 

@@ -72,6 +72,11 @@ def player_fantavoto(perf, role, rules):
         total += _d(r["goal_conceded"]) * conceded
         if r.get("clean_sheet") and conceded == 0:
             total += _d(r["clean_sheet"])
+    if perf.get("is_captain"):
+        if _d(vote) >= Decimal("6.5"):
+            total += Decimal("0.5")
+        elif _d(vote) <= Decimal("5.5"):
+            total -= Decimal("0.5")
     return total, True
 
 

@@ -250,16 +250,18 @@ def target_league(request):
 def user_can_manage_league(user, league):
     """True when ``user`` may administer ``league``.
 
-    Superusers manage everything; a league admin manages the leagues they own.
-    A league without an owner (legacy data, or its owner's account deleted) is
-    superuser business: registration is open, so "any logged-in account" would
-    mean anybody. Every creation path sets an owner; the Supervisor assigns one.
+    Superusers manage everything; a league admin manages the leagues they own
+    or are listed in league.admins.
     """
     if league is None or user is None or not user.is_authenticated:
         return False
     if user.is_superuser:
         return True
-    return league.owner_id is not None and league.owner_id == user.id
+    if league.owner_id is not None and league.owner_id == user.id:
+        return True
+    if hasattr(league, "admins") and league.admins.filter(id=user.id).exists():
+        return True
+    return False
 
 
 def user_can_manage(user, obj):
@@ -312,7 +314,7 @@ def manageable_leagues(user):
     """Leagues listed in the console pickers for ``user``."""
     qs = League.objects.all()
     if not user.is_superuser:
-        qs = qs.filter(owner=user)
+        qs = qs.filter(Q(owner=user) | Q(admins=user)).distinct()
     return qs.order_by("name")
 
 
