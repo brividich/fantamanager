@@ -26,8 +26,8 @@ class Auction(models.Model):
         PURCHASE = "purchase", "Costo di acquisto"          # Player.cost paid at auction
         CURRENT  = "current",  "Costo attuale (quotazione)" # Player.initial_price from the listone
         NONE     = "none",     "Nessun rimborso"
-        LUGNANO_SEPT = "lugnano_sept", "Fantalugnano Settembre (100% estero/svincolato, o quotazione)"
-        LUGNANO_JAN  = "lugnano_jan",  "Fantalugnano Gennaio (50% estero min quotaz, o quotazione)"
+        LUGNANO_SEPT = "lugnano_sept", "Riparazione Settembre (100% se estero/svincolato, altrimenti quotazione)"
+        LUGNANO_JAN  = "lugnano_jan",  "Riparazione Gennaio (50% se estero, altrimenti quotazione)"
 
     class FlowMode(models.TextChoices):
         # How the auction steps from one player to the next.
