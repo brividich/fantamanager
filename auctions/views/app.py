@@ -119,10 +119,27 @@ def app_home(request):
 def app_rosa(request):
     participant, ctx = _app_ctx(request, "rosa")
     if participant is None:
-        return _redirect_login(request, ctx)
-    roster = list(Player.objects.filter(owner=participant, abroad_list=False).select_related("loan_from")
-                  .order_by("role", "-cost", "name"))
+        if ctx is not None and ctx.get("is_app_admin") and ctx.get("app_league"):
+            league = ctx["app_league"]
+            first_team = league.participants.order_by("display_name").first()
+            if first_team:
+                participant = first_team
+            else:
+                return _redirect_login(request, ctx)
+        else:
+            return _redirect_login(request, ctx)
     league = participant.league
+
+    target_id = request.GET.get("team")
+    viewed_participant = participant
+    if target_id and league:
+        found = league.participants.filter(id=target_id).first()
+        if found:
+            viewed_participant = found
+
+    is_mine = (viewed_participant.id == participant.id)
+    roster = list(Player.objects.filter(owner=viewed_participant, abroad_list=False).select_related("loan_from")
+                  .order_by("role", "-cost", "name"))
     is_mantra = bool(league and league.is_mantra)
     groups = []
     for code, label in _ROLE_LABELS:
@@ -135,20 +152,24 @@ def app_rosa(request):
             "slots": slots, "cost": sum(p.cost for p in players),
         })
     fms = [p.fanta_avg for p in roster if p.fanta_avg is not None]
+    league_teams = list(league.participants.order_by("display_name")) if league else []
     ctx.update({
+        "viewed_participant": viewed_participant,
+        "is_mine": is_mine,
+        "league_teams": league_teams,
         "roster": roster,
         "roster_count": len(roster),
         "roster_groups": groups,
         "roster_value": sum(p.cost for p in roster),
         "roster_fm": (sum(fms) / len(fms)) if fms else None,
-        "plan": services.roster_plan(participant),
-        "cap": _cap_ctx(participant),
+        "plan": services.roster_plan(viewed_participant),
+        "cap": _cap_ctx(viewed_participant),
         "is_mantra": is_mantra,
         "contracts_on": bool(league and league.contracts_enabled),
         "renewals_open": bool(league and league.contracts_enabled and league.renewals_open),
-        "expiring": services.expiring_contracts(participant) if league and league.contracts_enabled else [],
-        "abroad_listed": list(Player.objects.filter(owner=participant, abroad_list=True)),
-        "loaned_out": list(Player.objects.filter(loan_from=participant).select_related("owner")),
+        "expiring": services.expiring_contracts(viewed_participant) if league and league.contracts_enabled else [],
+        "abroad_listed": list(Player.objects.filter(owner=viewed_participant, abroad_list=True)),
+        "loaned_out": list(Player.objects.filter(loan_from=viewed_participant).select_related("owner")),
     })
     return render(request, "auctions/app_rosa.html", ctx)
 
