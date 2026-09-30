@@ -11,6 +11,7 @@ from ..models import Competition, Fixture, Giornata, League, Participant, Season
 from ..services.competitions import (
     compute_competition_standings,
     ensure_league_season_and_competitions,
+    setup_groups_knockout_competition,
     setup_knockout_competition,
     setup_round_robin_competition,
     setup_supercoppa,
@@ -89,6 +90,7 @@ def admin_competition_create(request):
     if league and not user_can_manage_league(request.user, league):
         return HttpResponseForbidden("Non hai i permessi per gestire questa lega.")
 
+    from_app = request.POST.get("from") == "app" or request.POST.get("next") == "app"
     season, _ = ensure_league_season_and_competitions(league)
     name = (request.POST.get("name") or "").strip()
     kind = request.POST.get("kind") or Competition.Type.ROUND_ROBIN
@@ -99,14 +101,29 @@ def admin_competition_create(request):
 
     if not name:
         messages.error(request, "Specificare un nome valido per la competizione.")
+        if from_app:
+            return redirect(f"{reverse('app_lega')}?tab=competizioni")
         return redirect(f"{reverse('admin_competitions')}?league={league.id}")
 
     try:
+        settings_payload = {
+            "start_giornata": start_giornata,
+            "end_giornata": end_giornata,
+            "two_legged": two_legged,
+            "win_points": int(request.POST.get("win_points") or 3),
+            "draw_points": int(request.POST.get("draw_points") or 1),
+            "loss_points": int(request.POST.get("loss_points") or 0),
+            "goal_threshold": float(request.POST.get("goal_threshold") or 66.0),
+            "goal_step": float(request.POST.get("goal_step") or 6.0),
+            "home_bonus": float(request.POST.get("home_bonus") or 0.0),
+            "description": (request.POST.get("description") or "").strip(),
+        }
+
         comp = Competition.objects.create(
             season=season,
             name=name,
             kind=kind,
-            settings={"start_giornata": start_giornata, "end_giornata": end_giornata, "two_legged": two_legged}
+            settings=settings_payload
         )
 
         # Generate schedule based on format
@@ -116,6 +133,9 @@ def admin_competition_create(request):
         elif kind == Competition.Type.KNOCKOUT:
             fixtures = setup_knockout_competition(comp, start_giornata=start_giornata, two_legged=two_legged)
             messages.success(request, f"Torneo a eliminazione «{comp.name}» creato con successo ({len(fixtures)} sfide a tabellone).")
+        elif kind == Competition.Type.GROUPS_KNOCKOUT:
+            fixtures = setup_groups_knockout_competition(comp, start_giornata=start_giornata, end_giornata=end_giornata)
+            messages.success(request, f"Coppa a gironi «{comp.name}» creata con successo ({len(fixtures)} partite a calendario).")
         elif kind == Competition.Type.SUPERCOPPA:
             home_id = request.POST.get("home_id")
             away_id = request.POST.get("away_id")
@@ -127,10 +147,20 @@ def admin_competition_create(request):
         else:
             messages.success(request, f"Competizione a punti «{comp.name}» attivata con successo.")
 
+        if request.POST.get("notify_teams") == "1":
+            from ..services import mail
+            report = mail.send_competition_notice(request, comp)
+            if report.get("sent"):
+                messages.success(request, f"Avviso alle squadre: {mail.report_message(report)}")
+
+        if from_app:
+            return redirect(f"{reverse('app_lega')}?comp={comp.id}&tab=competizioni")
         return redirect(f"{reverse('admin_competitions')}?league={league.id}&comp={comp.id}")
     except Exception as e:
         logger.exception("Errore creazione competizione: %s", e)
         messages.error(request, f"Errore durante la creazione della competizione: {e}")
+        if from_app:
+            return redirect(f"{reverse('app_lega')}?tab=competizioni")
         return redirect(f"{reverse('admin_competitions')}?league={league.id}")
 
 

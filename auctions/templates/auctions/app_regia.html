@@ -556,6 +556,23 @@ the same league.
         </div>
     </section>
 
+    <section class="a-card" aria-labelledby="rg-comp-h" data-asec="overview">
+        <div class="a-label" id="rg-comp-h"><svg class="ic"><use href="#i-trophy"/></svg> Competizioni & Calendari
+            <a href="{% url 'admin_competitions' %}{{ league_q }}" style="margin-left:auto;font-size:11px;letter-spacing:.06em">Gestisci</a></div>
+        {% for c in competitions %}
+        <a class="a-row" href="{% url 'app_lega' %}?comp={{ c.id }}&tab=competizioni" style="text-decoration:none;color:inherit">
+            <span class="nm">{{ c.name }}<small>{{ c.get_kind_display }}</small></span>
+            <span class="val" style="font-size:12px;color:var(--accent);font-weight:800;">Attiva</span>
+        </a>
+        {% empty %}
+        <p class="muted" style="font-size:13px;padding:4px 0">Nessuna competizione configurata.</p>
+        {% endfor %}
+        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+            <a class="fm-btn fm-btn-primary fm-btn-sm" href="{% url 'app_lega' %}?open_comp_wizard=1&tab=competizioni"><svg class="ic"><use href="#i-plus"/></svg> Nuova competizione (Wizard)</a>
+            <a class="fm-btn fm-btn-outline fm-btn-sm" href="{% url 'admin_competitions' %}{{ league_q }}"><svg class="ic"><use href="#i-table"/></svg> Tabelloni & Calendari</a>
+        </div>
+    </section>
+
     <section class="a-card" aria-labelledby="rg-tools-h" data-asec="tools">
         <div class="a-label" id="rg-tools-h"><svg class="ic"><use href="#i-gear"/></svg> Strumenti della console</div>
         <div class="rg-tools">

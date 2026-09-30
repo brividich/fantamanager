@@ -236,6 +236,17 @@ def send_market_notice(request, session):
     )
 
 
+def send_competition_notice(request, competition):
+    """Tell the league's teams a new competition has been created and scheduled."""
+    league = competition.season.league if competition.season else None
+    if not league:
+        return {"sent": 0, "failed": 0, "skipped": 0, "errors": []}
+    return _send_to_teams(
+        request, league_recipients(league), f"{league.name} · Nuova Competizione: {competition.name}", "competition_open",
+        lambda p: {"competition": competition, "link": _app_link(request, p, "app_lega")},
+    )
+
+
 def report_message(report, what="email"):
     """One line for a Django message out of a ``_send_to_teams`` report."""
     parts = []

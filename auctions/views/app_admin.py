@@ -185,6 +185,8 @@ def app_regia(request):
               .prefetch_related("proposer_players", "receiver_players"))
     auctions = list(Auction.objects.filter(league=league).order_by("-id")[:6])
     sessions = list(MarketSession.objects.filter(league=league).order_by("-created_at")[:3])
+    from ..services.competitions import ensure_league_season_and_competitions
+    season, competitions = ensure_league_season_and_competitions(league) if league else (None, [])
 
     ctx.update({
         # The shell follows the league being run, not the viewed team's.
@@ -207,6 +209,7 @@ def app_regia(request):
         "trades_to_ratify": list(trades),
         "auctions": auctions,
         "market_sessions": sessions,
+        "competitions": competitions,
         "team_elsewhere": participant is not None and participant.league_id != league.id,
         "league_q": f"?league={league.id}",
     })

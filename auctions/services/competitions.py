@@ -168,6 +168,60 @@ def setup_knockout_competition(competition, team_ids=None, start_giornata=1, two
 
 
 @transaction.atomic
+def setup_groups_knockout_competition(competition, team_ids=None, start_giornata=1, end_giornata=None):
+    """Generate group stage fixtures for groups + playoff cup."""
+    season = competition.season
+    if not team_ids:
+        team_ids = list(season.league.participants.values_list("id", flat=True)) if season.league else []
+
+    if len(team_ids) < 4:
+        return setup_round_robin_competition(competition, team_ids=team_ids, start_giornata=start_giornata, end_giornata=end_giornata)
+
+    mid = len(team_ids) // 2
+    group_a = team_ids[:mid]
+    group_b = team_ids[mid:]
+
+    competition.fixtures.all().delete()
+
+    giornate_qs = season.giornate.filter(number__gte=start_giornata)
+    if end_giornata:
+        giornate_qs = giornate_qs.filter(number__lte=end_giornata)
+    giornate = list(giornate_qs.order_by("number"))
+    if not giornate:
+        return []
+
+    sched_a = generate_round_robin_schedule(group_a)
+    sched_b = generate_round_robin_schedule(group_b)
+    cycle_a = len(sched_a)
+    cycle_b = len(sched_b)
+
+    created_fixtures = []
+    for g_idx, g in enumerate(giornate):
+        # Girone A
+        matches_a = sched_a[g_idx % cycle_a]
+        inv_a = ((g_idx // cycle_a) + 1) % 2 == 0
+        for h, a in matches_a:
+            if inv_a and a is not None:
+                h, a = a, h
+            created_fixtures.append(Fixture.objects.create(
+                giornata=g, competition=competition,
+                stage=f"Girone A · Turno {g_idx + 1}", home_id=h, away_id=a,
+            ))
+        # Girone B
+        matches_b = sched_b[g_idx % cycle_b]
+        inv_b = ((g_idx // cycle_b) + 1) % 2 == 0
+        for h, a in matches_b:
+            if inv_b and a is not None:
+                h, a = a, h
+            created_fixtures.append(Fixture.objects.create(
+                giornata=g, competition=competition,
+                stage=f"Girone B · Turno {g_idx + 1}", home_id=h, away_id=a,
+            ))
+
+    return created_fixtures
+
+
+@transaction.atomic
 def setup_supercoppa(competition, home_id, away_id, giornata_num=1):
     """Set up a single head-to-head match for Supercoppa."""
     season = competition.season
