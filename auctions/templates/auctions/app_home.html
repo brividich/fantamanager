@@ -1,91 +1,190 @@
 {% extends "auctions/app_base.html" %}
 {% block title %}Home — FantaManager{% endblock %}
 {% block app %}
-<div class="tab-head">
-    <h1>Ciao, {{ participant.display_name }}</h1>
-    <p>{% if app_league %}{{ app_league.name }}{% else %}La tua area FantaManager{% endif %}</p>
+<style>
+    /* Home Hero Card */
+    .home-hero {
+        background: linear-gradient(135deg, rgba(16,185,129,0.18), rgba(6,78,59,0.25));
+        border: 1px solid var(--accent-line);
+        border-radius: var(--radius);
+        padding: 18px;
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+        margin-bottom: 14px;
+    }
+    .home-hero::after {
+        content: ""; position: absolute; right: -20px; top: -20px; width: 140px; height: 140px;
+        background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+        pointer-events: none;
+    }
+    .hero-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+    .hero-team { display: flex; align-items: center; gap: 10px; }
+    .hero-icon {
+        width: 44px; height: 44px; border-radius: 12px;
+        background: var(--panel); border: 1px solid var(--line);
+        display: flex; align-items: center; justify-content: center;
+        color: var(--accent); flex-shrink: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    .hero-icon .ic { width: 24px; height: 24px; }
+    .hero-name {
+        font-family: var(--display); font-weight: 900; font-size: 22px; color: var(--ink);
+        line-height: 1.1; letter-spacing: .02em;
+    }
+    .hero-league { font-size: 12px; color: var(--muted); font-weight: 700; }
+    
+    .hero-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+    .hero-chip {
+        padding: 5px 10px; border-radius: 99px; font-size: 11.5px; font-weight: 800;
+        background: rgba(0,0,0,0.35); border: 1px solid var(--line); color: var(--ink);
+        display: inline-flex; align-items: center; gap: 5px;
+    }
+    .hero-chip b { color: var(--accent); }
+
+    /* Quick Action Grid (2x2 on Mobile) */
+    .quick-grid {
+        display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 14px;
+    }
+    .qa-card {
+        background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-sm);
+        padding: 12px; display: flex; flex-direction: column; gap: 6px; text-decoration: none;
+        color: var(--ink); transition: transform .12s, border-color .12s;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    .qa-card:active { transform: scale(0.96); border-color: var(--accent); }
+    .qa-top { display: flex; align-items: center; justify-content: space-between; }
+    .qa-icon {
+        width: 32px; height: 32px; border-radius: 9px;
+        background: var(--panel-2); border: 1px solid var(--line);
+        display: flex; align-items: center; justify-content: center;
+        color: var(--accent);
+    }
+    .qa-icon .ic { width: 17px; height: 17px; }
+    .qa-badge { font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 6px; }
+    .qa-badge.warn { background: rgba(234,179,8,0.15); color: #eab308; }
+    .qa-badge.ok { background: rgba(34,197,94,0.15); color: #22c55e; }
+    .qa-title { font-family: var(--display); font-weight: 900; font-size: 15px; letter-spacing: .02em; line-height: 1.1; margin-top: 2px; }
+    .qa-sub { font-size: 11px; color: var(--muted); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+</style>
+
+<!-- Hero Section -->
+<div class="home-hero">
+    <div class="hero-top">
+        <div class="hero-team">
+            <div class="hero-icon"><svg class="ic"><use href="#i-shield"/></svg></div>
+            <div>
+                <div class="hero-name">{{ participant.display_name }}</div>
+                <div class="hero-league">{% if app_league %}{{ app_league.name }}{% else %}FantaManager{% endif %}</div>
+            </div>
+        </div>
+        <div style="text-align:right">
+            <div style="font-family:var(--display);font-size:22px;font-weight:900;color:var(--accent);line-height:1">
+                {{ participant.remaining_credits|floatformat:0 }} <small style="font-size:12px;color:var(--muted)">FM</small>
+            </div>
+            <div style="font-size:9.5px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-top:2px">Budget Libero</div>
+        </div>
+    </div>
+    <div class="hero-chips">
+        <span class="hero-chip">Rosa: <b>{{ roster_count }}{% if slots_total %}/{{ slots_total }}{% endif %}</b></span>
+        {% if lineup_incomplete %}
+        <span class="hero-chip" style="border-color:rgba(234,179,8,0.4);color:#eab308;">⚠️ Formazione da schierare</span>
+        {% else %}
+        <span class="hero-chip" style="border-color:rgba(34,197,94,0.4);color:#22c55e;">✓ Formazione salvata</span>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Quick Action Grid -->
+<div class="quick-grid">
+    <a href="{% url 'app_formazione' %}" class="qa-card">
+        <div class="qa-top">
+            <div class="qa-icon"><svg class="ic"><use href="#i-table"/></svg></div>
+            {% if lineup_incomplete %}
+            <span class="qa-badge warn">Da fare</span>
+            {% else %}
+            <span class="qa-badge ok">Schierata</span>
+            {% endif %}
+        </div>
+        <div class="qa-title">Formazione</div>
+        <div class="qa-sub">{{ lineup_done }}/{{ lineup_target }} schierati</div>
+    </a>
+    <a href="{% url 'app_rosa' %}" class="qa-card">
+        <div class="qa-top">
+            <div class="qa-icon"><svg class="ic"><use href="#i-shirt"/></svg></div>
+            <span class="qa-badge">{{ roster_count }} giocatori</span>
+        </div>
+        <div class="qa-title">La mia Rosa</div>
+        <div class="qa-sub">Contratti e dettagli</div>
+    </a>
+    <a href="{% url 'app_mercato' %}" class="qa-card">
+        <div class="qa-top">
+            <div class="qa-icon"><svg class="ic"><use href="#i-swap"/></svg></div>
+            {% if open_market %}
+            <span class="qa-badge ok">Aperto</span>
+            {% endif %}
+        </div>
+        <div class="qa-title">Mercato & Buste</div>
+        <div class="qa-sub">Offerte e svincoli</div>
+    </a>
+    <a href="{% url 'app_live' %}" class="qa-card">
+        <div class="qa-top">
+            <div class="qa-icon" style="color:#13b5ff"><svg class="ic"><use href="#i-pulse"/></svg></div>
+            <span class="qa-badge" style="color:#13b5ff">Live</span>
+        </div>
+        <div class="qa-title">Risultati Live</div>
+        <div class="qa-sub">Voti in diretta</div>
+    </a>
 </div>
 
 {% if manages_app_league %}
-<a class="a-cta" href="{% url 'app_regia' %}?league={{ app_league.id }}" style="background:rgba(255,181,38,.08);border-color:rgba(255,181,38,.35)">
+<a class="a-cta" href="{% url 'app_regia' %}?league={{ app_league.id }}" style="background:rgba(255,181,38,.08);border-color:rgba(255,181,38,.35);margin-bottom:12px">
     <svg class="ic" style="color:var(--paused)"><use href="#i-gavel"/></svg>
     <span class="t">
         <b>Regia di {{ app_league.name }}</b>
-        <span>{% if admin_todo %}{{ admin_todo|length }} cos{{ admin_todo|length|pluralize:"a,e" }} da fare: {{ admin_todo.0.title }}{% else %}Tutto in ordine · squadre, aste e buste della lega{% endif %}</span>
+        <span>{% if admin_todo %}{{ admin_todo|length }} cos{{ admin_todo|length|pluralize:"a,e" }} da fare{% else %}Tutto in ordine · squadre, aste e buste{% endif %}</span>
     </span>
     <span class="go" style="color:var(--paused)">›</span>
 </a>
 {% endif %}
 
 {% if active_auction %}
-<a class="a-cta" href="{% url 'bid' active_auction.id %}">
+<a class="a-cta" href="{% url 'bid' active_auction.id %}" style="margin-bottom:12px">
     <svg class="ic"><use href="#i-gavel"/></svg>
     <span class="t">
-        <b>Asta in corso</b>
-        <span>{{ active_auction.title }} · {{ active_auction.get_status_display }}</span>
+        <b>Asta in corso: {{ active_auction.title }}</b>
+        <span>Entra subito nella sala d'asta live</span>
     </span>
     <span class="go">›</span>
 </a>
 {% endif %}
 
-{% if lineup_incomplete %}
-<a class="a-cta" href="{% url 'app_formazione' %}" style="background:rgba(253,224,71,.10);border-color:rgba(253,224,71,.35)">
-    <svg class="ic" style="color:var(--paused)"><use href="#i-table"/></svg>
-    <span class="t">
-        <b>Schiera la formazione</b>
-        <span>{{ lineup_done }}/{{ lineup_target }} titolari — completala</span>
-    </span>
-    <span class="go" style="color:var(--paused)">›</span>
-</a>
-{% endif %}
-
-<div class="a-stats">
-    <div class="a-stat">
-        <div class="v">{{ participant.remaining_credits|floatformat:0 }}<small> FM</small></div>
-        <div class="k">Crediti</div>
-    </div>
-    <div class="a-stat">
-        <div class="v">{{ roster_count }}<small>/{{ slots_total }}</small></div>
-        <div class="k">Rosa</div>
-    </div>
-    <div class="a-stat">
-        <div class="v">{{ watch_count }}</div>
-        <div class="k">Obiettivi</div>
-    </div>
-</div>
-{% include "auctions/_slot_strip.html" with hide_credits=True %}
-
-{% if open_market %}
-<a class="a-cta" href="{% url 'app_mercato' %}" style="margin-bottom:14px">
-    <svg class="ic"><use href="#i-mail"/></svg>
-    <span class="t">
-        <b>Buste aperte: {{ open_market.title }}</b>
-        <span>{% if open_market.closes_at %}Chiude il {{ open_market.closes_at|date:"d/m H:i" }}{% else %}Consegna le tue offerte{% endif %}{% if my_open_bids %} · {{ my_open_bids }} bust{{ my_open_bids|pluralize:"a,e" }} inviat{{ my_open_bids|pluralize:"a,e" }}{% endif %}</span>
-    </span>
-    <span class="go">›</span>
-</a>
-{% endif %}
 {% if incoming_trades %}
-<a class="a-cta" href="{% url 'app_scambi' %}" style="margin-bottom:14px">
+<a class="a-cta" href="{% url 'app_scambi' %}" style="margin-bottom:12px">
     <svg class="ic"><use href="#i-swap"/></svg>
     <span class="t">
-        <b>{{ incoming_trades }} propost{{ incoming_trades|pluralize:"a,e" }} di scambio</b>
-        <span>Accetta o rifiuta dalla pagina Scambi</span>
+        <b>{{ incoming_trades }} propost{{ incoming_trades|pluralize:"a,e" }} di scambio ricevut{{ incoming_trades|pluralize:"a,e" }}</b>
+        <span>Visualizza e rispondi</span>
     </span>
     <span class="go">›</span>
 </a>
 {% endif %}
 
+{% include "auctions/_slot_strip.html" with hide_credits=True %}
+
+<!-- Standings Card -->
 <div class="a-card">
-    <div class="a-label"><svg class="ic"><use href="#i-trophy"/></svg> Classifica lampo</div>
+    <div class="a-label" style="display:flex;justify-content:space-between;align-items:center;">
+        <span style="display:flex;align-items:center;gap:6px"><svg class="ic"><use href="#i-trophy"/></svg> Classifica Rose</span>
+        <a href="{% url 'app_lega' %}" style="font-size:11px;font-weight:700;color:var(--muted);text-decoration:none;text-transform:none;letter-spacing:normal;">Vedi tutta ›</a>
+    </div>
     {% for row in standings %}
     <div class="a-row">
         <span class="a-rank {% if forloop.counter <= 3 %}top{% endif %}">{{ forloop.counter }}</span>
-        <span class="nm">{{ row.name }}{% if row.is_me %} <small style="display:inline;color:var(--accent)">· tu</small>{% endif %}</span>
-        <span class="val">{{ row.owned }} <span class="muted" style="font-weight:600;font-size:12px">gioc.</span></span>
+        <span class="nm">{{ row.name }}{% if row.is_me %} <small style="display:inline;color:var(--accent);font-weight:700">· tu</small>{% endif %}</span>
+        <span class="val">{{ row.owned }} <span class="muted" style="font-weight:600;font-size:11.5px">gioc.</span></span>
     </div>
     {% empty %}
-    <p class="muted" style="font-size:13px;text-align:center;padding:6px 0">Nessuna squadra in lega.</p>
+    <p class="muted" style="font-size:13px;text-align:center;padding:12px 0">Nessuna squadra in lega.</p>
     {% endfor %}
 </div>
 {% endblock %}

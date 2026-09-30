@@ -3,71 +3,107 @@
 {% block mainclass %}fit{% endblock %}
 {% block app %}
 <style>
-    .rosa-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-    .rosa-kpis { display: flex; gap: 8px; flex-wrap: wrap; }
-    .rosa-kpi { padding: 7px 12px; border-radius: 10px; background: var(--panel-2); border: 1px solid var(--line);
-                display: flex; flex-direction: column; align-items: flex-end; min-width: 76px; }
-    .rosa-kpi b { font-family: var(--display); font-size: 17px; color: var(--ink); line-height: 1.05; }
-    .rosa-kpi b small { font-size: 11px; color: var(--muted); font-weight: 600; }
-    .rosa-kpi span { font-size: 9.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
-    .rosa-kpi.cta { justify-content: center; align-items: center; flex-direction: row; gap: 6px; text-decoration: none;
-                    background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent);
-                    font-weight: 800; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; }
-    .rosa-kpi.cta .ic { width: 16px; height: 16px; }
+    .rosa-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+    .rosa-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; width: 100%; }
+    .rosa-kpi { padding: 9px 12px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line);
+                display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+    .rosa-kpi b { font-family: var(--display); font-size: 19px; color: var(--ink); line-height: 1.1; }
+    .rosa-kpi b small { font-size: 11px; color: var(--muted); font-weight: 700; }
+    .rosa-kpi span { font-size: 9.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-top: 2px; }
+    .rosa-kpi.cta { background: var(--accent); border-color: var(--accent); color: #0a1108; text-decoration: none;
+                    font-weight: 800; font-size: 13px; letter-spacing: .04em; text-transform: uppercase;
+                    flex-direction: row; gap: 6px; box-shadow: 0 4px 12px var(--accent-glow); transition: transform .12s; }
+    .rosa-kpi.cta:active { transform: scale(0.96); }
+    .rosa-kpi.cta .ic { width: 18px; height: 18px; }
 
-    .rosa-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
-    .rosa-col { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
-    .rosa-col-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px;
-                     border-bottom: 1px solid var(--line); font-size: 11px; font-weight: 800;
-                     letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
-    .rosa-col-head .cnt { margin-left: auto; letter-spacing: .04em; color: var(--ink); }
+    @media (max-width: 600px) {
+        .rosa-kpis { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+        .rosa-kpi { padding: 10px; }
+        .rosa-kpi b { font-size: 18px; }
+    }
+
+    /* Mobile Role Filter Bar */
+    .rosa-role-tabs {
+        display: flex; gap: 6px; overflow-x: auto; padding: 4px 2px 10px;
+        scrollbar-width: none; -webkit-overflow-scrolling: touch;
+        margin-bottom: 8px;
+    }
+    .rosa-role-tabs::-webkit-scrollbar { display: none; }
+    .role-tab-btn {
+        flex: 1; min-width: 62px; padding: 8px 6px; border-radius: 10px;
+        border: 1px solid var(--line); background: var(--panel-2); color: var(--muted);
+        font-family: var(--sans); font-size: 12px; font-weight: 800;
+        cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px;
+        transition: all .15s ease; -webkit-tap-highlight-color: transparent;
+    }
+    .role-tab-btn:active { transform: scale(0.94); }
+    .role-tab-btn.active {
+        background: var(--accent); color: #0a1108; border-color: var(--accent);
+        box-shadow: 0 2px 10px -2px var(--accent-glow);
+    }
+    .role-tab-btn .badge-num {
+        font-size: 10px; padding: 1px 5px; border-radius: 99px;
+        background: rgba(255,255,255,0.1);
+    }
+    .role-tab-btn.active .badge-num {
+        background: rgba(0,0,0,0.2); color: #0a1108;
+    }
+
+    .rosa-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+    .rosa-col { display: flex; flex-direction: column; padding: 0; overflow: hidden; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+    .rosa-col-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px;
+                     border-bottom: 1px solid var(--line); font-size: 12px; font-weight: 800;
+                     letter-spacing: .08em; text-transform: uppercase; color: var(--muted); background: var(--panel-2); }
+    .rosa-col-head .cnt { margin-left: auto; letter-spacing: .02em; color: var(--ink); font-size: 12.5px; }
     .rosa-col-head .cnt small { color: var(--muted); font-weight: 600; }
     .rosa-col-head .cnt.full { color: #eab308; }
 
-    .pl-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto 26px; align-items: center;
-              gap: 10px; padding: 10px 12px; margin-bottom: 6px; border-radius: 12px;
-              background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.05); }
-    .pl-row:last-child { margin-bottom: 0; }
-    .pl-row:hover { background: rgba(255,255,255,.06); border-color: rgba(16,185,129,0.3); }
-    .pl-id { min-width: 0; display: flex; align-items: center; gap: 8px; }
-    .pl-ava { width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0; overflow: hidden;
-              background: var(--panel-2); border: 1px solid var(--line); }
+    .pl-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto 32px; align-items: center;
+              gap: 8px; padding: 10px 12px; margin: 6px 8px; border-radius: 12px;
+              background: rgba(255,255,255,.02); border: 1px solid var(--line);
+              transition: background .12s, border-color .12s; }
+    .pl-row:hover { background: rgba(255,255,255,.05); border-color: var(--accent-line); }
+    .pl-id { min-width: 0; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+    .pl-ava { width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0; overflow: hidden;
+              background: var(--panel-2); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; }
     .pl-ava img { width: 100%; height: 100%; object-fit: cover; }
-    .pl-txt { min-width: 0; }
-    .pl-name { display: block; font-weight: 800; font-size: 13.5px; color: var(--ink);
+    .pl-txt { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+    .pl-name { display: block; font-weight: 800; font-size: 14px; color: var(--ink);
                white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
     .pl-sub { display: block; font-size: 11px; color: var(--muted); font-weight: 600;
               white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .pl-sub .mr { color: var(--accent); }
-    .pl-fm { font-size: 12px; font-weight: 800; color: var(--accent); text-align: right; min-width: 34px;
-             font-variant-numeric: tabular-nums; }
-    .pl-fm.none { color: var(--muted); font-weight: 600; }
-    .pl-cost { font-family: var(--display); font-weight: 900; font-size: 15px; color: var(--ink);
+    .pl-fm { font-size: 12.5px; font-weight: 900; color: var(--accent); text-align: right; min-width: 34px;
+             font-variant-numeric: tabular-nums; background: var(--accent-soft); padding: 3px 6px; border-radius: 6px; }
+    .pl-fm.none { color: var(--muted); font-weight: 600; background: transparent; }
+    .pl-cost { font-family: var(--display); font-weight: 900; font-size: 16px; color: var(--ink);
                text-align: right; min-width: 44px; font-variant-numeric: tabular-nums; }
-    .pl-cost small { font-size: 10px; color: var(--muted); font-weight: 600; }
-    .pl-rel { width: 26px; height: 26px; border-radius: 7px; cursor: pointer; padding: 0;
+    .pl-cost small { font-size: 11px; color: var(--muted); font-weight: 600; }
+    .pl-rel { width: 30px; height: 30px; border-radius: 8px; cursor: pointer; padding: 0;
               display: flex; align-items: center; justify-content: center;
-              background: transparent; color: var(--muted); border: 1px solid var(--line);
+              background: var(--panel-2); color: var(--muted); border: 1px solid var(--line);
               font-size: 13px; font-weight: 800; line-height: 1; transition: all .12s; }
-    .pl-rel:hover, .pl-rel:focus-visible { color: #f87171; border-color: rgba(239,68,68,.45); background: rgba(239,68,68,.12); }
-    .rosa-empty { padding: 16px 12px; font-size: 12px; color: var(--muted); text-align: center; }
-    .pl-row.ct { grid-template-columns: minmax(0, 1fr) auto auto auto 26px; }
-    .pl-ct { font-size: 11px; font-weight: 800; padding: 2px 6px; border-radius: 6px; white-space: nowrap;
-             background: rgba(255,255,255,.05); color: var(--muted); text-align: center; min-width: 28px; }
+    .pl-rel:hover, .pl-rel:active { color: #f87171; border-color: rgba(239,68,68,.45); background: rgba(239,68,68,.15); }
+    .rosa-empty { padding: 24px 12px; font-size: 13px; color: var(--muted); text-align: center; }
+    .pl-row.ct { grid-template-columns: minmax(0, 1fr) auto auto auto 32px; }
+    .pl-ct { font-size: 11px; font-weight: 800; padding: 3px 7px; border-radius: 6px; white-space: nowrap;
+             background: rgba(255,255,255,.05); color: var(--muted); text-align: center; }
     .pl-ct.last { background: rgba(234,179,8,.15); color: #eab308; }
     .pl-ct.exp { background: rgba(239,68,68,.15); color: #f87171; }
-    .pl-dice { font-size: 11px; font-weight: 800; padding: 3px 7px; border-radius: 6px; cursor: pointer; white-space: nowrap;
+    .pl-dice { font-size: 12px; font-weight: 800; padding: 4px 8px; border-radius: 7px; cursor: pointer; white-space: nowrap;
                background: var(--accent); color: #0a1108; border: none; line-height: 1.2; height: auto; min-height: 0; }
     .renew-card { border-color: rgba(234,179,8,.4); }
-    .renew-row { display: flex; align-items: center; gap: 10px; padding: 7px 12px; border-bottom: 1px solid var(--line);
+    .renew-row { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-bottom: 1px solid var(--line);
                  font-size: 13px; text-transform: none; letter-spacing: normal; color: var(--ink); margin: 0; }
     .renew-row:last-child { border-bottom: none; }
 
     @media (min-width: 880px) {
-        .rosa-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); }
+        .rosa-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .rosa-role-tabs { display: none; }
     }
     @media (min-width: 1240px) {
-        .rosa-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: auto; }
+        .rosa-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
     }
 </style>
 
@@ -82,6 +118,19 @@
         <div class="rosa-kpi"><b>{% if roster_fm %}{{ roster_fm|floatformat:2 }}{% else %}—{% endif %}</b><span>Fm media</span></div>
         <a class="rosa-kpi cta" href="{% url 'app_formazione' %}"><svg class="ic"><use href="#i-table"/></svg> Formazione</a>
     </div>
+</div>
+
+<!-- Mobile Role Tabs Filter -->
+<div class="rosa-role-tabs" id="fm-rosa-tabs">
+    <button type="button" class="role-tab-btn active" onclick="filterRosaRole('all', this)">
+        Tutti <span class="badge-num">{{ roster_count }}</span>
+    </button>
+    {% for group in roster_groups %}
+    <button type="button" class="role-tab-btn" onclick="filterRosaRole('{{ group.code }}', this)">
+        <span class="role-badge role-{{ group.code }}" style="padding:1px 5px;font-size:9px;">{{ group.code }}</span>
+        <span class="badge-num">{{ group.list|length }}</span>
+    </button>
+    {% endfor %}
 </div>
 
 {% if renewals_open and expiring %}
@@ -111,7 +160,7 @@
 {% endif %}
 
 {% if loaned_out %}
-<div class="a-card" style="padding:8px 12px;font-size:12.5px">
+<div class="a-card" style="padding:10px 14px;font-size:13px">
     <b>Prestati:</b> {% for p in loaned_out %}{{ p.name }} → {{ p.owner.display_name }} ({{ p.loan_sessions_left }} sess.){% if not forloop.last %} · {% endif %}{% endfor %}
 </div>
 {% endif %}
@@ -140,21 +189,25 @@
 {% else %}
 <div class="rosa-grid fit-body">
     {% for group in roster_groups %}
-    <section class="a-card rosa-col" aria-label="{{ group.label }}">
+    <section class="rosa-col" data-role-group="{{ group.code }}" aria-label="{{ group.label }}">
         <div class="rosa-col-head">
             <span class="role-badge role-{{ group.code }}">{{ group.code }}</span>
             {{ group.label }}
             <span class="cnt{% if group.slots and group.list|length >= group.slots %} full{% endif %}">{{ group.list|length }}{% if group.slots %}<small>/{{ group.slots }}</small>{% endif %}
                 <small> · {{ group.cost|floatformat:0 }} FM</small></span>
         </div>
-        <div class="fit-scroll">
+        <div class="fit-scroll" style="padding:4px 0;">
             {% for pl in group.list %}
             <div class="pl-row{% if contracts_on %} ct{% endif %}" title="{% if pl.avg_vote %}Mv {{ pl.avg_vote|floatformat:2 }} · {% endif %}{% if pl.presences %}{{ pl.presences }} presenze · {% endif %}{% if pl.goals %}{{ pl.goals }} gol · {% endif %}{% if pl.assists %}{{ pl.assists }} assist · {% endif %}Quotazione {{ pl.initial_price|floatformat:0 }}">
-                <div class="pl-id" style="cursor:pointer;" onclick="openPlayerModal('{{ pl.name|escapejs }}', '{{ pl.role }}', '{{ pl.team|escapejs }}', '{{ pl.fanta_avg|floatformat:2|default:'' }}', '{{ pl.goals|default:0 }}', '{{ pl.assists|default:0 }}', '{{ pl.initial_price|floatformat:0 }}')">
-                    {% if pl.photo_url %}<span class="pl-ava"><img src="{{ pl.photo_url }}" alt="" loading="lazy"></span>{% endif %}
+                <div class="pl-id" onclick="openPlayerModal('{{ pl.name|escapejs }}', '{{ pl.role }}', '{{ pl.team|escapejs }}', '{{ pl.fanta_avg|floatformat:2|default:'' }}', '{{ pl.goals|default:0 }}', '{{ pl.assists|default:0 }}', '{{ pl.initial_price|floatformat:0 }}')">
+                    {% if pl.photo_url %}
+                    <span class="pl-ava"><img src="{{ pl.photo_url }}" alt="" loading="lazy"></span>
+                    {% else %}
+                    <span class="pl-ava"><span class="role-badge role-{{ pl.role }}" style="font-size:10px;padding:2px 4px;">{{ pl.role }}</span></span>
+                    {% endif %}
                     <span class="pl-txt">
                         <span class="pl-name">{{ pl.name }}</span>
-                        <span class="pl-sub">{{ pl.team }}{% if is_mantra and pl.roles_display %} · <span class="mr">{{ pl.roles_display }}</span>{% endif %}{% if pl.loan_from_id %} · <span style="color:#eab308">in prestito da {{ pl.loan_from.display_name }}</span>{% endif %}{% if pl.goals %} · ⚽{{ pl.goals }}{% endif %}{% if pl.assists %} · A{{ pl.assists }}{% endif %}</span>
+                        <span class="pl-sub">{{ pl.team }}{% if is_mantra and pl.roles_display %} · <span class="mr">{{ pl.roles_display }}</span>{% endif %}{% if pl.loan_from_id %} · <span style="color:#eab308">in prestito</span>{% endif %}{% if pl.goals %} · ⚽{{ pl.goals }}{% endif %}{% if pl.assists %} · A{{ pl.assists }}{% endif %}</span>
                     </span>
                 </div>
                 <span class="pl-fm{% if not pl.fanta_avg %} none{% endif %}" title="Fantamedia">{% if pl.fanta_avg %}{{ pl.fanta_avg|floatformat:2 }}{% else %}—{% endif %}</span>
@@ -187,5 +240,19 @@
     </section>
     {% endfor %}
 </div>
+<script>
+function filterRosaRole(role, btn) {
+    document.querySelectorAll('#fm-rosa-tabs .role-tab-btn').forEach(b => b.classList.remove('active'));
+    if(btn) btn.classList.add('active');
+    
+    document.querySelectorAll('[data-role-group]').forEach(col => {
+        if(role === 'all' || col.getAttribute('data-role-group') === role) {
+            col.style.display = 'flex';
+        } else {
+            col.style.display = 'none';
+        }
+    });
+}
+</script>
 {% endif %}
 {% endblock %}

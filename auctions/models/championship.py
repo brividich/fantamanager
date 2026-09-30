@@ -81,6 +81,7 @@ class Giornata(models.Model):
 
     season     = models.ForeignKey(Season, on_delete=models.CASCADE, related_name="giornate")
     number     = models.PositiveIntegerField()
+    serie_a_matchday = models.PositiveIntegerField(null=True, blank=True)
     status     = models.CharField(max_length=10, choices=Status.choices, default=Status.SCHEDULED)
     locked_at  = models.DateTimeField(null=True, blank=True)
     scored_at  = models.DateTimeField(null=True, blank=True)
