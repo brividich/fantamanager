@@ -696,3 +696,21 @@ class BulkConfirmAndLayoutTests(TestCase):
         self.assertIn(f'<details class="panel ct-team" id="team-{self.a.id}">', page)
         self.assertNotIn('class="panel ct-team" id="team-{}" open'.format(self.a.id), page)
         self.assertIn("Espandi tutte", page)
+
+    def test_short_names_and_free_agent_departures(self):
+        today = "2026-08-25"
+        # Player with short name e.g. "Dia" or "Paz"
+        dia = Player(id=10, name="Dia", role="A")
+        # Free agent departure (teams.in is None or Without Club)
+        entries = [{
+            "player": {"name": "Boulaye Dia"},
+            "transfers": [{
+                "date": today,
+                "teams": {
+                    "out": {"id": 490, "name": "Salernitana"},
+                    "in": {"id": None, "name": "Free Agent"}
+                }
+            }]
+        }]
+        gone = apifootball.departures(entries, [dia], 490, lambda t: False, today=today)
+        self.assertEqual(gone, {10: {"club": "Svincolato", "date": today}})

@@ -99,6 +99,12 @@ def _find_match(row, existing, claimed):
     if not name:
         return None
 
+    ext_id = (row.get("ext_id") or "").strip()
+    if ext_id:
+        for p in existing:
+            if p.pk not in claimed and p.ext_id and p.ext_id == ext_id:
+                return p
+
     lname = name.lower()
     for p in existing:
         if p.pk not in claimed and p.name.lower() == lname:
@@ -122,6 +128,19 @@ def _find_match(row, existing, claimed):
         score = 2 * len(l_long & p_long) + (role == p.role) + (l_short == p_short)
         if score > best_score:
             best, best_score = p, score
+    if best is not None:
+        return best
+
+    # Se il giocatore ha cambiato club all'interno della Serie A (stesso ruolo, cognome identico, iniziali compatibili)
+    if l_long and role:
+        for p in existing:
+            if p.pk in claimed or p.role != role:
+                continue
+            p_long, p_short = _name_parts(p.name)
+            if (l_long & p_long) and _shorts_compatible(l_short, p_short):
+                score = 3 * len(l_long & p_long) + (l_short == p_short)
+                if score > best_score:
+                    best, best_score = p, score
     return best
 
 

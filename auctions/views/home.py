@@ -3,9 +3,9 @@ from decimal import Decimal
 import re
 from django.shortcuts import redirect, render
 from django.urls import reverse
-from ..models import Auction, League, Participant, Player
+from ..models import Auction, Participant, Player
 from .. import remote
-from .common import _session_participant, safe_next, target_league, try_regia_pin, visible_leagues
+from .common import _session_participant, manageable_leagues, safe_next, target_league, try_regia_pin, visible_leagues
 
 
 def home_portal(request):
@@ -39,7 +39,7 @@ def home_portal(request):
 
     user = getattr(request, "user", None)
     has_admin = bool(user and user.is_authenticated and (
-        user.is_superuser or user.is_staff or League.objects.filter(owner=user).exists()
+        user.is_superuser or user.is_staff or manageable_leagues(user).exists()
     ))
     is_unlocked = bool(request.session.get("regia_unlocked", False)) or has_admin
     is_mobile = getattr(request, "is_mobile", False)

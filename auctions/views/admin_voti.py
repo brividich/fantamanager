@@ -43,6 +43,14 @@ def admin_giornate(request):
     selected_num = int(request.GET.get("giornata") or 1)
     current_giornata = next((g for g in giornate if g.number == selected_num), giornate[0] if giornate else None)
 
+    if request.method == "POST" and current_giornata:
+        sa_matchday = request.POST.get("serie_a_matchday")
+        if sa_matchday and sa_matchday.isdigit():
+            current_giornata.serie_a_matchday = int(sa_matchday)
+            current_giornata.save()
+            messages.success(request, f"Associazione Giornata Serie A aggiornata per la G{current_giornata.number}.")
+        return redirect(f"/app/giornate/?giornata={current_giornata.number}")
+
     scores = []
     battle_royale = []
     performances_count = 0

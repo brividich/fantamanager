@@ -1,7 +1,7 @@
 {% if plan.slot_limits or cap %}
 <div class="slot-strip" aria-label="Slot della rosa">
     {% for r in plan.roles %}
-    <div class="slot-cell{% if r.free == 0 %} full{% endif %}">
+    <div class="slot-cell r-{{ r.role }}{% if r.free == 0 %} full{% endif %}">
         <span class="slot-lbl">{{ r.label }}</span>
         <b>{{ r.owned }}<small>/{{ r.slots }}</small></b>
     </div>
@@ -21,13 +21,21 @@
 </div>
 <style>
     .slot-strip { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
-    .slot-cell { flex: 1 1 58px; min-width: 58px; padding: 8px 10px; border-radius: 10px; background: var(--panel-2);
-                 border: 1px solid var(--line); text-align: center; }
-    .slot-cell b { display: block; font-family: var(--display); font-size: 16px; color: var(--ink); }
-    .slot-cell small { font-size: 11px; color: var(--muted); font-weight: 600; }
-    .slot-cell.wide { flex: 2 1 100px; }
-    .slot-cell.full { border-color: rgba(234,179,8,.45); }
-    .slot-cell.full b { color: #eab308; }
-    .slot-lbl { font-size: 10px; font-weight: 800; letter-spacing: .12em; color: var(--muted); text-transform: uppercase; }
+    .slot-cell {
+        flex: 1 1 54px; min-width: 54px; padding: 8px 6px; border-radius: 12px; background: var(--panel-2);
+        border: 1px solid var(--line); text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        transition: transform .12s ease;
+    }
+    .slot-cell b { display: block; font-family: var(--display); font-size: 16px; color: var(--ink); line-height: 1.1; margin-top: 2px; }
+    .slot-cell small { font-size: 11px; color: var(--muted); font-weight: 700; }
+    .slot-cell.wide { flex: 2 1 90px; }
+    .slot-cell.full { border-color: rgba(34,197,94,.4); background: rgba(34,197,94,.06); }
+    .slot-cell.full b { color: var(--accent); }
+    .slot-lbl { font-size: 10px; font-weight: 800; letter-spacing: .08em; color: var(--muted); text-transform: uppercase; }
+    @media (max-width: 480px) {
+        .slot-cell { padding: 6px 4px; }
+        .slot-cell b { font-size: 15px; }
+        .slot-lbl { font-size: 9.5px; }
+    }
 </style>
 {% endif %}

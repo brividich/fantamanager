@@ -175,3 +175,87 @@ class CompetitionsEngineTests(TestCase):
         self.assertContains(resp, "Tutte le Giornate")
         self.assertContains(resp, "Giornata 1")
         self.assertContains(resp, "La tua sfida")
+
+    def test_setup_groups_knockout_competition(self):
+        from auctions.services.competitions import setup_groups_knockout_competition
+        comp = Competition.objects.create(
+            season=self.season,
+            name="Coppa a Gironi Test",
+            kind=Competition.Type.GROUPS_KNOCKOUT,
+        )
+        fixtures = setup_groups_knockout_competition(comp, start_giornata=1)
+        self.assertGreater(len(fixtures), 0)
+        self.assertTrue(any("Girone A" in f.stage for f in fixtures))
+        self.assertTrue(any("Girone B" in f.stage for f in fixtures))
+
+    def test_app_competition_wizard_and_creation(self):
+        from django.contrib.auth.models import User
+        from django.urls import reverse
+
+        owner = User.objects.create_user("league_boss", "boss@x.local", "secret")
+        self.league.owner = owner
+        self.league.save()
+        self.client.force_login(owner)
+
+        # GET app_lega with open_comp_wizard=1
+        resp = self.client.get(reverse("app_lega") + f"?league={self.league.id}&open_comp_wizard=1")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "comp-wizard-modal")
+        self.assertContains(resp, "Nuova Competizione (Wizard)")
+
+        # GET app_regia
+        regia = self.client.get(reverse("app_regia") + f"?league={self.league.id}")
+        self.assertEqual(regia.status_code, 200)
+        self.assertContains(regia, "Nuova competizione (Wizard)")
+
+        # POST admin_competition_create with from=app
+        create_url = reverse("admin_competition_create")
+        post_resp = self.client.post(create_url, {
+            "league_id": self.league.id,
+            "from": "app",
+            "name": "Champions League App",
+            "kind": Competition.Type.GROUPS_KNOCKOUT,
+            "start_giornata": 1,
+            "win_points": 3,
+            "draw_points": 1,
+            "loss_points": 0,
+            "goal_threshold": 66.0,
+            "goal_step": 6.0,
+            "home_bonus": 1.0,
+        })
+        self.assertEqual(post_resp.status_code, 302)
+        new_comp = Competition.objects.filter(season=self.season, name="Champions League App").first()
+        self.assertIsNotNone(new_comp)
+        self.assertIn(f"?comp={new_comp.id}&tab=competizioni", post_resp["Location"])
+        self.assertEqual(new_comp.settings["home_bonus"], 1.0)
+        self.assertGreater(new_comp.fixtures.count(), 0)
+
+    def test_new_formats_standings_computation(self):
+        f1_comp = Competition.objects.create(
+            season=self.season, name="GP F1", kind=Competition.Type.FORMULA_1
+        )
+        survival_comp = Competition.objects.create(
+            season=self.season, name="Survival", kind=Competition.Type.SURVIVAL
+        )
+        swiss_comp = Competition.objects.create(
+            season=self.season, name="Swiss", kind=Competition.Type.SWISS_LEAGUE
+        )
+        davis_comp = Competition.objects.create(
+            season=self.season, name="Davis", kind=Competition.Type.FANTA_DAVIS
+        )
+
+        # Compute standings for each
+        f1_data = compute_competition_standings(f1_comp)
+        self.assertEqual(f1_data["kind"], "formula_1")
+        self.assertEqual(len(f1_data["standings"]), 8)
+
+        survival_data = compute_competition_standings(survival_comp)
+        self.assertEqual(survival_data["kind"], "survival")
+        self.assertEqual(survival_data["alive_count"], 8)
+
+        swiss_data = compute_competition_standings(swiss_comp)
+        self.assertEqual(swiss_data["kind"], "swiss_league")
+
+        davis_data = compute_competition_standings(davis_comp)
+        self.assertEqual(davis_data["kind"], "fanta_davis")
+        self.assertGreaterEqual(len(davis_data["pairs"]), 4)

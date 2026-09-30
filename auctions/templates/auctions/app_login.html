@@ -8,122 +8,144 @@
     .login-container {
         max-width: 440px;
         margin: 40px auto;
-        padding: 0 16px calc(24px + env(safe-area-inset-bottom));
+        padding: 0 16px calc(32px + env(safe-area-inset-bottom));
     }
     @media (max-width: 480px) {
         .login-container {
-            margin: 20px auto;
+            margin: 18px auto;
             padding: 0 14px calc(24px + env(safe-area-inset-bottom));
         }
         .login-card {
-            padding: 20px 16px;
+            padding: 22px 16px;
         }
     }
 
     .brand-hero {
         text-align: center;
-        margin-bottom: 28px;
+        margin-bottom: 24px;
     }
     .brand-hero .logo-box {
-        width: 54px; height: 54px; border-radius: 14px;
+        width: 58px; height: 58px; border-radius: 16px;
         display: inline-flex; align-items: center; justify-content: center;
-        font-family: var(--display); font-weight: 900; font-size: 22px;
+        font-family: var(--display); font-weight: 900; font-size: 24px;
         color: #0a1108; background: var(--accent);
-        box-shadow: 0 0 24px -4px var(--accent-glow);
+        box-shadow: 0 6px 26px -4px var(--accent-glow);
         margin-bottom: 12px;
+        border: 2px solid rgba(255,255,255,0.18);
+        transition: transform .2s ease;
+    }
+    .brand-hero .logo-box:hover {
+        transform: scale(1.05);
     }
     .brand-hero h1 {
-        font-family: var(--display); font-weight: 900; font-size: 24px;
+        font-family: var(--display); font-weight: 900; font-size: 26px;
         letter-spacing: .02em; text-transform: uppercase;
         margin: 0 0 6px; color: var(--ink);
     }
     .brand-hero p {
-        font-size: 13px; color: var(--muted); margin: 0;
+        font-size: 13px; color: var(--muted); margin: 0; line-height: 1.4;
     }
 
     .login-card {
-        background: var(--card-bg, #181d28);
+        background: var(--panel);
         border: 1px solid var(--line);
-        border-radius: 16px;
-        padding: 24px 20px;
-        box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
+        border-radius: var(--radius, 18px);
+        padding: 26px 22px;
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
     }
 
     .tab-switch {
         display: flex;
-        background: rgba(0, 0, 0, 0.25);
+        background: var(--panel-2);
         border: 1px solid var(--line);
-        border-radius: 10px;
-        padding: 3px;
-        margin-bottom: 20px;
+        border-radius: 12px;
+        padding: 4px;
+        margin-bottom: 22px;
         gap: 4px;
     }
     .tab-btn {
         flex: 1;
-        padding: 10px 12px;
+        padding: 10px 8px;
         font-size: 12px;
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: .04em;
         text-align: center;
-        border-radius: 7px;
+        border-radius: 8px;
         border: none;
         background: transparent;
         color: var(--muted);
         cursor: pointer;
-        transition: all .15s;
+        transition: all .16s ease;
         touch-action: manipulation;
         -webkit-tap-highlight-color: transparent;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
     }
     .tab-btn:active { transform: scale(0.97); }
     .tab-btn.is-active {
         background: var(--accent);
         color: #0a1108;
-        box-shadow: 0 2px 10px -2px var(--accent-glow);
+        font-weight: 800;
+        box-shadow: 0 2px 12px -2px var(--accent-glow);
     }
 
     .form-group {
-        margin-bottom: 16px;
+        margin-bottom: 18px;
     }
     .form-group label {
         display: block;
-        font-size: 12px;
-        font-weight: 700;
+        font-size: 11.5px;
+        font-weight: 800;
         text-transform: uppercase;
-        letter-spacing: .05em;
+        letter-spacing: .06em;
         color: var(--muted);
-        margin-bottom: 6px;
+        margin-bottom: 7px;
     }
     .form-group input, .form-group select {
         width: 100%;
-        padding: 12px 14px;
-        border-radius: 10px;
+        min-height: 46px;
+        padding: 11px 14px;
+        border-radius: 11px;
         border: 1px solid var(--line);
-        background: rgba(0, 0, 0, 0.25);
+        background: var(--panel-2);
         color: var(--ink);
-        font-size: 16px;
-        transition: border-color .15s;
+        font-size: 15.5px;
+        transition: border-color .15s, box-shadow .15s, background .15s;
         box-sizing: border-box;
     }
     .form-group input:focus, .form-group select:focus {
         border-color: var(--accent);
+        background: var(--panel);
+        box-shadow: 0 0 0 3px var(--accent-soft);
         outline: none;
     }
+    .form-group input::placeholder {
+        color: var(--muted);
+        opacity: 0.7;
+    }
     .code-input {
-        font-size: 20px !important;
-        font-weight: 800;
-        letter-spacing: 0.15em;
+        font-family: var(--font-mono, monospace);
+        font-size: 21px !important;
+        font-weight: 900;
+        letter-spacing: 0.18em;
         text-align: center;
         text-transform: uppercase;
+        border-color: var(--accent-line) !important;
     }
 
     .btn-submit {
         width: 100%;
-        min-height: 48px;
-        padding: 14px;
+        min-height: 50px;
+        padding: 14px 18px;
         font-size: 15px;
-        font-weight: 800;
-        border-radius: 10px;
+        font-weight: 900;
+        letter-spacing: .02em;
+        border-radius: 12px;
         border: none;
         background: var(--accent);
         color: #0a1108;
@@ -132,44 +154,58 @@
         align-items: center;
         justify-content: center;
         gap: 8px;
-        transition: opacity .15s, transform .1s;
+        box-shadow: 0 4px 16px -2px var(--accent-glow);
+        transition: transform .12s ease, box-shadow .15s ease, filter .15s ease;
         touch-action: manipulation;
         -webkit-tap-highlight-color: transparent;
     }
-    .btn-submit:hover { opacity: .95; }
-    .btn-submit:active { transform: scale(0.97); }
+    .btn-submit:hover {
+        filter: brightness(1.06);
+        box-shadow: 0 6px 20px -2px var(--accent-glow);
+    }
+    .btn-submit:active { transform: scale(0.98); }
 
     .error-flash {
         background: rgba(239, 68, 68, 0.12);
-        border: 1px solid rgba(239, 68, 68, 0.3);
+        border: 1px solid rgba(239, 68, 68, 0.35);
         color: #ef4444;
-        padding: 10px 14px;
-        border-radius: 8px;
+        padding: 11px 14px;
+        border-radius: 10px;
         font-size: 13px;
-        font-weight: 600;
-        margin-bottom: 16px;
+        font-weight: 700;
+        margin-bottom: 18px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
     }
 
     .free-auction-callout {
-        margin-top: 24px;
+        margin-top: 22px;
         text-align: center;
-        padding: 16px;
-        background: rgba(255, 255, 255, 0.02);
-        border: 1px solid var(--line);
-        border-radius: 12px;
+        padding: 16px 18px;
+        background: var(--panel-2);
+        border: 1px dashed var(--line);
+        border-radius: 14px;
+        transition: border-color .15s, transform .12s;
+    }
+    .free-auction-callout:hover {
+        border-color: var(--line-strong, var(--accent));
+        transform: translateY(-1px);
     }
     .free-auction-callout p {
         font-size: 12px;
         color: var(--muted);
-        margin: 0 0 10px;
+        margin: 0 0 8px;
+        font-weight: 600;
     }
     .free-auction-callout a {
         display: inline-flex;
         align-items: center;
-        gap: 6px;
+        justify-content: center;
+        gap: 7px;
         color: var(--gold, #ffb526);
-        font-size: 13px;
-        font-weight: 700;
+        font-size: 13.5px;
+        font-weight: 800;
         text-decoration: none;
     }
     .free-auction-callout a:hover {

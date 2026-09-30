@@ -15,6 +15,7 @@ from django.views.decorators.http import require_POST
 
 from ..models import (
     Auction,
+    Competition,
     Fixture,
     Formation,
     Giornata,
@@ -121,9 +122,18 @@ def app_rosa(request):
     participant, ctx = _app_ctx(request, "rosa")
     if participant is None:
         return _redirect_login(request, ctx)
-    roster = list(Player.objects.filter(owner=participant, abroad_list=False).select_related("loan_from")
-                  .order_by("role", "-cost", "name"))
     league = participant.league
+
+    target_id = request.GET.get("team")
+    viewed_participant = participant
+    if target_id and league:
+        found = league.participants.filter(id=target_id).first()
+        if found:
+            viewed_participant = found
+
+    is_mine = (viewed_participant.id == participant.id)
+    roster = list(Player.objects.filter(owner=viewed_participant, abroad_list=False).select_related("loan_from")
+                  .order_by("role", "-cost", "name"))
     is_mantra = bool(league and league.is_mantra)
     groups = []
     for code, label in _ROLE_LABELS:
@@ -136,20 +146,24 @@ def app_rosa(request):
             "slots": slots, "cost": sum(p.cost for p in players),
         })
     fms = [p.fanta_avg for p in roster if p.fanta_avg is not None]
+    league_teams = list(league.participants.order_by("display_name")) if league else []
     ctx.update({
+        "viewed_participant": viewed_participant,
+        "is_mine": is_mine,
+        "league_teams": league_teams,
         "roster": roster,
         "roster_count": len(roster),
         "roster_groups": groups,
         "roster_value": sum(p.cost for p in roster),
         "roster_fm": (sum(fms) / len(fms)) if fms else None,
-        "plan": services.roster_plan(participant),
-        "cap": _cap_ctx(participant),
+        "plan": services.roster_plan(viewed_participant),
+        "cap": _cap_ctx(viewed_participant),
         "is_mantra": is_mantra,
         "contracts_on": bool(league and league.contracts_enabled),
         "renewals_open": bool(league and league.contracts_enabled and league.renewals_open),
-        "expiring": services.expiring_contracts(participant) if league and league.contracts_enabled else [],
-        "abroad_listed": list(Player.objects.filter(owner=participant, abroad_list=True)),
-        "loaned_out": list(Player.objects.filter(loan_from=participant).select_related("owner")),
+        "expiring": services.expiring_contracts(viewed_participant) if league and league.contracts_enabled else [],
+        "abroad_listed": list(Player.objects.filter(owner=viewed_participant, abroad_list=True)),
+        "loaned_out": list(Player.objects.filter(loan_from=viewed_participant).select_related("owner")),
     })
     return render(request, "auctions/app_rosa.html", ctx)
 
@@ -337,15 +351,22 @@ def app_lega(request):
     active_tab = request.GET.get("tab", "classifica")
     target_giornata = request.GET.get("giornata", "")
 
+    teams = list(league.participants.filter(is_active=True).order_by("display_name")) if league else []
+    giornate = list(season.giornate.all().order_by("number")) if season else []
+
     ctx.update({
         "standings": _app_standings(league, participant.id if participant else None),
         "auctions": auctions,
+        "season": season,
         "competitions": competitions,
         "current_competition": current_competition,
         "competition_data": competition_data,
         "competition_matchdays": competition_matchdays,
         "active_tab": active_tab,
         "target_giornata": target_giornata,
+        "teams": teams,
+        "giornate": giornate,
+        "competition_types": Competition.Type.choices,
     })
     return render(request, "auctions/app_lega.html", ctx)
 
@@ -395,7 +416,9 @@ def app_mercato(request):
     refund_mode = active_auc.release_refund_mode if active_auc else "purchase"
 
     # Market sessions
-    services.sync_market_schedule(league)
+    # Only this league's sessions: a market opened elsewhere isn't this team's.
+    if league is not None:
+        services.sync_market_schedule(league)
     sessions_qs = MarketSession.objects.filter(league=league).exclude(status=MarketSession.Status.DRAFT) if league else MarketSession.objects.none()
     
     # Session selection
@@ -438,6 +461,9 @@ def app_mercato(request):
             "allow_conditional_release": s.allow_conditional_release,
             "require_same_role_release": s.require_same_role_release,
             "is_selected": bool(market_session and s.id == market_session.id),
+            "session_type": getattr(s, "session_type", MarketSession.SessionType.SEALED_BIDS),
+            "session_type_display": s.get_session_type_display() if hasattr(s, "get_session_type_display") else "Buste Segrete",
+            "config": s.config or {},
             "max_acquisitions_p": s.max_acquisitions_p,
             "max_acquisitions_d": s.max_acquisitions_d,
             "max_acquisitions_c": s.max_acquisitions_c,
@@ -459,18 +485,29 @@ def app_mercato(request):
     if market_session and market_session.max_bids:
         bids_left = max(0, market_session.max_bids - len(my_bids))
 
-    # Initial view: hub or workspace
-    has_active_query = bool(requested_session_id or q or role or in_budget or request.GET.get("page") or request.GET.get("sort") != "-quota" or request.GET.get("view") == "workspace")
-    initial_view = "workspace" if has_active_query else "hub"
-
     active_auc = ctx.get("active_auction")
     active_markets_count = len(active_sessions) + (1 if (league and league.trades_enabled) else 0) + (1 if active_auc else 0)
+
+    # Initial view logic: entering /app/mercato/ lands on the Hub.
+    # Selecting a session (?session_id=X) or listone (?view=listone) lands on the workspace.
+    requested_view = request.GET.get("view")
+    if requested_session_id:
+        initial_view = "workspace"
+    elif requested_view in ("workspace", "listone"):
+        initial_view = requested_view
+    elif q or role or in_budget or request.GET.get("page"):
+        initial_view = "workspace" if market_session else "listone"
+    else:
+        initial_view = "hub"
 
     ctx.update({
         "free_agents": page.object_list,
         "page": page,
         "base_query": base_query.urlencode(),
         "in_budget": in_budget,
+        "initial_view": initial_view,
+        "is_listone_view": (initial_view == "listone"),
+        "active_markets_count": active_markets_count,
         "role_filters": [("", "Tutti"), ("P", "Portieri"), ("D", "Difensori"), ("C", "Centrocampisti"), ("A", "Attaccanti")],
         "plan": services.roster_plan(participant),
         "cap": _cap_ctx(participant),
@@ -479,8 +516,6 @@ def app_mercato(request):
         "sessions_list": sessions_list,
         "active_sessions": active_sessions,
         "past_sessions": past_sessions,
-        "active_markets_count": active_markets_count,
-        "initial_view": initial_view,
         "market_open": market_open,
         "my_bids": my_bids,
         "my_bid_player_ids": my_bid_player_ids,
@@ -493,6 +528,7 @@ def app_mercato(request):
         "sort": sort,
         "refund_mode": refund_mode,
         "is_mantra": is_mantra,
+        "market_session_types": MarketSession.SessionType.choices,
     })
     return render(request, "auctions/app_mercato.html", ctx)
 
