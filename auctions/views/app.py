@@ -15,6 +15,7 @@ from django.views.decorators.http import require_POST
 
 from ..models import (
     Auction,
+    Competition,
     Formation,
     Giornata,
     GiornataScore,
@@ -250,12 +251,19 @@ def app_lega(request):
         if current_competition:
             competition_data = compute_competition_standings(current_competition)
 
+    teams = list(league.participants.filter(is_active=True).order_by("display_name")) if league else []
+    giornate = list(season.giornate.all().order_by("number")) if season else []
+
     ctx.update({
         "standings": _app_standings(league, participant.id if participant else None),
         "auctions": auctions,
+        "season": season,
         "competitions": competitions,
         "current_competition": current_competition,
         "competition_data": competition_data,
+        "teams": teams,
+        "giornate": giornate,
+        "competition_types": Competition.Type.choices,
     })
     return render(request, "auctions/app_lega.html", ctx)
 
