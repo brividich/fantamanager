@@ -13,7 +13,9 @@ from decimal import Decimal
 
 from django.db import transaction
 
-from ..models import Competition, Fixture, Giornata, GiornataScore, Participant, Season
+from ..models import Competition, Fixture, Giornata, GiornataScore, Participant, Player, PlayerPerformance, Season
+from .. import scoring
+from .scoring import lineup_io, giornata_perf_map
 from .voti import compute_coppa_italia_battle_royale
 
 
@@ -651,13 +653,140 @@ def ensure_league_season_and_competitions(league):
     return season, competitions
 
 
+def get_fixture_details(fixture):
+    """Retrieve full match sheet details for a fixture:
+    - Starters with votes, fantavoti, bonuses, subentri
+    - Bench with votes, subbed-in flags
+    - Defensive modifier, total fantapunti, converted goals
+    - Scorers & cards list
+    """
+    giornata = fixture.giornata
+    season = giornata.season
+    rules = {**scoring.DEFAULTS, **((season.rules or {}) if season else {})}
+    perf_map = giornata_perf_map(giornata)
+
+    def _team_detail(part):
+        if not part:
+            return None
+        starters, bench = lineup_io(part, giornata=giornata)
+        res = scoring.score_lineup(starters, bench, perf_map, rules)
+
+        player_ids = set()
+        for l in res["lines"]:
+            player_ids.add(l["id"])
+            if l.get("sub_in"):
+                player_ids.add(l["sub_in"])
+        for b in bench:
+            player_ids.add(b["id"])
+
+        players_dict = {p.id: p for p in Player.objects.filter(id__in=player_ids)}
+
+        detailed_starters = []
+        scorers = []
+        assists = []
+        yellows = []
+        reds = []
+
+        for l in res["lines"]:
+            starter_p = players_dict.get(l["id"])
+            sub_p = players_dict.get(l.get("sub_in")) if l.get("sub_in") else None
+            active_p = sub_p if sub_p else starter_p
+            active_perf = perf_map.get(active_p.id if active_p else l["id"], {})
+
+            goals = active_perf.get("goals", 0)
+            ast = active_perf.get("assists", 0)
+            yel = bool(active_perf.get("yellow", False))
+            red = bool(active_perf.get("red", False))
+
+            if active_p:
+                if goals > 0:
+                    scorers.append({"name": active_p.name, "goals": goals})
+                if ast > 0:
+                    assists.append({"name": active_p.name, "assists": ast})
+                if yel:
+                    yellows.append(active_p.name)
+                if red:
+                    reds.append(active_p.name)
+
+            detailed_starters.append({
+                "id": active_p.id if active_p else l["id"],
+                "name": active_p.name if active_p else "Giocatore",
+                "team": active_p.team if active_p else "",
+                "role": l["role"],
+                "vote": float(l["vote"]) if l["vote"] is not None else None,
+                "fantavoto": float(l["fantavoto"]) if l["fantavoto"] is not None else None,
+                "has_vote": l["has_vote"],
+                "is_subbed": bool(sub_p),
+                "starter_name": starter_p.name if starter_p else "",
+                "goals": goals,
+                "assists": ast,
+                "yellow": yel,
+                "red": red,
+            })
+
+        subbed_in_pids = {l["sub_in"] for l in res["lines"] if l.get("sub_in")}
+        detailed_bench = []
+        for b in bench:
+            bp = players_dict.get(b["id"])
+            if not bp:
+                continue
+            b_perf = perf_map.get(b["id"], {})
+            b_fv, b_has = scoring.player_fantavoto(b_perf, b["role"], rules)
+            detailed_bench.append({
+                "id": bp.id,
+                "name": bp.name,
+                "team": bp.team,
+                "role": b["role"],
+                "vote": float(b_perf.get("vote")) if b_perf.get("vote") is not None else None,
+                "fantavoto": float(b_fv) if b_fv is not None else None,
+                "has_vote": b_has,
+                "subbed_in": b["id"] in subbed_in_pids,
+                "goals": b_perf.get("goals", 0),
+                "assists": b_perf.get("assists", 0),
+                "yellow": bool(b_perf.get("yellow", False)),
+                "red": bool(b_perf.get("red", False)),
+            })
+
+        gs = GiornataScore.objects.filter(giornata=giornata, participant=part).first()
+        total_val = float(gs.total) if gs else float(res["total"])
+        goals_val = gs.goals if gs else res["goals"]
+        mod_val = float(gs.modificatore) if gs else float(res["modificatore"])
+
+        return {
+            "participant_id": part.id,
+            "name": part.display_name,
+            "total": total_val,
+            "goals": goals_val,
+            "modificatore": mod_val,
+            "subs_count": res["subs"],
+            "scorers": scorers,
+            "assists": assists,
+            "yellows": yellows,
+            "reds": reds,
+            "starters": detailed_starters,
+            "bench": detailed_bench,
+        }
+
+    return {
+        "fixture_id": fixture.id,
+        "giornata": giornata.number,
+        "stage": fixture.stage,
+        "is_computed": fixture.computed,
+        "status": giornata.status,
+        "status_display": giornata.get_status_display(),
+        "home": _team_detail(fixture.home),
+        "away": _team_detail(fixture.away) if fixture.away else None,
+    }
+
+
 def get_competition_matchdays(competition, participant_id=None):
     """Retrieve full matchday-by-matchday schedule and results for any competition.
 
     Returns a list of dicts ordered by giornata number:
-    - For Round Robin / Bracket / Knockout: match fixtures with teams, scores, fantavoti, and user highlight.
-    - For Total Points: ranked managers with fantapunti per giornata.
-    - For Battle Royale: matchday battle results and records.
+    - For Round Robin / Bracket / Knockout: match fixtures with teams, scores, fantavoti,
+      defensive modifiers, scorers recap, and user highlight.
+    - For Total Points: ranked managers with fantapunti, converted goals, and scorers per giornata.
+    - For Battle Royale: matchday battle results, records, and head-to-head match details.
     """
     season = competition.season
     giornate = list(season.giornate.all().order_by("number"))
@@ -674,15 +803,60 @@ def get_competition_matchdays(competition, participant_id=None):
             .order_by("giornata__number", "id")
         )
         if fixtures:
-            # Map of scores for fantavoti
+            # Map of scores, modifiers, and substitutions
             g_ids = list({f.giornata_id for f in fixtures})
-            scores = GiornataScore.objects.filter(giornata_id__in=g_ids).values("giornata_id", "participant_id", "total")
-            score_map = {(s["giornata_id"], s["participant_id"]): s["total"] for s in scores}
+            scores = list(GiornataScore.objects.filter(giornata_id__in=g_ids))
+            score_map = {}
+            mod_map = {}
+            subs_map = {}
+            pids_by_g_team = {}
+            for s in scores:
+                key = (s.giornata_id, s.participant_id)
+                score_map[key] = s.total
+                mod_map[key] = s.modificatore
+                bd = s.breakdown or {}
+                subs_map[key] = bd.get("subs", 0)
+                lines = bd.get("lines", [])
+                contrib_pids = set()
+                for l in lines:
+                    if l.get("has_vote"):
+                        contrib_pids.add(l.get("sub_in") or l.get("id"))
+                pids_by_g_team[key] = contrib_pids
+
+            goal_perfs = (
+                PlayerPerformance.objects.filter(giornata_id__in=g_ids, goals__gt=0)
+                .select_related("player")
+            )
+            goals_by_g_player = defaultdict(int)
+            player_name_map = {}
+            for gp in goal_perfs:
+                goals_by_g_player[(gp.giornata_id, gp.player_id)] = gp.goals
+                player_name_map[gp.player_id] = gp.player.name
+
+            scorers_map = defaultdict(list)
+            for (g_id, part_id), contrib_pids in pids_by_g_team.items():
+                for pid in contrib_pids:
+                    g_cnt = goals_by_g_player.get((g_id, pid), 0)
+                    if g_cnt > 0:
+                        p_name = player_name_map.get(pid, "Giocatore")
+                        scorers_map[(g_id, part_id)].append({
+                            "name": p_name,
+                            "goals": g_cnt,
+                        })
 
             grouped = defaultdict(list)
             for f in fixtures:
-                f.home_score = score_map.get((f.giornata_id, f.home_id))
-                f.away_score = score_map.get((f.giornata_id, f.away_id)) if f.away_id else None
+                h_key = (f.giornata_id, f.home_id)
+                a_key = (f.giornata_id, f.away_id) if f.away_id else None
+
+                f.home_score = score_map.get(h_key)
+                f.away_score = score_map.get(a_key) if a_key else None
+                f.home_mod = mod_map.get(h_key)
+                f.away_mod = mod_map.get(a_key) if a_key else None
+                f.home_subs = subs_map.get(h_key, 0)
+                f.away_subs = subs_map.get(a_key, 0) if a_key else 0
+                f.home_scorers = scorers_map.get(h_key, [])
+                f.away_scorers = scorers_map.get(a_key, []) if a_key else []
                 f.is_user_match = bool(participant_id and (f.home_id == participant_id or f.away_id == participant_id))
                 grouped[f.giornata].append(f)
 
@@ -709,18 +883,47 @@ def get_competition_matchdays(competition, participant_id=None):
             .select_related("participant", "giornata")
         )
         scores_by_g = defaultdict(list)
+        g_ids = [g.id for g in comp_giornate]
+
+        goal_perfs = (
+            PlayerPerformance.objects.filter(giornata_id__in=g_ids, goals__gt=0)
+            .select_related("player")
+        )
+        goals_by_g_player = defaultdict(int)
+        player_name_map = {}
+        for gp in goal_perfs:
+            goals_by_g_player[(gp.giornata_id, gp.player_id)] = gp.goals
+            player_name_map[gp.player_id] = gp.player.name
+
+        scorers_map = defaultdict(list)
         for s in all_scores:
             scores_by_g[s.giornata_id].append(s)
+            bd = s.breakdown or {}
+            lines = bd.get("lines", [])
+            contrib_pids = set()
+            for l in lines:
+                if l.get("has_vote"):
+                    contrib_pids.add(l.get("sub_in") or l.get("id"))
+            for pid in contrib_pids:
+                g_cnt = goals_by_g_player.get((s.giornata_id, pid), 0)
+                if g_cnt > 0:
+                    scorers_map[(s.giornata_id, s.participant_id)].append({
+                        "name": player_name_map.get(pid, "Giocatore"),
+                        "goals": g_cnt,
+                    })
 
         for g in comp_giornate:
             day_scores = sorted(scores_by_g[g.id], key=lambda x: x.total, reverse=True)
             formatted_scores = []
             for rank, s in enumerate(day_scores, start=1):
+                key = (s.giornata_id, s.participant_id)
                 formatted_scores.append({
                     "rank": rank,
                     "participant": s.participant,
                     "total": s.total,
                     "goals": s.goals,
+                    "modificatore": s.modificatore,
+                    "scorers": scorers_map.get(key, []),
                     "is_user": bool(participant_id and s.participant_id == participant_id),
                 })
             matchdays.append({

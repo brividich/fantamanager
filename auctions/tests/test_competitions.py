@@ -1,6 +1,6 @@
 from decimal import Decimal
 from django.test import TestCase
-from auctions.models import Competition, Fixture, Giornata, GiornataScore, League, Participant, Season
+from auctions.models import Competition, Fixture, Formation, Giornata, GiornataScore, League, Participant, Player, PlayerPerformance, Season
 from auctions.services.competitions import (
     generate_round_robin_schedule,
     setup_round_robin_competition,
@@ -259,3 +259,47 @@ class CompetitionsEngineTests(TestCase):
         davis_data = compute_competition_standings(davis_comp)
         self.assertEqual(davis_data["kind"], "fanta_davis")
         self.assertGreaterEqual(len(davis_data["pairs"]), 4)
+
+    def test_fixture_details_and_api(self):
+        comp = Competition.objects.create(
+            season=self.season,
+            name="Campionato Dettagli",
+            kind=Competition.Type.ROUND_ROBIN,
+        )
+        setup_round_robin_competition(comp)
+        g1 = self.season.giornate.get(number=1)
+        fx = comp.fixtures.filter(giornata=g1).first()
+        self.assertIsNotNone(fx)
+
+        # Create a player and performance
+        p1 = Player.objects.create(name="Lautaro", role="A", team="Inter", initial_price=30, owner=fx.home)
+        Formation.objects.create(participant=fx.home, module="4-3-3", starter_ids=[p1.id])
+        PlayerPerformance.objects.create(giornata=g1, player=p1, vote=Decimal("7.5"), goals=2)
+
+        # Score participant
+        from auctions.services.scoring import compute_giornata
+        compute_giornata(g1, mark_scored=True)
+        fx.refresh_from_db()
+
+        # Check get_fixture_details
+        from auctions.services.competitions import get_fixture_details, get_competition_matchdays
+        details = get_fixture_details(fx)
+        self.assertEqual(details["fixture_id"], fx.id)
+        self.assertEqual(details["home"]["name"], fx.home.display_name)
+        self.assertGreater(details["home"]["total"], 0)
+
+        # Check get_competition_matchdays has scorers and mod
+        matchdays = get_competition_matchdays(comp, participant_id=fx.home_id)
+        self.assertEqual(len(matchdays), 38)
+        first_m = matchdays[0]
+        self.assertTrue(first_m["has_user_match"])
+        matched_fx = next(f for f in first_m["fixtures"] if f.id == fx.id)
+        self.assertIsNotNone(matched_fx.home_score)
+
+        # Test API endpoint
+        resp = self.client.get(f"/app/fixture/{fx.id}/detail/")
+        self.assertEqual(resp.status_code, 200)
+        json_data = resp.json()
+        self.assertTrue(json_data["success"])
+        self.assertEqual(json_data["fixture"]["fixture_id"], fx.id)
+        self.assertEqual(json_data["fixture"]["home"]["name"], fx.home.display_name)

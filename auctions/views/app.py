@@ -272,18 +272,39 @@ def app_live(request):
                     "bench": detailed_bench,
                 }
 
-            my_live = _get_team_live(participant)
-            lineup_performances = my_live["starters"]
-
             # Head-to-head match fixture
-            match_fixture = current_giornata.fixtures.filter(
-                Q(home=participant) | Q(away=participant)
-            ).select_related("home", "away", "competition").first()
+            fixture_id_param = request.GET.get("fixture")
+            match_fixture = None
+            if fixture_id_param and fixture_id_param.isdigit():
+                match_fixture = current_giornata.fixtures.filter(
+                    id=int(fixture_id_param)
+                ).select_related("home", "away", "competition").first()
+
+            if not match_fixture:
+                match_fixture = current_giornata.fixtures.filter(
+                    Q(home=participant) | Q(away=participant)
+                ).select_related("home", "away", "competition").first()
 
             if match_fixture:
-                opponent = match_fixture.away if match_fixture.home_id == participant.id else match_fixture.home
+                if participant.id == match_fixture.away_id:
+                    team_me = match_fixture.away
+                    team_opp = match_fixture.home
+                elif participant.id == match_fixture.home_id:
+                    team_me = match_fixture.home
+                    team_opp = match_fixture.away
+                else:
+                    team_me = match_fixture.home
+                    team_opp = match_fixture.away
+
+                my_live = _get_team_live(team_me)
+                lineup_performances = my_live["starters"]
+                opponent = team_opp
                 if opponent:
                     opp_live = _get_team_live(opponent)
+            else:
+                team_me = participant
+                my_live = _get_team_live(participant)
+                lineup_performances = my_live["starters"]
 
             # Matchday leaderboard
             active_teams = list(participant.league.participants.filter(is_active=True)) if participant.league else [participant]
@@ -307,6 +328,7 @@ def app_live(request):
         "opp_live": opp_live,
         "fixture": match_fixture,
         "opponent": opponent,
+        "active_team": team_me if match_fixture else participant,
         "leaderboard": leaderboard,
         "lineup_performances": lineup_performances,
     })
@@ -995,3 +1017,18 @@ def app_logout(request):
     if request.user.is_authenticated:
         auth_logout(request)
     return redirect("app_login")
+
+
+def app_fixture_detail(request, fixture_id):
+    """JSON API endpoint returning the full match sheet details for a fixture:
+    starters, benches, votes, fantavoti, substitutions, cards, goals, modifier.
+    """
+    from django.shortcuts import get_object_or_404
+    from ..services.competitions import get_fixture_details
+
+    fixture = get_object_or_404(
+        Fixture.objects.select_related("giornata", "giornata__season", "home", "away", "competition"),
+        id=fixture_id,
+    )
+    details = get_fixture_details(fixture)
+    return JsonResponse({"success": True, "fixture": details})

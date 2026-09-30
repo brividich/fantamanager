@@ -211,6 +211,7 @@ def compute_coppa_italia_battle_royale(giornata: Giornata) -> List[Dict[str, Any
         p1 = s1.participant
         g1 = s1.goals
 
+        matchups = []
         for j, s2 in enumerate(scores):
             if i == j:
                 continue
@@ -218,11 +219,22 @@ def compute_coppa_italia_battle_royale(giornata: Giornata) -> List[Dict[str, Any
             if g1 > g2:
                 pts += 3
                 w += 1
+                outcome = "V"
             elif g1 == g2:
                 pts += 1
                 d += 1
+                outcome = "P"
             else:
                 l += 1
+                outcome = "S"
+            matchups.append({
+                "opp_name": s2.participant.display_name,
+                "my_goals": g1,
+                "opp_goals": g2,
+                "my_score": float(s1.total),
+                "opp_score": float(s2.total),
+                "outcome": outcome,
+            })
 
         results.append({
             "participant": p1,
@@ -232,6 +244,7 @@ def compute_coppa_italia_battle_royale(giornata: Giornata) -> List[Dict[str, Any
             "battle_points": pts,
             "record": f"{w}V-{d}P-{l}S",
             "max_possible": (len(scores) - 1) * 3 if len(scores) > 1 else 0,
+            "matchups": matchups,
         })
 
     # Sort by battle points descending, then by total fantapunti

@@ -6,11 +6,11 @@ from ..models import Giornata, GiornataScore, Participant, Player, PlayerPerform
 from .formation import _formation_saved
 
 
-def lineup_io(participant):
+def lineup_io(participant, giornata=None):
     """(starters, bench) as ordered ``{"id","role"}`` lists from the manager's
     saved Formation — starters in slot order, bench = the remaining roster (the
     substitution pool, ordered by role then name). Used to feed the engine."""
-    module, starter_ids = _formation_saved(participant)
+    module, starter_ids = _formation_saved(participant, giornata=giornata)
     owned = {p.id: p for p in Player.objects.filter(owner=participant, abroad_list=False).order_by("role", "name")}
     starters, seen = [], set()
     for pid in starter_ids:
@@ -45,7 +45,7 @@ def _serialisable_lines(res):
 def score_participant_giornata(participant, giornata, *, persist=True):
     """Score one manager for a giornata from their saved lineup + the giornata's
     performances. Returns the engine result; persists a GiornataScore when asked."""
-    starters, bench = lineup_io(participant)
+    starters, bench = lineup_io(participant, giornata=giornata)
     rules = (giornata.season.rules or {}) if giornata.season_id else {}
     res = scoring.score_lineup(starters, bench, giornata_perf_map(giornata), rules)
     if persist:
