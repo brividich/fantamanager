@@ -84,7 +84,8 @@
     }
     @media (min-width: 880px) {
         .rosa-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-        .rosa-role-tabs { display: none; }
+        .rosa-seg { display: none !important; }
+        .rosa-col.asec-off { display: flex !important; }
     }
     @media (min-width: 1240px) {
         .rosa-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -121,19 +122,6 @@
     </div>
 </div>
 
-<!-- Mobile Role Tabs Filter -->
-<div class="rosa-role-tabs" id="fm-rosa-tabs">
-    <button type="button" class="role-tab-btn active" onclick="filterRosaRole('all', this)">
-        Tutti <span class="badge-num">{{ roster_count }}</span>
-    </button>
-    {% for group in roster_groups %}
-    <button type="button" class="role-tab-btn" onclick="filterRosaRole('{{ group.code }}', this)">
-        <span class="role-badge role-{{ group.code }}" style="padding:1px 5px;font-size:9px;">{{ group.code }}</span>
-        <span class="badge-num">{{ group.list|length }}</span>
-    </button>
-    {% endfor %}
-</div>
-
 {% if loaned_out %}
 <div class="a-card" style="padding:10px 14px;font-size:13px">
     <b>Prestati:</b> {% for p in loaned_out %}{{ p.name }} → {{ p.owner.display_name }} ({{ p.loan_sessions_left }} sess.){% if not forloop.last %} · {% endif %}{% endfor %}
@@ -164,7 +152,7 @@
     <span>{% if is_mine %}Quando vinci giocatori all'asta compaiono qui, divisi per ruolo.{% else %}Nessun giocatore in rosa per questa squadra.{% endif %}</span>
 </div>
 {% else %}
-<div class="a-seg" data-asec-default="all" style="margin-bottom:12px;">
+<div class="a-seg rosa-seg" data-asec-default="all" style="margin-bottom:12px;">
     <button type="button" data-asec-go="all" class="on">Tutti <span class="n">{{ roster_count }}</span></button>
     {% for group in roster_groups %}
     <button type="button" data-asec-go="{{ group.code }}">{{ group.code }} <span class="n">{{ group.list|length }}</span></button>
@@ -223,20 +211,6 @@
     </section>
     {% endfor %}
 </div>
-<script>
-function filterRosaRole(role, btn) {
-    document.querySelectorAll('#fm-rosa-tabs .role-tab-btn').forEach(b => b.classList.remove('active'));
-    if(btn) btn.classList.add('active');
-    
-    document.querySelectorAll('[data-role-group]').forEach(col => {
-        if(role === 'all' || col.getAttribute('data-role-group') === role) {
-            col.style.display = 'flex';
-        } else {
-            col.style.display = 'none';
-        }
-    });
-}
-</script>
 {% endif %}
 {% endblock %}
 
