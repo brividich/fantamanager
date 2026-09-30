@@ -327,27 +327,41 @@ app through one of their teams — a banner with the way back.
 
     /* ---- Sections: a segmented control, one section at a time ---------
        A page opts in with `.a-seg` (buttons with data-asec-go) and tags its
-       blocks with data-asec. On a phone only the chosen section shows; from
-       880px up everything is laid out at once, as before. */
-    .a-seg { display: none; }
-    @media (max-width: 879px) {
-        .asec-off { display: none !important; }
+       blocks with data-asec. */
+    .asec-off { display: none !important; }
+    .a-seg {
+        display: inline-flex; align-items: center; gap: 4px;
+        padding: 4px; border-radius: 13px;
+        background: var(--panel-2); border: 1px solid var(--line);
+        max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+    .a-seg::-webkit-scrollbar { display: none; }
+    .a-seg button {
+        height: 38px; border: 0; border-radius: 10px; background: transparent;
+        color: var(--muted); font-weight: 800; font-size: 13px;
+        padding: 0 16px; white-space: nowrap; cursor: pointer;
+        transition: background .14s ease, color .14s ease, box-shadow .14s ease;
+        -webkit-tap-highlight-color: transparent;
+        display: inline-flex; align-items: center; justify-content: center;
+    }
+    .a-seg button .n {
+        display: inline-block; min-width: 20px; margin-left: 6px; padding: 1px 6px;
+        border-radius: 999px; background: rgba(255,255,255,.08); font-size: 11px;
+    }
+    .a-seg button.on {
+        background: var(--accent); color: #0a1108; box-shadow: 0 2px 10px -2px var(--accent-glow);
+    }
+    .a-seg button.on .n { background: rgba(10,17,8,.22); color: #0a1108; font-weight: 800; }
+    .a-seg button:not(.on):hover { color: var(--ink); background: rgba(255,255,255,.05); }
+
+    @media (max-width: 640px) {
         .a-seg {
-            display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px;
-            padding: 4px; border-radius: 13px;
-            background: var(--panel-2); border: 1px solid var(--line);
+            display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); width: 100%; box-sizing: border-box;
         }
         .a-seg button {
-            height: 38px; border: 0; border-radius: 10px; background: transparent;
-            color: var(--muted); font-weight: 800; font-size: 14px;
-            -webkit-tap-highlight-color: transparent;
+            padding: 0 4px; font-size: 12px;
         }
-        .a-seg button .n {
-            display: inline-block; min-width: 20px; margin-left: 4px; padding: 1px 6px;
-            border-radius: 999px; background: rgba(255,255,255,.08); font-size: 11.5px;
-        }
-        .a-seg button.on { background: var(--accent); color: #03101f; }
-        .a-seg button.on .n { background: rgba(3,16,31,.18); }
     }
 
     /* ---- Phone density: modern, not shouty -----------------------------
@@ -391,12 +405,12 @@ app through one of their teams — a banner with the way back.
     </a>
     {% endif %}
     {% if request.user.is_authenticated %}
-    <a class="app-bell" href="{% url 'logout' %}" title="Esci ({{ request.user.username }})" style="color:#ef4444">
+    <a class="app-bell" href="{% url 'logout' %}" onclick="return confirm('Confermi di voler uscire dal tuo account ({{ request.user.username|escapejs }})?');" title="Esci ({{ request.user.username }})" style="color:#ef4444" aria-label="Esci">
         <svg class="ic"><use href="#i-logout"/></svg>
     </a>
     {% else %}
-    <a class="app-bell" href="{% url 'app_altro' %}" title="Notifiche / Altro">
-        <svg class="ic"><use href="#i-bell"/></svg>
+    <a class="app-bell" href="{% url 'app_altro' %}" title="Impostazioni & Altro" aria-label="Impostazioni">
+        <svg class="ic"><use href="#i-gear"/></svg>
         {% if active_auction %}<span class="dot"></span>{% endif %}
     </a>
     {% endif %}

@@ -660,6 +660,9 @@
             <div class="search-row">
                 <input type="search" name="q" value="{{ q }}" placeholder="Cerca calciatore o squadra..." class="search-input" aria-label="Cerca calciatore o squadra">
                 <button type="submit" class="role-chip on" style="cursor:pointer;border:none;padding:0 18px;font-size:13px">Cerca</button>
+                {% if q %}
+                <a href="?{% if market_session %}session_id={{ market_session.id }}{% elif is_listone_view %}view=listone{% endif %}" class="role-chip" style="cursor:pointer;text-decoration:none;padding:0 12px;font-size:12px;background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.3);display:inline-flex;align-items:center;line-height:1;" title="Azzera ricerca">✕ Resetta</a>
+                {% endif %}
             </div>
             <div class="role-chips" role="radiogroup" aria-label="Ruolo">
                 {% for code, label in role_filters %}
@@ -1597,5 +1600,14 @@
             else alert("Errore di connessione");
         }
     }
+
+    // Auto-select tab if ?tab= is specified in URL
+    (function() {
+        const tab = new URLSearchParams(location.search).get("tab");
+        if (tab) {
+            const btn = document.querySelector(`.a-seg button[data-asec-go="${tab}"]`);
+            if (btn) btn.click();
+        }
+    })();
 </script>
 {% endblock %}

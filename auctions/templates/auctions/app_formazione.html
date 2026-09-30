@@ -8,7 +8,6 @@
     .fm-back .ic { width:14px; height:14px; }
 
     .mod-picker {
-    .mod-picker {
         display: flex; gap: 6px; overflow-x: auto; padding: 4px 2px 10px;
         scrollbar-width: none; -webkit-overflow-scrolling: touch; flex-wrap: nowrap;
     }
@@ -207,9 +206,48 @@
         sels.forEach(s => s.addEventListener('change', refresh));
         refresh();
 
-        // Drag and drop su mobile/desktop
+        // Drag and drop / Tap to deploy su mobile e desktop
         let draggedPid = null, clone = null;
         document.querySelectorAll('.bench-player').forEach(row => {
+            row.addEventListener('click', e => {
+                const pid = row.dataset.pid;
+                if (!pid) return;
+                const availableSelects = Array.from(document.querySelectorAll('.slot select'));
+                let placed = false;
+                for (const select of availableSelects) {
+                    if (!select.value) {
+                        const option = Array.from(select.options).find(o => o.value === pid);
+                        if (option && !option.disabled) {
+                            select.value = pid;
+                            select.dispatchEvent(new Event('change'));
+                            const slot = select.closest('.slot');
+                            if (slot) {
+                                slot.style.transition = 'all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+                                slot.style.transform = 'scale(1.1)';
+                                slot.style.boxShadow = '0 0 25px rgba(16,185,129,0.8)';
+                                slot.style.zIndex = '10';
+                                setTimeout(() => {
+                                    slot.style.transform = 'scale(1)';
+                                    slot.style.boxShadow = 'none';
+                                    slot.style.zIndex = '1';
+                                }, 300);
+                            }
+                            if (window.showToast) window.showToast('Schierato titolare!', 'good');
+                            placed = true;
+                            break;
+                        }
+                    }
+                }
+                if (!placed) {
+                    const currentSlot = availableSelects.find(s => s.value === pid);
+                    if (currentSlot) {
+                        if (window.showToast) window.showToast('Giocatore già schierato', 'info');
+                    } else {
+                        if (window.showToast) window.showToast('Nessuno slot libero per questo ruolo. Scegli chi sostituire.', 'bad');
+                    }
+                }
+            });
+
             row.addEventListener('dragstart', e => {
                 draggedPid = row.dataset.pid;
                 e.dataTransfer.setData('text/plain', draggedPid);
