@@ -372,12 +372,28 @@ def app_mercato(request):
         bids_left = max(0, market_session.max_bids - len(my_bids))
 
     active_auc = ctx.get("active_auction")
+    active_markets_count = len(active_sessions) + (1 if (league and league.trades_enabled) else 0) + (1 if active_auc else 0)
+
+    # Initial view logic: entering /app/mercato/ lands on the Hub.
+    # Selecting a session (?session_id=X) or listone (?view=listone) lands on the workspace.
+    requested_view = request.GET.get("view")
+    if requested_session_id:
+        initial_view = "workspace"
+    elif requested_view in ("workspace", "listone"):
+        initial_view = requested_view
+    elif q or role or in_budget or request.GET.get("page"):
+        initial_view = "workspace" if market_session else "listone"
+    else:
+        initial_view = "hub"
 
     ctx.update({
         "free_agents": page.object_list,
         "page": page,
         "base_query": base_query.urlencode(),
         "in_budget": in_budget,
+        "initial_view": initial_view,
+        "is_listone_view": (initial_view == "listone"),
+        "active_markets_count": active_markets_count,
         "role_filters": [("", "Tutti"), ("P", "Portieri"), ("D", "Difensori"), ("C", "Centrocampisti"), ("A", "Attaccanti")],
         "plan": services.roster_plan(participant),
         "cap": _cap_ctx(participant),
