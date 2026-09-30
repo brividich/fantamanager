@@ -5,427 +5,205 @@
 
 {% block content %}
 <style>
+    /* ==========================================================================
+       Fluid Page Container & Design System Tokens
+       ========================================================================== */
     .ct-page {
         width: 100%;
-        max-width: 100%;
+        max-width: 1520px;
+        margin: 0 auto;
         box-sizing: border-box;
         overflow-x: hidden;
     }
+
+    /* Top Page Header */
     .ct-head {
         display: flex;
-        align-items: flex-end;
+        align-items: center;
         justify-content: space-between;
-        gap: 14px;
+        gap: 16px;
         flex-wrap: wrap;
-        margin-bottom: 16px;
+        margin-bottom: 20px;
+        padding-bottom: 14px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .ct-head-info {
+        flex: 1;
+        min-width: 280px;
+    }
+    .ct-head-title-wrap {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    .ct-head-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        background: rgba(16, 185, 129, 0.12);
+        color: #10b981;
+        border: 1px solid rgba(16, 185, 129, 0.25);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
     }
     .ct-head h1 {
         margin: 0;
-        font-size: clamp(20px, 4.5vw, 26px);
+        font-size: clamp(20px, 2.5vw, 26px);
         font-weight: 900;
         letter-spacing: .01em;
         line-height: 1.2;
+        color: var(--ink-bright, #fff);
     }
+    .ct-head-sub {
+        font-size: 13px;
+        color: var(--muted, #94a3b8);
+        margin-top: 5px;
+        line-height: 1.45;
+        max-width: 780px;
+    }
+
+    /* Top Action Bar / Toolbar */
     .ct-bar {
         display: flex;
-        gap: 8px 10px;
+        gap: 8px;
         align-items: center;
         flex-wrap: wrap;
-        font-size: 13px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        border-radius: 10px;
+        padding: 6px 10px;
+    }
+    .ct-season-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12.5px;
+        font-weight: 800;
+        color: var(--ink-bright, #fff);
+        padding: 4px 10px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 7px;
     }
     .ct-bar form { margin: 0; }
+
+    /* Inputs & Form Elements */
     .ct-in {
-        padding: 7px 10px;
+        height: 34px;
+        padding: 6px 10px;
         border-radius: 8px;
         border: 1px solid var(--line);
-        background: var(--panel-2, rgba(0,0,0,0.25));
-        color: var(--ink);
+        background: var(--panel-2, rgba(0, 0, 0, 0.35));
+        color: var(--ink, #f1f5f9);
         font-size: 13px;
         box-sizing: border-box;
         max-width: 100%;
         outline: none;
+        transition: border-color .15s ease, box-shadow .15s ease;
     }
     .ct-in:focus {
-        border-color: var(--accent);
+        border-color: var(--accent, #10b981);
+        box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
     }
+
+    /* Buttons */
     .ct-btn {
         min-height: 34px;
+        height: 34px;
         line-height: 1;
         box-sizing: border-box;
-        padding: 0 12px;
+        padding: 0 14px;
         font-size: 12.5px;
         font-weight: 800;
         border-radius: 8px;
         cursor: pointer;
-        border: 1px solid var(--line);
-        background: var(--panel-2, rgba(255,255,255,0.06));
-        color: var(--ink);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--ink, #f1f5f9);
         display: inline-flex;
         align-items: center;
         justify-content: center;
+        gap: 6px;
         touch-action: manipulation;
-        transition: all .12s ease;
+        transition: all .15s ease;
         white-space: nowrap;
+        text-decoration: none;
+        user-select: none;
     }
     .ct-btn:hover {
-        border-color: rgba(255,255,255,0.25);
+        background: rgba(255, 255, 255, 0.12);
+        border-color: rgba(255, 255, 255, 0.25);
         color: var(--ink-bright, #fff);
     }
     .ct-btn:active { transform: scale(0.97); }
     .ct-btn.go {
-        background: var(--accent);
-        color: #0a1108;
-        border-color: var(--accent);
-        box-shadow: 0 2px 8px -2px var(--accent-glow);
+        background: var(--accent, #10b981);
+        color: #062419;
+        border-color: var(--accent, #10b981);
+        box-shadow: 0 2px 8px -2px rgba(16, 185, 129, 0.4);
     }
+    .ct-btn.go:hover {
+        filter: brightness(1.1);
+        box-shadow: 0 3px 12px -2px rgba(16, 185, 129, 0.6);
+    }
+    .ct-btn:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+        pointer-events: none;
+    }
+
+    /* Pills & Badges */
     .ct-pill {
         font-size: 11px;
         font-weight: 800;
         padding: 3px 8px;
         border-radius: 999px;
-        background: rgba(255,255,255,0.06);
-        color: var(--muted);
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--muted, #94a3b8);
         display: inline-flex;
         align-items: center;
+        gap: 4px;
         white-space: nowrap;
+        border: 1px solid rgba(255, 255, 255, 0.08);
     }
-    .ct-pill.warn { background: rgba(234,179,8,0.15); color: #eab308; }
-    .ct-pill.bad { background: rgba(239,68,68,0.15); color: #f87171; }
+    .ct-pill.info { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border-color: rgba(59, 130, 246, 0.3); }
+    .ct-pill.warn { background: rgba(234, 179, 8, 0.15); color: #fbbf24; border-color: rgba(234, 179, 8, 0.3); }
+    .ct-pill.bad { background: rgba(239, 68, 68, 0.15); color: #f87171; border-color: rgba(239, 68, 68, 0.3); }
+    .ct-pill.good { background: rgba(16, 185, 129, 0.15); color: #34d399; border-color: rgba(16, 185, 129, 0.3); }
+
     .ct-comp-badge {
-        font-size: 12px;
+        font-size: 12.5px;
         font-weight: 800;
-        padding: 0 10px;
-        min-height: 30px;
+        padding: 0 11px;
+        height: 34px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        border-radius: 7px;
-        background: rgba(16,185,129,0.16);
-        border: 1px solid rgba(16,185,129,0.32);
-        color: var(--accent);
+        border-radius: 8px;
+        background: rgba(16, 185, 129, 0.16);
+        border: 1px solid rgba(16, 185, 129, 0.35);
+        color: #34d399;
         white-space: nowrap;
+        box-sizing: border-box;
     }
     .ct-comp-badge.warn {
-        background: rgba(234,179,8,0.15);
+        background: rgba(234, 179, 8, 0.15);
+        border-color: rgba(234, 179, 8, 0.35);
         color: #fbbf24;
     }
 
-    /* Grids & Cards */
-    .ct-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
-        gap: 14px;
-        align-items: start;
-        width: 100%;
-        box-sizing: border-box;
-    }
-    .ct-team {
-        min-width: 0;
-        width: 100%;
-        box-sizing: border-box;
-        border-radius: 12px;
-        overflow: hidden;
-        border: 1px solid var(--line);
-        background: var(--panel-2);
-        padding: 12px;
-    }
-    .ct-team h3 {
-        margin: 0;
-        font-size: 15px;
-        font-weight: 800;
-        display: flex;
-        gap: 6px 8px;
-        align-items: center;
-        flex-wrap: wrap;
-    }
-    .ct-team[open] h3 { margin-bottom: 10px; }
-    .ct-team > summary {
-        cursor: pointer;
-        list-style: none;
-        padding: 4px 2px;
-        user-select: none;
-        -webkit-tap-highlight-color: transparent;
-    }
-    .ct-team > summary::-webkit-details-marker { display: none; }
-    .ct-team > summary h3::before { content: "▸"; color: var(--muted); font-size: 12px; width: 10px; }
-    .ct-team[open] > summary h3::before { content: "▾"; }
-
-    .ct-teams-bar {
-        display: flex;
-        gap: 8px;
-        align-items: center;
-        justify-content: flex-end;
-        margin-bottom: 12px;
-        font-size: 12px;
-        flex-wrap: wrap;
-    }
-
-    /* Player Rows */
-    .ct-row {
-        box-sizing: border-box;
-        border-bottom: 1px solid var(--line);
-        padding: 8px 4px;
-        transition: background .12s ease;
-    }
-    .ct-row:last-child { border-bottom: none; }
-    .ct-row-top {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        min-width: 0;
-    }
-    .ct-name {
-        font-weight: 700;
-        font-size: 13.5px;
-        color: var(--ink);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    .ct-cost {
-        font-size: 12px;
-        font-weight: 800;
-        color: var(--muted);
-        text-align: right;
-    }
-    .ct-years {
-        font-size: 12px;
-        font-weight: 800;
-        text-align: center;
-        color: var(--muted);
-    }
-    .ct-years.pending { color: #3b82f6; }
-    .ct-years.exp { color: #f87171; }
-    .ct-years.last { color: #eab308; }
-
-    .ct-act {
-        display: flex;
-        gap: 6px;
-        align-items: center;
-        justify-content: flex-end;
-    }
-    .ct-act form {
-        display: flex;
-        gap: 6px;
-        align-items: center;
-        margin: 0;
-    }
-    .ct-act select, .ct-act input {
-        height: 30px;
-        font-size: 12.5px;
-        border-radius: 7px;
-        border: 1px solid var(--line);
-        background: var(--panel);
-        color: inherit;
-        padding: 2px 8px;
-        box-sizing: border-box;
-    }
-
-    /* Desktop Player Row */
-    @media (min-width: 680px) {
-        .ct-row {
-            display: grid;
-            grid-template-columns: 24px minmax(110px, 1fr) 56px 110px auto;
-            gap: 10px;
-            align-items: center;
-        }
-        .ct-row-top {
-            display: contents;
-        }
-    }
-
-    /* Mobile Player Row (Cards) */
-    @media (max-width: 679px) {
-        .ct-head {
-            flex-direction: column;
-            align-items: stretch;
-            gap: 12px;
-        }
-        .ct-bar {
-            width: 100%;
-        }
-        .ct-bar .ct-btn {
-            height: 38px;
-            font-size: 13px;
-        }
-        .ct-grid {
-            grid-template-columns: 1fr;
-            gap: 12px;
-        }
-        .ct-row {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            padding: 10px 10px;
-            background: rgba(255,255,255,0.02);
-            border: 1px solid var(--line);
-            border-radius: 10px;
-            margin-bottom: 8px;
-        }
-        .ct-row-top {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            width: 100%;
-            gap: 8px;
-        }
-        .ct-row-top .role-badge {
-            flex-shrink: 0;
-        }
-        .ct-name {
-            flex: 1;
-            min-width: 0;
-            font-size: 14px;
-        }
-        .ct-cost {
-            flex-shrink: 0;
-            font-size: 12px;
-            background: rgba(255,255,255,0.06);
-            padding: 2px 7px;
-            border-radius: 6px;
-        }
-        .ct-years {
-            flex-shrink: 0;
-            font-size: 11.5px;
-            padding: 2.5px 8px;
-            border-radius: 6px;
-            background: rgba(255,255,255,0.06);
-        }
-        .ct-years.pending { background: rgba(59,130,246,0.15); }
-        .ct-years.exp { background: rgba(239,68,68,0.15); }
-        .ct-years.last { background: rgba(234,179,8,0.15); }
-
-        .ct-act {
-            width: 100%;
-            padding-top: 6px;
-            border-top: 1px solid rgba(255,255,255,0.06);
-        }
-        .ct-act form {
-            width: 100%;
-            display: flex;
-            gap: 8px;
-        }
-        .ct-act select, .ct-act input {
-            height: 36px;
-            font-size: 13px;
-            flex: 1;
-            min-width: 0;
-        }
-        .ct-act button.ct-btn {
-            height: 36px;
-            font-size: 13px;
-            flex: 1;
-        }
-    }
-
-    /* Left Serie A items */
-    .ct-left-item {
-        padding: 12px;
-        border: 1px solid var(--line);
-        border-radius: 12px;
-        background: var(--panel-2);
-        margin-bottom: 10px;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        box-sizing: border-box;
-    }
-    .ct-left-top {
-        display: flex;
-        gap: 10px;
-        align-items: center;
-        min-width: 0;
-        flex-wrap: wrap;
-    }
-    .ct-left-meta-main {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        flex-wrap: wrap;
-        flex: 1;
-        min-width: 0;
-    }
-    .ct-left-meta-main .ct-name {
-        font-size: 14px;
-        font-weight: 800;
-        color: var(--ink);
-    }
-    .ct-left-details {
-        font-size: 12px;
-        color: var(--muted);
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        flex-wrap: wrap;
-    }
-    .ct-left-act {
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-        align-items: center;
-    }
-    .ct-left-act form {
-        display: flex;
-        gap: 6px;
-        align-items: center;
-        margin: 0;
-        flex-wrap: wrap;
-    }
-    .ct-left-res-form {
-        flex: 1 1 300px;
-        display: flex;
-        gap: 6px;
-        align-items: center;
-    }
-    .ct-in-club { flex: 2; min-width: 120px; }
-    .ct-in-outcome { flex: 1.5; min-width: 120px; }
-    .ct-in-pos { width: 55px; }
-
-    @media (max-width: 680px) {
-        .ct-left-act {
-            flex-direction: column;
-            align-items: stretch;
-        }
-        .ct-left-res-form {
-            flex-direction: column;
-            align-items: stretch;
-            gap: 8px;
-            width: 100%;
-        }
-        .ct-left-res-form .ct-in {
-            width: 100% !important;
-            height: 38px;
-            font-size: 13.5px;
-        }
-        .ct-left-res-form button.ct-btn {
-            height: 38px;
-            width: 100%;
-            font-size: 13.5px;
-        }
-        .ct-left-res-form .ct-comp-badge {
-            height: 36px;
-            width: 100%;
-            font-size: 13.5px;
-            box-sizing: border-box;
-        }
-        .ct-left-detect-form {
-            width: 100%;
-        }
-        .ct-left-detect-form button.ct-btn {
-            width: 100%;
-            height: 36px;
-        }
-    }
-
     /* ==========================================================================
-       Contracts Settings Card & Form
+       Settings Panel Card & Form
        ========================================================================== */
     .ct-settings-card {
         background: var(--fm-card, var(--panel-2, #111a2d));
-        border: 1px solid var(--fm-border, var(--line, rgba(255,255,255,0.1)));
+        border: 1px solid var(--fm-border, var(--line, rgba(255, 255, 255, 0.1)));
         border-radius: 14px;
-        padding: 20px;
-        margin-bottom: 20px;
+        padding: 22px;
+        margin-bottom: 22px;
         box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.35);
         position: relative;
         overflow: hidden;
@@ -436,7 +214,7 @@
         top: 0; left: 0; right: 0;
         height: 2px;
         background: linear-gradient(90deg, #10b981 0%, #06b6d4 50%, #3b82f6 100%);
-        opacity: 0.8;
+        opacity: 0.85;
     }
     .ct-settings-head {
         display: flex;
@@ -444,7 +222,7 @@
         justify-content: space-between;
         gap: 16px;
         flex-wrap: wrap;
-        margin-bottom: 18px;
+        margin-bottom: 20px;
         padding-bottom: 14px;
         border-bottom: 1px solid rgba(255, 255, 255, 0.07);
     }
@@ -481,9 +259,9 @@
         display: inline-flex;
         align-items: center;
         gap: 7px;
-        font-size: 11.5px;
+        font-size: 12px;
         font-weight: 700;
-        padding: 4px 10px;
+        padding: 5px 12px;
         border-radius: 999px;
         border: 1px solid rgba(255, 255, 255, 0.1);
         background: rgba(255, 255, 255, 0.04);
@@ -508,15 +286,15 @@
     /* Top Config Grid */
     .ct-config-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-        gap: 12px;
+        grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+        gap: 14px;
         margin-bottom: 20px;
     }
     .ct-config-card {
         background: rgba(255, 255, 255, 0.025);
         border: 1px solid rgba(255, 255, 255, 0.07);
-        border-radius: 11px;
-        padding: 12px 14px;
+        border-radius: 12px;
+        padding: 14px 16px;
         display: flex;
         flex-direction: column;
         gap: 8px;
@@ -524,20 +302,19 @@
     }
     .ct-config-card:hover {
         border-color: rgba(255, 255, 255, 0.15);
+        background: rgba(255, 255, 255, 0.035);
     }
-
-    /* Modern Toggle Card */
     .ct-toggle-card {
         cursor: pointer;
         display: flex;
         flex-direction: row;
         align-items: center;
-        gap: 12px;
+        gap: 14px;
         user-select: none;
     }
     .ct-toggle-card:has(:checked) {
         background: rgba(16, 185, 129, 0.06);
-        border-color: rgba(16, 185, 129, 0.3);
+        border-color: rgba(16, 185, 129, 0.35);
     }
     .ct-switch-input {
         position: absolute;
@@ -579,7 +356,7 @@
         min-width: 0;
     }
     .ct-card-label {
-        font-size: 13px;
+        font-size: 13.5px;
         font-weight: 700;
         color: var(--ink-bright, #fff);
         display: flex;
@@ -620,15 +397,15 @@
         background: rgba(255, 255, 255, 0.015);
         border: 1px solid rgba(255, 255, 255, 0.06);
         border-radius: 12px;
-        padding: 16px;
-        margin-bottom: 18px;
+        padding: 18px;
+        margin-bottom: 20px;
     }
     .ct-section-intro {
         margin-bottom: 14px;
     }
     .ct-section-title {
         margin: 0;
-        font-size: 14px;
+        font-size: 14.5px;
         font-weight: 800;
         color: var(--ink-bright, #fff);
         display: flex;
@@ -660,7 +437,7 @@
         text-transform: uppercase;
         letter-spacing: .06em;
         color: var(--muted, #94a3b8);
-        padding: 10px 12px;
+        padding: 10px 14px;
         border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         white-space: nowrap;
     }
@@ -674,7 +451,7 @@
         margin-top: 2px;
     }
     .ct-thresholds-table td {
-        padding: 10px 12px;
+        padding: 11px 14px;
         border-bottom: 1px solid rgba(255, 255, 255, 0.04);
         vertical-align: middle;
     }
@@ -685,13 +462,13 @@
         background: rgba(255, 255, 255, 0.02);
     }
     .ct-thresholds-table .col-role {
-        width: 200px;
+        width: 220px;
     }
     .ct-thresholds-table .col-clause {
-        min-width: 240px;
+        min-width: 260px;
     }
     .ct-thresholds-table .col-cap {
-        min-width: 220px;
+        min-width: 240px;
     }
     .ct-role-pill {
         display: inline-flex;
@@ -711,8 +488,8 @@
     }
     .ct-field-with-suffix input.ct-in {
         height: 36px;
-        padding-right: 38px;
-        width: 150px;
+        padding-right: 40px;
+        width: 160px;
         font-weight: 600;
         font-size: 13px;
         border-radius: 8px;
@@ -746,43 +523,501 @@
         justify-content: space-between;
         gap: 14px;
         flex-wrap: wrap;
-        padding-top: 8px;
+        padding-top: 10px;
     }
     .ct-save-btn {
         min-height: 38px;
-        padding: 0 18px;
+        padding: 0 20px;
         font-size: 13px;
         font-weight: 800;
         gap: 8px;
-        box-shadow: 0 2px 10px -2px rgba(16, 185, 129, 0.4);
     }
     .ct-footer-hint {
         font-size: 12px;
         color: var(--muted, #94a3b8);
     }
 
-    /* Teams bar label */
+    /* ==========================================================================
+       Teams Grid & Fluid Desktop Player Rows
+       ========================================================================== */
+    .ct-teams-bar {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        justify-content: flex-end;
+        margin-bottom: 14px;
+        font-size: 12.5px;
+        flex-wrap: wrap;
+    }
     .ct-teams-bar .ct-teams-label {
         font-weight: 800;
-        font-size: 14px;
+        font-size: 15px;
         color: var(--ink-bright, #fff);
         margin-right: auto;
         display: inline-flex;
         align-items: center;
-        gap: 6px;
+        gap: 8px;
     }
 
-    /* Responsive for mobile (<= 640px) */
+    /* Responsive Multi-column Grid with Ergonomic Minimum Width */
+    .ct-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(440px, 1fr));
+        gap: 16px;
+        align-items: start;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    /* Team Card Container */
+    .ct-team {
+        min-width: 0;
+        width: 100%;
+        box-sizing: border-box;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        background: var(--fm-card, var(--panel-2, #111a2d));
+        padding: 0;
+        transition: border-color .15s ease, box-shadow .15s ease;
+    }
+    .ct-team:hover {
+        border-color: rgba(255, 255, 255, 0.18);
+    }
+    .ct-team > summary {
+        cursor: pointer;
+        list-style: none;
+        padding: 12px 14px;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        background: rgba(255, 255, 255, 0.02);
+        transition: background .15s ease;
+    }
+    .ct-team > summary:hover {
+        background: rgba(255, 255, 255, 0.04);
+    }
+    .ct-team > summary::-webkit-details-marker { display: none; }
+    .ct-team[open] > summary {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+        background: rgba(255, 255, 255, 0.03);
+    }
+    .ct-team-summary-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14.5px;
+        font-weight: 800;
+        color: var(--ink-bright, #fff);
+        margin: 0;
+        min-width: 0;
+    }
+    .ct-team-chevron {
+        font-size: 11px;
+        color: var(--muted, #94a3b8);
+        transition: transform .2s ease;
+        display: inline-block;
+        flex-shrink: 0;
+    }
+    .ct-team[open] .ct-team-chevron {
+        transform: rotate(90deg);
+        color: var(--accent, #10b981);
+    }
+    .ct-team-badges {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+    .ct-team-roster {
+        padding: 6px 8px;
+    }
+
+    /* Player Row: Fluid on Desktop */
+    .ct-row {
+        box-sizing: border-box;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        padding: 8px 8px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        border-radius: 8px;
+        transition: background .12s ease;
+    }
+    .ct-row:last-child { border-bottom: none; }
+    .ct-row:hover {
+        background: rgba(255, 255, 255, 0.035);
+    }
+    .ct-row-top {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex: 1;
+        min-width: 0;
+    }
+    .ct-row-top .role-badge {
+        flex-shrink: 0;
+        width: 22px;
+        height: 22px;
+        font-size: 11px;
+        font-weight: 800;
+        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .ct-name {
+        font-weight: 700;
+        font-size: 13.5px;
+        color: var(--ink-bright, #fff);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        flex: 1;
+        min-width: 60px;
+    }
+    .ct-cost {
+        font-size: 11.5px;
+        font-weight: 800;
+        color: var(--muted, #94a3b8);
+        background: rgba(255, 255, 255, 0.05);
+        padding: 2px 7px;
+        border-radius: 6px;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+    .ct-years {
+        font-size: 11.5px;
+        font-weight: 800;
+        padding: 2.5px 8px;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--muted, #94a3b8);
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+    .ct-years.pending { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.25); }
+    .ct-years.exp { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.25); }
+    .ct-years.last { background: rgba(234, 179, 8, 0.15); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.25); }
+
+    .ct-act {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        justify-content: flex-end;
+        flex-shrink: 0;
+    }
+    .ct-act form {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        margin: 0;
+    }
+    .ct-act select, .ct-act input {
+        height: 30px;
+        font-size: 12.5px;
+        border-radius: 7px;
+        border: 1px solid var(--line);
+        background: var(--panel, #0f172a);
+        color: inherit;
+        padding: 2px 8px;
+        box-sizing: border-box;
+    }
+    .ct-act button.ct-btn {
+        height: 30px;
+        font-size: 12px;
+        padding: 0 10px;
+    }
+
+    /* Mobile Player Row (Stacked Touch Card) */
+    @media (max-width: 679px) {
+        .ct-head {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 12px;
+        }
+        .ct-bar {
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .ct-bar .ct-btn {
+            height: 38px;
+            font-size: 13px;
+        }
+        .ct-grid {
+            grid-template-columns: 1fr;
+            gap: 12px;
+        }
+        .ct-row {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 8px;
+            padding: 10px 10px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            margin-bottom: 8px;
+        }
+        .ct-row-top {
+            justify-content: space-between;
+            width: 100%;
+        }
+        .ct-act {
+            width: 100%;
+            padding-top: 6px;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .ct-act form {
+            width: 100%;
+            display: flex;
+            gap: 8px;
+        }
+        .ct-act select, .ct-act input {
+            height: 36px;
+            font-size: 13px;
+            flex: 1;
+            min-width: 0;
+        }
+        .ct-act button.ct-btn {
+            height: 36px;
+            font-size: 13px;
+            flex: 1;
+        }
+    }
+
+    /* ==========================================================================
+       Departures ("Usciti dalla Serie A") Section
+       ========================================================================== */
+    .ct-departures-card {
+        background: var(--fm-card, var(--panel-2, #111a2d));
+        border: 1px solid var(--fm-border, var(--line, rgba(255, 255, 255, 0.1)));
+        border-radius: 14px;
+        padding: 22px;
+        margin-top: 22px;
+        box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.35);
+        position: relative;
+        overflow: hidden;
+    }
+    .ct-departures-card::before {
+        content: "";
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 2px;
+        background: linear-gradient(90deg, #f59e0b 0%, #ef4444 100%);
+        opacity: 0.8;
+    }
+    .ct-departures-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+    }
+    .ct-departures-title-group {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .ct-departures-title {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 800;
+        color: var(--ink-bright, #fff);
+    }
+    .ct-departures-pills {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    /* Departures Unified Toolbar */
+    .ct-departures-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        padding: 12px 14px;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 10px;
+        margin-bottom: 16px;
+    }
+    .ct-toolbar-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+    .ct-manual-flag-form {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin: 0;
+    }
+    .ct-manual-flag-form select {
+        padding: 6px 10px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: var(--panel, #0f172a);
+        color: inherit;
+        font-size: 12.5px;
+        max-width: 320px;
+        height: 34px;
+    }
+
+    /* Left Serie A item: fluid desktop card */
+    .ct-left-item {
+        padding: 12px 16px;
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.025);
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        box-sizing: border-box;
+        transition: border-color .15s ease, background .15s ease;
+    }
+    .ct-left-item:hover {
+        border-color: rgba(255, 255, 255, 0.16);
+        background: rgba(255, 255, 255, 0.04);
+    }
+    .ct-left-info {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+        flex: 1;
+        flex-wrap: wrap;
+    }
+    .ct-left-info .role-badge {
+        flex-shrink: 0;
+        width: 22px;
+        height: 22px;
+        font-size: 11px;
+        font-weight: 800;
+        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .ct-left-meta-main {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        min-width: 0;
+    }
+    .ct-left-meta-main .ct-name {
+        font-size: 14.5px;
+        font-weight: 800;
+        color: var(--ink-bright, #fff);
+    }
+    .ct-left-details {
+        font-size: 12px;
+        color: var(--muted, #94a3b8);
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+    .ct-left-act {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-shrink: 0;
+    }
+    .ct-left-res-form {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        margin: 0;
+    }
+    .ct-in-club {
+        width: 190px;
+        max-width: 240px;
+    }
+    .ct-in-outcome {
+        width: 145px;
+    }
+    .ct-in-pos {
+        width: 60px;
+        text-align: center;
+    }
+
+    /* Mobile / Tablet for Departures (<= 840px) */
+    @media (max-width: 840px) {
+        .ct-departures-toolbar {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 12px;
+        }
+        .ct-toolbar-group {
+            width: 100%;
+        }
+        .ct-manual-flag-form {
+            width: 100%;
+        }
+        .ct-manual-flag-form select {
+            flex: 1;
+            max-width: 100%;
+            height: 38px;
+        }
+        .ct-left-item {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 12px;
+        }
+        .ct-left-info {
+            width: 100%;
+        }
+        .ct-left-act {
+            flex-direction: column;
+            align-items: stretch;
+            width: 100%;
+        }
+        .ct-left-res-form {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 8px;
+            width: 100%;
+        }
+        .ct-left-res-form .ct-in {
+            width: 100% !important;
+            max-width: 100% !important;
+            height: 38px;
+            font-size: 13.5px;
+        }
+        .ct-left-res-form button.ct-btn,
+        .ct-left-res-form .ct-comp-badge {
+            width: 100% !important;
+            height: 38px;
+            font-size: 13.5px;
+        }
+        .ct-left-detect-form {
+            width: 100%;
+        }
+        .ct-left-detect-form button.ct-btn {
+            width: 100%;
+            height: 36px;
+        }
+    }
+
+    /* Responsive for mobile settings table (<= 640px) */
     @media (max-width: 640px) {
-        .ct-settings-card {
-            padding: 14px;
-        }
-        .ct-thresholds-wrapper {
-            padding: 12px;
-        }
-        .ct-thresholds-table thead {
-            display: none;
-        }
+        .ct-settings-card { padding: 14px; }
+        .ct-thresholds-wrapper { padding: 12px; }
+        .ct-thresholds-table thead { display: none; }
         .ct-thresholds-table,
         .ct-thresholds-table tbody,
         .ct-thresholds-table tr,
@@ -807,52 +1042,130 @@
             margin-bottom: 6px;
             border-bottom: 1px solid rgba(255, 255, 255, 0.06);
         }
-        .ct-field-with-suffix {
-            width: 100%;
-        }
-        .ct-field-with-suffix input.ct-in {
-            width: 100%;
-        }
+        .ct-field-with-suffix { width: 100%; }
+        .ct-field-with-suffix input.ct-in { width: 100%; }
         .ct-settings-footer {
             flex-direction: column;
             align-items: stretch;
             gap: 10px;
         }
-        .ct-save-btn {
-            width: 100%;
-            height: 40px;
-        }
+        .ct-save-btn { width: 100%; height: 40px; }
     }
 
-
-    .ct-log { font-size: 12.5px; word-break: break-word; }
-    .ct-log li { padding: 6px 0; line-height: 1.45; border-bottom: 1px solid rgba(255,255,255,0.04); }
-    .ct-log li:last-child { border-bottom: none; }
+    /* ==========================================================================
+       Audit Log Feed ("Registro dadi e contratti")
+       ========================================================================== */
+    .ct-log-card {
+        background: var(--fm-card, var(--panel-2, #111a2d));
+        border: 1px solid var(--fm-border, var(--line, rgba(255, 255, 255, 0.1)));
+        border-radius: 14px;
+        padding: 20px 22px;
+        margin-top: 22px;
+        box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.35);
+    }
+    .ct-log-feed {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-top: 12px;
+    }
+    .ct-log-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 8px 12px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid rgba(255, 255, 255, 0.04);
+        font-size: 12.5px;
+        transition: background .12s ease;
+    }
+    .ct-log-item:hover {
+        background: rgba(255, 255, 255, 0.04);
+    }
+    .ct-log-left {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+        flex: 1;
+        flex-wrap: wrap;
+    }
+    .ct-log-time {
+        font-size: 11.5px;
+        color: var(--muted, #94a3b8);
+        font-family: monospace;
+        background: rgba(255, 255, 255, 0.05);
+        padding: 2px 6px;
+        border-radius: 4px;
+    }
+    .ct-log-kind {
+        font-weight: 700;
+        color: var(--ink-bright, #fff);
+    }
+    .ct-log-target {
+        color: var(--ink, #f1f5f9);
+    }
+    .ct-log-right {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+    }
+    @media (max-width: 680px) {
+        .ct-log-item {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 6px;
+        }
+    }
 </style>
 
 {% include "auctions/_console_head.html" %}
 
 <div class="ct-page">
 <div class="ct-head">
-    <div>
-        <h1 style="margin:0">Contratti di permanenza</h1>
-        <div class="muted" style="margin-top:4px;font-size:13px;line-height:1.4">
+    <div class="ct-head-info">
+        <div class="ct-head-title-wrap">
+            <div class="ct-head-icon">
+                <svg class="ic" style="width:20px;height:20px"><use href="#i-shield"/></svg>
+            </div>
+            <h1>Contratti di permanenza</h1>
+        </div>
+        <div class="ct-head-sub">
             Dado contratti all'acquisto (clausola per ruolo, blocco portieri, scommessa Under 21), rinnovi col dado verde/rosso a fine contratto. Regolamento comma 4.
         </div>
     </div>
     {% if current_league and current_league.contracts_enabled %}
     <div class="ct-bar">
-        <span>Stagione <b>{{ current_league.season_number }}</b></span>
-        {% if current_league.renewals_open %}<span class="ct-pill warn">Rinnovi aperti</span>{% endif %}
-        <a class="ct-btn" style="display:inline-flex;align-items:center;text-decoration:none" target="_blank" rel="noopener"
+        <span class="ct-season-pill">
+            <svg class="ic" style="width:14px;height:14px"><use href="#i-calendar"/></svg>
+            <span>Stagione <b>{{ current_league.season_number }}</b></span>
+        </span>
+        {% if current_league.renewals_open %}
+        <span class="ct-pill warn">
+            <span class="ct-status-dot" style="background:#fbbf24"></span>
+            <span>Rinnovi aperti</span>
+        </span>
+        {% endif %}
+        <a class="ct-btn" target="_blank" rel="noopener"
            href="{% url 'admin_print_renewals' %}?league={{ current_league.id }}"
-           title="Il foglio «Rinnovo contratti» con i contratti scaduti e gli esiti già decisi">Lista rinnovi</a>
-        <a class="ct-btn" style="display:inline-flex;align-items:center;text-decoration:none"
-           href="{% url 'admin_export_renewals' %}?league={{ current_league.id }}">Excel</a>
+           title="Il foglio «Rinnovo contratti» con i contratti scaduti e gli esiti già decisi">
+            <svg class="ic" style="width:14px;height:14px"><use href="#i-file"/></svg>
+            <span>Lista rinnovi</span>
+        </a>
+        <a class="ct-btn" href="{% url 'admin_export_renewals' %}?league={{ current_league.id }}">
+            <svg class="ic" style="width:14px;height:14px"><use href="#i-download"/></svg>
+            <span>Excel</span>
+        </a>
         <form method="post" action="{% url 'admin_contracts_action' %}" onsubmit="return confirm('Iniziare una nuova stagione? Tutti i contratti scalano di un anno e si aprono i rinnovi per quelli scaduti.');">
             {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}">
             <input type="hidden" name="action" value="new_season">
-            <button type="submit" class="ct-btn go">Nuova stagione</button>
+            <button type="submit" class="ct-btn go">
+                <svg class="ic" style="width:14px;height:14px"><use href="#i-plus"/></svg>
+                <span>Nuova stagione</span>
+            </button>
         </form>
         {% if current_league.renewals_open %}
         <form method="post" action="{% url 'admin_contracts_action' %}">
@@ -866,7 +1179,7 @@
 </div>
 
 {% if messages %}
-<div style="margin-bottom:14px">
+<div style="margin-bottom:16px">
     {% for msg in messages %}
     <div class="saved-flash" style="{% if msg.tags == 'error' %}background:rgba(239,68,68,0.15);color:#ef4444;border-color:rgba(239,68,68,0.3){% else %}background:var(--accent-soft);color:var(--accent-bright);border-color:var(--accent-line){% endif %}">{{ msg }}</div>
     {% endfor %}
@@ -876,6 +1189,9 @@
 {% if not current_league %}
 <div class="panel muted" style="padding:24px;text-align:center">Seleziona una lega dal menu in alto.</div>
 {% else %}
+<!-- ==========================================================================
+     Contracts Settings Card
+     ========================================================================== -->
 <div class="panel ct-settings-card">
     <div class="ct-settings-head">
         <div class="ct-settings-title-group">
@@ -1009,67 +1325,83 @@
     </form>
 </div>
 
+<!-- ==========================================================================
+     Teams Grid Section
+     ========================================================================== -->
 {% if current_league.contracts_enabled %}
 <div class="ct-teams-bar">
-    <span class="ct-teams-label"><svg class="ic" style="width:16px;height:16px"><use href="#i-users"/></svg> Squadre della Lega</span>
+    <span class="ct-teams-label">
+        <svg class="ic" style="width:18px;height:18px;color:var(--accent)"><use href="#i-users"/></svg>
+        <span>Squadre della Lega</span>
+    </span>
     <button type="button" class="ct-btn" data-teams="open">Espandi tutte</button>
     <button type="button" class="ct-btn" data-teams="close">Comprimi tutte</button>
 </div>
+
 <div class="ct-grid">
     {% for t in teams %}
     <details class="panel ct-team" id="team-{{ t.team.id }}">
-        <summary><h3>{{ t.team.display_name }}
-            <span class="ct-pill">{{ t.players|length }} giocator{{ t.players|length|pluralize:"e,i" }}</span>
-            {% if t.pending %}<span class="ct-pill" style="color:#3b82f6">{{ t.pending }} da tirare</span>{% endif %}
-            {% if t.expired %}<span class="ct-pill bad">{{ t.expired }} scadut{{ t.expired|pluralize:"o,i" }}</span>{% endif %}
-            {% if t.last_year %}<span class="ct-pill warn">{{ t.last_year }} all'ultimo anno</span>{% endif %}
-        </h3></summary>
-        {% for p in t.players %}
-        <div class="ct-row">
-            <div class="ct-row-top">
-                <span class="role-badge role-{{ p.role }}" style="width:20px;height:20px;font-size:10.5px">{{ p.role }}</span>
-                <span class="ct-name" title="{{ p.name }}">{{ p.name }}</span>
-                <span class="ct-cost">{{ p.cost|floatformat:0 }} FM</span>
-                <span class="ct-years{% if p.contract_years is None %} pending{% elif p.contract_years == 0 %} exp{% elif p.contract_years == 1 %} last{% endif %}">
-                    {% if p.contract_years is None %}da tirare{% if p.min_years > 1 %} (min {{ p.min_years }}){% endif %}
-                    {% elif p.contract_years == 0 %}scaduto{% if p.renewal_declared %} · rinnovo{% endif %}
-                    {% else %}{{ p.contract_years }} ann{{ p.contract_years|pluralize:"o,i" }}{% endif %}
-                </span>
+        <summary>
+            <div class="ct-team-summary-title">
+                <span class="ct-team-chevron">▶</span>
+                <span>{{ t.team.display_name }}</span>
             </div>
-            <div class="ct-act">
-                {% if p.contract_years is None %}
-                <form method="post" action="{% url 'admin_contracts_action' %}">
-                    {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}">
-                    <input type="hidden" name="action" value="roll"><input type="hidden" name="player_id" value="{{ p.id }}">
-                    <select name="manual_face" title="Lascia 🎲 per il dado virtuale o scegli il risultato del dado vero">
-                        <option value="">🎲</option>{% for f in contract_faces %}<option value="{{ f }}">{{ f }}</option>{% endfor %}
-                    </select>
-                    <button type="submit" class="ct-btn go">Tira</button>
-                </form>
-                {% elif p.contract_years == 0 and p.renewal_declared and current_league.renewals_open %}
-                <form method="post" action="{% url 'admin_contracts_action' %}">
-                    {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}">
-                    <input type="hidden" name="action" value="renew"><input type="hidden" name="player_id" value="{{ p.id }}">
-                    <select name="manual_outcome" title="Dado rinnovo"><option value="">🎲</option><option value="green">🟢</option><option value="red">🔴</option></select>
-                    <select name="manual_face" title="Dado contratti (se verde inserito a mano)"><option value="">🎲</option>{% for f in contract_faces %}<option value="{{ f }}">{{ f }}</option>{% endfor %}</select>
-                    <button type="submit" class="ct-btn go">Rinnovo</button>
-                </form>
-                {% else %}
-                <form method="post" action="{% url 'admin_contracts_action' %}">
-                    {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}">
-                    <input type="hidden" name="action" value="set"><input type="hidden" name="player_id" value="{{ p.id }}">
-                    <input type="number" name="years" min="0" max="4" value="{{ p.contract_years|default_if_none:'' }}" style="width:48px" title="Anni di contratto">
-                    <button type="submit" class="ct-btn">Imposta</button>
-                </form>
-                {% endif %}
+            <div class="ct-team-badges">
+                <span class="ct-pill">{{ t.players|length }} giocator{{ t.players|length|pluralize:"e,i" }}</span>
+                {% if t.pending %}<span class="ct-pill info">{{ t.pending }} da tirare</span>{% endif %}
+                {% if t.expired %}<span class="ct-pill bad">{{ t.expired }} scadut{{ t.expired|pluralize:"o,i" }}</span>{% endif %}
+                {% if t.last_year %}<span class="ct-pill warn">{{ t.last_year }} all'ultimo anno</span>{% endif %}
             </div>
+        </summary>
+        <div class="ct-team-roster">
+            {% for p in t.players %}
+            <div class="ct-row">
+                <div class="ct-row-top">
+                    <span class="role-badge role-{{ p.role }}">{{ p.role }}</span>
+                    <span class="ct-name" title="{{ p.name }}">{{ p.name }}</span>
+                    <span class="ct-cost">{{ p.cost|floatformat:0 }} FM</span>
+                    <span class="ct-years{% if p.contract_years is None %} pending{% elif p.contract_years == 0 %} exp{% elif p.contract_years == 1 %} last{% endif %}">
+                        {% if p.contract_years is None %}da tirare{% if p.min_years > 1 %} (min {{ p.min_years }}){% endif %}
+                        {% elif p.contract_years == 0 %}scaduto{% if p.renewal_declared %} · rinnovo{% endif %}
+                        {% else %}{{ p.contract_years }} ann{{ p.contract_years|pluralize:"o,i" }}{% endif %}
+                    </span>
+                </div>
+                <div class="ct-act">
+                    {% if p.contract_years is None %}
+                    <form method="post" action="{% url 'admin_contracts_action' %}">
+                        {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}">
+                        <input type="hidden" name="action" value="roll"><input type="hidden" name="player_id" value="{{ p.id }}">
+                        <select name="manual_face" title="Lascia 🎲 per il dado virtuale o scegli il risultato del dado vero">
+                            <option value="">🎲</option>{% for f in contract_faces %}<option value="{{ f }}">{{ f }}</option>{% endfor %}
+                        </select>
+                        <button type="submit" class="ct-btn go">Tira</button>
+                    </form>
+                    {% elif p.contract_years == 0 and p.renewal_declared and current_league.renewals_open %}
+                    <form method="post" action="{% url 'admin_contracts_action' %}">
+                        {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}">
+                        <input type="hidden" name="action" value="renew"><input type="hidden" name="player_id" value="{{ p.id }}">
+                        <select name="manual_outcome" title="Dado rinnovo"><option value="">🎲</option><option value="green">🟢</option><option value="red">🔴</option></select>
+                        <select name="manual_face" title="Dado contratti (se verde inserito a mano)"><option value="">🎲</option>{% for f in contract_faces %}<option value="{{ f }}">{{ f }}</option>{% endfor %}</select>
+                        <button type="submit" class="ct-btn go">Rinnovo</button>
+                    </form>
+                    {% else %}
+                    <form method="post" action="{% url 'admin_contracts_action' %}">
+                        {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}">
+                        <input type="hidden" name="action" value="set"><input type="hidden" name="player_id" value="{{ p.id }}">
+                        <input type="number" name="years" min="0" max="4" value="{{ p.contract_years|default_if_none:'' }}" style="width:48px" title="Anni di contratto">
+                        <button type="submit" class="ct-btn">Imposta</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+            {% empty %}
+            <div class="muted" style="font-size:12.5px;padding:12px;text-align:center">Rosa vuota.</div>
+            {% endfor %}
         </div>
-        {% empty %}
-        <div class="muted" style="font-size:12px;padding:8px 0">Rosa vuota.</div>
-        {% endfor %}
     </details>
     {% endfor %}
 </div>
+
 <script>
 (function () {
     // Chiuse all'apertura della pagina; dopo un'azione (Tira, Imposta…) si
@@ -1113,27 +1445,81 @@
 </script>
 {% endif %}
 
-<div class="panel" style="margin-top:16px">
-    <h3 style="margin:0 0 4px;font-size:15px">Usciti dalla Serie A (5.05 – 5.09)</h3>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 8px">
-        {% if apifootball %}<span class="ct-pill" style="background:rgba(34,197,94,0.15);color:#22c55e">API-Football attiva</span>
-        {% else %}<span class="ct-pill bad">API-Football non configurata: imposta APIFOOTBALL_KEY sul server e riavvia</span>{% endif %}
-        <span class="ct-pill{% if not uefa_count or uefa_stale %} warn{% endif %}"{% if uefa_count %} title="Oltre {{ uefa_max_age }} giorni si riscarica da solo alla prossima ricerca"{% endif %}>Ranking UEFA: {{ uefa_count }} club salvati{% if uefa_saved_at %} · aggiornato il {{ uefa_saved_at|date:"d/m/Y" }}{% if uefa_stale %} (da aggiornare){% endif %}{% endif %}</span>
+<!-- ==========================================================================
+     Departures ("Usciti dalla Serie A") Panel
+     ========================================================================== -->
+<div class="panel ct-departures-card">
+    <div class="ct-departures-head">
+        <div class="ct-departures-title-group">
+            <h3 class="ct-departures-title">Usciti dalla Serie A (5.05 – 5.09)</h3>
+        </div>
+        <div class="ct-departures-pills">
+            {% if apifootball %}
+            <span class="ct-pill good">
+                <span class="ct-status-dot" style="background:#22c55e"></span>
+                <span>API-Football attiva</span>
+            </span>
+            {% else %}
+            <span class="ct-pill bad">
+                <span class="ct-status-dot" style="background:#ef4444"></span>
+                <span>API-Football non configurata</span>
+            </span>
+            {% endif %}
+            <span class="ct-pill{% if not uefa_count or uefa_stale %} warn{% endif %}"{% if uefa_count %} title="Oltre {{ uefa_max_age }} giorni si riscarica da solo alla prossima ricerca"{% endif %}>
+                Ranking UEFA: {{ uefa_count }} club salvati{% if uefa_saved_at %} · aggiornato il {{ uefa_saved_at|date:"d/m/Y" }}{% if uefa_stale %} (da aggiornare){% endif %}{% endif %}
+            </span>
+        </div>
     </div>
-    <div class="muted" style="font-size:12px;margin-bottom:10px;line-height:1.4">
-        Quando importi il listone ufficiale, chi è in una rosa ma non c'è più viene segnalato da solo e
-        {% if apifootball %}API-Football cerca subito il club di destinazione, con la sua posizione nel ranking UEFA (che se manca si scarica da uefa.com){% else %}con API-Football attiva il club di destinazione e il ranking UEFA si cercherebbero da soli{% endif %}.
-        Si può anche segnalare a mano qui sotto. «Conferma» chiude il caso con il compenso della tabella coefficienti introiti.
+
+    <div class="muted" style="font-size:12.5px;margin-bottom:14px;line-height:1.45">
+        Quando importi il listone ufficiale, chi è in una rosa ma non compare più viene rilevato automaticamente.
+        {% if apifootball %}API-Football cerca subito il club di destinazione con la posizione nel ranking UEFA.{% else %}Con API-Football attiva il club di destinazione e il ranking UEFA si cercherebbero automaticamente.{% endif %}
+        Puoi anche segnalare manualmente i trasferimenti qui sotto. «Conferma» chiude il caso accreditando il compenso della tabella coefficienti.
     </div>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
-        <form method="post" action="{% url 'admin_contracts_action' %}" style="margin:0">
-            {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="left_check_all">
-            <button type="submit" class="ct-btn go"{% if not apifootball or roster_check.status == "running" %} disabled{% endif %}>Controlla tutte le rose</button>
-        </form>
-        <span class="muted" style="font-size:11.5px">cerca su API-Football chi dei giocatori di tutte le squadre ha lasciato la Serie A, senza aspettare il listone (circa una richiesta per club di Serie A)</span>
+
+    <!-- Departures Unified Toolbar -->
+    <div class="ct-departures-toolbar">
+        <div class="ct-toolbar-group">
+            <form method="post" action="{% url 'admin_contracts_action' %}" style="margin:0">
+                {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="left_check_all">
+                <button type="submit" class="ct-btn go"{% if not apifootball or roster_check.status == "running" %} disabled{% endif %} title="Cerca su API-Football chi ha lasciato la Serie A">
+                    <svg class="ic" style="width:14px;height:14px"><use href="#i-search"/></svg>
+                    <span>Controlla tutte le rose</span>
+                </button>
+            </form>
+            {% if to_detect %}
+            <form method="post" action="{% url 'admin_contracts_action' %}" style="margin:0">
+                {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="left_detect_all">
+                <button type="submit" class="ct-btn go"{% if not apifootball %} disabled{% endif %}>
+                    Rileva tutti ({{ to_detect }})
+                </button>
+            </form>
+            {% endif %}
+            {% if priced %}
+            <form method="post" action="{% url 'admin_contracts_action' %}" style="margin:0"
+                  onsubmit="return confirm('Confermare {{ priced|length }} uscit{{ priced|length|pluralize:"a,e" }}? Le squadre incassano {{ priced_total|floatformat:0 }} FM in totale e perdono i giocatori.');">
+                {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="left_resolve_priced">
+                <button type="submit" class="ct-btn go">
+                    Conferma tutte con compenso ({{ priced|length }} · {{ priced_total|floatformat:0 }} FM)
+                </button>
+            </form>
+            {% endif %}
+        </div>
+
+        <div class="ct-toolbar-group">
+            <form method="post" action="{% url 'admin_contracts_action' %}" class="ct-manual-flag-form">
+                {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="left_flag">
+                <span style="font-weight:700;font-size:12.5px;color:var(--ink-bright,#fff)">Segnala a mano:</span>
+                <select name="player_id">
+                    {% for p in flaggable %}<option value="{{ p.id }}">{{ p.owner.display_name }} · {{ p.role }} {{ p.name }}</option>{% endfor %}
+                </select>
+                <button type="submit" class="ct-btn">Segnala uscita</button>
+            </form>
+        </div>
     </div>
+
     {% if roster_check %}
-    <div id="roster-check" data-status="{{ roster_check.status }}" style="font-size:12px;margin:-4px 0 10px;padding:8px 10px;border-radius:8px;border:1px solid var(--line);{% if roster_check.status == 'done' and roster_check.found %}background:rgba(234,179,8,0.10){% endif %}">
+    <div id="roster-check" data-status="{{ roster_check.status }}" style="font-size:12.5px;margin-bottom:14px;padding:10px 14px;border-radius:10px;border:1px solid var(--line);{% if roster_check.status == 'done' and roster_check.found %}background:rgba(234,179,8,0.12);border-color:rgba(234,179,8,0.3){% else %}background:rgba(255,255,255,0.03){% endif %}">
         {% if roster_check.status == "running" %}
             <b>Controllo delle rose in corso</b>{% if roster_check.total %}: {{ roster_check.done }}/{{ roster_check.total }} club{% endif %} · avviato alle {{ roster_check.started_at|date:"H:i" }}. La pagina si aggiorna da sola.
         {% elif roster_check.status == "interrupted" %}
@@ -1146,37 +1532,16 @@
     <script>setTimeout(function () { location.reload(); }, 10000);</script>
     {% endif %}
     {% endif %}
-    {% if to_detect %}
-    <form method="post" action="{% url 'admin_contracts_action' %}" style="margin-bottom:10px">
-        {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="left_detect_all">
-        <button type="submit" class="ct-btn go"{% if not apifootball %} disabled{% endif %}>Rileva tutti ({{ to_detect }})</button>
-        <span class="muted" style="font-size:11.5px">club di destinazione e ranking UEFA dei segnalati senza destinazione</span>
-    </form>
-    {% endif %}
-    <form method="post" action="{% url 'admin_contracts_action' %}" style="display:flex;gap:8px;align-items:center;margin-bottom:12px;font-size:12px;flex-wrap:wrap">
-        {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="left_flag">
-        <span style="font-weight:700">Segnala a mano:</span>
-        <select name="player_id" style="padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:rgba(0,0,0,0.25);color:inherit;max-width:100%;min-width:0;flex:1 1 220px">
-            {% for p in flaggable %}<option value="{{ p.id }}">{{ p.owner.display_name }} · {{ p.role }} {{ p.name }}</option>{% endfor %}
-        </select>
-        <button type="submit" class="ct-btn">Segnala uscita</button>
-    </form>
-    {% if priced %}
-    <form method="post" action="{% url 'admin_contracts_action' %}" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px"
-          onsubmit="return confirm('Confermare {{ priced|length }} uscit{{ priced|length|pluralize:"a,e" }}? Le squadre incassano {{ priced_total|floatformat:0 }} FM in totale e perdono i giocatori.');">
-        {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="left_resolve_priced">
-        <button type="submit" class="ct-btn go">Conferma tutte con compenso ({{ priced|length }} · {{ priced_total|floatformat:0 }} FM)</button>
-        <span class="muted" style="font-size:11.5px">come «Conferma» su ognuna; restano da sistemare a mano quelle senza compenso{% if left|length > priced|length %} ({{ left|length }} segnalate, {{ priced|length }} con compenso){% endif %}</span>
-    </form>
-    {% endif %}
+
+    <!-- Departures List -->
     {% for p in left %}
     <div class="ct-left-item">
-        <div class="ct-left-top">
-            <span class="role-badge role-{{ p.role }}" style="width:20px;height:20px;font-size:10.5px">{{ p.role }}</span>
+        <div class="ct-left-info">
+            <span class="role-badge role-{{ p.role }}">{{ p.role }}</span>
             <div class="ct-left-meta-main">
                 <span class="ct-name">{{ p.name }}</span>
                 <span class="ct-left-details">
-                    <b style="color:var(--ink)">{{ p.owner.display_name }}</b>
+                    <b style="color:var(--ink-bright,#fff)">{{ p.owner.display_name }}</b>
                     <span>· fuori dal {{ p.left_serie_a_at|date:"d/m" }}</span>
                     {% if p.left_club %}<span>· → <b style="color:var(--accent)">{{ p.left_club }}</b></span>{% endif %}
                 </span>
@@ -1186,7 +1551,7 @@
             <form method="post" action="{% url 'admin_contracts_action' %}" class="ct-left-res-form">
                 {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}">
                 <input type="hidden" name="action" value="left_resolve"><input type="hidden" name="player_id" value="{{ p.id }}">
-                <input name="club" value="{{ p.left_club }}" placeholder="Club" class="ct-in ct-in-club">
+                <input name="club" value="{{ p.left_club }}" placeholder="Club di destinazione" class="ct-in ct-in-club">
                 <select name="outcome" class="ct-in ct-in-outcome">
                     <option value="uefa"{% if p.left_rank_kind != "fifa" %} selected{% endif %}>Club UEFA</option>
                     <option value="fifa"{% if p.left_rank_kind == "fifa" %} selected{% endif %}>Nazione FIFA</option>
@@ -1208,22 +1573,23 @@
         </div>
     </div>
     {% empty %}
-    <div class="muted" style="font-size:12px;padding:8px 0">Nessun giocatore segnalato.</div>
+    <div class="muted" style="font-size:13px;padding:16px 0;text-align:center">Nessun giocatore segnalato tra gli usciti dalla Serie A.</div>
     {% endfor %}
 
+    <!-- Listed Abroad Outflows -->
     {% if listed %}
-    <h4 style="margin:16px 0 8px;font-size:14px;font-weight:800;color:var(--ink);display:flex;align-items:center;gap:6px">
+    <h4 style="margin:20px 0 10px;font-size:14.5px;font-weight:800;color:var(--ink-bright,#fff);display:flex;align-items:center;gap:8px">
         <span>Lista ceduti temporanei</span>
-        <span class="ct-pill">{{ listed|length }}</span>
+        <span class="ct-pill info">{{ listed|length }}</span>
     </h4>
     {% for p in listed %}
     <div class="ct-left-item">
-        <div class="ct-left-top">
-            <span class="role-badge role-{{ p.role }}" style="width:20px;height:20px;font-size:10.5px">{{ p.role }}</span>
+        <div class="ct-left-info">
+            <span class="role-badge role-{{ p.role }}">{{ p.role }}</span>
             <div class="ct-left-meta-main">
                 <span class="ct-name">{{ p.name }}</span>
                 <span class="ct-left-details">
-                    <b style="color:var(--ink)">{{ p.owner.display_name }}</b>
+                    <b style="color:var(--ink-bright,#fff)">{{ p.owner.display_name }}</b>
                     <span>· {{ p.left_club|default:"estero" }}</span>
                     <span>· {{ p.contract_years|default_if_none:"?" }} ann{{ p.contract_years|pluralize:"o,i" }}</span>
                 </span>
@@ -1241,40 +1607,73 @@
     {% endfor %}
     {% endif %}
 
-    <details id="uefa-ranking" style="margin-top:14px"{% if not uefa_count %} open{% endif %}>
-        <summary style="cursor:pointer;font-size:13px;font-weight:800">Ranking UEFA club{% if uefa_count %} · {{ uefa_count }} club{% endif %}</summary>
-        <p class="muted" style="font-size:12px;margin:8px 0 0;line-height:1.5">
-            Serve a calcolare il compenso di chi va all'estero. Si scarica da solo quando manca o ha più di {{ uefa_max_age }} giorni;
-            per aggiornarlo subito usa «Scarica da uefa.com». Se il sito non risponde,
-            apri la <a href="{{ uefa_ranking_page }}" target="_blank" rel="noopener">classifica club su uefa.com</a>,
-            seleziona la tabella, copiala e incollala qui sotto: posizione e nome del club li riconosco da soli
-            (vanno bene anche righe tipo <code>1;Real Madrid</code>).</p>
-        <div style="display:flex;gap:10px;align-items:flex-start;margin-top:10px;flex-wrap:wrap">
+    <!-- UEFA Ranking Accordion -->
+    <details id="uefa-ranking" style="margin-top:16px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:12px 14px"{% if not uefa_count %} open{% endif %}>
+        <summary style="cursor:pointer;font-size:13.5px;font-weight:800;color:var(--ink-bright,#fff);user-select:none;display:flex;align-items:center;gap:8px">
+            <span style="color:var(--accent)">🌍</span>
+            <span>Ranking UEFA club{% if uefa_count %} · <b>{{ uefa_count }} club</b> registrati{% endif %}</span>
+        </summary>
+        <p class="muted" style="font-size:12px;margin:10px 0;line-height:1.5">
+            Serve a calcolare il compenso di chi va all'estero. Si scarica automaticamente quando manca o ha più di {{ uefa_max_age }} giorni.
+            Per forzare l'aggiornamento usa «Scarica da uefa.com». Se il sito non risponde,
+            apri la <a href="{{ uefa_ranking_page }}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:underline">classifica club su uefa.com</a>,
+            seleziona la tabella, copiala e incollala qui sotto (formato supportato: <code>1;Real Madrid</code> o testo copiato).
+        </p>
+        <div style="display:flex;gap:12px;align-items:flex-start;margin-top:12px;flex-wrap:wrap">
             <form method="post" action="{% url 'admin_contracts_action' %}">
                 {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="uefa_fetch">
                 <button type="submit" class="ct-btn go">Scarica da uefa.com</button>
             </form>
-            <form method="post" action="{% url 'admin_contracts_action' %}" style="display:flex;gap:8px;align-items:flex-start;flex:1 1 240px;max-width:100%;flex-wrap:wrap">
+            <form method="post" action="{% url 'admin_contracts_action' %}" style="display:flex;gap:8px;align-items:flex-start;flex:1 1 280px;max-width:100%;flex-wrap:wrap">
                 {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="uefa_paste">
-                <textarea name="ranking" rows="4" aria-label="Ranking UEFA da incollare" placeholder="Incolla qui la tabella copiata da uefa.com&#10;oppure una riga per club:&#10;1;Real Madrid&#10;2;Bayern München&#10;…" style="flex:1 1 220px;min-width:0;max-width:100%;font-size:12px;border-radius:8px;border:1px solid var(--line);background:rgba(0,0,0,0.2);color:inherit;padding:8px;box-sizing:border-box"></textarea>
+                <textarea name="ranking" rows="3" aria-label="Ranking UEFA da incollare" placeholder="Incolla qui la tabella copiata da uefa.com&#10;oppure una riga per club:&#10;1;Real Madrid&#10;2;Bayern München" style="flex:1 1 240px;min-width:0;max-width:100%;font-size:12px;border-radius:8px;border:1px solid var(--line);background:rgba(0,0,0,0.3);color:inherit;padding:8px 10px;box-sizing:border-box"></textarea>
                 <button type="submit" class="ct-btn">Salva incollato</button>
             </form>
         </div>
     </details>
 </div>
 
-<div class="panel" style="margin-top:16px">
-    <h3 style="margin:0 0 8px;font-size:15px">Registro dadi e contratti</h3>
-    <ul class="ct-log" style="margin:0;padding-left:18px">
+<!-- ==========================================================================
+     Audit Log ("Registro dadi e contratti")
+     ========================================================================== -->
+<div class="panel ct-log-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <h3 style="margin:0;font-size:15.5px;font-weight:800;color:var(--ink-bright,#fff);display:flex;align-items:center;gap:8px">
+            <svg class="ic" style="width:16px;height:16px;color:var(--accent)"><use href="#i-clock"/></svg>
+            <span>Registro Dadi e Contratti</span>
+        </h3>
+        <span class="ct-pill">{{ events|length }} event{{ events|length|pluralize:"o,i" }}</span>
+    </div>
+    <div class="ct-log-feed">
         {% for e in events %}
-        <li><span class="muted">{{ e.created_at|date:"d/m H:i" }} · stag. {{ e.season }}</span> —
-            <b>{{ e.get_kind_display }}</b>{% if e.player_name %}: {{ e.player_name }}{% endif %}{% if e.participant_name %} ({{ e.participant_name }}){% endif %}
-            {% if e.roll is not None and e.kind != "rescinded" %} · dado {{ e.roll }}{% endif %}{% if e.years is not None %} → {{ e.years }} anni{% endif %}
-            {% if e.manual %} · <i>inserito a mano</i>{% endif %}{% if e.note %} · <span class="muted">{{ e.note }}</span>{% endif %}</li>
+        <div class="ct-log-item">
+            <div class="ct-log-left">
+                <span class="ct-log-time">{{ e.created_at|date:"d/m H:i" }} · st.{{ e.season }}</span>
+                <span class="ct-log-kind">{{ e.get_kind_display }}</span>
+                <span class="ct-log-target">
+                    {% if e.player_name %}<b>{{ e.player_name }}</b>{% endif %}
+                    {% if e.participant_name %}<span class="muted">({{ e.participant_name }})</span>{% endif %}
+                </span>
+            </div>
+            <div class="ct-log-right">
+                {% if e.roll is not None and e.kind != "rescinded" %}
+                <span class="ct-pill info">dado {{ e.roll }}</span>
+                {% endif %}
+                {% if e.years is not None %}
+                <span class="ct-pill good">{{ e.years }} ann{{ e.years|pluralize:"o,i" }}</span>
+                {% endif %}
+                {% if e.manual %}
+                <span class="ct-pill warn" title="Inserito manualmente dall'admin">manuale</span>
+                {% endif %}
+                {% if e.note %}
+                <span class="muted" style="font-size:11.5px">{{ e.note }}</span>
+                {% endif %}
+            </div>
+        </div>
         {% empty %}
-        <li class="muted">Nessun evento.</li>
+        <div class="muted" style="font-size:13px;padding:12px 0;text-align:center">Nessun evento registrato finora.</div>
         {% endfor %}
-    </ul>
+    </div>
 </div>
 {% endif %}
 </div>
