@@ -7,36 +7,67 @@
 </div>
 
 <style>
-    .altro-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
-    .altro-col { display: flex; flex-direction: column; gap: 14px; }
+    .altro-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+    .altro-col { display: flex; flex-direction: column; gap: 16px; }
     @media (min-width: 1000px) { .altro-grid { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); align-items: start; } }
+
+    .action-tile {
+        display: flex; align-items: center; justify-content: space-between; gap: 14px;
+        padding: 14px 16px; border-radius: 14px; background: var(--panel);
+        border: 1px solid var(--line); text-decoration: none; color: var(--ink);
+        font-weight: 800; font-size: 14px; transition: transform .14s ease, border-color .14s ease, box-shadow .14s ease;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+        touch-action: manipulation;
+    }
+    .action-tile:hover {
+        transform: translateY(-2px);
+        border-color: var(--line-strong, rgba(255,255,255,0.2));
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+        color: var(--ink);
+    }
+    .action-tile:active { transform: scale(0.98); }
+    .at-left { display: flex; align-items: center; gap: 12px; }
+    .at-icon {
+        width: 38px; height: 38px; border-radius: 11px; background: var(--panel-2);
+        border: 1px solid var(--line); display: flex; align-items: center; justify-content: center;
+        color: var(--accent); flex-shrink: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        transition: transform .14s ease;
+    }
+    .action-tile:hover .at-icon { transform: scale(1.05); }
+    .at-icon .ic { width: 19px; height: 19px; }
+    .theme-switch-badge {
+        font-size: 11.5px; font-weight: 800; padding: 4px 10px; border-radius: 99px;
+        background: var(--panel-2); color: var(--muted); border: 1px solid var(--line);
+        display: inline-flex; align-items: center; gap: 4px;
+    }
 </style>
+
 <div class="altro-grid">
 <div class="altro-col">
 {% if participant %}
 <div class="a-card">
-    <div class="a-label"><svg class="ic"><use href="#i-shield"/></svg> Profilo squadra</div>
+    <div class="a-label"><svg class="ic"><use href="#i-shield"/></svg> Profilo Squadra</div>
     <div class="a-row">
         <span class="nm">Squadra</span>
-        <span class="val">{{ participant.display_name }}</span>
+        <span class="val" style="font-weight:900;font-size:15px;color:var(--ink)">{{ participant.display_name }}</span>
     </div>
     <div class="a-row">
         <span class="nm">Lega</span>
-        <span class="val">{% if app_league %}{{ app_league.name }}{% else %}—{% endif %}</span>
+        <span class="val">{% if app_league %}<b>{{ app_league.name }}</b>{% else %}—{% endif %}</span>
     </div>
     <div class="a-row">
-        <span class="nm">Crediti</span>
-        <span class="val">{{ participant.remaining_credits|floatformat:0 }} / {{ participant.credits|floatformat:0 }} FM</span>
+        <span class="nm">Crediti Residui</span>
+        <span class="val"><b style="color:var(--accent);font-family:var(--display);font-size:16px">{{ participant.remaining_credits|floatformat:0 }}</b> <span class="muted" style="font-size:12px">/ {{ participant.credits|floatformat:0 }} FM</span></span>
     </div>
     <div class="a-row">
-        <span class="nm">Accesso</span>
+        <span class="nm">Modalità Accesso</span>
         <span class="val">
             {% if viewing_as %}
-                <span style="color:var(--paused);font-weight:700">Vista admin ({{ request.user.username }})</span>
+                <span class="status-pill" style="background:rgba(255,181,38,0.14);color:var(--paused);border:1px solid rgba(255,181,38,0.35);font-size:10.5px">Vista admin ({{ request.user.username }})</span>
             {% elif request.user.is_authenticated %}
-                <span style="color:#22c55e;font-weight:700">Account: {{ request.user.username }}</span>
+                <span class="status-pill" style="background:rgba(34,197,94,0.14);color:#22c55e;border:1px solid rgba(34,197,94,0.35);font-size:10.5px">Account: {{ request.user.username }}</span>
             {% else %}
-                <span style="color:var(--muted)">Codice Squadra / PIN</span>
+                <span class="status-pill" style="background:var(--panel-2);color:var(--muted);border:1px solid var(--line);font-size:10.5px">PIN Squadra</span>
             {% endif %}
         </span>
     </div>
@@ -44,81 +75,65 @@
 
 <div class="a-card">
     <div class="a-label"><svg class="ic"><use href="#i-lock"/></svg> Codice di Accesso Squadra (PIN)</div>
-    <form method="post" action="{% url 'app_update_pin' %}" style="display:flex;flex-direction:column;gap:10px">
+    <form method="post" action="{% url 'app_update_pin' %}" style="display:flex;flex-direction:column;gap:12px">
         {% csrf_token %}
-        <div class="muted" style="font-size:12px;line-height:1.4">
+        <div class="muted" style="font-size:12.5px;line-height:1.45">
             Questo codice protegge l'accesso alla tua squadra nell'area manageriale (formazione, mercato a buste, rosa).
         </div>
-        <div style="display:flex;gap:8px">
+        <div style="display:flex;gap:10px;align-items:center">
             <input type="text" name="access_code" value="{{ participant.access_code }}" maxlength="20"
                    placeholder="Es. DRAGO23" required autocomplete="off" aria-label="Codice di accesso"
-                   style="flex:1;padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:rgba(0,0,0,0.25);color:var(--ink);font-weight:800;letter-spacing:0.1em;text-transform:uppercase">
-            <button type="submit" class="btn btn-primary" style="padding:10px 16px;font-size:13px;font-weight:700">
-                Salva
+                   style="flex:1;min-height:46px;padding:10px 14px;border-radius:10px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);font-family:var(--font-mono, monospace);font-weight:900;font-size:16px;letter-spacing:0.12em;text-transform:uppercase">
+            <button type="submit" class="fm-btn fm-btn-primary" style="height:46px;padding:0 20px;font-size:13.5px;font-weight:800;border-radius:10px">
+                Salva PIN
             </button>
         </div>
     </form>
 </div>
 {% else %}
 <div class="a-card">
-    <div class="a-label"><svg class="ic"><use href="#i-user"/></svg> Account</div>
+    <div class="a-label"><svg class="ic"><use href="#i-user"/></svg> Account Amministratore</div>
     <div class="a-row">
         <span class="nm">Utente</span>
-        <span class="val">{{ request.user.username }}</span>
+        <span class="val" style="font-weight:800;color:var(--ink)">{{ request.user.username }}</span>
     </div>
     <div class="a-row">
-        <span class="nm">Ruolo</span>
-        <span class="val">{% if request.user.is_superuser %}Superadmin{% else %}Admin di lega{% endif %}</span>
+        <span class="nm">Ruolo di Sistema</span>
+        <span class="val">{% if request.user.is_superuser %}<span class="status-pill" style="background:rgba(239,68,68,0.12);color:#ef4444;border:1px solid rgba(239,68,68,0.3)">Superadmin</span>{% else %}<span class="status-pill" style="background:rgba(8,124,240,0.12);color:#38bdf8;border:1px solid rgba(56,189,248,0.3)">Admin di lega</span>{% endif %}</span>
     </div>
     <div class="a-row">
-        <span class="nm">Leghe gestite</span>
-        <span class="val">{{ admin_leagues|length }}</span>
+        <span class="nm">Leghe Gestite</span>
+        <span class="val"><b>{{ admin_leagues|length }}</b></span>
     </div>
     <p class="muted" style="font-size:12.5px;line-height:1.5;margin-top:10px">
-        Non hai una squadra tua: dalla <a href="{% url 'app_regia' %}">Regia</a> puoi aprire l'app come
+        Non hai una squadra tua: dalla <a href="{% url 'app_regia' %}" style="color:var(--accent);font-weight:700">Regia</a> puoi aprire l'app come
         qualunque squadra delle tue leghe con «Vedi come», oppure collegarne una con il suo codice.</p>
 </div>
 {% endif %}
 </div>
 
-<style>
-    .action-tile {
-        display: flex; align-items: center; justify-content: space-between; gap: 12px;
-        padding: 12px 14px; border-radius: 12px; background: var(--panel);
-        border: 1px solid var(--line); text-decoration: none; color: var(--ink);
-        font-weight: 700; font-size: 13.5px; transition: all .12s ease;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-    }
-    .action-tile:active { transform: scale(0.97); }
-    .at-left { display: flex; align-items: center; gap: 10px; }
-    .at-icon {
-        width: 34px; height: 34px; border-radius: 9px; background: var(--panel-2);
-        border: 1px solid var(--line); display: flex; align-items: center; justify-content: center;
-        color: var(--accent); flex-shrink: 0;
-    }
-    .at-icon .ic { width: 18px; height: 18px; }
-    .theme-switch-badge {
-        font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 99px;
-        background: var(--panel-2); color: var(--muted); border: 1px solid var(--line);
-    }
-</style>
-
 <div class="altro-col">
     {% if is_app_admin %}
-    <a class="action-tile" href="{% url 'app_regia' %}" style="border-color:rgba(255,181,38,0.4);">
+    <a class="action-tile" href="{% url 'app_regia' %}" style="border-color:rgba(255,181,38,0.45);background:linear-gradient(135deg, rgba(255,181,38,0.06), var(--panel));">
         <div class="at-left">
-            <span class="at-icon" style="color:var(--paused); background:rgba(255,181,38,0.1);"><svg class="ic"><use href="#i-gavel"/></svg></span>
-            <span>Regia della Lega (Admin)</span>
+            <span class="at-icon" style="color:var(--paused); background:rgba(255,181,38,0.14);border-color:rgba(255,181,38,0.3);"><svg class="ic"><use href="#i-gavel"/></svg></span>
+            <div>
+                <span style="display:block;line-height:1.2">Regia della Lega</span>
+                <small class="muted" style="font-size:11.5px;font-weight:600">Pannello organizzatore e admin</small>
+            </div>
         </div>
-        <span style="color:var(--paused);font-size:18px;">›</span>
+        <span style="color:var(--paused);font-size:20px;font-weight:900">›</span>
     </a>
     {% if manages_app_league %}
     <a class="action-tile hide-mobile" href="{% url 'dashboard_league' app_league.id %}">
         <div class="at-left">
             <span class="at-icon"><svg class="ic"><use href="#i-table"/></svg></span>
-            <span>Console completa desktop</span>
+            <div>
+                <span style="display:block;line-height:1.2">Console Completa Desktop</span>
+                <small class="muted" style="font-size:11.5px;font-weight:600">Dashboard estesa per PC</small>
+            </div>
         </div>
-        <span class="muted">›</span>
+        <span class="muted" style="font-size:18px">›</span>
     </a>
     {% endif %}
     {% endif %}
@@ -126,7 +141,10 @@
     <a class="action-tile" href="#" onclick="toggleFmTheme(event)">
         <div class="at-left">
             <span class="at-icon"><svg class="ic"><use href="#i-pulse"/></svg></span>
-            <span>Tema dell'App</span>
+            <div>
+                <span style="display:block;line-height:1.2">Tema dell'Interfaccia</span>
+                <small class="muted" style="font-size:11.5px;font-weight:600">Alterna modalità scura / chiara</small>
+            </div>
         </div>
         <span class="theme-switch-badge" id="fm-theme-label">Chiaro / Scuro</span>
     </a>
@@ -134,7 +152,7 @@
     function updateThemeLabel() {
         const isLight = document.documentElement.classList.contains('light-theme');
         const lbl = document.getElementById('fm-theme-label');
-        if(lbl) lbl.innerText = isLight ? '☀️ Chiaro' : '🌙 Scuro';
+        if(lbl) lbl.innerHTML = isLight ? '☀️ Chiaro' : '🌙 Scuro';
     }
     updateThemeLabel();
     function toggleFmTheme(e) {
@@ -153,30 +171,39 @@
     <a class="action-tile" href="{% url 'app_login' %}?switch=1">
         <div class="at-left">
             <span class="at-icon"><svg class="ic"><use href="#i-swap"/></svg></span>
-            <span>{% if participant %}Cambia squadra / Account{% else %}Collega una squadra{% endif %}</span>
+            <div>
+                <span style="display:block;line-height:1.2">{% if participant %}Cambia Squadra / Account{% else %}Collega una Squadra{% endif %}</span>
+                <small class="muted" style="font-size:11.5px;font-weight:600">Accedi con un altro codice o profilo</small>
+            </div>
         </div>
-        <span class="muted">›</span>
+        <span class="muted" style="font-size:18px">›</span>
     </a>
 
-    <a class="action-tile" href="{% url 'app_logout' %}" style="border-color:rgba(239,68,68,0.3);color:#ef4444;">
+    <a class="action-tile" href="{% url 'app_logout' %}" style="border-color:rgba(239,68,68,0.3);color:#ef4444;background:linear-gradient(135deg, rgba(239,68,68,0.04), var(--panel));">
         <div class="at-left">
-            <span class="at-icon" style="color:#ef4444;background:rgba(239,68,68,0.1);"><svg class="ic"><use href="#i-lock"/></svg></span>
-            <span>Disconnetti (Logout)</span>
+            <span class="at-icon" style="color:#ef4444;background:rgba(239,68,68,0.1);border-color:rgba(239,68,68,0.25);"><svg class="ic"><use href="#i-lock"/></svg></span>
+            <div>
+                <span style="display:block;line-height:1.2">Disconnetti (Logout)</span>
+                <small style="font-size:11.5px;font-weight:600;color:rgba(239,68,68,0.8)">Chiudi la sessione corrente</small>
+            </div>
         </div>
-        <span style="color:#ef4444;">✕</span>
+        <span style="color:#ef4444;font-size:16px;font-weight:900">✕</span>
     </a>
 
     {% if not is_app_admin %}
     <a class="action-tile" href="{% url 'app_regia' %}">
         <div class="at-left">
             <span class="at-icon"><svg class="ic"><use href="#i-gear"/></svg></span>
-            <span>Accesso Regia Organizzatore</span>
+            <div>
+                <span style="display:block;line-height:1.2">Accesso Regia Organizzatore</span>
+                <small class="muted" style="font-size:11.5px;font-weight:600">Se sei admin o gestore di lega</small>
+            </div>
         </div>
-        <span class="muted">›</span>
+        <span class="muted" style="font-size:18px">›</span>
     </a>
     {% endif %}
 
-    <div class="soon" style="margin-top:4px;">
+    <div class="soon" style="margin-top:2px;">
         <svg class="ic"><use href="#i-gear"/></svg>
         <b>Impostazioni & Notifiche</b>
         <span>Preferenze estese, avvisi push e gestione account completa in arrivo.</span>
