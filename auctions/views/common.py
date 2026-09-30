@@ -174,6 +174,16 @@ def _remember_auction(request, auction):
             request.session[SESSION_LEAGUE_KEY] = auction.league_id
 
 
+def _outside_user_leagues(request, league):
+    """True when an authenticated league admin doesn't run ``league`` — neither
+    as its owner nor as one of its co-admins — so the console can't scope to it.
+    """
+    user = getattr(request, "user", None)
+    if not (user and user.is_authenticated) or user.is_superuser:
+        return False
+    return not user_can_manage_league(user, league)
+
+
 def target_league(request):
     """The league an action writes into or the console is scoped to.
 
@@ -194,11 +204,9 @@ def target_league(request):
         if raw.isdigit():
             league = League.objects.filter(pk=int(raw)).first()
             if league is not None:
-                # Restrict to owned leagues if user is an authenticated normal league admin
-                user = getattr(request, "user", None)
-                if user and user.is_authenticated and not user.is_superuser:
-                    if league.owner_id != user.id:
-                        return None
+                # A league admin only scopes the console to leagues they run.
+                if _outside_user_leagues(request, league):
+                    return None
                 request.session[SESSION_LEAGUE_KEY] = league.id
                 # Check if pinned auction belongs to a different league
                 pinned = request.session.get(SESSION_AUCTION_KEY)
@@ -212,11 +220,9 @@ def target_league(request):
     if sess_lg_id:
         league = League.objects.filter(pk=sess_lg_id).first()
         if league is not None:
-            user = getattr(request, "user", None)
-            if user and user.is_authenticated and not user.is_superuser:
-                if league.owner_id != user.id:
-                    request.session.pop(SESSION_LEAGUE_KEY, None)
-                    return None
+            if _outside_user_leagues(request, league):
+                request.session.pop(SESSION_LEAGUE_KEY, None)
+                return None
             return league
         request.session.pop(SESSION_LEAGUE_KEY, None)
 
@@ -224,17 +230,15 @@ def target_league(request):
     if pinned:
         auction = Auction.objects.filter(pk=pinned).select_related("league").first()
         if auction is not None and auction.league_id:
-            user = getattr(request, "user", None)
-            if user and user.is_authenticated and not user.is_superuser:
-                if auction.league and auction.league.owner_id != user.id:
-                    request.session.pop(SESSION_AUCTION_KEY, None)
-                    return None
+            if _outside_user_leagues(request, auction.league):
+                request.session.pop(SESSION_AUCTION_KEY, None)
+                return None
             request.session[SESSION_LEAGUE_KEY] = auction.league_id
             return auction.league
 
     user = getattr(request, "user", None)
     if user and user.is_authenticated and not user.is_superuser:
-        owned = list(League.objects.filter(owner=user)[:2])
+        owned = list(manageable_leagues(user)[:2])
         if len(owned) == 1:
             request.session[SESSION_LEAGUE_KEY] = owned[0].id
             return owned[0]
@@ -490,11 +494,11 @@ def _app_standings(league, me_id):
 
 def app_admin_leagues(user):
     """Leagues ``user`` runs from the console — the same set /dashboard/ lists:
-    every league for a superuser, the ones they own for a league admin."""
+    every league for a superuser, the ones they own or co-administer for a
+    league admin."""
     if user is None or not user.is_authenticated:
         return []
-    qs = League.objects.all() if user.is_superuser else League.objects.filter(owner=user)
-    return list(qs.order_by("name"))
+    return list(manageable_leagues(user))
 
 
 def app_admin_league(request, admin_leagues, participant=None):
