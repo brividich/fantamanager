@@ -132,21 +132,38 @@ class ContractViewsTests(TestCase):
 
     def test_manager_rolls_from_rosa(self):
         page = self.client.get(reverse("app_rosa"))
-        self.assertContains(page, "Tira il dado contratti")
+        # In the rosa screen, contracts are strictly visual: badge "da tirare" is shown, no roll button
+        self.assertContains(page, "da tirare")
+        self.assertNotContains(page, "Tira il dado contratti")
         resp = self.client.post(reverse("app_contract_roll", args=[self.p.id]), follow=True)
         self.assertContains(resp, "Dado contratti per Dybala")
         self.p.refresh_from_db()
         self.assertGreaterEqual(self.p.contract_years, 2)
+        # Verify it now visually renders the contract years
+        page2 = self.client.get(reverse("app_rosa"))
+        self.assertContains(page2, f"{self.p.contract_years}a")
 
     def test_manager_renewal_panel(self):
         Player.objects.filter(pk=self.p.pk).update(contract_years=0)
         self.league.renewals_open = True
         self.league.save()
         page = self.client.get(reverse("app_rosa"))
-        self.assertContains(page, "Conferma dichiarazione")
+        # On app_rosa, renewals are visual-only ("scad.") - declaration form is not in rosa
+        self.assertContains(page, "scad.")
+        self.assertNotContains(page, "Conferma dichiarazione")
+        # Direct backend declaration and roll endpoints remain operational
         self.client.post(reverse("app_renewals_declare"), {"renew": [self.p.id]})
-        page = self.client.get(reverse("app_rosa"))
-        self.assertContains(page, "Dado rinnovo")
+        resp = self.client.post(reverse("app_renewal_roll", args=[self.p.id]), follow=True)
+        self.assertEqual(resp.status_code, 200)
+
+    def test_view_other_team_roster(self):
+        other = Participant.objects.create(display_name="Beta", league=self.league)
+        other_p = Player.objects.create(name="Lautaro", role="A", league=self.league, owner=other, cost=Decimal("500"), contract_years=2)
+        page = self.client.get(reverse("app_rosa") + f"?team={other.id}")
+        self.assertContains(page, "Lautaro")
+        self.assertContains(page, "2a")
+        # When viewing another team, releasing their players is not allowed from the UI
+        self.assertNotContains(page, f"action=\"/participant/release/{other_p.id}/\"")
 
     def test_admin_page_and_actions(self):
         self.client.force_login(self.owner)
