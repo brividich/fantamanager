@@ -19,10 +19,17 @@ class MarketSession(models.Model):
         CLOSED   = "closed",   "Chiuso (in attesa di spoglio)"
         RESOLVED = "resolved", "Concluso (spoglio eseguito)"
 
+    class SessionType(models.TextChoices):
+        REPAIR   = "repair",   "Mercato di Riparazione (Buste)"
+        RENEWALS = "renewals", "Mercato Rinnovi Contratti"
+
     league = models.ForeignKey(
         League, on_delete=models.CASCADE, related_name="market_sessions"
     )
     title = models.CharField(max_length=200, default="Mercato di Riparazione")
+    session_type = models.CharField(
+        max_length=20, choices=SessionType.choices, default=SessionType.REPAIR
+    )
     status = models.CharField(
         max_length=12, choices=Status.choices, default=Status.DRAFT
     )

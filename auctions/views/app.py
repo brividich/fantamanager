@@ -15,6 +15,7 @@ from django.views.decorators.http import require_POST
 
 from ..models import (
     Auction,
+    Fixture,
     Formation,
     Giornata,
     GiornataScore,
@@ -26,7 +27,7 @@ from ..models import (
     Season,
     Trade,
 )
-from .. import services, throttle
+from .. import scoring, services, throttle
 from .common import (
     SESSION_LEAGUE_KEY,
     _ROLE_LABELS,
@@ -161,47 +162,142 @@ def app_live(request):
 
     season = Season.objects.filter(league=league, is_current=True).first() if league else None
     current_giornata = None
+    all_giornate = []
     my_score = None
     lineup_performances = []
+    my_live = None
+    opp_live = None
+    match_fixture = None
+    opponent = None
+    leaderboard = []
 
     if season:
-        current_giornata = (
-            season.giornate.filter(status__in=[Giornata.Status.OPEN, Giornata.Status.LOCKED]).order_by("number").first()
-            or season.giornate.filter(status=Giornata.Status.SCORED).order_by("-number").first()
-        )
+        all_giornate = list(season.giornate.all().order_by("number"))
+        selected_g_num = request.GET.get("giornata")
+        if selected_g_num and selected_g_num.isdigit():
+            current_giornata = next((g for g in all_giornate if g.number == int(selected_g_num)), None)
+
+        if not current_giornata:
+            current_giornata = (
+                season.giornate.filter(status__in=[Giornata.Status.LIVE, Giornata.Status.LOCKED, Giornata.Status.OPEN]).order_by("number").first()
+                or season.giornate.filter(status=Giornata.Status.SCORED).order_by("-number").first()
+                or (all_giornate[0] if all_giornate else None)
+            )
+
         if current_giornata:
             my_score = GiornataScore.objects.filter(giornata=current_giornata, participant=participant).first()
-            formation = Formation.objects.filter(participant=participant).first()
-            if formation and formation.starter_ids:
-                starter_pids = [i for i in formation.starter_ids if i]
-                starters = {p.id: p for p in Player.objects.filter(id__in=starter_pids)}
-                perf_map = {
-                    p.player_id: p
-                    for p in PlayerPerformance.objects.filter(giornata=current_giornata, player_id__in=starter_pids)
-                }
-                for pid in starter_pids:
-                    pl = starters.get(pid)
-                    if not pl:
-                        continue
-                    perf = perf_map.get(pid)
-                    lineup_performances.append({
-                        "player": pl,
-                        "perf": perf,
-                        "has_vote": perf.vote is not None if perf else False,
-                        "vote": perf.vote if perf else None,
-                        "goals": perf.goals if perf else 0,
-                        "assists": perf.assists if perf else 0,
-                        "yellow": perf.yellow if perf else False,
-                        "red": perf.red if perf else False,
+            perf_map = services.giornata_perf_map(current_giornata)
+            rules = (season.rules or {}) if season else {}
+
+            def _get_team_live(part):
+                starters, bench = services.lineup_io(part)
+                res = scoring.score_lineup(starters, bench, perf_map, rules)
+
+                player_ids = set()
+                for l in res["lines"]:
+                    player_ids.add(l["id"])
+                    if l.get("sub_in"):
+                        player_ids.add(l["sub_in"])
+                for b in bench:
+                    player_ids.add(b["id"])
+
+                players_dict = {p.id: p for p in Player.objects.filter(id__in=player_ids)}
+
+                detailed_starters = []
+                for l in res["lines"]:
+                    starter_p = players_dict.get(l["id"])
+                    sub_p = players_dict.get(l.get("sub_in")) if l.get("sub_in") else None
+                    active_p = sub_p if sub_p else starter_p
+                    active_perf = perf_map.get(active_p.id if active_p else l["id"], {})
+
+                    detailed_starters.append({
+                        "starter_player": starter_p,
+                        "sub_player": sub_p,
+                        "player": active_p,  # for generic template access
+                        "role": l["role"],
+                        "vote": l["vote"],
+                        "fantavoto": l["fantavoto"],
+                        "has_vote": l["has_vote"],
+                        "is_subbed": bool(sub_p),
+                        "perf": active_perf,
+                        "goals": active_perf.get("goals", 0),
+                        "assists": active_perf.get("assists", 0),
+                        "yellow": active_perf.get("yellow", False),
+                        "red": active_perf.get("red", False),
                     })
+
+                subbed_in_pids = {l["sub_in"] for l in res["lines"] if l.get("sub_in")}
+                detailed_bench = []
+                for b in bench:
+                    bp = players_dict.get(b["id"])
+                    if not bp:
+                        continue
+                    b_perf = perf_map.get(b["id"], {})
+                    b_fv, b_has = scoring.player_fantavoto(b_perf, b["role"], rules)
+                    detailed_bench.append({
+                        "player": bp,
+                        "role": b["role"],
+                        "vote": b_perf.get("vote"),
+                        "fantavoto": b_fv,
+                        "has_vote": b_has,
+                        "subbed_in": b["id"] in subbed_in_pids,
+                        "perf": b_perf,
+                        "goals": b_perf.get("goals", 0),
+                        "assists": b_perf.get("assists", 0),
+                        "yellow": b_perf.get("yellow", False),
+                        "red": b_perf.get("red", False),
+                    })
+
+                return {
+                    "participant": part,
+                    "total": res["total"],
+                    "goals": res["goals"],
+                    "modificatore": res["modificatore"],
+                    "subs": res["subs"],
+                    "starters": detailed_starters,
+                    "bench": detailed_bench,
+                }
+
+            my_live = _get_team_live(participant)
+            lineup_performances = my_live["starters"]
+
+            # Head-to-head match fixture
+            match_fixture = current_giornata.fixtures.filter(
+                Q(home=participant) | Q(away=participant)
+            ).select_related("home", "away", "competition").first()
+
+            if match_fixture:
+                opponent = match_fixture.away if match_fixture.home_id == participant.id else match_fixture.home
+                if opponent:
+                    opp_live = _get_team_live(opponent)
+
+            # Matchday leaderboard
+            active_teams = list(participant.league.participants.filter(is_active=True)) if participant.league else [participant]
+            for t in active_teams:
+                s, b = services.lineup_io(t)
+                r = scoring.score_lineup(s, b, perf_map, rules)
+                leaderboard.append({
+                    "participant": t,
+                    "total": r["total"],
+                    "goals": r["goals"],
+                    "is_me": t.id == participant.id,
+                })
+            leaderboard.sort(key=lambda x: x["total"], reverse=True)
 
     ctx.update({
         "season": season,
+        "giornate": all_giornate,
         "giornata": current_giornata,
         "my_score": my_score,
+        "my_live": my_live,
+        "opp_live": opp_live,
+        "fixture": match_fixture,
+        "opponent": opponent,
+        "leaderboard": leaderboard,
         "lineup_performances": lineup_performances,
     })
     return render(request, "auctions/app_live.html", ctx)
+
 
 
 def app_lega(request):

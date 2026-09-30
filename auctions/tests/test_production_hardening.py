@@ -354,3 +354,31 @@ class SignInPageTests(TestCase):
     @override_settings(PUBLIC_TOKENS_REQUIRED=False)
     def test_on_the_lan_they_are_quick_links(self):
         self.assertContains(self.client.get("/login/"), "Asta Segreta")
+
+
+class SupervisorBackupDownloadTests(TestCase):
+    def setUp(self):
+        self.superadmin = User.objects.create_superuser("super", "super@test.local", "pass1234")
+        self.user = User.objects.create_user("normal", "normal@test.local", "pass1234")
+
+    def test_anonymous_redirected_to_login(self):
+        resp = self.client.get(reverse("supervisor_backup_download"))
+        self.assertEqual(resp.status_code, 302)
+
+    def test_normal_user_forbidden(self):
+        self.client.force_login(self.user)
+        resp = self.client.get(reverse("supervisor_backup_download"))
+        self.assertEqual(resp.status_code, 403)
+
+    def test_path_traversal_blocked(self):
+        self.client.force_login(self.superadmin)
+        resp = self.client.get(reverse("supervisor_backup_download") + "?file=../../manage.py")
+        self.assertIn(resp.status_code, (403, 404))
+
+    def test_superadmin_can_download_snapshot(self):
+        self.client.force_login(self.superadmin)
+        resp = self.client.get(reverse("supervisor_backup_download"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.has_header("Content-Disposition"))
+        self.assertIn("attachment", resp["Content-Disposition"])
+

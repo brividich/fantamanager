@@ -409,7 +409,12 @@ def admin_market_create(request):
     if not user_can_manage_league(request.user, league):
         return HttpResponseForbidden(_FORBIDDEN_MSG)
 
-    title = (request.POST.get("title") or "Mercato di Riparazione a Buste").strip()
+    session_type = (request.POST.get("session_type") or "repair").strip().lower()
+    if session_type not in (MarketSession.SessionType.REPAIR, MarketSession.SessionType.RENEWALS):
+        session_type = MarketSession.SessionType.REPAIR
+
+    default_title = "Mercato Rinnovi Contratti" if session_type == MarketSession.SessionType.RENEWALS else "Mercato di Riparazione a Buste"
+    title = (request.POST.get("title") or default_title).strip()
 
     opens_at = _parse_local_datetime(request.POST.get("opens_at"))
     closes_at = _parse_local_datetime(request.POST.get("closes_at"))
@@ -418,14 +423,21 @@ def admin_market_create(request):
         return redirect(_dashboard_url(request, league_id=league.id, tab="buste"))
     scheduled = opens_at is not None and opens_at > timezone.now()
 
+    status = MarketSession.Status.DRAFT if scheduled else MarketSession.Status.OPEN
+
     session = MarketSession.objects.create(
         league=league,
+        session_type=session_type,
         title=title,
-        status=MarketSession.Status.DRAFT if scheduled else MarketSession.Status.OPEN,
+        status=status,
         opens_at=opens_at,
         closes_at=closes_at,
         **_session_rules(request.POST),
     )
+
+    if session_type == MarketSession.SessionType.RENEWALS and status == MarketSession.Status.OPEN:
+        league.renewals_open = True
+        league.save(update_fields=["renewals_open"])
 
     if request.POST.get("notify") == "1":
         report = mail.send_market_notice(request, session)
@@ -453,6 +465,9 @@ def admin_market_status(request, session_id):
     if new_status in (MarketSession.Status.OPEN, MarketSession.Status.CLOSED):
         session.status = new_status
         session.save(update_fields=["status", "updated_at"])
+        if session.session_type == MarketSession.SessionType.RENEWALS:
+            session.league.renewals_open = (new_status == MarketSession.Status.OPEN)
+            session.league.save(update_fields=["renewals_open"])
         label = "aperta" if new_status == MarketSession.Status.OPEN else "chiusa"
         messages.success(request, f"Sessione '{session.title}' {label}.")
     return redirect(_dashboard_url(request, session))
@@ -506,8 +521,16 @@ def admin_market_delete(request, session_id):
     if denied:
         return denied
     league_id = session.league_id
+    league = session.league
     title = session.title
+    is_renewals = session.session_type == MarketSession.SessionType.RENEWALS
     session.delete()
+    if is_renewals and league:
+        has_other_open = MarketSession.objects.filter(
+            league=league, session_type=MarketSession.SessionType.RENEWALS, status=MarketSession.Status.OPEN
+        ).exists()
+        league.renewals_open = has_other_open
+        league.save(update_fields=["renewals_open"])
     messages.info(request, f"Sessione '{title}' eliminata.")
     return redirect(_dashboard_url(request, league_id=league_id, tab="buste"))
 

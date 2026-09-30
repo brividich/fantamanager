@@ -1,59 +1,191 @@
 {% extends "auctions/app_base.html" %}
-{% block title %}Live — FantaManager{% endblock %}
+{% block title %}Live Risultati — FantaManager{% endblock %}
 {% block app %}
 <style>
     @keyframes live-pulse {
-        0% { box-shadow: 0 0 0 0 rgba(19,181,255,0.5); }
-        70% { box-shadow: 0 0 0 12px rgba(19,181,255,0); }
+        0% { box-shadow: 0 0 0 0 rgba(19,181,255,0.6); }
+        70% { box-shadow: 0 0 0 10px rgba(19,181,255,0); }
         100% { box-shadow: 0 0 0 0 rgba(19,181,255,0); }
     }
-    .live-score-card {
+    @keyframes live-glow {
+        0%, 100% { opacity: 0.8; }
+        50% { opacity: 1; filter: drop-shadow(0 0 8px rgba(34,197,94,0.6)); }
+    }
+
+    /* Matchday Chip Selector */
+    .giornate-strip {
+        display: flex; gap: 6px; overflow-x: auto; padding: 2px 2px 12px;
+        scrollbar-width: none; -webkit-overflow-scrolling: touch;
+    }
+    .giornate-strip::-webkit-scrollbar { display: none; }
+    .g-chip {
+        flex: 0 0 auto; padding: 6px 12px; font-size: 13px; font-weight: 800;
+        border-radius: 999px; background: rgba(255,255,255,0.05); border: 1px solid var(--line);
+        color: var(--muted); text-decoration: none; transition: all .15s ease;
+    }
+    .g-chip:hover { color: var(--ink); background: rgba(255,255,255,0.1); }
+    .g-chip.active {
+        background: var(--accent); color: #0a1108; border-color: var(--accent);
+        box-shadow: 0 2px 10px var(--accent-glow);
+    }
+    .g-chip.is-live {
+        border-color: #22c55e; color: #4ade80;
+    }
+    .g-chip.active.is-live {
+        background: #22c55e; color: #0a1108;
+    }
+
+    /* Head-to-Head 1vs1 Match Card */
+    .match-h2h-card {
+        padding: 20px; border-radius: 20px;
+        background: linear-gradient(135deg, rgba(10,36,69,0.95), rgba(6,22,43,0.98));
+        border: 1px solid rgba(19,181,255,0.35);
+        box-shadow: 0 16px 40px rgba(0,0,0,0.5), inset 0 0 30px rgba(19,181,255,0.08);
+        position: relative; overflow: hidden; margin-bottom: 18px;
+    }
+    .match-h2h-head {
+        display: flex; align-items: center; justify-content: space-between;
+        margin-bottom: 14px; font-size: 12px; font-weight: 800; text-transform: uppercase;
+        letter-spacing: .08em; color: var(--muted);
+    }
+    .match-badge-live {
+        display: inline-flex; align-items: center; gap: 6px;
+        background: rgba(34,197,94,0.18); border: 1px solid rgba(34,197,94,0.4);
+        color: #4ade80; padding: 4px 10px; border-radius: 999px;
+    }
+    .match-dot {
+        width: 7px; height: 7px; border-radius: 50%; background: #22c55e;
+        box-shadow: 0 0 8px #22c55e; animation: live-pulse 1.8s infinite;
+    }
+
+    .match-board {
+        display: grid; grid-template-columns: 1fr auto 1fr;
+        align-items: center; gap: 12px; text-align: center;
+    }
+    .team-side {
+        display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0;
+    }
+    .team-side.is-me .team-name { color: #13b5ff; }
+    .team-name {
+        font-size: 15px; font-weight: 900; color: #fff; line-height: 1.2;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+    }
+    .team-score-num {
+        font-family: var(--display); font-size: 32px; font-weight: 900; color: #fff;
+        line-height: 1; margin-top: 4px;
+    }
+    .team-pts-sub {
+        font-size: 12px; font-weight: 700; color: var(--muted);
+    }
+
+    .score-center {
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        padding: 0 10px;
+    }
+    .score-goals {
+        font-family: var(--display); font-size: 40px; font-weight: 900; color: #fff;
+        line-height: 1; letter-spacing: .06em;
+        text-shadow: 0 2px 14px rgba(19,181,255,0.4);
+    }
+    .match-status-tag {
+        margin-top: 6px; font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 6px;
+        text-transform: uppercase; letter-spacing: .05em;
+    }
+    .match-status-tag.win { background: rgba(34,197,94,0.2); color: #4ade80; border: 1px solid rgba(34,197,94,0.35); }
+    .match-status-tag.loss { background: rgba(239,68,68,0.2); color: #f87171; border: 1px solid rgba(239,68,68,0.35); }
+    .match-status-tag.draw { background: rgba(234,179,8,0.2); color: #facc15; border: 1px solid rgba(234,179,8,0.35); }
+
+    /* Single Team Standalone Score (if no fixture) */
+    .single-score-card {
         padding: 18px 20px; border-radius: 18px;
         background: linear-gradient(135deg, rgba(8,124,240,.20), rgba(16,185,129,.15));
         border: 1px solid rgba(19,181,255,.4);
         display: flex; align-items: center; justify-content: space-between;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.35), inset 0 0 25px rgba(19,181,255,.1);
-        position: relative; overflow: hidden;
+        margin-bottom: 18px;
     }
-    .live-badge {
-        display: inline-flex; align-items: center; gap: 6px;
-        font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em;
-        color: var(--accent); background: rgba(16,185,129,0.15); border: 1px solid var(--accent-line);
-        padding: 3px 8px; border-radius: 6px; margin-bottom: 6px;
+    .ls-total { font-family: var(--display); font-weight: 900; font-size: 38px; color: var(--ink); line-height: 1; }
+    .ls-goals { font-size: 14px; color: var(--accent); font-weight: 800; margin-top: 4px; }
+
+    /* Team Switcher & Segments */
+    .view-switch {
+        display: flex; gap: 6px; background: rgba(0,0,0,0.25);
+        border: 1px solid var(--line); border-radius: 12px; padding: 4px; margin-bottom: 14px;
     }
-    .live-dot {
-        width: 7px; height: 7px; border-radius: 50%; background: #22c55e;
-        box-shadow: 0 0 8px #22c55e; animation: live-pulse 1.8s infinite;
+    .view-btn {
+        flex: 1; padding: 10px 14px; font-size: 13.5px; font-weight: 800; border-radius: 8px;
+        border: none; background: transparent; color: var(--muted); cursor: pointer;
+        display: flex; align-items: center; justify-content: center; gap: 6px; transition: all .15s;
     }
-    .ls-total { font-family: var(--display); font-weight: 900; font-size: 42px; color: var(--ink); line-height: 1; text-shadow: 0 2px 14px var(--accent-glow); }
-    .ls-goals { font-size: 15px; color: var(--accent); font-weight: 800; display: block; margin-top: 4px; }
-    
+    .view-btn.active {
+        background: var(--panel-2); color: var(--ink); box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    }
+    .view-btn.active.is-me { color: #13b5ff; }
+
+    /* Desktop 2-Col Grid */
+    .live-desktop-grid {
+        display: grid; grid-template-columns: 1fr; gap: 16px;
+    }
+    @media (min-width: 960px) {
+        .live-desktop-grid { grid-template-columns: 1fr 1fr; align-items: start; }
+        .view-switch { display: none; }
+        .team-live-panel { display: block !important; }
+    }
+
+    /* Player Rows */
     .perf-row {
-        padding: 12px 14px; border-bottom: 1px solid var(--line);
+        padding: 11px 14px; border-bottom: 1px solid var(--line);
         display: flex; align-items: center; justify-content: space-between; gap: 10px;
         transition: background .12s;
     }
     .perf-row:last-child { border-bottom: none; }
     .perf-row:hover { background: rgba(255,255,255,.02); }
     .perf-info { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; cursor: pointer; }
-    .perf-name { font-weight: 800; font-size: 14.5px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .perf-bonus { display: flex; gap: 6px; font-size: 13px; margin-top: 3px; flex-wrap: wrap; }
-    .perf-vote-badge {
-        min-width: 44px; text-align: right;
-    }
-    .perf-vote { font-family: var(--display); font-weight: 900; font-size: 20px; color: var(--ink); }
+    .perf-name { font-weight: 800; font-size: 14px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .perf-team { font-size: 11px; font-weight: 700; color: var(--muted); margin-left: 4px; text-transform: uppercase; }
+    .perf-bonus { display: flex; gap: 6px; font-size: 12px; margin-top: 3px; flex-wrap: wrap; }
+    .perf-vote-badge { min-width: 52px; text-align: right; }
+    .perf-vote { font-family: var(--display); font-weight: 900; font-size: 19px; color: var(--ink); line-height: 1; }
     .perf-vote.high { color: #22c55e; }
     .perf-vote.low { color: #ef4444; }
-    .perf-vote.sv { color: var(--muted); font-size: 15px; font-weight: 700; }
+    .perf-vote.sv { color: var(--muted); font-size: 14px; font-weight: 700; }
+    .perf-fv { font-size: 11px; font-weight: 800; color: var(--accent); display: block; margin-top: 2px; }
+
+    /* Substitution Badge */
+    .sub-indicator {
+        display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 800;
+        background: rgba(19,181,255,0.14); border: 1px solid rgba(19,181,255,0.3);
+        color: #93c5fd; padding: 2px 6px; border-radius: 4px; margin-top: 3px;
+    }
+    .sub-bench-badge {
+        font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 4px;
+        background: rgba(34,197,94,0.16); color: #4ade80; border: 1px solid rgba(34,197,94,0.3);
+    }
+
+    /* Leaderboard mini table */
+    .leader-row {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 9px 12px; border-bottom: 1px solid var(--line); font-size: 13px; font-weight: 700;
+    }
+    .leader-row:last-child { border-bottom: none; }
+    .leader-row.me { background: rgba(19,181,255,0.1); border-left: 3px solid #13b5ff; }
 </style>
 
-<div class="tab-head">
-    <h1>Live Risultati</h1>
-    <p>Voti e punteggi della giornata in diretta</p>
+<div class="tab-head" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px">
+    <div>
+        <h1>Live Risultati</h1>
+        <p>Voti in tempo reale, scontro diretto e subentri della giornata</p>
+    </div>
+    {% if giornata %}
+    <div style="display:flex;gap:8px;align-items:center">
+        <a href="?giornata={{ giornata.number }}" class="btn btn-ghost" style="padding:6px 12px;font-size:12px;font-weight:700" title="Aggiorna Voti Live">
+            ↻ Aggiorna
+        </a>
+    </div>
+    {% endif %}
 </div>
 
 {% if active_auction %}
-<a class="a-cta" href="{% url 'bid' active_auction.id %}" style="background:rgba(239,68,68,0.15);border-color:rgba(239,68,68,0.4)">
+<a class="a-cta" href="{% url 'bid' active_auction.id %}" style="background:rgba(239,68,68,0.15);border-color:rgba(239,68,68,0.4);margin-bottom:14px">
     <svg class="ic" style="color:#ef4444"><use href="#i-gavel"/></svg>
     <span class="t">
         <b>Asta in diretta: {{ active_auction.title }}</b>
@@ -63,59 +195,321 @@
 </a>
 {% endif %}
 
-{% if giornata %}
-<div class="live-score-card">
-    <div>
-        <div class="live-badge">
-            <span class="live-dot"></span>
-            <span>Giornata {{ giornata.number }} · {{ giornata.get_status_display }}</span>
-        </div>
-        <div style="font-size:16px;font-weight:900;color:var(--ink);letter-spacing:.02em">
-            {{ participant.display_name }}
-        </div>
-    </div>
-    {% if my_score %}
-    <div style="text-align:right">
-        <span class="ls-total">{{ my_score.total|floatformat:1 }}</span>
-        <span class="ls-goals">{% if my_score.goals > 0 %}⚽ {{ my_score.goals }} gol{% else %}0 gol{% endif %}</span>
-    </div>
-    {% endif %}
-</div>
-
-{% if lineup_performances %}
-<div class="a-card" style="margin-top:14px">
-    <div class="a-label"><svg class="ic"><use href="#i-shield"/></svg> Titolari schierati ({{ lineup_performances|length }})</div>
-    {% for item in lineup_performances %}
-    <div class="perf-row">
-        <div class="perf-info" onclick="openPlayerModal('{{ item.player.name|escapejs }}', '{{ item.player.role }}', '{{ item.player.team|escapejs }}', '{{ item.vote|floatformat:1|default:'' }}', '{{ item.goals|default:0 }}', '{{ item.assists|default:0 }}', '{{ item.player.initial_price|floatformat:0 }}')">
-            <span class="role-badge role-{{ item.player.role }}" style="flex-shrink:0;">{{ item.player.role }}</span>
-            <div style="min-width:0;">
-                <div class="perf-name">{{ item.player.name }}</div>
-                <div class="perf-bonus">
-                    {% if item.goals %}<span title="Gol" style="font-weight:700;">⚽ {{ item.goals }}</span>{% endif %}
-                    {% if item.assists %}<span title="Assist" style="font-weight:700;">🎯 {{ item.assists }}</span>{% endif %}
-                    {% if item.yellow %}<span title="Ammonizione">🟨</span>{% endif %}
-                    {% if item.red %}<span title="Espulsione">🟥</span>{% endif %}
-                </div>
-            </div>
-        </div>
-        <div class="perf-vote-badge">
-            {% if item.has_vote %}
-            <span class="perf-vote {% if item.vote >= 6.5 %}high{% elif item.vote < 5.5 %}low{% endif %}">{{ item.vote|floatformat:1 }}</span>
-            {% else %}
-            <span class="perf-vote sv">s.v.</span>
-            {% endif %}
-        </div>
-    </div>
+{% if giornate %}
+<!-- Matchday Navigation Strip -->
+<div class="giornate-strip" role="navigation" aria-label="Seleziona giornata">
+    {% for g in giornate %}
+    <a href="?giornata={{ g.number }}" class="g-chip {% if g.number == giornata.number %}active{% endif %} {% if g.status == 'LIVE' %}is-live{% endif %}">
+        {% if g.status == 'LIVE' %}<span class="match-dot" style="display:inline-block;width:5px;height:5px;margin-right:4px"></span>{% endif %}
+        G{{ g.number }}
+    </a>
     {% endfor %}
 </div>
 {% endif %}
 
+{% if giornata %}
+
+{% if fixture and opponent and opp_live and my_live %}
+<!-- HEAD-TO-HEAD 1vs1 MATCH CARD -->
+<div class="match-h2h-card">
+    <div class="match-h2h-head">
+        <span>{{ fixture.competition.name|default:"Campionato" }} · Giornata {{ giornata.number }}</span>
+        <div class="match-badge-live">
+            <span class="match-dot"></span>
+            <span>{{ giornata.get_status_display }}</span>
+        </div>
+    </div>
+
+    <div class="match-board">
+        <!-- Home / Me -->
+        <div class="team-side is-me">
+            <div class="team-name">{{ participant.display_name }}</div>
+            <div class="team-score-num">{{ my_live.goals }}</div>
+            <div class="team-pts-sub">{{ my_live.total|floatformat:1 }} FM</div>
+        </div>
+
+        <!-- Center Score -->
+        <div class="score-center">
+            <div class="score-goals">{{ my_live.goals }} - {{ opp_live.goals }}</div>
+            {% if my_live.goals > opp_live.goals %}
+                <span class="match-status-tag win">In Vantaggio</span>
+            {% elif my_live.goals < opp_live.goals %}
+                <span class="match-status-tag loss">In Svantaggio</span>
+            {% else %}
+                <span class="match-status-tag draw">Pareggio</span>
+            {% endif %}
+        </div>
+
+        <!-- Away / Opponent -->
+        <div class="team-side">
+            <div class="team-name">{{ opponent.display_name }}</div>
+            <div class="team-score-num">{{ opp_live.goals }}</div>
+            <div class="team-pts-sub">{{ opp_live.total|floatformat:1 }} FM</div>
+        </div>
+    </div>
+</div>
+
+<!-- Mobile Tab Switcher (My Team vs Opponent) -->
+<div class="view-switch">
+    <button type="button" class="view-btn active is-me" id="btn-tab-me" onclick="switchLiveTeamTab('me')">
+        🛡️ {{ participant.display_name }}
+    </button>
+    <button type="button" class="view-btn" id="btn-tab-opp" onclick="switchLiveTeamTab('opp')">
+        ⚔️ {{ opponent.display_name }}
+    </button>
+</div>
+
+{% elif my_live %}
+<!-- Standalone Score Card (No fixture in this matchday) -->
+<div class="single-score-card">
+    <div>
+        <div class="match-badge-live" style="margin-bottom:6px">
+            <span class="match-dot"></span>
+            <span>Giornata {{ giornata.number }} · {{ giornata.get_status_display }}</span>
+        </div>
+        <div style="font-size:16px;font-weight:900;color:var(--ink)">
+            {{ participant.display_name }}
+        </div>
+    </div>
+    <div style="text-align:right">
+        <span class="ls-total">{{ my_live.total|floatformat:1 }}</span>
+        <span class="ls-goals">{% if my_live.goals > 0 %}⚽ {{ my_live.goals }} gol{% else %}0 gol{% endif %}</span>
+    </div>
+</div>
+{% endif %}
+
+<!-- TEAMS DETAILS (MY TEAM & OPPONENT) -->
+<div class="live-desktop-grid">
+    <!-- PANEL 1: MY TEAM -->
+    <div class="team-live-panel" id="panel-live-me">
+        <div class="a-card">
+            <div class="a-label" style="display:flex;justify-content:space-between;align-items:center">
+                <span><svg class="ic"><use href="#i-shield"/></svg> {{ participant.display_name }} (Titolari)</span>
+                {% if my_live.subs > 0 %}
+                <span style="font-size:11px;font-weight:800;color:#93c5fd">🔄 {{ my_live.subs }} subentr{{ my_live.subs|pluralize:"o,i" }}</span>
+                {% endif %}
+            </div>
+
+            {% for item in my_live.starters %}
+            <div class="perf-row">
+                <div class="perf-info" onclick="openPlayerModal('{{ item.player.name|escapejs }}', '{{ item.role }}', '{{ item.player.team|escapejs }}', '{{ item.vote|floatformat:1|default:'' }}', '{{ item.goals|default:0 }}', '{{ item.assists|default:0 }}', '{{ item.player.initial_price|floatformat:0 }}')">
+                    <span class="role-badge role-{{ item.role }}" style="flex-shrink:0;">{{ item.role }}</span>
+                    <div style="min-width:0;">
+                        <div class="perf-name">
+                            {{ item.player.name }}
+                            {% if item.player.team %}<span class="perf-team">{{ item.player.team|slice:":3" }}</span>{% endif %}
+                        </div>
+
+                        {% if item.is_subbed %}
+                        <div class="sub-indicator">
+                            <span>🔄 Subentrato al posto di {{ item.starter_player.name }} (s.v.)</span>
+                        </div>
+                        {% endif %}
+
+                        <div class="perf-bonus">
+                            {% if item.goals %}<span title="Gol" style="font-weight:800;">⚽ {{ item.goals }}</span>{% endif %}
+                            {% if item.assists %}<span title="Assist" style="font-weight:800;">🎯 {{ item.assists }}</span>{% endif %}
+                            {% if item.yellow %}<span title="Ammonizione">🟨</span>{% endif %}
+                            {% if item.red %}<span title="Espulsione">🟥</span>{% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="perf-vote-badge">
+                    {% if item.has_vote %}
+                        <span class="perf-vote {% if item.vote >= 6.5 %}high{% elif item.vote < 5.5 %}low{% endif %}">
+                            {{ item.vote|floatformat:1 }}
+                        </span>
+                        {% if item.fantavoto and item.fantavoto != item.vote %}
+                            <span class="perf-fv">FV: {{ item.fantavoto|floatformat:1 }}</span>
+                        {% endif %}
+                    {% else %}
+                        <span class="perf-vote sv">s.v.</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% empty %}
+            <div style="padding:16px;text-align:center;color:var(--muted)">Nessuna formazione schierata per questa giornata.</div>
+            {% endfor %}
+        </div>
+
+        <!-- My Team Bench -->
+        {% if my_live.bench %}
+        <details class="a-card" style="margin-top:12px;cursor:pointer">
+            <summary class="a-label" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;list-style:none">
+                <span><svg class="ic"><use href="#i-shirt"/></svg> Panchina a disposizione ({{ my_live.bench|length }})</span>
+                <span style="font-size:11px;color:var(--muted)">▾ Mostra</span>
+            </summary>
+            <div style="margin-top:8px">
+                {% for b in my_live.bench %}
+                <div class="perf-row" style="padding:8px 12px">
+                    <div style="display:flex;align-items:center;gap:8px;min-width:0;flex:1">
+                        <span class="role-badge role-{{ b.role }}">{{ b.role }}</span>
+                        <div style="min-width:0">
+                            <span style="font-size:13px;font-weight:700;color:var(--ink)">{{ b.player.name }}</span>
+                            {% if b.subbed_in %}
+                            <span class="sub-bench-badge">IN CAMPO</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="perf-vote-badge">
+                        {% if b.has_vote %}
+                            <span class="perf-vote {% if b.vote >= 6.5 %}high{% elif b.vote < 5.5 %}low{% endif %}" style="font-size:16px">{{ b.vote|floatformat:1 }}</span>
+                        {% else %}
+                            <span class="perf-vote sv" style="font-size:12px">s.v.</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </details>
+        {% endif %}
+    </div>
+
+    <!-- PANEL 2: OPPONENT TEAM (IF FIXTURE) -->
+    {% if opponent and opp_live %}
+    <div class="team-live-panel" id="panel-live-opp" style="display:none">
+        <div class="a-card">
+            <div class="a-label" style="display:flex;justify-content:space-between;align-items:center">
+                <span><svg class="ic"><use href="#i-shield"/></svg> {{ opponent.display_name }} (Avversario)</span>
+                {% if opp_live.subs > 0 %}
+                <span style="font-size:11px;font-weight:800;color:#93c5fd">🔄 {{ opp_live.subs }} subentr{{ opp_live.subs|pluralize:"o,i" }}</span>
+                {% endif %}
+            </div>
+
+            {% for item in opp_live.starters %}
+            <div class="perf-row">
+                <div class="perf-info" onclick="openPlayerModal('{{ item.player.name|escapejs }}', '{{ item.role }}', '{{ item.player.team|escapejs }}', '{{ item.vote|floatformat:1|default:'' }}', '{{ item.goals|default:0 }}', '{{ item.assists|default:0 }}', '{{ item.player.initial_price|floatformat:0 }}')">
+                    <span class="role-badge role-{{ item.role }}" style="flex-shrink:0;">{{ item.role }}</span>
+                    <div style="min-width:0;">
+                        <div class="perf-name">
+                            {{ item.player.name }}
+                            {% if item.player.team %}<span class="perf-team">{{ item.player.team|slice:":3" }}</span>{% endif %}
+                        </div>
+
+                        {% if item.is_subbed %}
+                        <div class="sub-indicator">
+                            <span>🔄 Subentrato al posto di {{ item.starter_player.name }} (s.v.)</span>
+                        </div>
+                        {% endif %}
+
+                        <div class="perf-bonus">
+                            {% if item.goals %}<span title="Gol" style="font-weight:800;">⚽ {{ item.goals }}</span>{% endif %}
+                            {% if item.assists %}<span title="Assist" style="font-weight:800;">🎯 {{ item.assists }}</span>{% endif %}
+                            {% if item.yellow %}<span title="Ammonizione">🟨</span>{% endif %}
+                            {% if item.red %}<span title="Espulsione">🟥</span>{% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="perf-vote-badge">
+                    {% if item.has_vote %}
+                        <span class="perf-vote {% if item.vote >= 6.5 %}high{% elif item.vote < 5.5 %}low{% endif %}">
+                            {{ item.vote|floatformat:1 }}
+                        </span>
+                        {% if item.fantavoto and item.fantavoto != item.vote %}
+                            <span class="perf-fv">FV: {{ item.fantavoto|floatformat:1 }}</span>
+                        {% endif %}
+                    {% else %}
+                        <span class="perf-vote sv">s.v.</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% empty %}
+            <div style="padding:16px;text-align:center;color:var(--muted)">Nessuna formazione schierata dall'avversario.</div>
+            {% endfor %}
+        </div>
+
+        <!-- Opponent Bench -->
+        {% if opp_live.bench %}
+        <details class="a-card" style="margin-top:12px;cursor:pointer">
+            <summary class="a-label" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;list-style:none">
+                <span><svg class="ic"><use href="#i-shirt"/></svg> Panchina a disposizione ({{ opp_live.bench|length }})</span>
+                <span style="font-size:11px;color:var(--muted)">▾ Mostra</span>
+            </summary>
+            <div style="margin-top:8px">
+                {% for b in opp_live.bench %}
+                <div class="perf-row" style="padding:8px 12px">
+                    <div style="display:flex;align-items:center;gap:8px;min-width:0;flex:1">
+                        <span class="role-badge role-{{ b.role }}">{{ b.role }}</span>
+                        <div style="min-width:0">
+                            <span style="font-size:13px;font-weight:700;color:var(--ink)">{{ b.player.name }}</span>
+                            {% if b.subbed_in %}
+                            <span class="sub-bench-badge">IN CAMPO</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="perf-vote-badge">
+                        {% if b.has_vote %}
+                            <span class="perf-vote {% if b.vote >= 6.5 %}high{% elif b.vote < 5.5 %}low{% endif %}" style="font-size:16px">{{ b.vote|floatformat:1 }}</span>
+                        {% else %}
+                            <span class="perf-vote sv" style="font-size:12px">s.v.</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </details>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- LEADERBOARD OF THE MATCHDAY (Classifica di Giornata) -->
+{% if leaderboard %}
+<div class="a-card" style="margin-top:20px">
+    <div class="a-label" style="display:flex;justify-content:space-between;align-items:center">
+        <span><svg class="ic"><use href="#i-trophy"/></svg> Classifica di Giornata (G{{ giornata.number }})</span>
+        <span style="font-size:11px;color:var(--muted)">Tutta la lega</span>
+    </div>
+    <div style="margin-top:4px">
+        {% for r in leaderboard %}
+        <div class="leader-row {% if r.is_me %}me{% endif %}">
+            <div style="display:flex;align-items:center;gap:10px">
+                <span style="width:20px;font-family:var(--display);font-weight:900;color:{% if forloop.first %}#f59e0b{% elif forloop.counter == 2 %}#94a3b8{% elif forloop.counter == 3 %}#d97706{% else %}var(--muted){% endif %}">
+                    {{ forloop.counter }}.
+                </span>
+                <span style="color:var(--ink);font-weight:{% if r.is_me %}900{% else %}700{% endif %}">
+                    {{ r.participant.display_name }} {% if r.is_me %}<span style="color:#13b5ff;font-size:11px">(TU)</span>{% endif %}
+                </span>
+            </div>
+            <div style="text-align:right">
+                <span style="font-family:var(--display);font-weight:900;font-size:16px;color:var(--ink)">{{ r.total|floatformat:1 }} FM</span>
+                <span style="font-size:11px;color:var(--accent);margin-left:6px;font-weight:800">({{ r.goals }} gol)</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<script>
+function switchLiveTeamTab(tab) {
+    var pMe = document.getElementById('panel-live-me');
+    var pOpp = document.getElementById('panel-live-opp');
+    var bMe = document.getElementById('btn-tab-me');
+    var bOpp = document.getElementById('btn-tab-opp');
+
+    if (!pMe || !pOpp) return;
+    if (tab === 'me') {
+        pMe.style.display = 'block';
+        pOpp.style.display = 'none';
+        bMe.classList.add('active');
+        bOpp.classList.remove('active');
+    } else {
+        pMe.style.display = 'none';
+        pOpp.style.display = 'block';
+        bMe.classList.remove('active');
+        bOpp.classList.add('active');
+    }
+}
+</script>
+
 {% else %}
 <div class="soon">
     <svg class="ic"><use href="#i-pulse"/></svg>
-    <b>Nessuna giornata in corso</b>
-    <span>Bonus, malus e fantavoti in tempo reale compariranno qui non appena inizieranno le giornate di campionato della tua lega.</span>
+    <b>Nessuna giornata disponibile</b>
+    <span>Non appena il campionato della tua lega inizierà, qui potrai seguire la tua partita 1vs1, i subentri in panchina e i punteggi live di tutta la lega.</span>
 </div>
 {% endif %}
 {% endblock %}

@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a2445"/>
+      <stop offset="100%" stop-color="#041429"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#13b5ff"/>
+      <stop offset="100%" stop-color="#22c55e"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="12" flood-color="#13b5ff" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+  <!-- Background Shield -->
+  <rect width="512" height="512" rx="115" fill="url(#bg)"/>
+  <rect x="24" y="24" width="464" height="464" rx="95" fill="none" stroke="url(#accent)" stroke-width="12" opacity="0.85"/>
+  
+  <!-- Central Soccer Ring -->
+  <circle cx="256" cy="256" r="145" fill="rgba(8,124,240,0.12)" stroke="#22c55e" stroke-width="8" opacity="0.65"/>
+  
+  <!-- Star -->
+  <polygon points="256,95 272,130 310,130 280,154 292,190 256,168 220,190 232,154 202,130 240,130" fill="#f59e0b" filter="url(#glow)"/>
+  
+  <!-- Stylized F -->
+  <path d="M155,185 L225,185 M155,185 L155,340 M155,250 L210,250" fill="none" stroke="#ffffff" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)"/>
+  
+  <!-- Stylized M -->
+  <path d="M265,340 L265,185 L310,255 L355,185 L355,340" fill="none" stroke="#13b5ff" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)"/>
+</svg>

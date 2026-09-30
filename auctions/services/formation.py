@@ -74,33 +74,28 @@ def _slot_role_class(slot, is_mantra):
     return mantra.ROLES.get(slot[0], ("", "", "A"))[2]
 
 
-def _formation_saved(participant):
+def _formation_saved(participant, giornata=None):
     """``(module, starter_ids)`` salvati, con ricaduta sul modulo predefinito.
-
-    ``starter_ids`` e' posizionale: l'elemento i-esimo e' il giocatore nello
-    slot i-esimo, ``None`` se lo slot e' vuoto. Le formazioni salvate prima del
-    Mantra erano una lista compatta di soli id: restano leggibili perche' in
-    Classic gli slot sono comunque in ordine di reparto, e un eventuale
-    disallineamento si corregge da se' al primo salvataggio.
+    Se specificata una giornata, cerca prima la MatchdayFormation salvata per quella giornata.
     """
     is_mantra = _is_mantra(participant)
-    f = Formation.objects.filter(participant=participant).first()
     valid = mantra.MODULES if is_mantra else FORMATION_MODULES
+    f = None
+    if giornata is not None:
+        from ..models import MatchdayFormation
+        f = MatchdayFormation.objects.filter(giornata=giornata, participant=participant).first()
+    if f is None:
+        f = Formation.objects.filter(participant=participant).first()
     module = f.module if (f and f.module in valid) else _default_module(is_mantra)
     return module, (list(f.starter_ids or []) if f else [])
 
 
-def formation_state(participant):
+def formation_state(participant, giornata=None):
     """Stato della pagina Formazione: modulo, slot in campo, panchina.
-
-    Ogni slot porta con se' i propri candidati, cosi' il menu a tendina non
-    propone mai un giocatore che quello slot non puo' ospitare - in Mantra e' la
-    differenza fra una pagina usabile e un regolamento da tenere aperto a
-    fianco. Rose parziali o sovrabbondanti sono gestite: contano solo i
-    giocatori posseduti e ogni slot ne prende al massimo uno.
+    Supporta anche la visualizzazione/modifica per una specifica giornata.
     """
     is_mantra = _is_mantra(participant)
-    module, starter_ids = _formation_saved(participant)
+    module, starter_ids = _formation_saved(participant, giornata=giornata)
     slots = _module_slots(module, is_mantra)
     # P, D, C, A (not alphabetical by role code); within a role, by name as
     # before — bench order only matters between players of the same role.
@@ -189,3 +184,47 @@ def save_formation(participant, module, raw_ids):
         participant=participant, defaults={"module": module, "starter_ids": ordered}
     )
     return formation
+
+
+def save_matchday_formation(participant, giornata, module, raw_ids, raw_bench_ids=None):
+    """Salva una formazione posizionale specifica per una giornata (MatchdayFormation)."""
+    from ..models import MatchdayFormation
+    is_mantra = _is_mantra(participant)
+    valid = mantra.MODULES if is_mantra else FORMATION_MODULES
+    if module not in valid:
+        module = _default_module(is_mantra)
+    slots = _module_slots(module, is_mantra)
+    owned = {p.id: p for p in Player.objects.filter(owner=participant, abroad_list=False)}
+
+    ordered, seen = [None] * len(slots), set()
+    for i, rid in enumerate(list(raw_ids)[:len(slots)]):
+        try:
+            pid = int(rid)
+        except (TypeError, ValueError):
+            continue
+        p = owned.get(pid)
+        if p is None or pid in seen or not _slot_accepts(slots[i], p, is_mantra):
+            continue
+        seen.add(pid)
+        ordered[i] = pid
+
+    bench = []
+    if raw_bench_ids:
+        for bid in raw_bench_ids:
+            try:
+                bpid = int(bid)
+            except (TypeError, ValueError):
+                continue
+            if bpid in owned and bpid not in seen:
+                bench.append(bpid)
+                seen.add(bpid)
+    for pid in owned:
+        if pid not in seen:
+            bench.append(pid)
+
+    mf, _ = MatchdayFormation.objects.update_or_create(
+        giornata=giornata,
+        participant=participant,
+        defaults={"module": module, "starter_ids": ordered, "bench_ids": bench}
+    )
+    return mf

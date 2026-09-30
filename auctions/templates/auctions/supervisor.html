@@ -1670,16 +1670,21 @@ function togglePasswordVisibility(inputId, btn) {
                     <span>💾</span> Backup Database Istantaneo
                 </b>
                 <div style="font-size:12px;color:var(--muted);margin-top:6px">
-                    Esegue uno snapshot consistente a caldo salvando una copia timestamped nella cartella backups.
+                    Esegue uno snapshot consistente a caldo salvando una copia timestamped nella cartella backups o scaricabile direttamente.
                 </div>
             </div>
-            <form method="post" style="margin:0">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="manual_backup">
-                <button type="submit" class="btn-super-action" style="width:100%;padding:9px;background:rgba(34,197,94,0.18);border-color:#22c55e;color:#4ade80;font-weight:700">
-                    💾 Esegui Backup Adesso
-                </button>
-            </form>
+            <div style="display:flex;gap:8px;margin-top:6px">
+                <form method="post" style="margin:0;flex:1">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="manual_backup">
+                    <button type="submit" class="btn-super-action" style="width:100%;padding:9px;background:rgba(34,197,94,0.18);border-color:#22c55e;color:#4ade80;font-weight:700">
+                        💾 Crea Snapshot
+                    </button>
+                </form>
+                <a href="{% url 'supervisor_backup_download' %}" class="btn-super-action" style="flex:1;display:flex;align-items:center;justify-content:center;text-decoration:none;padding:9px;background:rgba(59,130,246,0.22);border-color:#3b82f6;color:#93c5fd;font-weight:700">
+                    📥 Scarica Ora
+                </a>
+            </div>
         </div>
 
         <!-- 2. Svuota Cache -->
@@ -1752,13 +1757,18 @@ function togglePasswordVisibility(inputId, btn) {
                 Posizione directory: <code style="color:#93c5fd">{{ backups_folder }}</code>
             </div>
         </div>
-        <form method="post" style="margin:0">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="manual_backup">
-            <button type="submit" class="btn-super-action" style="background:#2563eb;color:#fff;border:none;padding:7px 14px;font-weight:700">
-                + Nuovo Backup Istantaneo
-            </button>
-        </form>
+        <div style="display:flex;gap:8px;align-items:center">
+            <a href="{% url 'supervisor_backup_download' %}" class="btn-super-action" style="background:#059669;color:#fff;text-decoration:none;padding:7px 14px;font-weight:700;display:inline-flex;align-items:center;gap:6px">
+                📥 Scarica Ultimo Snapshot
+            </a>
+            <form method="post" style="margin:0">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="manual_backup">
+                <button type="submit" class="btn-super-action" style="background:#2563eb;color:#fff;border:none;padding:7px 14px;font-weight:700">
+                    + Nuovo Snapshot
+                </button>
+            </form>
+        </div>
     </div>
 
     {% if recent_backups %}
@@ -1769,6 +1779,7 @@ function togglePasswordVisibility(inputId, btn) {
                 <th>Dimensione</th>
                 <th>Data & Ora Creazione</th>
                 <th>Stato</th>
+                <th style="text-align:right">Download</th>
             </tr>
         </thead>
         <tbody>
@@ -1785,6 +1796,11 @@ function togglePasswordVisibility(inputId, btn) {
                     {% else %}
                         <span style="color:var(--muted);font-size:11px">Archiviato</span>
                     {% endif %}
+                </td>
+                <td style="text-align:right">
+                    <a href="{% url 'supervisor_backup_download' %}?file={{ b.name }}" class="btn-super-action" style="background:#2563eb;color:#fff;text-decoration:none;padding:4px 10px;font-size:12px;display:inline-flex;align-items:center;gap:4px">
+                        📥 Scarica
+                    </a>
                 </td>
             </tr>
             {% endfor %}

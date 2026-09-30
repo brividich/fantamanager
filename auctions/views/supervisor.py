@@ -25,7 +25,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.db import connection, transaction
 from django.db.models import Count, Sum
-from django.http import HttpResponseForbidden, JsonResponse
+from django.http import FileResponse, Http404, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
@@ -808,4 +808,38 @@ def supervisor_impersonate_exit(request):
             messages.success(request, f"Sessione ripristinata: sei tornato come Superadmin ({orig_user.username}).")
             return redirect(f"{reverse('supervisor_dashboard')}?tab=users")
     return redirect("supervisor_dashboard")
+
+
+@supervisor_required
+def supervisor_backup_download(request):
+    """Download a database backup snapshot safely directly from the supervisor console."""
+    filename = request.GET.get("file", "").strip()
+    if backup._is_postgres():
+        folder = backup._backup_dir()
+    else:
+        src = backup._db_path()
+        if src is None:
+            raise Http404("Nessun database locale rilevato.")
+        folder = src.parent / "backups"
+
+    if filename:
+        safe_path = (folder / filename).resolve()
+        # Security check: must remain inside backup folder
+        if not str(safe_path).startswith(str(folder.resolve())):
+            return HttpResponseForbidden("Accesso al file non consentito.")
+        if not safe_path.exists() or not safe_path.is_file():
+            raise Http404("File di backup non trovato.")
+        target_file = safe_path
+    else:
+        # Generate fresh snapshot or download latest
+        target_file = backup.backup_database(reason="Download da Supervisor Cockpit")
+        if not target_file or not Path(target_file).exists():
+            latest = backup.latest_backup()
+            if latest and (folder / latest["name"]).exists():
+                target_file = folder / latest["name"]
+            else:
+                raise Http404("Nessun backup disponibile.")
+
+    target_path = Path(target_file)
+    return FileResponse(open(target_path, "rb"), as_attachment=True, filename=target_path.name)
 

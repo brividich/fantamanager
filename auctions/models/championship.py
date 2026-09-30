@@ -176,3 +176,25 @@ class Fixture(models.Model):
 
     def __str__(self):
         return f"G{self.giornata_id}: {self.home_id} vs {self.away_id}"
+
+
+class MatchdayFormation(models.Model):
+    """Lineup for a specific participant in a specific matchday (Giornata).
+    Stores module, chosen starters, and ordered bench players.
+    Allows matchday-by-matchday history and administrative adjustments.
+    """
+    giornata    = models.ForeignKey(Giornata, on_delete=models.CASCADE, related_name="matchday_formations")
+    participant = models.ForeignKey("Participant", on_delete=models.CASCADE, related_name="matchday_formations")
+    module      = models.CharField(max_length=10, default="4-3-3")
+    starter_ids = models.JSONField(default=list, blank=True)
+    bench_ids   = models.JSONField(default=list, blank=True)
+    updated_at  = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["giornata", "participant"]
+        constraints = [
+            models.UniqueConstraint(fields=["giornata", "participant"], name="uniq_giornata_participant_formation"),
+        ]
+
+    def __str__(self):
+        return f"{self.participant_id} · G{self.giornata_id}: {self.module}"

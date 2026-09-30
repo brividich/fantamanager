@@ -102,6 +102,7 @@ from .contracts import (
     declare_u21,
     declare_renewals,
     expiring as expiring_contracts,
+    is_renewals_window_open,
     min_years as contract_min_years,
     new_season,
     roll_contract,
@@ -200,6 +201,7 @@ __all__ = [
     "declare_renewals",
     "roll_renewal",
     "close_renewals",
+    "is_renewals_window_open",
     "expiring_contracts",
     "contract_min_years",
     # trade

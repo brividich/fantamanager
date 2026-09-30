@@ -218,6 +218,7 @@ from .auth import (
     register_view,
 )
 from .supervisor import (
+    supervisor_backup_download,
     supervisor_dashboard,
     supervisor_impersonate_exit,
     supervisor_required,
@@ -232,6 +233,7 @@ __all__ = [
     "logout_view",
     "onboarding_view",
     # supervisor
+    "supervisor_backup_download",
     "supervisor_dashboard",
     "supervisor_impersonate_exit",
     "supervisor_required",
