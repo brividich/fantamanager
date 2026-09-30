@@ -439,6 +439,11 @@ def admin_market_create(request):
         )
     else:
         messages.success(request, f"Sessione '{session.title}' creata con successo e aperta alle offerte.")
+    if request.POST.get("from") == "app" or request.POST.get("next") == "app":
+        return redirect(f"{reverse('app_mercato')}?session_id={session.id}")
+    next_url = request.POST.get("next")
+    if next_url:
+        return redirect(next_url)
     return redirect(_dashboard_url(request, session))
 
 
