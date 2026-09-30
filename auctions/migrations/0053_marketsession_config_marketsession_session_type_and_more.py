@@ -3,6 +3,30 @@
 from django.db import migrations, models
 
 
+def add_session_type_if_not_exists(apps, schema_editor):
+    connection = schema_editor.connection
+    with connection.cursor() as cursor:
+        if connection.vendor == 'postgresql':
+            cursor.execute(
+                "ALTER TABLE auctions_marketsession ADD COLUMN IF NOT EXISTS session_type varchar(20) NOT NULL DEFAULT 'sealed_bids';"
+            )
+        elif connection.vendor == 'sqlite':
+            cursor.execute("PRAGMA table_info(auctions_marketsession);")
+            cols = [row[1] for row in cursor.fetchall()]
+            if 'session_type' not in cols:
+                cursor.execute(
+                    "ALTER TABLE auctions_marketsession ADD COLUMN session_type varchar(20) NOT NULL DEFAULT 'sealed_bids';"
+                )
+        else:
+            try:
+                schema_editor.add_field(
+                    apps.get_model('auctions', 'MarketSession'),
+                    models.CharField(max_length=20, default='sealed_bids')
+                )
+            except Exception:
+                pass
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -15,10 +39,17 @@ class Migration(migrations.Migration):
             name='config',
             field=models.JSONField(blank=True, default=dict),
         ),
-        migrations.AddField(
-            model_name='marketsession',
-            name='session_type',
-            field=models.CharField(choices=[('sealed_bids', 'Mercato a Buste Segrete'), ('free_agency', 'Mercato Libero Continuo (Svincolati Immediati)'), ('waiver_wire', 'Draft di Riparazione (Waiver a Turni)'), ('buyout_clause', 'Mercato con Clausole Rescisorie'), ('live_auction', 'Asta Live di Riparazione')], default='sealed_bids', max_length=20),
+        migrations.SeparateDatabaseAndState(
+            state_operations=[
+                migrations.AddField(
+                    model_name='marketsession',
+                    name='session_type',
+                    field=models.CharField(choices=[('sealed_bids', 'Mercato a Buste Segrete'), ('free_agency', 'Mercato Libero Continuo (Svincolati Immediati)'), ('waiver_wire', 'Draft di Riparazione (Waiver a Turni)'), ('buyout_clause', 'Mercato con Clausole Rescisorie'), ('live_auction', 'Asta Live di Riparazione')], default='sealed_bids', max_length=20),
+                ),
+            ],
+            database_operations=[
+                migrations.RunPython(add_session_type_if_not_exists, migrations.RunPython.noop),
+            ],
         ),
         migrations.AlterField(
             model_name='competition',
