@@ -6,12 +6,12 @@
 {% block content %}
 <style>
     .auth-card {
-        background: var(--panel, #12151c);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 16px;
-        padding: 32px 28px;
-        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.45);
-        margin: 24px auto;
+        background: var(--fm-card);
+        border: 1px solid var(--fm-border);
+        border-radius: var(--fm-radius-lg);
+        padding: 36px 30px;
+        box-shadow: 0 24px 60px rgba(0, 6, 18, 0.6);
+        margin: 32px auto;
         max-width: 460px;
     }
     .auth-brand {
@@ -22,15 +22,15 @@
         display: inline-flex;
         align-items: center;
         gap: 8px;
-        background: linear-gradient(135deg, rgba(37, 99, 235, 0.2), rgba(168, 85, 247, 0.2));
-        border: 1px solid rgba(37, 99, 235, 0.4);
+        background: linear-gradient(135deg, rgba(8, 124, 240, 0.2), rgba(24, 213, 255, 0.2));
+        border: 1px solid rgba(24, 213, 255, 0.4);
         padding: 6px 14px;
         border-radius: 999px;
         font-size: 12px;
         font-weight: 800;
         text-transform: uppercase;
         letter-spacing: .08em;
-        color: #60a5fa;
+        color: var(--fm-cyan);
         margin-bottom: 12px;
     }
     .auth-title {
@@ -38,19 +38,20 @@
         font-size: 26px;
         font-weight: 900;
         letter-spacing: -0.02em;
-        color: var(--text, #f1f5f9);
+        color: var(--fm-text);
+        font-family: var(--fm-display);
     }
     .auth-subtitle {
         margin: 0;
         font-size: 14px;
-        color: var(--muted, #94a3b8);
+        color: var(--fm-text-secondary);
     }
 
     /* Tabs */
     .auth-tabs {
         display: flex;
         background: rgba(0, 0, 0, 0.25);
-        border: 1px solid rgba(255, 255, 255, 0.06);
+        border: 1px solid var(--fm-border);
         border-radius: 10px;
         padding: 4px;
         gap: 4px;
@@ -60,7 +61,7 @@
         flex: 1;
         background: transparent;
         border: none;
-        color: var(--muted, #94a3b8);
+        color: var(--fm-text-muted);
         padding: 9px 8px;
         font-size: 13px;
         font-weight: 700;
@@ -70,9 +71,9 @@
         text-align: center;
     }
     .auth-tab-btn.active {
-        background: var(--accent, #2563eb);
+        background: var(--fm-primary);
         color: #ffffff;
-        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+        box-shadow: 0 4px 14px rgba(8, 124, 240, 0.45);
     }
 
     .form-group {
@@ -80,46 +81,46 @@
     }
     .form-group label {
         display: block;
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 800;
         text-transform: uppercase;
-        letter-spacing: .06em;
-        color: var(--muted, #94a3b8);
+        letter-spacing: .08em;
+        color: var(--fm-text-secondary);
         margin-bottom: 6px;
     }
     .form-group input, .form-group select {
         width: 100%;
-        background: rgba(15, 23, 42, 0.6);
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        color: var(--text, #f8fafc);
+        background: rgba(3, 15, 32, 0.75);
+        border: 1px solid var(--fm-border);
+        color: var(--fm-text);
         padding: 12px 14px;
-        border-radius: 9px;
+        border-radius: var(--fm-radius-sm);
         font-size: 15px;
         box-sizing: border-box;
-        transition: border-color .2s;
+        transition: border-color .15s, box-shadow .15s;
     }
     .form-group input:focus {
         outline: none;
-        border-color: var(--accent, #3b82f6);
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+        border-color: var(--fm-primary-light);
+        box-shadow: var(--fm-focus);
     }
 
     .btn-submit {
         width: 100%;
-        background: linear-gradient(135deg, #2563eb, #1d4ed8);
+        background: linear-gradient(135deg, var(--fm-primary), var(--fm-primary-light));
         color: #fff;
         border: none;
         padding: 14px;
-        border-radius: 9px;
+        border-radius: var(--fm-radius-sm);
         font-size: 15px;
         font-weight: 800;
         cursor: pointer;
         letter-spacing: .02em;
-        box-shadow: 0 6px 16px rgba(37, 99, 235, 0.3);
+        box-shadow: 0 6px 18px rgba(8, 124, 240, 0.35);
         transition: transform .15s, opacity .15s;
     }
     .btn-submit:hover {
-        opacity: .94;
+        opacity: .95;
         transform: translateY(-1px);
     }
     .btn-submit:active {
@@ -127,21 +128,21 @@
     }
 
     .auth-error {
-        background: rgba(239, 68, 68, 0.12);
-        border: 1px solid rgba(239, 68, 68, 0.35);
-        color: #f87171;
+        background: rgba(255, 61, 80, 0.12);
+        border: 1px solid rgba(255, 61, 80, 0.35);
+        color: var(--fm-danger);
         padding: 12px 14px;
-        border-radius: 8px;
+        border-radius: var(--fm-radius-sm);
         font-size: 13px;
         font-weight: 600;
         margin-bottom: 20px;
     }
     .auth-success {
-        background: rgba(34, 197, 94, 0.12);
-        border: 1px solid rgba(34, 197, 94, 0.35);
-        color: #4ade80;
+        background: rgba(22, 217, 104, 0.12);
+        border: 1px solid rgba(22, 217, 104, 0.35);
+        color: var(--fm-success);
         padding: 12px 14px;
-        border-radius: 8px;
+        border-radius: var(--fm-radius-sm);
         font-size: 13px;
         font-weight: 600;
         margin-bottom: 20px;
@@ -150,8 +151,8 @@
     /* Guest card section */
     .guest-box {
         background: rgba(255, 255, 255, 0.03);
-        border: 1px dashed rgba(255, 255, 255, 0.15);
-        border-radius: 10px;
+        border: 1px dashed var(--fm-border);
+        border-radius: var(--fm-radius-md);
         padding: 18px;
         text-align: center;
         margin-top: 10px;
@@ -159,7 +160,7 @@
     .guest-box p {
         margin: 0 0 14px;
         font-size: 13px;
-        color: var(--muted, #94a3b8);
+        color: var(--fm-text-secondary);
         line-height: 1.5;
     }
 

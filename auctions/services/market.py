@@ -69,7 +69,9 @@ def place_market_bid(
     except Player.DoesNotExist:
         return {"ok": False, "error": "player_not_found", "message": "Calciatore non trovato."}
 
-    if player.owner_id is not None or (player.league_id and player.league_id != session.league_id):
+    # Il mercato vale solo per la sua lega: anche un calciatore senza lega
+    # (listone globale) non si compra nella sessione di una lega.
+    if player.owner_id is not None or player.league_id != session.league_id:
         return {"ok": False, "error": "player_unavailable", "message": "Calciatore non disponibile sul mercato svincolati."}
     from .bidding import gk_clubs_problem
     if gk_clubs_problem(participant, player):

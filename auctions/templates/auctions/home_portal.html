@@ -209,39 +209,48 @@
     /* The Split Doors (Cards Grid) */
     .hp-doors-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-        gap: 28px;
+        grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+        gap: 30px;
     }
     .hp-door-card {
         position: relative;
         background: var(--fm-card);
         border: 1px solid var(--fm-border);
         border-radius: var(--fm-radius-lg);
-        padding: 32px 28px;
+        padding: 34px 30px;
         display: flex;
         flex-direction: column;
-        gap: 20px;
+        gap: 22px;
         box-shadow: 0 20px 50px rgba(0,6,18,.5);
-        transition: transform .18s, border-color .18s, box-shadow .18s;
+        transition: transform .22s cubic-bezier(.2, .8, .4, 1), border-color .22s ease, box-shadow .22s ease;
         overflow: hidden;
     }
+    .hp-door-card::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background: radial-gradient(circle at top right, rgba(255,255,255,.05), transparent 60%);
+        border-radius: inherit;
+    }
     .hp-door-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 24px 60px rgba(0,6,18,.65);
+        transform: translateY(-6px);
     }
     .hp-door-free {
         border-color: rgba(22,217,104,.35);
-        background: linear-gradient(155deg, rgba(22,217,104,.09) 0%, rgba(7,29,56,.96) 60%, rgba(4,20,41,.98) 100%);
+        background: linear-gradient(155deg, rgba(22,217,104,.10) 0%, rgba(7,29,56,.97) 50%, rgba(4,20,41,.99) 100%);
     }
     .hp-door-free:hover {
-        border-color: rgba(22,217,104,.6);
+        border-color: rgba(22,217,104,.7);
+        box-shadow: 0 28px 65px rgba(22,217,104,.15), 0 20px 45px rgba(0,6,18,.6);
     }
     .hp-door-admin {
         border-color: rgba(30,165,255,.35);
-        background: linear-gradient(155deg, rgba(8,124,240,.12) 0%, rgba(7,29,56,.96) 60%, rgba(4,20,41,.98) 100%);
+        background: linear-gradient(155deg, rgba(8,124,240,.12) 0%, rgba(7,29,56,.97) 50%, rgba(4,20,41,.99) 100%);
     }
     .hp-door-admin:hover {
-        border-color: rgba(30,165,255,.6);
+        border-color: rgba(30,165,255,.7);
+        box-shadow: 0 28px 65px rgba(8,124,240,.18), 0 20px 45px rgba(0,6,18,.6);
     }
 
     .hp-door-head {
@@ -350,8 +359,8 @@
         border-top: 1px solid rgba(255,255,255,.07);
     }
     .hp-btn-large {
-        padding: 14px 20px;
-        font-size: 14.5px;
+        padding: 15px 22px;
+        font-size: 15px;
         font-weight: 800;
         letter-spacing: .02em;
         justify-content: center;
@@ -360,6 +369,13 @@
         align-items: center;
         gap: 10px;
         text-decoration: none;
+        transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+    }
+    .hp-btn-large:hover {
+        transform: translateY(-2px);
+    }
+    .hp-btn-large:active {
+        transform: translateY(0);
     }
     .hp-btn-emerald {
         background: linear-gradient(135deg, #16d968, #0ea84d);
@@ -498,7 +514,7 @@
         <div class="hp-meta">
             <div class="hp-status-chip">
                 <span class="hp-pulse-green"></span>
-                <span>Server Locale Attivo · Porta 8001</span>
+                <span>Server Locale Attivo ({{ request.get_host }})</span>
             </div>
             {% if current_league %}
             <div class="hp-status-chip">
@@ -659,8 +675,9 @@
                 <div class="hp-unlocked-card">
                     <div class="hp-unlocked-status">
                         <span class="hp-pulse-green"></span>
-                        <span>Autenticato come Amministratore</span>
+                        <span>Autenticato come Amministratore{% if request.user.is_authenticated and request.user.username %} ({{ request.user.username }}){% endif %}</span>
                     </div>
+                    {% if not has_admin %}
                     <form method="post" action="{% url 'home_portal' %}" style="display:inline">
                         {% csrf_token %}
                         <input type="hidden" name="action" value="logout">
@@ -668,6 +685,7 @@
                             Blocca Regia
                         </button>
                     </form>
+                    {% endif %}
                 </div>
                 <a class="hp-btn-large hp-btn-cyan" href="{% if current_league %}{% url 'dashboard_league' current_league.id %}{% else %}{% url 'dashboard' %}{% endif %}">
                     <svg class="ic" style="width:20px;height:20px"><use href="#i-arrow-right"/></svg>
@@ -703,7 +721,7 @@
     <footer class="hp-footbar">
         <div class="foot-left">
             <span><b>FantaManager Studio Core</b> · Esecuzione Standalone locale</span> · 
-            <span>Rete Locale: <b>http://localhost:8001/</b></span>
+            <span>Rete Locale: <b>http://{{ request.get_host }}/</b></span>
         </div>
         <div class="foot-right">
             {% if request.user.is_superuser %}

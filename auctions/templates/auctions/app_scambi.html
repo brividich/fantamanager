@@ -58,19 +58,15 @@
     <span>L'admin della lega non ha abilitato gli scambi tra squadre.</span>
 </div></div>
 {% else %}
-
-<div class="a-seg" data-asec-default="{% if partner %}nuovo{% elif incoming %}ricevute{% else %}nuovo{% endif %}" style="margin-bottom:12px;">
-    <button type="button" data-asec-go="ricevute">
-        Trattative {% if incoming or outgoing or awaiting %}<span class="n">{{ incoming|length|add:outgoing|length|add:awaiting|length }}</span>{% endif %}
+<div class="a-seg" data-asec-default="{% if partner %}nuovo{% elif incoming or outgoing or awaiting %}trattative{% else %}nuovo{% endif %}" style="margin-bottom:14px;">
+    <button type="button" data-asec-go="trattative">
+        Trattative {% if incoming %}<span class="n" style="background:#ef4444;color:#fff;">{{ incoming|length }}</span>{% elif outgoing or awaiting %}<span class="n">{{ outgoing|length|add:awaiting|length }}</span>{% endif %}
     </button>
     <button type="button" data-asec-go="nuovo">Nuovo Scambio</button>
-    {% if history %}
-    <button type="button" data-asec-go="storico">Storico</button>
-    {% endif %}
 </div>
 
 <div class="sc-grid fit-body">
-<div class="sc-col" data-asec="ricevute">
+<div class="sc-col" data-asec="trattative">
 
 {% if incoming %}
 <div class="a-card" style="margin-bottom:14px;">

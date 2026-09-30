@@ -156,6 +156,22 @@
             "i dati e le sessioni salvate sono al loro posto.</p></div>";
     }
 
+    let _cmdSelectedIndex = -1;
+
+    function _getVisibleCmdItems() {
+        return Array.from(document.querySelectorAll("#cmd-palette-list .cmd-item"))
+            .filter(it => it.style.display !== "none");
+    }
+
+    function _setCmdSelection(index) {
+        const visible = _getVisibleCmdItems();
+        visible.forEach((it, i) => {
+            it.classList.toggle("is-selected", i === index);
+            if (i === index) it.scrollIntoView({ block: "nearest" });
+        });
+        _cmdSelectedIndex = (index >= 0 && index < visible.length) ? index : -1;
+    }
+
     function openCmdPalette() {
         const m = document.getElementById("cmd-palette-modal");
         if (!m) return;
@@ -167,11 +183,14 @@
             setTimeout(() => inp.focus(), 50);
         }
     }
+    window.openCmdPalette = openCmdPalette;
 
     function closeCmdPalette() {
         const m = document.getElementById("cmd-palette-modal");
         if (m) m.style.display = "none";
+        _cmdSelectedIndex = -1;
     }
+    window.closeCmdPalette = closeCmdPalette;
 
     function filterCmdPalette(q) {
         const val = (q || "").trim().toLowerCase();
@@ -180,16 +199,45 @@
             const txt = (it.innerText || "").toLowerCase();
             it.style.display = (!val || txt.includes(val)) ? "flex" : "none";
         });
+        _setCmdSelection(0);
     }
 
     document.addEventListener("keydown", (e) => {
+        const m = document.getElementById("cmd-palette-modal");
+        const isOpen = m && m.style.display !== "none";
+
         if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
             e.preventDefault();
-            const m = document.getElementById("cmd-palette-modal");
-            if (m && m.style.display !== "none") closeCmdPalette();
+            if (isOpen) closeCmdPalette();
             else openCmdPalette();
-        } else if (e.key === "Escape") {
+            return;
+        }
+
+        if (!isOpen) return;
+
+        if (e.key === "Escape") {
+            e.preventDefault();
             closeCmdPalette();
+        } else if (e.key === "ArrowDown") {
+            e.preventDefault();
+            const visible = _getVisibleCmdItems();
+            if (visible.length) {
+                const next = (_cmdSelectedIndex + 1) % visible.length;
+                _setCmdSelection(next);
+            }
+        } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            const visible = _getVisibleCmdItems();
+            if (visible.length) {
+                const prev = (_cmdSelectedIndex - 1 + visible.length) % visible.length;
+                _setCmdSelection(prev);
+            }
+        } else if (e.key === "Enter") {
+            const visible = _getVisibleCmdItems();
+            if (_cmdSelectedIndex >= 0 && _cmdSelectedIndex < visible.length) {
+                e.preventDefault();
+                visible[_cmdSelectedIndex].click();
+            }
         }
     });
 </script>

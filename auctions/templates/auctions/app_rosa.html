@@ -23,33 +23,6 @@
         .rosa-kpi b { font-size: 18px; }
     }
 
-    /* Mobile Role Filter Bar */
-    .rosa-role-tabs {
-        display: flex; gap: 6px; overflow-x: auto; padding: 4px 2px 10px;
-        scrollbar-width: none; -webkit-overflow-scrolling: touch;
-        margin-bottom: 8px;
-    }
-    .rosa-role-tabs::-webkit-scrollbar { display: none; }
-    .role-tab-btn {
-        flex: 1; min-width: 62px; padding: 8px 6px; border-radius: 10px;
-        border: 1px solid var(--line); background: var(--panel-2); color: var(--muted);
-        font-family: var(--sans); font-size: 12px; font-weight: 800;
-        cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px;
-        transition: all .15s ease; -webkit-tap-highlight-color: transparent;
-    }
-    .role-tab-btn:active { transform: scale(0.94); }
-    .role-tab-btn.active {
-        background: var(--accent); color: #0a1108; border-color: var(--accent);
-        box-shadow: 0 2px 10px -2px var(--accent-glow);
-    }
-    .role-tab-btn .badge-num {
-        font-size: 10px; padding: 1px 5px; border-radius: 99px;
-        background: rgba(255,255,255,0.1);
-    }
-    .role-tab-btn.active .badge-num {
-        background: rgba(0,0,0,0.2); color: #0a1108;
-    }
-
     .rosa-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
     .rosa-col { display: flex; flex-direction: column; padding: 0; overflow: hidden; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
     .rosa-col-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px;
@@ -92,12 +65,17 @@
     .pl-ct.last { background: rgba(234,179,8,.15); color: #eab308; }
     .pl-ct.exp { background: rgba(239,68,68,.15); color: #f87171; }
     .pl-dice { font-size: 12px; font-weight: 800; padding: 4px 8px; border-radius: 7px; cursor: pointer; white-space: nowrap;
-               background: var(--accent); color: #0a1108; border: none; line-height: 1.2; height: auto; min-height: 0; }
+                background: var(--accent); color: #0a1108; border: none; line-height: 1.2; height: auto; min-height: 0; }
     .renew-card { border-color: rgba(234,179,8,.4); }
     .renew-row { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-bottom: 1px solid var(--line);
-                 font-size: 13px; text-transform: none; letter-spacing: normal; color: var(--ink); margin: 0; }
-    .renew-row:last-child { border-bottom: none; }
+                  font-size: 13px; text-transform: none; letter-spacing: normal; color: var(--ink); margin: 0; }
+    .renew-row:last-child { border-bottom: none; } }
 
+    @media (max-width: 640px) {
+        .rosa-kpis { display: grid; grid-template-columns: repeat(2, 1fr); width: 100%; gap: 8px; margin-top: 6px; }
+        .rosa-kpi { align-items: center; text-align: center; padding: 10px 8px; }
+        .rosa-kpi.cta { grid-column: span 2; padding: 12px; font-size: 13px; }
+    }
     @media (min-width: 880px) {
         .rosa-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .rosa-role-tabs { display: none; }
@@ -187,9 +165,16 @@
     <span>Quando vinci giocatori all'asta compaiono qui, divisi per ruolo.</span>
 </div>
 {% else %}
+<div class="a-seg" data-asec-default="all" style="margin-bottom:12px;">
+    <button type="button" data-asec-go="all" class="on">Tutti <span class="n">{{ roster_count }}</span></button>
+    {% for group in roster_groups %}
+    <button type="button" data-asec-go="{{ group.code }}">{{ group.code }} <span class="n">{{ group.list|length }}</span></button>
+    {% endfor %}
+</div>
+
 <div class="rosa-grid fit-body">
     {% for group in roster_groups %}
-    <section class="rosa-col" data-role-group="{{ group.code }}" aria-label="{{ group.label }}">
+    <section class="rosa-col" data-asec="{{ group.code }}" aria-label="{{ group.label }}">
         <div class="rosa-col-head">
             <span class="role-badge role-{{ group.code }}">{{ group.code }}</span>
             {{ group.label }}
@@ -210,28 +195,30 @@
                         <span class="pl-sub">{{ pl.team }}{% if is_mantra and pl.roles_display %} · <span class="mr">{{ pl.roles_display }}</span>{% endif %}{% if pl.loan_from_id %} · <span style="color:#eab308">in prestito</span>{% endif %}{% if pl.goals %} · ⚽{{ pl.goals }}{% endif %}{% if pl.assists %} · A{{ pl.assists }}{% endif %}</span>
                     </span>
                 </div>
-                <span class="pl-fm{% if not pl.fanta_avg %} none{% endif %}" title="Fantamedia">{% if pl.fanta_avg %}{{ pl.fanta_avg|floatformat:2 }}{% else %}—{% endif %}</span>
-                <span class="pl-cost">{{ pl.cost|floatformat:0 }}<small> FM</small></span>
-                {% if contracts_on %}
-                {% if pl.contract_years is None %}
-                <span style="display:flex;gap:3px">
-                <form method="post" action="{% url 'app_contract_roll' pl.id %}">
-                    {% csrf_token %}<button type="submit" class="pl-dice" title="Tira il dado contratti">🎲</button>
-                </form>
-                <form method="post" action="{% url 'app_contract_u21' pl.id %}" onsubmit="return confirm('Dichiarare {{ pl.name|escapejs }} come scommessa Under 21? Contratto fisso di 3 anni, una sola per stagione.');">
-                    {% csrf_token %}<button type="submit" class="pl-dice" style="background:var(--panel-2);color:var(--ink);border:1px solid var(--line)" title="Scommessa Under 21 (3 anni)">U21</button>
-                </form>
-                </span>
-                {% else %}
-                <span class="pl-ct{% if pl.contract_years == 1 %} last{% elif pl.contract_years == 0 %} exp{% endif %}"
-                      title="{% if pl.contract_years == 0 %}Contratto scaduto{% elif pl.contract_years == 1 %}Ultimo anno di contratto{% else %}{{ pl.contract_years }} anni di contratto{% endif %}">{% if pl.contract_years == 0 %}scad.{% else %}{{ pl.contract_years }}a{% endif %}</span>
-                {% endif %}
-                {% endif %}
-                <form method="post" action="{% url 'participant_release_player' pl.id %}"
-                      onsubmit="return confirm('Svincolare {{ pl.name|escapejs }}? Recuperi {{ pl.cost|floatformat:0 }} FM.');">
-                    {% csrf_token %}
-                    <button type="submit" class="pl-rel" title="Svincola {{ pl.name }}" aria-label="Svincola {{ pl.name }}">✕</button>
-                </form>
+                <div class="pl-right">
+                    <span class="pl-fm{% if not pl.fanta_avg %} none{% endif %}" title="Fantamedia">{% if pl.fanta_avg %}{{ pl.fanta_avg|floatformat:2 }}{% else %}—{% endif %}</span>
+                    <span class="pl-cost">{{ pl.cost|floatformat:0 }}<small> FM</small></span>
+                    {% if contracts_on %}
+                    {% if pl.contract_years is None %}
+                    <span style="display:flex;gap:3px">
+                    <form method="post" action="{% url 'app_contract_roll' pl.id %}" style="margin:0">
+                        {% csrf_token %}<button type="submit" class="pl-dice" title="Tira il dado contratti">🎲</button>
+                    </form>
+                    <form method="post" action="{% url 'app_contract_u21' pl.id %}" onsubmit="return confirm('Dichiarare {{ pl.name|escapejs }} come scommessa Under 21? Contratto fisso di 3 anni, una sola per stagione.');" style="margin:0">
+                        {% csrf_token %}<button type="submit" class="pl-dice" style="background:var(--panel-2);color:var(--ink);border:1px solid var(--line)" title="Scommessa Under 21 (3 anni)">U21</button>
+                    </form>
+                    </span>
+                    {% else %}
+                    <span class="pl-ct{% if pl.contract_years == 1 %} last{% elif pl.contract_years == 0 %} exp{% endif %}"
+                          title="{% if pl.contract_years == 0 %}Contratto scaduto{% elif pl.contract_years == 1 %}Ultimo anno di contratto{% else %}{{ pl.contract_years }} anni di contratto{% endif %}">{% if pl.contract_years == 0 %}scad.{% else %}{{ pl.contract_years }}a{% endif %}</span>
+                    {% endif %}
+                    {% endif %}
+                    <form method="post" action="{% url 'participant_release_player' pl.id %}"
+                          onsubmit="return confirm('Svincolare {{ pl.name|escapejs }}? Recuperi {{ pl.cost|floatformat:0 }} FM.');" style="margin:0">
+                        {% csrf_token %}
+                        <button type="submit" class="pl-rel" title="Svincola {{ pl.name }}" aria-label="Svincola {{ pl.name }}">✕</button>
+                    </form>
+                </div>
             </div>
             {% empty %}
             <div class="rosa-empty">Nessun giocatore in questo ruolo</div>

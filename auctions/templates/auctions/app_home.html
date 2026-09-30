@@ -148,31 +148,45 @@
 {% endif %}
 
 {% if active_auction %}
-<a class="a-cta" href="{% url 'bid' active_auction.id %}" style="margin-bottom:12px">
-    <svg class="ic"><use href="#i-gavel"/></svg>
+<a class="a-cta" href="{% url 'bid' active_auction.id %}" style="background:linear-gradient(135deg,rgba(239,68,68,0.15),rgba(19,181,255,0.08));border-color:rgba(239,68,68,0.4);margin-bottom:12px">
+    <svg class="ic" style="color:#ef4444"><use href="#i-gavel"/></svg>
     <span class="t">
-        <b>Asta in corso: {{ active_auction.title }}</b>
-        <span>Entra subito nella sala d'asta live</span>
+        <b style="display:flex;align-items:center;gap:6px;">
+            <span style="width:8px;height:8px;border-radius:50%;background:#ef4444;box-shadow:0 0 8px #ef4444;display:inline-block;animation:pulse-dot 1.2s infinite;"></span>
+            Asta in corso: {{ active_auction.title }}
+        </b>
+        <span>{{ active_auction.get_status_display }} · Entra nella sala offerte</span>
+    </span>
+    <span class="go" style="color:#ef4444">›</span>
+</a>
+{% endif %}
+
+{% if open_market %}
+<a class="a-cta" href="{% url 'app_mercato' %}" style="margin-bottom:12px">
+    <svg class="ic" style="color:var(--accent)"><use href="#i-mail"/></svg>
+    <span class="t">
+        <b>Buste aperte: {{ open_market.title }}</b>
+        <span>{% if open_market.closes_at %}Chiude il {{ open_market.closes_at|date:"d/m H:i" }}{% else %}Consegna le tue offerte{% endif %}{% if my_open_bids %} · {{ my_open_bids }} bust{{ my_open_bids|pluralize:"a,e" }} inviat{{ my_open_bids|pluralize:"a,e" }}{% endif %}</span>
     </span>
     <span class="go">›</span>
 </a>
 {% endif %}
 
 {% if incoming_trades %}
-<a class="a-cta" href="{% url 'app_scambi' %}" style="margin-bottom:12px">
-    <svg class="ic"><use href="#i-swap"/></svg>
+<a class="a-cta" href="{% url 'app_scambi' %}" style="margin-bottom:12px;background:rgba(245,158,11,0.12);border-color:rgba(245,158,11,0.35);">
+    <svg class="ic" style="color:var(--paused)"><use href="#i-swap"/></svg>
     <span class="t">
         <b>{{ incoming_trades }} propost{{ incoming_trades|pluralize:"a,e" }} di scambio ricevut{{ incoming_trades|pluralize:"a,e" }}</b>
         <span>Visualizza e rispondi</span>
     </span>
-    <span class="go">›</span>
+    <span class="go" style="color:var(--paused)">›</span>
 </a>
 {% endif %}
 
 {% include "auctions/_slot_strip.html" with hide_credits=True %}
 
 <!-- Standings Card -->
-<div class="a-card">
+<div class="a-card" style="margin-top:14px">
     <div class="a-label" style="display:flex;justify-content:space-between;align-items:center;">
         <span style="display:flex;align-items:center;gap:6px"><svg class="ic"><use href="#i-trophy"/></svg> Classifica Rose</span>
         <a href="{% url 'app_lega' %}" style="font-size:11px;font-weight:700;color:var(--muted);text-decoration:none;text-transform:none;letter-spacing:normal;">Vedi tutta ›</a>

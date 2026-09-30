@@ -3,9 +3,9 @@ from decimal import Decimal
 import re
 from django.shortcuts import redirect, render
 from django.urls import reverse
-from ..models import Auction, League, Participant, Player
+from ..models import Auction, Participant, Player
 from .. import remote
-from .common import _session_participant, safe_next, target_league, try_regia_pin, visible_leagues
+from .common import _session_participant, manageable_leagues, safe_next, target_league, try_regia_pin, visible_leagues
 
 
 def home_portal(request):
@@ -37,16 +37,16 @@ def home_portal(request):
         auctions = []
         active_auction = None
 
-    is_unlocked = bool(request.session.get("regia_unlocked", False))
+    user = getattr(request, "user", None)
+    has_admin = bool(user and user.is_authenticated and (
+        user.is_superuser or user.is_staff or manageable_leagues(user).exists()
+    ))
+    is_unlocked = bool(request.session.get("regia_unlocked", False)) or has_admin
     is_mobile = getattr(request, "is_mobile", False)
 
     # Smartphone visitors are directed straight to the App unless they are an admin
     # or explicitly using the PIN gate to unlock the Regia console.
     if is_mobile and request.method == "GET" and not is_unlocked:
-        user = getattr(request, "user", None)
-        has_admin = user and user.is_authenticated and (
-            user.is_superuser or user.is_staff or League.objects.filter(owner=user).exists()
-        )
         if not has_admin and not request.GET.get("admin"):
             if participant:
                 return redirect("app_home")
@@ -71,6 +71,7 @@ def home_portal(request):
         "auctions": auctions,
         "active_auction": active_auction,
         "is_unlocked": is_unlocked,
+        "has_admin": has_admin,
         "error": error,
         "is_remote": remote.request_is_remote(request),
     })
