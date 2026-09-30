@@ -92,11 +92,16 @@
     .ct-pill.warn { background: rgba(234,179,8,0.15); color: #eab308; }
     .ct-pill.bad { background: rgba(239,68,68,0.15); color: #f87171; }
     .ct-comp-badge {
-        font-size: 11px;
+        font-size: 12px;
         font-weight: 800;
-        padding: 2.5px 8px;
-        border-radius: 6px;
-        background: rgba(16,185,129,0.15);
+        padding: 0 10px;
+        min-height: 30px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 7px;
+        background: rgba(16,185,129,0.16);
+        border: 1px solid rgba(16,185,129,0.32);
         color: var(--accent);
         white-space: nowrap;
     }
@@ -397,6 +402,12 @@
             width: 100%;
             font-size: 13.5px;
         }
+        .ct-left-res-form .ct-comp-badge {
+            height: 36px;
+            width: 100%;
+            font-size: 13.5px;
+            box-sizing: border-box;
+        }
         .ct-left-detect-form {
             width: 100%;
         }
@@ -406,75 +417,413 @@
         }
     }
 
-    /* Thresholds Grid in Settings */
-    .ct-table-scroll {
+    /* ==========================================================================
+       Contracts Settings Card & Form
+       ========================================================================== */
+    .ct-settings-card {
+        background: var(--fm-card, var(--panel-2, #111a2d));
+        border: 1px solid var(--fm-border, var(--line, rgba(255,255,255,0.1)));
+        border-radius: 14px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.35);
+        position: relative;
+        overflow: hidden;
+    }
+    .ct-settings-card::before {
+        content: "";
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 2px;
+        background: linear-gradient(90deg, #10b981 0%, #06b6d4 50%, #3b82f6 100%);
+        opacity: 0.8;
+    }
+    .ct-settings-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-bottom: 18px;
+        padding-bottom: 14px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    }
+    .ct-settings-title-group {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .ct-settings-icon-badge {
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        background: rgba(16, 185, 129, 0.12);
+        color: #10b981;
+        border: 1px solid rgba(16, 185, 129, 0.25);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    .ct-settings-title {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 800;
+        letter-spacing: .01em;
+        color: var(--ink-bright, #fff);
+    }
+    .ct-settings-sub {
+        font-size: 12.5px;
+        color: var(--muted, #94a3b8);
+        margin-top: 2px;
+    }
+    .ct-status-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 11.5px;
+        font-weight: 700;
+        padding: 4px 10px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--muted, #94a3b8);
+        transition: all .2s ease;
+    }
+    .ct-status-chip.active {
+        background: rgba(16, 185, 129, 0.12);
+        border-color: rgba(16, 185, 129, 0.3);
+        color: #34d399;
+    }
+    .ct-status-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: currentColor;
+    }
+    .ct-status-chip.active .ct-status-dot {
+        box-shadow: 0 0 8px #10b981;
+    }
+
+    /* Top Config Grid */
+    .ct-config-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+    .ct-config-card {
+        background: rgba(255, 255, 255, 0.025);
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        border-radius: 11px;
+        padding: 12px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        transition: border-color .15s ease, background .15s ease;
+    }
+    .ct-config-card:hover {
+        border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    /* Modern Toggle Card */
+    .ct-toggle-card {
+        cursor: pointer;
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 12px;
+        user-select: none;
+    }
+    .ct-toggle-card:has(:checked) {
+        background: rgba(16, 185, 129, 0.06);
+        border-color: rgba(16, 185, 129, 0.3);
+    }
+    .ct-switch-input {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+    }
+    .ct-switch-track {
+        width: 44px;
+        height: 24px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.15);
+        position: relative;
+        flex-shrink: 0;
+        transition: background .2s ease, border-color .2s ease;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .ct-switch-input:checked + .ct-switch-track {
+        background: #10b981;
+        border-color: #10b981;
+    }
+    .ct-switch-thumb {
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #fff;
+        transition: transform .2s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+    .ct-switch-input:checked + .ct-switch-track .ct-switch-thumb {
+        transform: translateX(20px);
+    }
+    .ct-config-card-text {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+    }
+    .ct-card-label {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--ink-bright, #fff);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .ct-card-desc {
+        font-size: 11.5px;
+        color: var(--muted, #94a3b8);
+        line-height: 1.35;
+    }
+    .ct-card-desc code {
+        font-size: 11px;
+        background: rgba(255,255,255,0.06);
+        padding: 1px 5px;
+        border-radius: 4px;
+        color: #38bdf8;
+    }
+    .ct-config-card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+    }
+    .ct-badge-info {
+        font-size: 10px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .06em;
+        padding: 2px 6px;
+        border-radius: 5px;
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--muted, #94a3b8);
+    }
+
+    /* Thresholds Section */
+    .ct-thresholds-wrapper {
+        background: rgba(255, 255, 255, 0.015);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 18px;
+    }
+    .ct-section-intro {
+        margin-bottom: 14px;
+    }
+    .ct-section-title {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 800;
+        color: var(--ink-bright, #fff);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .ct-section-desc {
+        font-size: 12px;
+        color: var(--muted, #94a3b8);
+        margin: 4px 0 0;
+        line-height: 1.45;
+    }
+
+    /* Thresholds Semantic Table */
+    .ct-thresholds-table-container {
+        width: 100%;
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
+    }
+    .ct-thresholds-table {
         width: 100%;
-        margin: 10px 0;
+        border-collapse: collapse;
+        text-align: left;
+        font-size: 13px;
     }
-    .ct-thr-grid {
-        display: grid;
-        grid-template-columns: minmax(80px, auto) minmax(140px, auto) minmax(130px, auto) auto;
-        gap: 8px 14px;
+    .ct-thresholds-table th {
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .06em;
+        color: var(--muted, #94a3b8);
+        padding: 10px 12px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        white-space: nowrap;
+    }
+    .ct-thresholds-table th .th-hint {
+        display: block;
+        font-size: 10.5px;
+        font-weight: 500;
+        text-transform: none;
+        letter-spacing: normal;
+        color: rgba(148, 163, 184, 0.7);
+        margin-top: 2px;
+    }
+    .ct-thresholds-table td {
+        padding: 10px 12px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        vertical-align: middle;
+    }
+    .ct-thresholds-table tr:last-child td {
+        border-bottom: none;
+    }
+    .ct-thresholds-table tr:hover td {
+        background: rgba(255, 255, 255, 0.02);
+    }
+    .ct-thresholds-table .col-role {
+        width: 200px;
+    }
+    .ct-thresholds-table .col-clause {
+        min-width: 240px;
+    }
+    .ct-thresholds-table .col-cap {
+        min-width: 220px;
+    }
+    .ct-role-pill {
+        display: inline-flex;
         align-items: center;
-        min-width: 380px;
+        gap: 10px;
     }
-    .ct-thr-header { display: contents; }
-    .ct-thr-card { display: contents; }
-    .ct-thr-sublabel { display: none; }
+    .ct-role-text {
+        font-weight: 700;
+        font-size: 13.5px;
+        color: var(--ink-bright, #fff);
+    }
+    .ct-field-with-suffix {
+        display: inline-flex;
+        align-items: center;
+        position: relative;
+        max-width: 100%;
+    }
+    .ct-field-with-suffix input.ct-in {
+        height: 36px;
+        padding-right: 38px;
+        width: 150px;
+        font-weight: 600;
+        font-size: 13px;
+        border-radius: 8px;
+    }
+    .ct-field-with-suffix .ct-suffix {
+        position: absolute;
+        right: 8px;
+        font-size: 10.5px;
+        font-weight: 800;
+        color: var(--muted, #94a3b8);
+        pointer-events: none;
+        background: rgba(255,255,255,0.06);
+        padding: 2px 5px;
+        border-radius: 4px;
+    }
+    .ct-cell-helper {
+        display: block;
+        font-size: 11px;
+        color: var(--muted, #94a3b8);
+        margin-top: 3px;
+    }
+    .ct-cell-helper code {
+        font-size: 10.5px;
+        color: #38bdf8;
+    }
 
+    /* Settings Footer Actions */
+    .ct-settings-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+        padding-top: 8px;
+    }
+    .ct-save-btn {
+        min-height: 38px;
+        padding: 0 18px;
+        font-size: 13px;
+        font-weight: 800;
+        gap: 8px;
+        box-shadow: 0 2px 10px -2px rgba(16, 185, 129, 0.4);
+    }
+    .ct-footer-hint {
+        font-size: 12px;
+        color: var(--muted, #94a3b8);
+    }
+
+    /* Teams bar label */
+    .ct-teams-bar .ct-teams-label {
+        font-weight: 800;
+        font-size: 14px;
+        color: var(--ink-bright, #fff);
+        margin-right: auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    /* Responsive for mobile (<= 640px) */
     @media (max-width: 640px) {
-        .ct-table-scroll {
-            overflow: visible;
+        .ct-settings-card {
+            padding: 14px;
         }
-        .ct-thr-grid {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 10px;
-            min-width: 0;
+        .ct-thresholds-wrapper {
+            padding: 12px;
+        }
+        .ct-thresholds-table thead {
+            display: none;
+        }
+        .ct-thresholds-table,
+        .ct-thresholds-table tbody,
+        .ct-thresholds-table tr,
+        .ct-thresholds-table td {
+            display: block;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .ct-thresholds-table tr {
+            background: rgba(255, 255, 255, 0.025);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 10px;
+        }
+        .ct-thresholds-table td {
+            padding: 6px 0;
+            border-bottom: none;
+        }
+        .ct-thresholds-table .col-role {
+            padding-bottom: 8px;
+            margin-bottom: 6px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .ct-field-with-suffix {
             width: 100%;
         }
-        .ct-thr-header { display: none; }
-        .ct-thr-card {
-            display: flex;
+        .ct-field-with-suffix input.ct-in {
+            width: 100%;
+        }
+        .ct-settings-footer {
             flex-direction: column;
-            gap: 8px;
-            padding: 10px;
-            background: rgba(255,255,255,0.02);
-            border: 1px solid var(--line);
-            border-radius: 10px;
+            align-items: stretch;
+            gap: 10px;
         }
-        .ct-thr-role {
-            font-weight: 800;
-            font-size: 13.5px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .ct-thr-inputs {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-        }
-        .ct-thr-inputs > div {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-        .ct-thr-sublabel {
-            display: block;
-            font-size: 10.5px;
-            font-weight: 700;
-            color: var(--muted);
-            text-transform: uppercase;
-            letter-spacing: .04em;
-        }
-        .ct-thr-inputs input.ct-in {
-            width: 100% !important;
-            height: 36px;
+        .ct-save-btn {
+            width: 100%;
+            height: 40px;
         }
     }
+
 
     .ct-log { font-size: 12.5px; word-break: break-word; }
     .ct-log li { padding: 6px 0; line-height: 1.45; border-bottom: 1px solid rgba(255,255,255,0.04); }
@@ -527,47 +876,142 @@
 {% if not current_league %}
 <div class="panel muted" style="padding:24px;text-align:center">Seleziona una lega dal menu in alto.</div>
 {% else %}
-<div class="panel" style="margin-bottom:16px">
-    <form method="post" action="{% url 'admin_contracts_action' %}" class="ct-bar">
-        {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}">
-        <input type="hidden" name="action" value="settings">
-        <label style="font-weight:700"><input type="checkbox" name="contracts_enabled" value="1"{% if current_league.contracts_enabled %} checked{% endif %}> Contratti attivi in questa lega</label>
-        <label>Facce dado contratti <input class="ct-in" style="width:120px" name="faces" value="{{ crules.faces|join:',' }}" title="Anni di ogni faccia, separati da virgola"></label>
-        <label>Max squadre Serie A tra i portieri <input class="ct-in" style="width:60px" type="number" min="0" name="gk_max_clubs" value="{{ current_league.gk_max_clubs }}"></label>
-        
-        <div class="ct-table-scroll">
-            <div class="ct-thr-grid">
-                <div class="ct-thr-header">
-                    <span class="muted" style="font-size:11px">Ruolo</span>
-                    <span class="muted" style="font-size:11px">Clausola: FM per 2 / 3 anni</span>
-                    <span class="muted" style="font-size:11px">Incasso max da rescissione</span>
-                    <span></span>
-                </div>
-                {% for code, label in roles %}
-                <div class="ct-thr-card">
-                    <span class="ct-thr-role"><span class="role-badge role-{{ code }}">{{ code }}</span> {{ label }}</span>
-                    <div class="ct-thr-inputs">
-                        <div>
-                            <span class="ct-thr-sublabel">Clausola FM (2 / 3 anni)</span>
-                            <input class="ct-in" style="width:110px" name="thr_{{ code }}" value="{% for role, pair in crules.thresholds.items %}{% if role == code %}{{ pair|join:',' }}{% endif %}{% endfor %}">
-                        </div>
-                        <div>
-                            <span class="ct-thr-sublabel">Incasso max rescissione</span>
-                            <input class="ct-in" style="width:90px" name="cap_{{ code }}" value="{% for role, cap in crules.rescind_proceeds_cap.items %}{% if role == code %}{{ cap }}{% endif %}{% endfor %}">
-                        </div>
-                    </div>
-                    <span></span>
-                </div>
-                {% endfor %}
+<div class="panel ct-settings-card">
+    <div class="ct-settings-head">
+        <div class="ct-settings-title-group">
+            <div class="ct-settings-icon-badge">
+                <svg class="ic" style="width:20px;height:20px"><use href="#i-gear"/></svg>
+            </div>
+            <div>
+                <h2 class="ct-settings-title">Regole e Parametri Contratti</h2>
+                <div class="ct-settings-sub">Configurazione delle regole contrattuali per la lega <b>{{ current_league.name }}</b></div>
             </div>
         </div>
-        <button type="submit" class="ct-btn go" style="margin-top:6px">Salva impostazioni</button>
+        <div class="ct-status-chip {% if current_league.contracts_enabled %}active{% endif %}" id="ct-status-chip">
+            <span class="ct-status-dot"></span>
+            <span>{% if current_league.contracts_enabled %}Contratti Attivi{% else %}Contratti Disattivati{% endif %}</span>
+        </div>
+    </div>
+
+    <form method="post" action="{% url 'admin_contracts_action' %}" class="ct-settings-form">
+        {% csrf_token %}
+        <input type="hidden" name="league_id" value="{{ current_league.id }}">
+        <input type="hidden" name="action" value="settings">
+
+        <!-- Top Settings Grid -->
+        <div class="ct-config-grid">
+            <!-- Toggle Activation Card -->
+            <label class="ct-config-card ct-toggle-card" for="ct-contracts-toggle">
+                <input type="checkbox" name="contracts_enabled" value="1"{% if current_league.contracts_enabled %} checked{% endif %} class="ct-switch-input" id="ct-contracts-toggle">
+                <span class="ct-switch-track">
+                    <span class="ct-switch-thumb"></span>
+                </span>
+                <div class="ct-config-card-text">
+                    <span class="ct-card-label">Abilita Contratti di Permanenza</span>
+                    <span class="ct-card-desc">Attiva i contratti pluriennali, rinnovi col dado e clausole</span>
+                </div>
+            </label>
+
+            <!-- Dice Faces Field Card -->
+            <div class="ct-config-card">
+                <div class="ct-config-card-header">
+                    <label for="ct-faces" class="ct-card-label">
+                        <span class="ct-label-icon">🎲</span> Facce Dado Contratti
+                    </label>
+                    <span class="ct-badge-info">Anni</span>
+                </div>
+                <div class="ct-input-wrap">
+                    <input id="ct-faces" class="ct-in" name="faces" value="{{ crules.faces|join:',' }}" placeholder="1,1,2,2,3,3" title="Anni di ogni faccia, separati da virgola" style="width:100%">
+                </div>
+                <div class="ct-card-desc">Anni assegnati da ogni faccia del dado (es. <code>1,1,2,2,3,3</code>)</div>
+            </div>
+
+            <!-- GK Max Clubs Field Card -->
+            <div class="ct-config-card">
+                <div class="ct-config-card-header">
+                    <label for="ct-gk-clubs" class="ct-card-label">
+                        <span class="ct-label-icon">🧤</span> Max Squadre Serie A Portieri
+                    </label>
+                    <span class="ct-badge-info">Portieri</span>
+                </div>
+                <div class="ct-input-wrap">
+                    <input id="ct-gk-clubs" class="ct-in" type="number" min="0" name="gk_max_clubs" value="{{ current_league.gk_max_clubs }}" placeholder="0" style="width:100%">
+                </div>
+                <div class="ct-card-desc">Tetto squadre Serie A nel pacchetto portieri (0 = nessun blocco)</div>
+            </div>
+        </div>
+
+        <!-- Section: Thresholds & Buyout Clauses -->
+        <div class="ct-thresholds-wrapper">
+            <div class="ct-section-intro">
+                <h3 class="ct-section-title">Soglie Clausole e Massimali di Incasso per Ruolo</h3>
+                <p class="ct-section-desc">
+                    La <b>clausola FM</b> stabilisce il costo d'asta minimo per sbloccare 2 o 3 anni di contratto. L'<b>incasso max</b> è il tetto massimo recuperabile in FM in caso di rescissione.
+                </p>
+            </div>
+
+            <!-- Semantic Responsive Table -->
+            <div class="ct-thresholds-table-container">
+                <table class="ct-thresholds-table">
+                    <thead>
+                        <tr>
+                            <th class="col-role">Ruolo</th>
+                            <th class="col-clause">
+                                <span>Clausola FM (2 / 3 anni)</span>
+                                <span class="th-hint">Prezzo asta minimo per sbloccare 2 o 3 anni</span>
+                            </th>
+                            <th class="col-cap">
+                                <span>Incasso Max da Rescissione</span>
+                                <span class="th-hint">Tetto massimo indennizzo FM recuperabile</span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for code, label in roles %}
+                        <tr class="ct-role-row">
+                            <td class="col-role">
+                                <div class="ct-role-pill">
+                                    <span class="role-badge role-{{ code }}">{{ code }}</span>
+                                    <span class="ct-role-text">{{ label }}</span>
+                                </div>
+                            </td>
+                            <td class="col-clause">
+                                <div class="ct-field-with-suffix">
+                                    <input class="ct-in ct-in-number" name="thr_{{ code }}" value="{% for role, pair in crules.thresholds.items %}{% if role == code %}{{ pair|join:',' }}{% endif %}{% endfor %}" placeholder="es. 100,150">
+                                    <span class="ct-suffix">FM</span>
+                                </div>
+                                <span class="ct-cell-helper">Separati da virgola: <code>soglia 2 anni, soglia 3 anni</code></span>
+                            </td>
+                            <td class="col-cap">
+                                <div class="ct-field-with-suffix">
+                                    <input class="ct-in ct-in-number" name="cap_{{ code }}" value="{% for role, cap in crules.rescind_proceeds_cap.items %}{% if role == code %}{{ cap }}{% endif %}{% endfor %}" placeholder="es. 150">
+                                    <span class="ct-suffix">FM</span>
+                                </div>
+                                <span class="ct-cell-helper">Valore massimo recuperabile</span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Submit Footer -->
+        <div class="ct-settings-footer">
+            <button type="submit" class="ct-btn go ct-save-btn">
+                <svg class="ic" style="width:16px;height:16px"><use href="#i-save"/></svg>
+                <span>Salva impostazioni</span>
+            </button>
+            <div class="ct-footer-hint">
+                Le modifiche alle soglie influenzeranno immediatamente i contratti e le rescissioni.
+            </div>
+        </div>
     </form>
 </div>
 
 {% if current_league.contracts_enabled %}
 <div class="ct-teams-bar">
-    <span class="muted" style="font-weight:700">Squadre della Lega</span>
+    <span class="ct-teams-label"><svg class="ic" style="width:16px;height:16px"><use href="#i-users"/></svg> Squadre della Lega</span>
     <button type="button" class="ct-btn" data-teams="open">Espandi tutte</button>
     <button type="button" class="ct-btn" data-teams="close">Comprimi tutte</button>
 </div>
@@ -651,6 +1095,20 @@
             teams.forEach(function (d) { d.open = open; });
         });
     });
+
+    var toggle = document.getElementById("ct-contracts-toggle");
+    var chip = document.getElementById("ct-status-chip");
+    if (toggle && chip) {
+        toggle.addEventListener("change", function () {
+            if (toggle.checked) {
+                chip.classList.add("active");
+                chip.querySelector("span:last-child").textContent = "Contratti Attivi";
+            } else {
+                chip.classList.remove("active");
+                chip.querySelector("span:last-child").textContent = "Contratti Disattivati";
+            }
+        });
+    }
 })();
 </script>
 {% endif %}
@@ -721,7 +1179,6 @@
                     <b style="color:var(--ink)">{{ p.owner.display_name }}</b>
                     <span>· fuori dal {{ p.left_serie_a_at|date:"d/m" }}</span>
                     {% if p.left_club %}<span>· → <b style="color:var(--accent)">{{ p.left_club }}</b></span>{% endif %}
-                    {% if p.preview is not None %}<span class="ct-comp-badge">+{{ p.preview|floatformat:0 }} FM</span>{% endif %}
                 </span>
             </div>
         </div>
@@ -738,6 +1195,9 @@
                     <option value="dismiss">Falso allarme</option>
                 </select>
                 <input name="position" value="{{ p.left_rank_pos|default_if_none:'' }}" placeholder="Pos." class="ct-in ct-in-pos" title="Posizione nel ranking (vuoto = soglia minima)">
+                {% if p.preview is not None %}
+                <span class="ct-comp-badge" title="Valore recuperato in base al ranking">+{{ p.preview|floatformat:0 }} FM</span>
+                {% endif %}
                 <button type="submit" class="ct-btn go">Conferma</button>
             </form>
             <form method="post" action="{% url 'admin_contracts_action' %}" class="ct-left-detect-form">
@@ -766,14 +1226,14 @@
                     <b style="color:var(--ink)">{{ p.owner.display_name }}</b>
                     <span>· {{ p.left_club|default:"estero" }}</span>
                     <span>· {{ p.contract_years|default_if_none:"?" }} ann{{ p.contract_years|pluralize:"o,i" }}</span>
-                    <span class="ct-comp-badge">+{{ p.abroad_compensation|floatformat:0 }} FM</span>
                 </span>
             </div>
         </div>
         <div class="ct-left-act">
-            <form method="post" action="{% url 'admin_contracts_action' %}">
+            <form method="post" action="{% url 'admin_contracts_action' %}" style="display:flex;gap:8px;align-items:center">
                 {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}">
                 <input type="hidden" name="action" value="list_release"><input type="hidden" name="player_id" value="{{ p.id }}">
+                <span class="ct-comp-badge">+{{ p.abroad_compensation|floatformat:0 }} FM</span>
                 <button type="submit" class="ct-btn go">Svincola e incassa</button>
             </form>
         </div>
