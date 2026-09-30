@@ -32,6 +32,16 @@
     @media (max-width: 1080px) {
         .comp-grid { grid-template-columns: 1fr; }
     }
+    @media (max-width: 640px) {
+        .comp-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+        .comp-header > div:last-child { width: 100%; display: flex; }
+        .comp-header .fm-btn { flex: 1; justify-content: center; font-size: 12px; }
+        .card-box { padding: 14px; }
+        .tbl-clean th, .tbl-clean td { padding: 8px 6px; font-size: 12px; }
+        .card-title { flex-direction: column; align-items: flex-start; gap: 8px; }
+        .card-title > div:last-child { width: 100%; display: flex; flex-wrap: wrap; }
+        .card-title .fm-btn { flex: 1; justify-content: center; }
+    }
 
     .card-box {
         background: var(--panel); border: 1px solid var(--line);
@@ -293,7 +303,12 @@
             {% for grp in fixtures_by_giornata %}
             <div class="g-card">
                 <div class="g-card-head">
-                    <span>Giornata {{ grp.giornata.number }}</span>
+                    <span>
+                        Giornata {{ grp.giornata.number }}
+                        {% if grp.giornata.serie_a_matchday %}
+                            <small class="muted" style="font-weight:normal; margin-left:6px;">(Serie A: G{{ grp.giornata.serie_a_matchday }})</small>
+                        {% endif %}
+                    </span>
                     <span style="color:var(--muted);font-weight:600;font-size:11px">{{ grp.giornata.get_status_display }}</span>
                 </div>
                 {% for f in grp.fixtures %}

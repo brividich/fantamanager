@@ -349,7 +349,7 @@ def app_mercato(request):
         bids_left = max(0, market_session.max_bids - len(my_bids))
 
     # Initial view: hub or workspace
-    has_active_query = bool(requested_session_id or q or role or in_budget or request.GET.get("page") or request.GET.get("sort") != "-quota" or request.GET.get("view") == "workspace")
+    has_active_query = bool(requested_session_id or q or role or in_budget or request.GET.get("page") or sort != "-quota" or request.GET.get("view") == "workspace")
     initial_view = "workspace" if has_active_query else "hub"
 
     active_auc = ctx.get("active_auction")

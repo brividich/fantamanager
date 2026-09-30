@@ -146,9 +146,15 @@ the same league.
             {% endfor %}
         </select>
         {% endif %}
-        <a class="fm-btn fm-btn-secondary" href="{% url 'dashboard_league' app_league.id %}">
+        <a class="fm-btn fm-btn-secondary hide-mobile" href="{% url 'dashboard_league' app_league.id %}">
             <svg class="ic"><use href="#i-table"/></svg> Console completa</a>
     </div>
+</div>
+
+<div class="a-seg" data-asec-default="overview" style="margin-top:14px">
+    <button type="button" data-asec-go="overview">Status</button>
+    <button type="button" data-asec-go="teams">Squadre <span class="n">{{ kpi.teams }}</span></button>
+    <button type="button" data-asec-go="tools">Strumenti</button>
 </div>
 
 {% if team_elsewhere %}
@@ -157,7 +163,7 @@ the same league.
 
 <div class="rg-grid">
 <div class="rg-col">
-    <section class="a-card" aria-labelledby="rg-todo-h">
+    <section class="a-card" aria-labelledby="rg-todo-h" data-asec="overview">
         <div class="a-label" id="rg-todo-h"><svg class="ic"><use href="#i-bell"/></svg> Da fare</div>
         <div class="rg-todo">
             {% for t in todo %}
@@ -174,7 +180,7 @@ the same league.
         </div>
     </section>
 
-    <div class="rg-kpis">
+    <div class="rg-kpis" data-asec="overview">
         <div class="a-stat">
             <div class="v">{{ kpi.teams }}</div>
             <div class="k">Squadre</div>
@@ -195,7 +201,7 @@ the same league.
         </div>
     </div>
 
-    <section class="a-card" aria-labelledby="rg-teams-h">
+    <section class="a-card" aria-labelledby="rg-teams-h" data-asec="teams">
         <div class="a-label" id="rg-teams-h"><svg class="ic"><use href="#i-shield"/></svg> Squadre
             <span class="muted" style="margin-left:auto;font-size:11px;letter-spacing:.04em;text-transform:none;font-weight:600">Tocca per la rosa</span></div>
         {% for row in teams %}
@@ -236,7 +242,7 @@ the same league.
                         <button type="submit" class="fm-btn fm-btn-primary"><svg class="ic"><use href="#i-eye"/></svg> Vedi come {{ p.display_name|truncatechars:18 }}</button>
                     </form>
                     {% endif %}
-                    <a class="fm-btn fm-btn-secondary" href="{% url 'dashboard_league' app_league.id %}#rose">
+                    <a class="fm-btn fm-btn-secondary hide-mobile" href="{% url 'dashboard_league' app_league.id %}#rose">
                         <svg class="ic"><use href="#i-gear"/></svg> Gestisci in console</a>
                     <button type="button" class="fm-btn fm-btn-ghost" onclick="rgCopy('{{ row.join_url|escapejs }}', this)">
                         <svg class="ic"><use href="#i-link"/></svg> Copia invito</button>
@@ -254,7 +260,7 @@ the same league.
 
 <div class="rg-col">
     {% if trades_to_ratify %}
-    <section class="a-card" id="scambi" aria-labelledby="rg-trades-h">
+    <section class="a-card" id="scambi" aria-labelledby="rg-trades-h" data-asec="overview">
         <div class="a-label" id="rg-trades-h"><svg class="ic"><use href="#i-swap"/></svg> Scambi da ratificare</div>
         {% for t in trades_to_ratify %}
         <div class="rg-trade">
@@ -285,7 +291,7 @@ the same league.
     </section>
     {% endif %}
 
-    <section class="a-card" aria-labelledby="rg-auctions-h">
+    <section class="a-card" aria-labelledby="rg-auctions-h" data-asec="overview">
         <div class="a-label" id="rg-auctions-h"><svg class="ic"><use href="#i-gavel"/></svg> Aste
             <a href="{% url 'admin_auction_wizard' %}{{ league_q }}" style="margin-left:auto;font-size:11px;letter-spacing:.06em">+ Nuova</a></div>
         {% for a in auctions %}
@@ -304,7 +310,7 @@ the same league.
         {% endif %}
     </section>
 
-    <section class="a-card" aria-labelledby="rg-market-h">
+    <section class="a-card" aria-labelledby="rg-market-h" data-asec="overview">
         <div class="a-label" id="rg-market-h"><svg class="ic"><use href="#i-mail"/></svg> Mercato a buste
             <a href="{% url 'admin_market_dashboard' %}{{ league_q }}" style="margin-left:auto;font-size:11px;letter-spacing:.06em">Gestisci</a></div>
         {% for s in market_sessions %}
@@ -317,7 +323,7 @@ the same league.
         {% endfor %}
     </section>
 
-    <section class="a-card" aria-labelledby="rg-tools-h">
+    <section class="a-card" aria-labelledby="rg-tools-h" data-asec="tools">
         <div class="a-label" id="rg-tools-h"><svg class="ic"><use href="#i-gear"/></svg> Strumenti della console</div>
         <div class="rg-tools">
             <a class="rg-tool primary" href="{% url 'dashboard_league' app_league.id %}"><svg class="ic"><use href="#i-table"/></svg>Dashboard<small>Rose, crediti, assegnazioni</small></a>

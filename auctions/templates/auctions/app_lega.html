@@ -36,6 +36,7 @@
     </a>
     {% endfor %}
 </div>
+{% endif %}
 </div> <!-- fine classifica -->
 
 <div data-asec="competizioni">
@@ -57,36 +58,47 @@
         {% endfor %}
     </div>
 
+<style>
+    @media (max-width: 580px) {
+        .tbl-hide-mobile { display: none !important; }
+        .tbl-record-mobile { display: block !important; font-size: 10.5px; color: var(--muted); font-weight: 600; margin-top: 1px; }
+        .table td, .table th { padding: 9px 6px !important; font-size: 12.5px !important; }
+    }
+</style>
+
     {% if competition_data.kind == "table" %}
     <!-- Classic Head-to-head League Table -->
     <div style="overflow-x:auto;">
         <table class="table" style="width:100%;font-size:13px;border-collapse:collapse;">
             <thead>
                 <tr style="border-bottom:1px solid var(--line);color:var(--muted);text-align:left;">
-                    <th style="padding:8px;width:32px;">#</th>
+                    <th style="padding:8px;width:28px;">#</th>
                     <th style="padding:8px;">Squadra</th>
-                    <th style="padding:8px;text-align:center;">G</th>
-                    <th style="padding:8px;text-align:center;">V</th>
-                    <th style="padding:8px;text-align:center;">P</th>
-                    <th style="padding:8px;text-align:center;">S</th>
-                    <th style="padding:8px;text-align:center;">Gol</th>
+                    <th class="tbl-hide-mobile" style="padding:8px;text-align:center;">G</th>
+                    <th class="tbl-hide-mobile" style="padding:8px;text-align:center;">V</th>
+                    <th class="tbl-hide-mobile" style="padding:8px;text-align:center;">P</th>
+                    <th class="tbl-hide-mobile" style="padding:8px;text-align:center;">S</th>
+                    <th class="tbl-hide-mobile" style="padding:8px;text-align:center;">Gol</th>
                     <th style="padding:8px;text-align:right;">Pt</th>
                 </tr>
             </thead>
             <tbody>
                 {% for row in competition_data.standings %}
                 <tr style="border-bottom:1px solid var(--line-soft, rgba(255,255,255,.05));">
-                    <td style="padding:8px;"><b>{{ forloop.counter }}</b></td>
+                    <td style="padding:8px;"><b {% if forloop.counter <= 3 %}style="color:var(--accent);"{% endif %}>{{ forloop.counter }}</b></td>
                     <td style="padding:8px;">
                         <b>{{ row.team.display_name }}</b>
-                        {% if participant and row.team.id == participant.id %}<small style="color:var(--accent)"> · tu</small>{% endif %}
+                        {% if participant and row.team.id == participant.id %}<small style="color:var(--accent);font-weight:700;"> · tu</small>{% endif %}
+                        <div class="tbl-record-mobile" style="display:none;">
+                            {{ row.played }}G · {{ row.won }}V {{ row.drawn }}P {{ row.lost }}S · Gol {{ row.goals_for }}:{{ row.goals_against }}
+                        </div>
                     </td>
-                    <td style="padding:8px;text-align:center;">{{ row.played }}</td>
-                    <td style="padding:8px;text-align:center;">{{ row.won }}</td>
-                    <td style="padding:8px;text-align:center;">{{ row.drawn }}</td>
-                    <td style="padding:8px;text-align:center;">{{ row.lost }}</td>
-                    <td style="padding:8px;text-align:center;"><small class="muted">{{ row.goals_for }}:{{ row.goals_against }}</small></td>
-                    <td style="padding:8px;text-align:right;"><b style="color:var(--accent);font-size:15px;">{{ row.points }}</b></td>
+                    <td class="tbl-hide-mobile" style="padding:8px;text-align:center;">{{ row.played }}</td>
+                    <td class="tbl-hide-mobile" style="padding:8px;text-align:center;">{{ row.won }}</td>
+                    <td class="tbl-hide-mobile" style="padding:8px;text-align:center;">{{ row.drawn }}</td>
+                    <td class="tbl-hide-mobile" style="padding:8px;text-align:center;">{{ row.lost }}</td>
+                    <td class="tbl-hide-mobile" style="padding:8px;text-align:center;"><small class="muted">{{ row.goals_for }}:{{ row.goals_against }}</small></td>
+                    <td style="padding:8px;text-align:right;"><b style="color:var(--accent);font-size:16px;font-family:var(--display);">{{ row.points }}</b></td>
                 </tr>
                 {% empty %}
                 <tr><td colspan="8" style="padding:14px;text-align:center;" class="muted">Nessuna partita giocata ancora.</td></tr>
@@ -163,7 +175,11 @@
         {% for f in competition_data.fixtures %}
         <div class="a-row" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--panel-2);border-radius:10px;border:1px solid var(--line);">
             <div>
-                <small class="muted" style="text-transform:uppercase;font-size:10px;font-weight:800;">G{{ f.giornata.number }} · {{ f.stage }}</small>
+                <small class="muted" style="text-transform:uppercase;font-size:10px;font-weight:800;">
+                    G{{ f.giornata.number }}
+                    {% if f.giornata.serie_a_matchday %} (Serie A: G{{ f.giornata.serie_a_matchday }}){% endif %}
+                    {% if f.stage %} · {{ f.stage }}{% endif %}
+                </small>
                 <div style="margin-top:2px;"><b>{{ f.home.display_name }}</b> vs <b>{% if f.away %}{{ f.away.display_name }}{% else %}<i class="muted">Riposo</i>{% endif %}</b></div>
             </div>
             {% if f.computed %}

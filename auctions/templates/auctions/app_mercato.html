@@ -268,7 +268,7 @@
     .modal-overlay.open { opacity: 1; pointer-events: auto; }
     .modal-sheet {
         background: var(--bg-deep, #0f172a); border: 1px solid var(--line); border-radius: 20px 20px 0 0;
-        width: 100%; max-width: 520px; padding: 20px; max-height: 90vh; overflow-y: auto;
+        width: 100%; max-width: 520px; padding: 20px 20px max(24px, env(safe-area-inset-bottom, 24px)); max-height: 90vh; overflow-y: auto;
         transform: translateY(100%); transition: transform .25s ease-out;
     }
     .modal-overlay.open .modal-sheet { transform: translateY(0); }

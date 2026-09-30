@@ -81,52 +81,107 @@
 {% endif %}
 </div>
 
-<div class="altro-col">
-{% if is_app_admin %}
-<a class="btn" href="{% url 'app_regia' %}" style="width:100%;justify-content:center">
-    <svg class="ic"><use href="#i-gavel"/></svg> Regia della lega</a>
-{% if manages_app_league %}
-<a class="btn btn-ghost" href="{% url 'dashboard_league' app_league.id %}" style="width:100%;justify-content:center">
-    <svg class="ic"><use href="#i-table"/></svg> Console completa</a>
-{% endif %}
-{% endif %}
-
-<a class="btn btn-ghost" href="#" onclick="toggleFmTheme(event)" style="width:100%;justify-content:center;margin-bottom:14px">
-    <svg class="ic"><use href="#i-pulse"/></svg> Cambia Tema (Chiaro/Scuro)
-</a>
-<script>
-function toggleFmTheme(e) {
-    e.preventDefault();
-    if (document.documentElement.classList.contains('light-theme')) {
-        document.documentElement.classList.remove('light-theme');
-        localStorage.setItem('fm-theme', 'dark');
-    } else {
-        document.documentElement.classList.add('light-theme');
-        localStorage.setItem('fm-theme', 'light');
+<style>
+    .action-tile {
+        display: flex; align-items: center; justify-content: space-between; gap: 12px;
+        padding: 12px 14px; border-radius: 12px; background: var(--panel);
+        border: 1px solid var(--line); text-decoration: none; color: var(--ink);
+        font-weight: 700; font-size: 13.5px; transition: all .12s ease;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
     }
-}
-</script>
+    .action-tile:active { transform: scale(0.97); }
+    .at-left { display: flex; align-items: center; gap: 10px; }
+    .at-icon {
+        width: 34px; height: 34px; border-radius: 9px; background: var(--panel-2);
+        border: 1px solid var(--line); display: flex; align-items: center; justify-content: center;
+        color: var(--accent); flex-shrink: 0;
+    }
+    .at-icon .ic { width: 18px; height: 18px; }
+    .theme-switch-badge {
+        font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 99px;
+        background: var(--panel-2); color: var(--muted); border: 1px solid var(--line);
+    }
+</style>
 
-<a class="btn btn-ghost" href="{% url 'app_login' %}?switch=1" style="width:100%;justify-content:center">
-    <svg class="ic"><use href="#i-swap"/></svg> {% if participant %}Cambia squadra / Account{% else %}Collega una squadra{% endif %}
-</a>
+<div class="altro-col">
+    {% if is_app_admin %}
+    <a class="action-tile" href="{% url 'app_regia' %}" style="border-color:rgba(255,181,38,0.4);">
+        <div class="at-left">
+            <span class="at-icon" style="color:var(--paused); background:rgba(255,181,38,0.1);"><svg class="ic"><use href="#i-gavel"/></svg></span>
+            <span>Regia della Lega (Admin)</span>
+        </div>
+        <span style="color:var(--paused);font-size:18px;">›</span>
+    </a>
+    {% if manages_app_league %}
+    <a class="action-tile hide-mobile" href="{% url 'dashboard_league' app_league.id %}">
+        <div class="at-left">
+            <span class="at-icon"><svg class="ic"><use href="#i-table"/></svg></span>
+            <span>Console completa desktop</span>
+        </div>
+        <span class="muted">›</span>
+    </a>
+    {% endif %}
+    {% endif %}
 
-<a class="btn btn-ghost" href="{% url 'app_logout' %}" style="width:100%;justify-content:center;color:#ef4444;border-color:rgba(239,68,68,0.3)">
-    <svg class="ic"><use href="#i-lock"/></svg> Disconnetti (Logout)
-</a>
+    <a class="action-tile" href="#" onclick="toggleFmTheme(event)">
+        <div class="at-left">
+            <span class="at-icon"><svg class="ic"><use href="#i-pulse"/></svg></span>
+            <span>Tema dell'App</span>
+        </div>
+        <span class="theme-switch-badge" id="fm-theme-label">Chiaro / Scuro</span>
+    </a>
+    <script>
+    function updateThemeLabel() {
+        const isLight = document.documentElement.classList.contains('light-theme');
+        const lbl = document.getElementById('fm-theme-label');
+        if(lbl) lbl.innerText = isLight ? '☀️ Chiaro' : '🌙 Scuro';
+    }
+    updateThemeLabel();
+    function toggleFmTheme(e) {
+        if(e) e.preventDefault();
+        if (document.documentElement.classList.contains('light-theme')) {
+            document.documentElement.classList.remove('light-theme');
+            localStorage.setItem('fm-theme', 'dark');
+        } else {
+            document.documentElement.classList.add('light-theme');
+            localStorage.setItem('fm-theme', 'light');
+        }
+        updateThemeLabel();
+    }
+    </script>
 
-{% if not is_app_admin %}
-<a class="btn btn-ghost" href="{% url 'app_regia' %}" style="width:100%;justify-content:center">
-    <svg class="ic"><use href="#i-gear"/></svg> Accesso Regia (organizzatore)
-</a>
-{% endif %}
+    <a class="action-tile" href="{% url 'app_login' %}?switch=1">
+        <div class="at-left">
+            <span class="at-icon"><svg class="ic"><use href="#i-swap"/></svg></span>
+            <span>{% if participant %}Cambia squadra / Account{% else %}Collega una squadra{% endif %}</span>
+        </div>
+        <span class="muted">›</span>
+    </a>
 
-<div class="soon">
-    <svg class="ic"><use href="#i-gear"/></svg>
-    <b>Impostazioni & notifiche</b>
-    <span>Preferenze, avvisi e gestione account completa arriveranno con il profilo manager esteso.</span>
-    <span class="soon-tag">In arrivo</span>
-</div>
+    <a class="action-tile" href="{% url 'app_logout' %}" style="border-color:rgba(239,68,68,0.3);color:#ef4444;">
+        <div class="at-left">
+            <span class="at-icon" style="color:#ef4444;background:rgba(239,68,68,0.1);"><svg class="ic"><use href="#i-lock"/></svg></span>
+            <span>Disconnetti (Logout)</span>
+        </div>
+        <span style="color:#ef4444;">✕</span>
+    </a>
+
+    {% if not is_app_admin %}
+    <a class="action-tile" href="{% url 'app_regia' %}">
+        <div class="at-left">
+            <span class="at-icon"><svg class="ic"><use href="#i-gear"/></svg></span>
+            <span>Accesso Regia Organizzatore</span>
+        </div>
+        <span class="muted">›</span>
+    </a>
+    {% endif %}
+
+    <div class="soon" style="margin-top:4px;">
+        <svg class="ic"><use href="#i-gear"/></svg>
+        <b>Impostazioni & Notifiche</b>
+        <span>Preferenze estese, avvisi push e gestione account completa in arrivo.</span>
+        <span class="soon-tag">In arrivo</span>
+    </div>
 </div>
 </div>
 {% endblock %}
