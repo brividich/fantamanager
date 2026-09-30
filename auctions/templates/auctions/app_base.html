@@ -280,7 +280,7 @@ app through one of their teams — a banner with the way back.
     .app-viewas button { height: 30px; padding: 0 12px; font-size: 12px; }
     .app-nav.is-wide a { font-size: 8.5px; letter-spacing: .01em; }
     .app-nav.is-wide a .ic { width: 20px; height: 20px; }
-    .app-nav .nav-sep, .app-nav .nav-console, .app-nav .nav-portal { display: none; }
+    .app-nav .nav-sep, .app-nav .nav-console { display: none; }
     .app-nav a.nav-regia.active { color: var(--paused); }
     .app-nav a.nav-regia.active .ic { filter: drop-shadow(0 0 6px rgba(255,181,38,.45)); }
 
@@ -305,8 +305,7 @@ app through one of their teams — a banner with the way back.
             display: block; margin: 10px 14px 4px; font-size: 9.5px; font-weight: 800;
             letter-spacing: .2em; text-transform: uppercase; color: var(--muted); opacity: .8;
         }
-        .app-nav a.nav-portal { display: flex; margin-top: auto; color: var(--muted); border: 1px dashed var(--line); }
-        .app-nav a.nav-console { display: flex; color: var(--accent); border: 1px dashed var(--accent-line); }
+        .app-nav a.nav-console { display: flex; margin-top: auto; color: var(--accent); border: 1px dashed var(--accent-line); }
         .app-viewas { top: 56px; margin-left: 216px; }
         .app-main {
             margin: 0 0 0 216px; max-width: 960px;
@@ -413,18 +412,19 @@ app through one of their teams — a banner with the way back.
 </div>
 {% endif %}
 
-<!-- Player Detail Modal -->
-<div id="fm-player-modal" style="display:none; position:fixed; inset:0; z-index:100; background:rgba(0,0,0,0.6); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); align-items:center; justify-content:center; opacity:0; transition:opacity 0.2s;">
-    <div style="background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); width:90%; max-width:340px; padding:20px; box-shadow:0 10px 40px rgba(0,0,0,0.5); transform:translateY(20px); transition:transform 0.2s;" id="fm-pm-content">
+<!-- Player Detail Modal (Bottom-sheet on mobile, centered on desktop) -->
+<div id="fm-player-modal" style="display:none; position:fixed; inset:0; z-index:100; background:rgba(0,0,0,0.65); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); align-items:center; justify-content:center; opacity:0; transition:opacity 0.22s ease;">
+    <div style="background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); width:92%; max-width:380px; padding:20px; box-shadow:0 14px 45px rgba(0,0,0,0.6); transform:translateY(24px); transition:transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);" id="fm-pm-content">
+        <div class="sheet-drag-handle" style="width:36px; height:4px; border-radius:99px; background:rgba(255,255,255,0.22); margin:0 auto 14px; display:none;"></div>
         <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px;">
-            <div>
-                <h2 id="fm-pm-name" style="margin:0; font-family:var(--display); font-size:22px; color:var(--ink); line-height:1.1;"></h2>
-                <div style="font-size:12px; color:var(--muted); font-weight:700; margin-top:4px;">
-                    <span id="fm-pm-role" class="role-badge" style="padding:2px 6px; font-size:10px;"></span>
-                    <span id="fm-pm-team" style="margin-left:6px;"></span>
+            <div style="min-width:0; flex:1;">
+                <h2 id="fm-pm-name" style="margin:0; font-family:var(--display); font-size:24px; color:var(--ink); line-height:1.1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></h2>
+                <div style="font-size:12px; color:var(--muted); font-weight:700; margin-top:4px; display:flex; align-items:center; gap:8px;">
+                    <span id="fm-pm-role" class="role-badge" style="padding:2px 7px; font-size:11px;"></span>
+                    <span id="fm-pm-team" style="font-size:12px; color:var(--ink); font-weight:700;"></span>
                 </div>
             </div>
-            <button type="button" onclick="closePlayerModal()" style="background:transparent; border:none; color:var(--muted); font-size:24px; cursor:pointer; line-height:1; padding:0;">&times;</button>
+            <button type="button" onclick="closePlayerModal()" style="background:rgba(255,255,255,0.06); border:1px solid var(--line); border-radius:50%; width:32px; height:32px; color:var(--muted); font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center; margin-left:10px; line-height:1; flex-shrink:0;">&times;</button>
         </div>
         <div class="a-stats" style="margin-bottom:16px;">
             <div class="a-stat" style="background:rgba(255,255,255,0.03);">
@@ -440,11 +440,23 @@ app through one of their teams — a banner with the way back.
                 <div class="k">Assist</div>
             </div>
         </div>
-        <div style="text-align:center; font-size:12px; color:var(--muted);">
-            Quotazione attuale: <b id="fm-pm-price" style="color:var(--ink); font-size:14px;"></b> FM
+        <div style="text-align:center; font-size:12.5px; color:var(--muted); padding:10px; border-radius:10px; background:rgba(255,255,255,0.02); border:1px solid var(--line);">
+            Quotazione iniziale: <b id="fm-pm-price" style="color:var(--ink); font-size:15px; font-family:var(--display); font-weight:900;"></b> <span style="font-weight:700; color:var(--accent);">FM</span>
         </div>
     </div>
 </div>
+<style>
+@media (max-width: 640px) {
+    #fm-player-modal { align-items: flex-end !important; padding: 0 !important; }
+    #fm-pm-content {
+        width: 100% !important; max-width: 100% !important;
+        border-radius: 24px 24px 0 0 !important;
+        border-bottom: none !important;
+        padding: 14px 20px calc(24px + env(safe-area-inset-bottom, 12px)) !important;
+    }
+    .sheet-drag-handle { display: block !important; }
+}
+</style>
 <script>
 function openPlayerModal(name, role, team, fanta, goals, assists, price) {
     document.getElementById('fm-pm-name').innerText = name;
@@ -467,29 +479,28 @@ function closePlayerModal() {
     const m = document.getElementById('fm-player-modal');
     const c = document.getElementById('fm-pm-content');
     m.style.opacity = '0';
-    c.style.transform = 'translateY(20px)';
-    setTimeout(() => { m.style.display = 'none'; }, 200);
-    setTimeout(() => { m.style.display = 'none'; }, 200);
+    c.style.transform = 'translateY(24px)';
+    setTimeout(() => { m.style.display = 'none'; }, 220);
 }
 </script>
 
 <!-- Toast Notifications System -->
-<div id="fm-toast-container" style="position:fixed; top:70px; left:50%; transform:translateX(-50%); z-index:9999; display:flex; flex-direction:column; gap:10px; pointer-events:none; width:90%; max-width:400px;"></div>
+<div id="fm-toast-container" style="position:fixed; top:calc(66px + env(safe-area-inset-top, 0px)); left:50%; transform:translateX(-50%); z-index:9999; display:flex; flex-direction:column; gap:8px; pointer-events:none; width:92%; max-width:420px;"></div>
 <script>
 window.showToast = function(msg, type) {
     const container = document.getElementById('fm-toast-container');
     const toast = document.createElement('div');
-    toast.style.cssText = `background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 16px; color:var(--ink); font-weight:700; font-size:14px; box-shadow:0 8px 24px rgba(0,0,0,0.3); opacity:0; transform:translateY(-20px); transition:all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); display:flex; align-items:center; gap:10px; pointer-events:auto;`;
+    toast.style.cssText = `background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 16px; color:var(--ink); font-weight:700; font-size:13.5px; box-shadow:0 10px 30px rgba(0,0,0,0.4); opacity:0; transform:translateY(-16px); transition:all 0.28s cubic-bezier(0.16, 1, 0.3, 1); display:flex; align-items:center; gap:10px; pointer-events:auto;`;
     
     if(type === 'good' || type === 'success') {
         toast.style.borderLeft = '4px solid #22c55e';
-        toast.innerHTML = `<svg style="width:20px;height:20px;color:#22c55e"><use href="#i-check"/></svg> <span>${msg}</span>`;
+        toast.innerHTML = `<svg style="width:20px;height:20px;color:#22c55e;flex-shrink:0"><use href="#i-check"/></svg> <span>${msg}</span>`;
     } else if (type === 'bad' || type === 'error') {
         toast.style.borderLeft = '4px solid #ef4444';
-        toast.innerHTML = `<svg style="width:20px;height:20px;color:#ef4444"><use href="#i-alert"/></svg> <span>${msg}</span>`;
+        toast.innerHTML = `<svg style="width:20px;height:20px;color:#ef4444;flex-shrink:0"><use href="#i-alert"/></svg> <span>${msg}</span>`;
     } else {
         toast.style.borderLeft = '4px solid var(--accent)';
-        toast.innerHTML = `<svg style="width:20px;height:20px;color:var(--accent)"><use href="#i-bell"/></svg> <span>${msg}</span>`;
+        toast.innerHTML = `<svg style="width:20px;height:20px;color:var(--accent);flex-shrink:0"><use href="#i-bell"/></svg> <span>${msg}</span>`;
     }
     
     container.appendChild(toast);
@@ -499,8 +510,8 @@ window.showToast = function(msg, type) {
     
     setTimeout(() => {
         toast.style.opacity = '0';
-        toast.style.transform = 'translateY(-20px)';
-        setTimeout(() => { toast.remove(); }, 300);
+        toast.style.transform = 'translateY(-16px)';
+        setTimeout(() => { toast.remove(); }, 280);
     }, 4000);
 };
 </script>
@@ -583,6 +594,18 @@ function closeFmSidebar() {
     sb.style.transform = 'translateX(-100%)';
     setTimeout(() => { ov.style.display = 'none'; }, 280);
 }
+window.toggleFmTheme = function(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    if (document.documentElement.classList.contains('light-theme')) {
+        document.documentElement.classList.remove('light-theme');
+        localStorage.setItem('fm-theme', 'dark');
+        if (window.showToast) window.showToast('Tema Scuro attivato', 'info');
+    } else {
+        document.documentElement.classList.add('light-theme');
+        localStorage.setItem('fm-theme', 'light');
+        if (window.showToast) window.showToast('Tema Chiaro attivato', 'info');
+    }
+};
 </script>
 <main class="app-main {% block mainclass %}{% endblock %}">
     {% if messages %}
@@ -624,8 +647,6 @@ function closeFmSidebar() {
     {% endif %}
     <a href="{% url 'app_altro' %}"   class="{% if active_tab == 'altro' %}active{% endif %}">
         <svg class="ic"><use href="#i-menu"/></svg>Altro</a>
-    <a class="nav-portal" href="{% url 'home_portal' %}" title="Torna al Portale Web">
-        <svg class="ic"><use href="#i-home"/></svg>Portale Web</a>
     {% if manages_app_league %}
     <a class="nav-console" href="{% url 'dashboard_league' app_league.id %}">
         <svg class="ic"><use href="#i-table"/></svg>Console completa</a>
@@ -638,7 +659,7 @@ function closeFmSidebar() {
         var key = "fm-asec:" + location.pathname;
         function show(sec) {
             document.querySelectorAll("[data-asec]").forEach(function (el) {
-                el.classList.toggle("asec-off", el.dataset.asec !== sec);
+                el.classList.toggle("asec-off", sec !== "all" && el.dataset.asec !== sec);
             });
             seg.querySelectorAll("[data-asec-go]").forEach(function (b) {
                 var on = b.dataset.asecGo === sec;

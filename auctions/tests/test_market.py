@@ -734,6 +734,98 @@ class MarketAdminTenantIsolationTests(TestCase):
         self.assertEqual(self.session_b.status, MarketSession.Status.CLOSED)
 
 
+class MarketPerLeagueTests(TestCase):
+    """A market opened by a league's admin exists only for that league."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user("owner_ml", password="pw")
+        self.coadmin = User.objects.create_user("coadmin_ml", password="pw")
+        self.league_a = League.objects.create(name="Lega Aperta", owner=self.owner)
+        self.league_a.admins.add(self.coadmin)
+        self.league_b = League.objects.create(name="Lega Chiusa")
+        self.team_a = Participant.objects.create(display_name="Squadra A", league=self.league_a, credits=Decimal("300"))
+        self.team_b = Participant.objects.create(display_name="Squadra B", league=self.league_b, credits=Decimal("300"))
+        self.player_a = Player.objects.create(name="Kean", role="A", league=self.league_a, initial_price=Decimal("10"))
+        self.player_b = Player.objects.create(name="Kean", role="A", league=self.league_b, initial_price=Decimal("10"))
+
+    def test_coadmin_opens_a_market_in_their_league_only(self):
+        self.client.force_login(self.coadmin)
+        resp = self.client.get(reverse("admin_market_buste") + f"?league={self.league_a.id}")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["current_league"], self.league_a)
+
+        self.client.post(reverse("admin_market_create"), {"league_id": self.league_a.id, "title": "Riparazione A"})
+        session = MarketSession.objects.get(title="Riparazione A")
+        self.assertEqual(session.league, self.league_a)
+        self.assertEqual(session.status, MarketSession.Status.OPEN)
+        self.assertFalse(MarketSession.objects.filter(league=self.league_b).exists())
+
+    def test_coadmin_cannot_scope_to_a_league_they_dont_run(self):
+        self.client.force_login(self.coadmin)
+        resp = self.client.get(reverse("admin_market_buste") + f"?league={self.league_b.id}")
+        self.assertIsNone(resp.context["current_league"])
+        self.client.post(reverse("admin_market_create"), {"league_id": self.league_b.id, "title": "Intruso"})
+        self.assertFalse(MarketSession.objects.filter(title="Intruso").exists())
+
+    def test_other_league_teams_dont_see_or_bid_in_the_market(self):
+        session = MarketSession.objects.create(league=self.league_a, title="Solo A", status=MarketSession.Status.OPEN)
+        res = place_market_bid(session.id, self.team_b.id, self.player_a.id, 5)
+        self.assertEqual(res["error"], "invalid_participant")
+
+        s = self.client.session
+        s["participant_id"] = self.team_b.id
+        s.save()
+        resp = self.client.get(reverse("app_mercato"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIsNone(resp.context["market_session"])
+        self.assertFalse(resp.context["market_open"])
+        self.assertNotContains(resp, "Solo A")
+
+    def test_player_of_another_league_or_without_league_is_not_biddable(self):
+        session = MarketSession.objects.create(league=self.league_a, title="Solo A", status=MarketSession.Status.OPEN)
+        loose = Player.objects.create(name="Senza lega", role="A", league=None, initial_price=Decimal("5"))
+        for player in (self.player_b, loose):
+            res = place_market_bid(session.id, self.team_a.id, player.id, 5)
+            self.assertEqual(res["error"], "player_unavailable", player.name)
+        self.assertTrue(place_market_bid(session.id, self.team_a.id, self.player_a.id, 5)["ok"])
+
+    def test_schedule_sync_touches_only_the_league(self):
+        past = timezone.now() - timedelta(minutes=5)
+        draft_a = MarketSession.objects.create(league=self.league_a, status=MarketSession.Status.DRAFT, opens_at=past)
+        draft_b = MarketSession.objects.create(league=self.league_b, status=MarketSession.Status.DRAFT, opens_at=past)
+        sync_market_schedule(self.league_a)
+        draft_a.refresh_from_db()
+        draft_b.refresh_from_db()
+        self.assertEqual(draft_a.status, MarketSession.Status.OPEN)
+        self.assertEqual(draft_b.status, MarketSession.Status.DRAFT)
+
+    def test_hub_and_regia_always_offer_a_new_market(self):
+        # Trades open all season count as a running market: the button stays.
+        self.league_a.trades_enabled = True
+        self.league_a.save()
+        new_url = reverse("admin_market_buste") + f"?league={self.league_a.id}&new=1"
+        self.client.force_login(self.owner)
+        hub = self.client.get(reverse("admin_market_dashboard") + f"?league={self.league_a.id}")
+        self.assertGreater(hub.context["n_live"], 0)
+        self.assertContains(hub, new_url)
+        regia = self.client.get(reverse("app_regia") + f"?league={self.league_a.id}")
+        self.assertContains(regia, new_url)
+
+    def test_coadmin_lands_on_the_console_from_the_portal(self):
+        self.client.force_login(self.coadmin)
+        resp = self.client.get(reverse("home"))
+        self.assertRedirects(resp, reverse("dashboard"), fetch_redirect_response=False)
+        dash = self.client.get(reverse("dashboard"))
+        self.assertEqual(dash.status_code, 200)
+        self.assertEqual(dash.context["current_league"], self.league_a)
+
+    def test_coadmin_gets_the_regia_of_their_league(self):
+        self.client.force_login(self.coadmin)
+        resp = self.client.get(reverse("app_regia"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["app_league"], self.league_a)
+
+
 class MarketAfterResolutionTests(TestCase):
     """Tie settlement, undo, scheduling and the admin/app pages around them."""
 

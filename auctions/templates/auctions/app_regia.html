@@ -321,6 +321,9 @@ the same league.
         {% empty %}
         <p class="muted" style="font-size:13px;padding:4px 0">Nessuna sessione di buste.</p>
         {% endfor %}
+        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+            <a class="fm-btn fm-btn-primary fm-btn-sm" href="{% url 'admin_market_buste' %}{{ league_q }}&new=1"><svg class="ic"><use href="#i-plus"/></svg> Nuovo mercato a buste</a>
+        </div>
     </section>
 
     <section class="a-card" aria-labelledby="rg-tools-h" data-asec="tools">

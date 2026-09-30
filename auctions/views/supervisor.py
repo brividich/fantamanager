@@ -1,12 +1,15 @@
 """Master Supervisor Cockpit: Server Health, User/League Management, Logs & Reporting."""
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone as dt_timezone
 from decimal import Decimal
 from functools import wraps
 import json
 import logging
 import os
 import platform
-import resource
+try:
+    import resource
+except ImportError:
+    resource = None
 import shutil
 import sys
 import time
@@ -17,6 +20,7 @@ from django.contrib import messages
 from django.contrib.auth import login, update_session_auth_hash
 from django.contrib.auth.models import User
 from django.contrib.sessions.models import Session
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.db import connection, transaction
@@ -29,8 +33,9 @@ from django.utils import timezone
 
 import django
 from .. import backup
-from ..models import Auction, Bid, League, Participant, Player
+from ..models import Auction, Bid, League, MailSettings, Participant, Player
 from ..consumers import _ROOM_TICKERS
+from ..services import mail
 from ..services.voti_live import LiveSyncManager
 
 logger = logging.getLogger(__name__)
@@ -58,12 +63,17 @@ def _get_server_metrics():
     uptime_str = f"{uptime_seconds // 3600}h {(uptime_seconds % 3600) // 60}m {uptime_seconds % 60}s"
 
     # Memory RSS
-    rusage = resource.getrusage(resource.RUSAGE_SELF)
-    # macOS reports in bytes, Linux in KB
-    if sys.platform == "darwin":
-        rss_mb = rusage.ru_maxrss / (1024 * 1024)
-    else:
-        rss_mb = rusage.ru_maxrss / 1024
+    rss_mb = 0
+    if resource:
+        try:
+            rusage = resource.getrusage(resource.RUSAGE_SELF)
+            # macOS reports in bytes, Linux in KB
+            if sys.platform == "darwin":
+                rss_mb = rusage.ru_maxrss / (1024 * 1024)
+            else:
+                rss_mb = rusage.ru_maxrss / 1024
+        except Exception:
+            pass
 
     # Disk usage
     disk_total_gb = 0
@@ -115,6 +125,23 @@ def _get_server_metrics():
     # WebSockets room tickers
     active_tickers_count = len(_ROOM_TICKERS)
 
+    # Outgoing mail status
+    mail_summary = "Non configurata"
+    mail_ready_flag = False
+    try:
+        m_cfg = MailSettings.get()
+        mail_ready_flag, _ = mail.status(m_cfg)
+        if m_cfg.enabled and mail_ready_flag:
+            mail_summary = f"Attiva ({m_cfg.get_provider_display()})"
+        elif mail_ready_flag:
+            mail_summary = "Attiva (Variabili ENV)"
+        elif m_cfg.enabled:
+            mail_summary = "Incompleta"
+        else:
+            mail_summary = "Disattivata"
+    except Exception:
+        pass
+
     return {
         "os_name": platform.platform(),
         "python_version": sys.version.split()[0],
@@ -132,6 +159,59 @@ def _get_server_metrics():
         "load_avg": load_avg,
         "active_rooms": active_tickers_count,
         "channels_status": "Daphne / ASGI Online",
+        "mail_status": mail_summary,
+        "mail_ready": mail_ready_flag,
+    }
+
+
+def _get_recent_backups(limit=8):
+    """List recent backup snapshots on disk for the supervisor cockpit."""
+    if backup._is_postgres():
+        folder = backup._backup_dir()
+        pattern = "pg-*.sql.gz"
+    else:
+        src = backup._db_path()
+        if src is None:
+            return [], ""
+        folder = src.parent / "backups"
+        pattern = "db-*.sqlite3"
+    try:
+        files = sorted(folder.glob(pattern), key=lambda p: p.stat().st_mtime, reverse=True)
+    except OSError:
+        files = []
+    results = []
+    for f in files[:limit]:
+        try:
+            sz = f.stat().st_size
+            sz_str = f"{sz / 1024:.1f} KB" if sz < 1024 * 1024 else f"{sz / (1024 * 1024):.2f} MB"
+            mtime = datetime.fromtimestamp(f.stat().st_mtime, tz=dt_timezone.utc)
+            results.append({
+                "name": f.name,
+                "size_str": sz_str,
+                "mtime": mtime,
+                "path": str(f),
+            })
+        except OSError:
+            pass
+    return results, str(folder)
+
+
+def _get_system_settings_info():
+    """Extract live Django configuration flags and paths for superadmin audit."""
+    db_cfg = settings.DATABASES.get("default", {})
+    return {
+        "debug": settings.DEBUG,
+        "secret_key_safe": settings.SECRET_KEY != "dev-insecure-change-me-before-anything-public",
+        "allowed_hosts": list(settings.ALLOWED_HOSTS),
+        "csrf_trusted_origins": getattr(settings, "CSRF_TRUSTED_ORIGINS", []),
+        "session_engine": getattr(settings, "SESSION_ENGINE", "django.contrib.sessions.backends.db").split(".")[-1],
+        "time_zone": getattr(settings, "TIME_ZONE", "UTC"),
+        "language_code": getattr(settings, "LANGUAGE_CODE", "it-it"),
+        "db_engine_name": db_cfg.get("ENGINE", "").split(".")[-1],
+        "static_root": str(getattr(settings, "STATIC_ROOT", settings.BASE_DIR / "staticfiles")),
+        "media_root": str(getattr(settings, "MEDIA_ROOT", settings.BASE_DIR / "media")),
+        "backup_dir": str(getattr(settings, "BACKUP_DIR", settings.BASE_DIR / "backups")),
+        "has_whitenoise": getattr(settings, "_HAS_WHITENOISE", False),
     }
 
 
@@ -498,6 +578,111 @@ def supervisor_dashboard(request):
             messages.success(request, f"Giornata {target_g} consolidata ufficialmente ({res.get('giornate_count')} leghe chiuse su voti definitivi).")
             return redirect(f"{reverse('supervisor_dashboard')}?tab=live_sync")
 
+        elif action == "save_mail":
+            cfg = MailSettings.get()
+            provider = request.POST.get("provider") or MailSettings.Provider.SMTP
+            if provider not in MailSettings.Provider.values:
+                provider = MailSettings.Provider.SMTP
+            security = request.POST.get("security") or MailSettings.Security.STARTTLS
+            if security not in MailSettings.Security.values:
+                security = MailSettings.Security.STARTTLS
+            try:
+                port = int(request.POST.get("port") or 0)
+            except ValueError:
+                port = 0
+            try:
+                timeout = min(120, max(3, int(request.POST.get("timeout") or 15)))
+            except ValueError:
+                timeout = 15
+
+            from_email_raw = (request.POST.get("from_email") or "").strip()
+            reply_to_raw = (request.POST.get("reply_to") or "").strip()
+            errors = []
+            if from_email_raw:
+                try:
+                    validate_email(from_email_raw)
+                except ValidationError:
+                    errors.append(f"«{from_email_raw}» non è un indirizzo email valido.")
+            if reply_to_raw:
+                try:
+                    validate_email(reply_to_raw)
+                except ValidationError:
+                    errors.append(f"«{reply_to_raw}» non è un indirizzo email valido per Reply-To.")
+
+            enabled = request.POST.get("enabled") in ("1", "on", "true")
+            cfg.enabled = enabled
+            cfg.provider = provider
+            cfg.host = (request.POST.get("host") or "").strip()[:200]
+            cfg.port = port if 0 < port < 65536 else (465 if security == "ssl" else 587)
+            cfg.security = security
+            cfg.username = (request.POST.get("username") or "").strip()[:200]
+            if request.POST.get("clear_password") == "1":
+                cfg.password = ""
+            elif request.POST.get("password"):
+                cfg.password = request.POST.get("password")[:300]
+            cfg.from_email = from_email_raw
+            cfg.from_name = (request.POST.get("from_name") or "").strip()[:80]
+            cfg.reply_to = reply_to_raw
+            cfg.timeout = timeout
+
+            if cfg.enabled and provider != MailSettings.Provider.CONSOLE:
+                if not cfg.host:
+                    errors.append("Indica il server SMTP (host).")
+                if not cfg.from_email:
+                    errors.append("Indica l'indirizzo email del mittente.")
+
+            if errors:
+                for e in errors:
+                    messages.error(request, e)
+            else:
+                cfg.updated_by = request.user
+                cfg.save()
+                ready, _ = mail.status(cfg)
+                if cfg.enabled and ready:
+                    messages.success(request, f"Configurazione SMTP ({cfg.get_provider_display()}) salvata e attiva! Consigliato: invia un'email di prova.")
+                elif cfg.enabled:
+                    messages.warning(request, "Impostazioni salvate, ma mancano host o mittente: l'invio non è operativo.")
+                else:
+                    messages.info(request, "Impostazioni salvate: l'invio email da piattaforma è attualmente disattivato.")
+            return redirect(f"{reverse('supervisor_dashboard')}?tab=mail")
+
+        elif action == "test_mail":
+            cfg = MailSettings.get()
+            test_to = (request.POST.get("test_to") or "").strip()
+            if not test_to:
+                messages.error(request, "Indica a chi recapitare l'email di prova.")
+            else:
+                try:
+                    validate_email(test_to)
+                    ok, error = mail.send_test(test_to, cfg)
+                    if ok:
+                        messages.success(request, f"Email di prova inviata con successo a {test_to}! Controlla la casella (incluso spam).")
+                    else:
+                        messages.error(request, f"Invio email di prova non riuscito: {error}")
+                except ValidationError:
+                    messages.error(request, f"«{test_to}» non è un indirizzo email valido.")
+            return redirect(f"{reverse('supervisor_dashboard')}?tab=mail")
+
+        elif action == "manual_backup":
+            try:
+                dst = backup.backup_database(reason="Richiesta manuale da Supervisor")
+                if dst:
+                    messages.success(request, f"Backup del database completato con successo: {dst.name}")
+                else:
+                    messages.error(request, "Impossibile creare il backup: controlla i permessi su disco o il servizio di backup.")
+            except Exception as e:
+                logger.exception("Errore durante il backup manuale: %s", e)
+                messages.error(request, f"Errore durante il backup: {e}")
+            return redirect(f"{reverse('supervisor_dashboard')}?tab=reports")
+
+        elif action == "clear_cache":
+            try:
+                cache.clear()
+                messages.success(request, "Cache di piattaforma svuotata con successo.")
+            except Exception as e:
+                messages.error(request, f"Errore durante lo svuotamento della cache: {e}")
+            return redirect(f"{reverse('supervisor_dashboard')}?tab=reports")
+
     # Metrics & System Health
     metrics = _get_server_metrics()
 
@@ -566,6 +751,14 @@ def supervisor_dashboard(request):
     total_bids = Bid.objects.count()
     total_credits_spent = Participant.objects.aggregate(total=Sum("spent_credits"))["total"] or 0
 
+    # Outgoing mail configuration & status
+    mail_cfg = MailSettings.get()
+    mail_ready, mail_source = mail.status(mail_cfg)
+
+    # Backup & System settings for maintenance tab
+    recent_backups, backups_folder = _get_recent_backups()
+    system_settings = _get_system_settings_info()
+
     return render(
         request,
         "auctions/supervisor.html",
@@ -591,6 +784,15 @@ def supervisor_dashboard(request):
                 "total_credits_spent": total_credits_spent,
             },
             "live_sync": LiveSyncManager.get_instance().get_status(),
+            "mail_cfg": mail_cfg,
+            "mail_ready": mail_ready,
+            "mail_source": mail_source,
+            "mail_presets": mail.PRESETS,
+            "mail_providers": MailSettings.Provider.choices,
+            "mail_securities": MailSettings.Security.choices,
+            "recent_backups": recent_backups,
+            "backups_folder": backups_folder,
+            "system_settings": system_settings,
         },
     )
 

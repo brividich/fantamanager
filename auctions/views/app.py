@@ -284,7 +284,9 @@ def app_mercato(request):
     refund_mode = active_auc.release_refund_mode if active_auc else "purchase"
 
     # Market sessions
-    services.sync_market_schedule(league)
+    # Only this league's sessions: a market opened elsewhere isn't this team's.
+    if league is not None:
+        services.sync_market_schedule(league)
     sessions_qs = MarketSession.objects.filter(league=league).exclude(status=MarketSession.Status.DRAFT) if league else MarketSession.objects.none()
     
     # Session selection
@@ -348,12 +350,7 @@ def app_mercato(request):
     if market_session and market_session.max_bids:
         bids_left = max(0, market_session.max_bids - len(my_bids))
 
-    # Initial view: hub or workspace
-    has_active_query = bool(requested_session_id or q or role or in_budget or request.GET.get("page") or sort != "-quota" or request.GET.get("view") == "workspace")
-    initial_view = "workspace" if has_active_query else "hub"
-
     active_auc = ctx.get("active_auction")
-    active_markets_count = len(active_sessions) + (1 if (league and league.trades_enabled) else 0) + (1 if active_auc else 0)
 
     ctx.update({
         "free_agents": page.object_list,
@@ -368,8 +365,6 @@ def app_mercato(request):
         "sessions_list": sessions_list,
         "active_sessions": active_sessions,
         "past_sessions": past_sessions,
-        "active_markets_count": active_markets_count,
-        "initial_view": initial_view,
         "market_open": market_open,
         "my_bids": my_bids,
         "my_bid_player_ids": my_bid_player_ids,
