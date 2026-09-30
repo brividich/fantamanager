@@ -176,6 +176,7 @@ from .app import (
     app_trade_respond,
     app_rosa,
     app_update_pin,
+    app_fixture_detail,
 )
 from .app_admin import app_regia, app_view_as, app_view_as_exit, league_admin_digest
 from .bidder import (
