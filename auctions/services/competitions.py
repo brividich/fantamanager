@@ -243,10 +243,19 @@ def setup_supercoppa(competition, home_id, away_id, giornata_num=1):
 def compute_competition_standings(competition):
     """Compute and return standings/results data for any competition type."""
     kind = competition.kind
-    season = competition.season
 
     if kind in (Competition.Type.ROUND_ROBIN, Competition.Type.SEASON_SPLIT):
         return _compute_round_robin_standings(competition)
+    elif kind == Competition.Type.FORMULA_1:
+        return _compute_formula_1_standings(competition)
+    elif kind == Competition.Type.SURVIVAL:
+        return _compute_survival_standings(competition)
+    elif kind == Competition.Type.SWISS_LEAGUE:
+        return _compute_swiss_league_standings(competition)
+    elif kind == Competition.Type.FANTA_DAVIS:
+        return _compute_fanta_davis_standings(competition)
+    elif kind == Competition.Type.GROUPS_KNOCKOUT:
+        return _compute_groups_standings(competition)
     elif kind == Competition.Type.TOTAL_POINTS:
         return _compute_total_points_standings(competition)
     elif kind == Competition.Type.BATTLE_ROYALE:
@@ -255,6 +264,236 @@ def compute_competition_standings(competition):
         return _compute_bracket_standings(competition)
     else:
         return _compute_round_robin_standings(competition)
+
+
+F1_POINTS_SCALE = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1]
+
+
+def _compute_formula_1_standings(competition):
+    """Standings based on Formula 1 Grand Prix points awarded in each matchday."""
+    season = competition.season
+    settings = competition.settings or {}
+    start_g = int(settings.get("start_giornata", 1) or 1)
+    end_g = int(settings.get("end_giornata", season.matchdays or 38) or (season.matchdays or 38))
+
+    participants = list(season.league.participants.filter(is_active=True)) if season.league else []
+    data_by_team = {
+        p.id: {
+            "team": p,
+            "gp_points": 0,
+            "wins": 0,
+            "podiums": 0,
+            "best_score": Decimal("0"),
+            "total_fantapunti": Decimal("0"),
+            "giornate_played": 0,
+            "last_points": 0,
+        }
+        for p in participants
+    }
+
+    giornate = season.giornate.filter(
+        number__gte=start_g,
+        number__lte=end_g,
+        status=Giornata.Status.SCORED,
+    ).order_by("number")
+
+    for g in giornate:
+        scores = list(GiornataScore.objects.filter(giornata=g, participant_id__in=data_by_team.keys()).order_by("-total"))
+        for rank, sc in enumerate(scores):
+            team_data = data_by_team[sc.participant_id]
+            team_data["total_fantapunti"] += sc.total
+            team_data["giornate_played"] += 1
+            if sc.total > team_data["best_score"]:
+                team_data["best_score"] = sc.total
+
+            pts = F1_POINTS_SCALE[rank] if rank < len(F1_POINTS_SCALE) else 0
+            team_data["gp_points"] += pts
+            team_data["last_points"] = pts
+            if rank == 0:
+                team_data["wins"] += 1
+            if rank < 3:
+                team_data["podiums"] += 1
+
+    table = list(data_by_team.values())
+    table.sort(key=lambda x: (x["gp_points"], x["wins"], x["podiums"], x["total_fantapunti"]), reverse=True)
+    return {
+        "kind": "formula_1",
+        "standings": table,
+        "scale": F1_POINTS_SCALE,
+    }
+
+
+def _compute_survival_standings(competition):
+    """Survival Cup (L'Uomo Morto): lowest scoring alive team eliminated each matchday."""
+    season = competition.season
+    settings = competition.settings or {}
+    start_g = int(settings.get("start_giornata", 1) or 1)
+    end_g = int(settings.get("end_giornata", season.matchdays or 38) or (season.matchdays or 38))
+
+    participants = list(season.league.participants.filter(is_active=True)) if season.league else []
+    alive_ids = {p.id for p in participants}
+    data_by_team = {
+        p.id: {
+            "team": p,
+            "is_alive": True,
+            "status_text": "In gara",
+            "eliminated_at": None,
+            "eliminated_score": None,
+            "total_fantapunti": Decimal("0"),
+            "giornate_survived": 0,
+        }
+        for p in participants
+    }
+
+    giornate = season.giornate.filter(
+        number__gte=start_g,
+        number__lte=end_g,
+        status=Giornata.Status.SCORED,
+    ).order_by("number")
+
+    for g in giornate:
+        scores = list(GiornataScore.objects.filter(giornata=g, participant_id__in=data_by_team.keys()))
+        score_by_pid = {sc.participant_id: sc.total for sc in scores}
+
+        for pid, sc_tot in score_by_pid.items():
+            if pid in data_by_team:
+                data_by_team[pid]["total_fantapunti"] += sc_tot
+
+        if len(alive_ids) > 1:
+            alive_scores = [(pid, score_by_pid.get(pid, Decimal("0"))) for pid in alive_ids]
+            if alive_scores:
+                alive_scores.sort(key=lambda x: x[1])
+                lowest_pid, lowest_score = alive_scores[0]
+                alive_ids.remove(lowest_pid)
+                data_by_team[lowest_pid]["is_alive"] = False
+                data_by_team[lowest_pid]["eliminated_at"] = g.number
+                data_by_team[lowest_pid]["eliminated_score"] = lowest_score
+                data_by_team[lowest_pid]["status_text"] = f"Eliminato G.{g.number}"
+
+        for pid in alive_ids:
+            data_by_team[pid]["giornate_survived"] += 1
+
+    if len(alive_ids) == 1 and giornate.exists():
+        winner_id = list(alive_ids)[0]
+        data_by_team[winner_id]["status_text"] = "👑 Ultimo Sopravvissuto"
+
+    table = list(data_by_team.values())
+    table.sort(key=lambda x: (
+        1 if x["is_alive"] else 0,
+        x["eliminated_at"] or 999 if not x["is_alive"] else 0,
+        x["total_fantapunti"]
+    ), reverse=True)
+
+    alive_count = len(alive_ids)
+    return {
+        "kind": "survival",
+        "standings": table,
+        "alive_count": alive_count,
+        "eliminated_count": len(participants) - alive_count,
+    }
+
+
+def _compute_swiss_league_standings(competition):
+    """Standings for Swiss League / UEFA-style single table with qualification tiers."""
+    base = _compute_round_robin_standings(competition)
+    standings = base.get("standings", [])
+    for idx, row in enumerate(standings, 1):
+        if idx <= 8:
+            row["tier"] = "top8"
+            row["tier_label"] = "Qualificazione Diretta (Top 8)"
+        elif idx <= 24:
+            row["tier"] = "playoff"
+            row["tier_label"] = "Fase Play-off (9°-24°)"
+        else:
+            row["tier"] = "out"
+            row["tier_label"] = "Eliminazione"
+    return {
+        "kind": "swiss_league",
+        "standings": standings,
+    }
+
+
+def _compute_fanta_davis_standings(competition):
+    """Standings for Fanta-Davis (Pairs / Doppio): groups participants in pairs."""
+    base = _compute_round_robin_standings(competition)
+    standings = base.get("standings", [])
+    pairs = []
+    for i in range(0, len(standings), 2):
+        t1 = standings[i]
+        t2 = standings[i + 1] if i + 1 < len(standings) else None
+        pair_pts = t1["points"] + (t2["points"] if t2 else 0)
+        pair_fantapunti = t1["total_fantapunti"] + (t2["total_fantapunti"] if t2 else Decimal("0"))
+        pairs.append({
+            "pair_name": f"{t1['team'].display_name} & {t2['team'].display_name}" if t2 else t1['team'].display_name,
+            "team_1": t1["team"],
+            "team_2": t2["team"] if t2 else None,
+            "points": pair_pts,
+            "total_fantapunti": pair_fantapunti,
+            "t1_pts": t1["points"],
+            "t2_pts": t2["points"] if t2 else 0,
+        })
+    pairs.sort(key=lambda x: (x["points"], x["total_fantapunti"]), reverse=True)
+    return {
+        "kind": "fanta_davis",
+        "standings": standings,
+        "pairs": pairs,
+    }
+
+
+def _compute_groups_standings(competition):
+    """Standings for Groups + Knockout (Girone A e Girone B)."""
+    fixtures = competition.fixtures.select_related("home", "away", "giornata")
+    groups = {
+        "Girone A": defaultdict(lambda: {"team": None, "played": 0, "won": 0, "drawn": 0, "lost": 0, "goals_for": 0, "goals_against": 0, "goal_diff": 0, "points": 0, "total_fantapunti": Decimal("0")}),
+        "Girone B": defaultdict(lambda: {"team": None, "played": 0, "won": 0, "drawn": 0, "lost": 0, "goals_for": 0, "goals_against": 0, "goal_diff": 0, "points": 0, "total_fantapunti": Decimal("0")}),
+    }
+
+    for f in fixtures:
+        gname = "Girone A" if "Girone A" in (f.stage or "") else ("Girone B" if "Girone B" in (f.stage or "") else None)
+        if not gname:
+            continue
+        table_dict = groups[gname]
+        if f.home:
+            table_dict[f.home_id]["team"] = f.home
+        if f.away:
+            table_dict[f.away_id]["team"] = f.away
+        if not f.computed or not f.away:
+            continue
+        h = table_dict[f.home_id]
+        a = table_dict[f.away_id]
+        h["played"] += 1
+        a["played"] += 1
+        h["goals_for"] += f.home_goals
+        h["goals_against"] += f.away_goals
+        a["goals_for"] += f.away_goals
+        a["goals_against"] += f.home_goals
+        h["points"] += f.home_points
+        a["points"] += f.away_points
+        if f.home_points > f.away_points:
+            h["won"] += 1
+            a["lost"] += 1
+        elif f.home_points < f.away_points:
+            a["won"] += 1
+            h["lost"] += 1
+        else:
+            h["drawn"] += 1
+            a["drawn"] += 1
+
+    grouped_tables = {}
+    for gname, table_dict in groups.items():
+        tbl = []
+        for tid, data in table_dict.items():
+            if data["team"]:
+                data["goal_diff"] = data["goals_for"] - data["goals_against"]
+                tbl.append(data)
+        tbl.sort(key=lambda x: (x["points"], x["goal_diff"], x["goals_for"]), reverse=True)
+        grouped_tables[gname] = tbl
+
+    return {
+        "kind": "groups_knockout",
+        "groups": grouped_tables,
+        "standings": grouped_tables.get("Girone A", []) + grouped_tables.get("Girone B", []),
+    }
 
 
 def _compute_round_robin_standings(competition):

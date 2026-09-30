@@ -328,9 +328,17 @@
     .wz-opt-card.selected {
         border-color: var(--accent); background: rgba(0,229,153,.08);
     }
-    .wz-opt-card input[type="radio"] { margin-top: 3px; accent-color: var(--accent); }
     .wz-opt-text h4 { margin: 0 0 3px; font-size: 14px; font-weight: 800; color: var(--ink); }
     .wz-opt-text p { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.35; }
+    .wz-kind-info {
+        margin-top: 8px; padding: 8px 10px; background: rgba(255,255,255,0.03);
+        border: 1px solid rgba(255,255,255,0.07); border-radius: 8px;
+        font-size: 11.5px; line-height: 1.45; color: var(--muted);
+    }
+    .wz-opt-card.selected .wz-kind-info {
+        background: rgba(0,229,153,0.06); border-color: rgba(0,229,153,0.22); color: var(--ink-soft);
+    }
+    .wz-kind-info b { color: var(--ink); }
 
     .wz-nav-btns {
         display: flex; gap: 10px; margin-top: 20px;
@@ -401,7 +409,7 @@
                     <div>
                         <div class="hc-badge-tag">
                             <svg class="ic" style="width:13px;height:13px"><use href="#i-shield"/></svg>
-                            Sessione a Buste
+                            {{ s.session_type_display }}
                         </div>
                         <div class="hc-title">{{ s.title }}</div>
                     </div>
@@ -796,8 +804,43 @@
          ===================================================================== -->
     <div data-asec="regole">
         <div class="a-card" style="padding:16px;margin-bottom:14px">
-            <div class="a-label" style="margin-bottom:12px"><svg class="ic"><use href="#i-gavel"/></svg> Regole della Sessione</div>
+            <div class="a-label" style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;">
+                <span><svg class="ic"><use href="#i-gavel"/></svg> Regole della Sessione</span>
+                <span class="status-pill" style="font-size:11px;font-weight:800;color:var(--accent);">{{ market_session.get_session_type_display }}</span>
+            </div>
             <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(220px, 1fr));gap:10px;font-size:13px">
+                <div style="background:var(--panel-2);padding:10px 12px;border-radius:10px;border:1px solid var(--line);">
+                    <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Tipologia Mercato</span>
+                    <b style="font-size:13.5px;color:var(--accent)">{{ market_session.get_session_type_display }}</b>
+                </div>
+                {% if market_session.session_type == "FREE_AGENCY" %}
+                <div style="background:var(--panel-2);padding:10px 12px;border-radius:10px;border:1px solid var(--line);">
+                    <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Limite Cambi Settimanali</span>
+                    <b style="font-size:13.5px">{% if market_session.config.fa_max_moves %}{{ market_session.config.fa_max_moves }} a settimana{% else %}Illimitati{% endif %}</b>
+                </div>
+                <div style="background:var(--panel-2);padding:10px 12px;border-radius:10px;border:1px solid var(--line);">
+                    <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Costo Tesseramento</span>
+                    <b style="font-size:13.5px">{% if market_session.config.fa_cost_type == "base" %}Prezzo base (1 Credito){% else %}Quotazione attuale Listone{% endif %}</b>
+                </div>
+                {% elif market_session.session_type == "WAIVER_WIRE" %}
+                <div style="background:var(--panel-2);padding:10px 12px;border-radius:10px;border:1px solid var(--line);">
+                    <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Ordine di Priorità</span>
+                    <b style="font-size:13.5px">{% if market_session.config.waiver_order_type == "rolling" %}Rotazione continua{% else %}Inverso di classifica{% endif %}</b>
+                </div>
+                <div style="background:var(--panel-2);padding:10px 12px;border-radius:10px;border:1px solid var(--line);">
+                    <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Finestra Reclami</span>
+                    <b style="font-size:13.5px">{{ market_session.config.waiver_claim_hours|default:24 }} ore</b>
+                </div>
+                {% elif market_session.session_type == "BUYOUT_CLAUSE" %}
+                <div style="background:var(--panel-2);padding:10px 12px;border-radius:10px;border:1px solid var(--line);">
+                    <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Moltiplicatore Clausola</span>
+                    <b style="font-size:13.5px">{{ market_session.config.buyout_multiplier|default:1.5 }}x costo originale</b>
+                </div>
+                <div style="background:var(--panel-2);padding:10px 12px;border-radius:10px;border:1px solid var(--line);">
+                    <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Protezione Post-Acquisto</span>
+                    <b style="font-size:13.5px">{{ market_session.config.buyout_min_hold_days|default:7 }} giorni</b>
+                </div>
+                {% endif %}
                 <div style="background:var(--panel-2);padding:10px 12px;border-radius:10px;border:1px solid var(--line);">
                     <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Regola Budget</span>
                     <b style="font-size:13.5px">{% if market_session.budget_rule == "total" %}Totale offerte ≤ budget{% else %}Ogni offerta ≤ budget, conta priorità{% endif %}</b>
@@ -895,26 +938,70 @@
                 </p>
 
                 <div class="wz-option-cards">
+                    <!-- 1. Buste Segrete -->
                     <label class="wz-opt-card selected" id="opt-kind-buste" onclick="selectMarketKind('buste')">
                         <input type="radio" name="market_kind" value="buste" checked>
-                        <div class="wz-opt-text">
+                        <div class="wz-opt-text" style="flex:1">
                             <h4>✉️ Mercato a Buste Segrete</h4>
                             <p>I partecipanti consegnano offerte segrete sugli svincolati prima della scadenza. Spoglio trasparente a data stabilita.</p>
+                            <div class="wz-kind-info">
+                                <b>ℹ️ Informativa:</b> Ogni squadra invia le proprie offerte senza svelare crediti né obiettivi agli avversari. Alla scadenza, le buste vengono aperte simultaneamente e il miglior offerente acquista il calciatore, con eventuale svincolo contestuale per fare spazio in rosa.
+                            </div>
                         </div>
                     </label>
 
+                    <!-- 2. Free Agency -->
+                    <label class="wz-opt-card" id="opt-kind-free_agency" onclick="selectMarketKind('free_agency')">
+                        <input type="radio" name="market_kind" value="free_agency">
+                        <div class="wz-opt-text" style="flex:1">
+                            <h4>⚡ Mercato Libero Continuo (Free Agency)</h4>
+                            <p>Acquisto istantaneo direttamente dal listone svincolati al prezzo di quotazione (chi primo arriva compra).</p>
+                            <div class="wz-kind-info">
+                                <b>ℹ️ Informativa:</b> Dinamica 24/7 stile NBA / Fantacalcio.it: non serve attendere finestre di chiusura. Se un titolare si infortuna o vuoi cogliere un'occasione all'istante, il primo manager che acquista tessere il calciatore al costo della sua quotazione attuale.
+                            </div>
+                        </div>
+                    </label>
+
+                    <!-- 3. Waiver Wire a Turni -->
+                    <label class="wz-opt-card" id="opt-kind-waiver_wire" onclick="selectMarketKind('waiver_wire')">
+                        <input type="radio" name="market_kind" value="waiver_wire">
+                        <div class="wz-opt-text" style="flex:1">
+                            <h4>📋 Draft di Riparazione (Waiver Wire a Turni)</h4>
+                            <p>Reclami a turni periodici: le squadre con classifica peggiore (o a rotazione) hanno priorità assoluta di scelta.</p>
+                            <div class="wz-kind-info">
+                                <b>ℹ️ Informativa:</b> Massima equità competitiva: i manager inseriscono una lista di priorità sui calciatori svincolati. Il sistema assegna le scelte partendo dall'ultima squadra in classifica o secondo rotazione continua, impedendo il monopolio delle squadre di vertice.
+                            </div>
+                        </div>
+                    </label>
+
+                    <!-- 4. Clausole Rescisorie -->
+                    <label class="wz-opt-card" id="opt-kind-buyout_clause" onclick="selectMarketKind('buyout_clause')">
+                        <input type="radio" name="market_kind" value="buyout_clause">
+                        <div class="wz-opt-text" style="flex:1">
+                            <h4>💰 Mercato con Clausole Rescisorie</h4>
+                            <p>Possibilità di pagare la clausola per scippare un giocatore tesserato da un'altra squadra della lega.</p>
+                            <div class="wz-kind-info">
+                                <b>ℹ️ Informativa:</b> Calciomercato d'assalto in stile Liga Spagnola: ogni calciatore ha una clausola di rescissione (es. 1.5x o 2.0x del prezzo d'asta). Pagando l'intera cifra, il giocatore si trasferisce subito e la squadra venditrice riceve l'indennizzo in crediti per reinvestire.
+                            </div>
+                        </div>
+                    </label>
+
+                    <!-- 5. Asta Live -->
                     <label class="wz-opt-card" id="opt-kind-live" onclick="selectMarketKind('live')">
                         <input type="radio" name="market_kind" value="live">
-                        <div class="wz-opt-text">
+                        <div class="wz-opt-text" style="flex:1">
                             <h4>🔨 Asta Live di Riparazione</h4>
-                            <p>Asta dal vivo in sala (chiama e rilancia) con crediti residui per completare le rose.</p>
+                            <p>Asta dal vivo in sala (chiama e rilancia in tempo reale) con crediti residui per completare le rose.</p>
+                            <div class="wz-kind-info">
+                                <b>ℹ️ Informativa:</b> L'adrenalina dell'asta sincrona con chiamata del giocatore, cronometro a scalare e rilanci istantanei. Ideale per le sessioni collettive di settembre e gennaio.
+                            </div>
                         </div>
                     </label>
                 </div>
 
                 <div class="form-group" id="wz-buste-title-group">
                     <label for="wz-title-input">Titolo della Sessione</label>
-                    <input type="text" id="wz-title-input" name="title" value="Mercato di Riparazione" required class="search-input" placeholder="Es. Mercato di Riparazione, Buste 1ª Giornata...">
+                    <input type="text" id="wz-title-input" name="title" value="Mercato di Riparazione a Buste" required class="search-input" placeholder="Es. Mercato di Riparazione, Buste 1ª Giornata...">
                 </div>
 
                 <div class="wz-nav-btns">
@@ -961,40 +1048,114 @@
                 </div>
             </div>
 
-            <!-- STEP 3: Regolamento Sessione (Buste) -->
+            <!-- STEP 3: Regolamento Sessione -->
             <div class="wz-step-panel" id="wz-step-3">
                 <p style="font-size:12.5px;color:var(--muted);margin:0 0 14px">
                     Definisci i criteri di spesa e aggiudicazione per questa sessione:
                 </p>
 
-                <div class="wz-field-box">
-                    <label>Regola di Spesa Budget</label>
-                    <div style="display:flex;flex-direction:column;gap:8px">
-                        <label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;font-weight:700;color:var(--ink);cursor:pointer">
-                            <input type="radio" name="budget_rule" value="priority" checked style="margin-top:3px">
-                            <div>
-                                Ordine di preferenza (Consigliata)
-                                <span style="display:block;font-size:11.5px;font-weight:500;color:var(--muted)">Ogni offerta deve rientrare nel budget; allo spoglio vale l'ordine di priorità assegnato.</span>
-                            </div>
-                        </label>
-                        <label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;font-weight:700;color:var(--ink);cursor:pointer">
-                            <input type="radio" name="budget_rule" value="total" style="margin-top:3px">
-                            <div>
-                                Totale cumulativo
-                                <span style="display:block;font-size:11.5px;font-weight:500;color:var(--muted)">Il totale delle offerte non può superare il budget; le offerte più alte in eccesso si annullano.</span>
-                            </div>
-                        </label>
+                <!-- Regole specifiche: Buste Segrete -->
+                <div id="wz-buste-rules">
+                    <div class="wz-field-box">
+                        <label>Regola di Spesa Budget</label>
+                        <div style="display:flex;flex-direction:column;gap:8px">
+                            <label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;font-weight:700;color:var(--ink);cursor:pointer">
+                                <input type="radio" name="budget_rule" value="priority" checked style="margin-top:3px">
+                                <div>
+                                    Ordine di preferenza (Consigliata)
+                                    <span style="display:block;font-size:11.5px;font-weight:500;color:var(--muted)">Ogni offerta deve rientrare nel budget; allo spoglio vale l'ordine di priorità assegnato.</span>
+                                </div>
+                            </label>
+                            <label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;font-weight:700;color:var(--ink);cursor:pointer">
+                                <input type="radio" name="budget_rule" value="total" style="margin-top:3px">
+                                <div>
+                                    Totale cumulativo
+                                    <span style="display:block;font-size:11.5px;font-weight:500;color:var(--muted)">Il totale delle offerte non può superare il budget; le offerte più alte in eccesso si annullano.</span>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="wz-field-box">
+                        <label>Spareggio in caso di Offerte Identiche</label>
+                        <select name="tie_break" class="search-input" style="font-size:13px">
+                            <option value="first">Vince chi ha inserito l'offerta per primo (Cronologico)</option>
+                            <option value="manual">Decide l'amministratore (scelta o sorteggio)</option>
+                        </select>
+                    </div>
+
+                    <div class="wz-field-box">
+                        <label for="wz-max-bids">Offerte Massime per Squadra</label>
+                        <input type="number" id="wz-max-bids" name="max_bids" value="0" min="0" class="search-input" placeholder="0 = nessun limite">
+                        <small style="color:var(--muted);font-size:11px;display:block;margin-top:4px">Imposta 0 se le squadre possono fare quante offerte desiderano.</small>
                     </div>
                 </div>
 
-                <div class="wz-field-box">
-                    <label>Spareggio in caso di Offerte Identiche</label>
-                    <select name="tie_break" class="search-input" style="font-size:13px">
-                        <option value="first">Vince chi ha inserito l'offerta per primo (Cronologico)</option>
-                        <option value="manual">Decide l'amministratore (scelta o sorteggio)</option>
-                    </select>
+                <!-- Regole specifiche: Free Agency -->
+                <div id="wz-fa-rules" style="display:none;">
+                    <div class="wz-field-box">
+                        <label for="wz-fa-max-moves">Limite Movimenti Settimanali per Squadra</label>
+                        <select name="fa_max_moves" id="wz-fa-max-moves" class="search-input">
+                            <option value="1">Massimo 1 acquisto a settimana</option>
+                            <option value="2">Massimo 2 acquisti a settimana</option>
+                            <option value="3" selected>Massimo 3 acquisti a settimana (Consigliato)</option>
+                            <option value="5">Massimo 5 acquisti a settimana</option>
+                            <option value="0">Illimitati (Nessun limite di cambi)</option>
+                        </select>
+                        <small style="color:var(--muted);font-size:11px;display:block;margin-top:4px">Fissa un tetto per evitare rivoluzioni continue delle rose durante la stagione.</small>
+                    </div>
+                    <div class="wz-field-box">
+                        <label>Costo di Acquisto del Giocatore</label>
+                        <select name="fa_cost_type" class="search-input">
+                            <option value="quotation" selected>Quotazione attuale del Listone</option>
+                            <option value="base">Prezzo base simbolico (1 Credito)</option>
+                        </select>
+                    </div>
                 </div>
 
+                <!-- Regole specifiche: Waiver Wire -->
+                <div id="wz-waiver-rules" style="display:none;">
+                    <div class="wz-field-box">
+                        <label>Criterio di Priorità Chiamate</label>
+                        <select name="waiver_order_type" class="search-input">
+                            <option value="inverse_standing" selected>Inverso di Classifica (L'ultima squadra sceglie per prima)</option>
+                            <option value="rolling">Rotazione Continua (Chi sceglie scala all'ultimo posto)</option>
+                        </select>
+                        <small style="color:var(--muted);font-size:11px;display:block;margin-top:4px">Favorisce il riequilibrio competitivo della lega.</small>
+                    </div>
+                    <div class="wz-field-box">
+                        <label>Durata Finestra Reclami (Claim Window)</label>
+                        <select name="waiver_claim_hours" class="search-input">
+                            <option value="24" selected>24 ore (1 giorno lavorativo)</option>
+                            <option value="48">48 ore (2 giorni)</option>
+                            <option value="72">72 ore (3 giorni)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Regole specifiche: Clausole Rescisorie -->
+                <div id="wz-clause-rules" style="display:none;">
+                    <div class="wz-field-box">
+                        <label>Moltiplicatore Valore Clausola Rescissoria</label>
+                        <select name="buyout_multiplier" class="search-input">
+                            <option value="1.2">1.2x del costo d'acquisto (+20% indennizzo)</option>
+                            <option value="1.5" selected>1.5x del costo d'acquisto (+50% indennizzo)</option>
+                            <option value="2.0">2.0x del costo d'acquisto (Doppio del valore d'asta)</option>
+                            <option value="2.5">2.5x del costo d'acquisto</option>
+                        </select>
+                        <small style="color:var(--muted);font-size:11px;display:block;margin-top:4px">La squadra cedente incassa l'intero importo pagato dal manager acquirente.</small>
+                    </div>
+                    <div class="wz-field-box">
+                        <label>Giorni Minimi di Protezione Post-Acquisto</label>
+                        <select name="buyout_min_hold_days" class="search-input">
+                            <option value="7" selected>7 giorni di protezione (Nessuno scippo immediato)</option>
+                            <option value="14">14 giorni di protezione (2 settimane)</option>
+                            <option value="0">Nessuna protezione (Clausola sempre azionabile)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Regole comuni: Svincoli e rimborsi -->
                 <div class="wz-field-box">
                     <label>Svincoli e Tagli Rosa</label>
                     <div style="display:flex;flex-direction:column;gap:10px">
@@ -1017,12 +1178,6 @@
                     </div>
                 </div>
 
-                <div class="wz-field-box">
-                    <label for="wz-max-bids">Offerte Massime per Squadra</label>
-                    <input type="number" id="wz-max-bids" name="max_bids" value="0" min="0" class="search-input" placeholder="0 = nessun limite">
-                    <small style="color:var(--muted);font-size:11px;display:block;margin-top:4px">Imposta 0 se le squadre possono fare quante offerte desiderano.</small>
-                </div>
-
                 <div class="wz-nav-btns">
                     <button type="button" class="btn-cancel" onclick="wizardPrevStep(3)">&larr; Indietro</button>
                     <button type="button" class="mc-btn-primary" onclick="wizardNextStep(3)">Riepilogo &rarr;</button>
@@ -1042,7 +1197,7 @@
                     </div>
                     <div style="display:flex;justify-content:space-between;margin-bottom:8px">
                         <span style="color:var(--muted)">Tipo:</span>
-                        <b style="color:var(--accent)">Mercato a Buste Segrete</b>
+                        <b style="color:var(--accent)" id="sum-kind">Mercato a Buste Segrete</b>
                     </div>
                     <div style="display:flex;justify-content:space-between;margin-bottom:8px">
                         <span style="color:var(--muted)">Titolo:</span>
@@ -1189,23 +1344,53 @@
         if (modal) modal.classList.remove("open");
     }
 
+    const MARKET_KIND_LABELS = {
+        'buste': 'Mercato a Buste Segrete',
+        'free_agency': 'Mercato Libero Continuo (Free Agency)',
+        'waiver_wire': 'Draft di Riparazione (Waiver Wire a Turni)',
+        'buyout_clause': 'Mercato con Clausole Rescisorie',
+        'live': 'Asta Live di Riparazione'
+    };
+
     function selectMarketKind(kind) {
         selectedWzKind = kind;
-        const optBuste = document.getElementById("opt-kind-buste");
-        const optLive = document.getElementById("opt-kind-live");
+        document.querySelectorAll(".wz-opt-card").forEach(c => c.classList.remove("selected"));
+        const card = document.getElementById("opt-kind-" + kind);
+        if (card) {
+            card.classList.add("selected");
+            const radio = card.querySelector("input[type='radio']");
+            if (radio) radio.checked = true;
+        }
+
         const titleGrp = document.getElementById("wz-buste-title-group");
         const nextBtn = document.getElementById("wz-btn-step1-next");
 
+        // Rule containers in Step 3
+        const busteRules = document.getElementById("wz-buste-rules");
+        const faRules = document.getElementById("wz-fa-rules");
+        const waiverRules = document.getElementById("wz-waiver-rules");
+        const clauseRules = document.getElementById("wz-clause-rules");
+
+        if (busteRules) busteRules.style.display = (kind === 'buste') ? 'block' : 'none';
+        if (faRules) faRules.style.display = (kind === 'free_agency') ? 'block' : 'none';
+        if (waiverRules) waiverRules.style.display = (kind === 'waiver_wire') ? 'block' : 'none';
+        if (clauseRules) clauseRules.style.display = (kind === 'buyout_clause') ? 'block' : 'none';
+
         if (kind === 'live') {
-            if (optBuste) optBuste.classList.remove("selected");
-            if (optLive) optLive.classList.add("selected");
             if (titleGrp) titleGrp.style.display = "none";
             if (nextBtn) nextBtn.textContent = "Vai al Setup Asta Live →";
         } else {
-            if (optLive) optLive.classList.remove("selected");
-            if (optBuste) optBuste.classList.add("selected");
             if (titleGrp) titleGrp.style.display = "block";
             if (nextBtn) nextBtn.textContent = "Continua →";
+        }
+
+        // Suggest default title
+        const titleIn = document.getElementById("wz-title-input");
+        if (titleIn && (!titleIn.value || titleIn.value === 'Mercato di Riparazione' || titleIn.value.includes('Buste') || titleIn.value.includes('Free Agency') || titleIn.value.includes('Waiver') || titleIn.value.includes('Clausol'))) {
+            if (kind === 'buste') titleIn.value = "Mercato di Riparazione a Buste";
+            else if (kind === 'free_agency') titleIn.value = "Finestra Free Agency";
+            else if (kind === 'waiver_wire') titleIn.value = "Draft Waiver Wire a Turni";
+            else if (kind === 'buyout_clause') titleIn.value = "Sessione Clausole Rescisorie";
         }
     }
 
@@ -1253,6 +1438,9 @@
     }
 
     function updateWizardSummary() {
+        const sumKind = document.getElementById("sum-kind");
+        if (sumKind) sumKind.textContent = MARKET_KIND_LABELS[selectedWzKind] || selectedWzKind;
+
         const titleIn = document.getElementById("wz-title-input");
         const sumTitle = document.getElementById("sum-title");
         if (sumTitle && titleIn) sumTitle.textContent = titleIn.value || "Mercato di Riparazione";

@@ -358,6 +358,9 @@ def app_mercato(request):
             "allow_conditional_release": s.allow_conditional_release,
             "require_same_role_release": s.require_same_role_release,
             "is_selected": bool(market_session and s.id == market_session.id),
+            "session_type": getattr(s, "session_type", MarketSession.SessionType.SEALED_BIDS),
+            "session_type_display": s.get_session_type_display() if hasattr(s, "get_session_type_display") else "Buste Segrete",
+            "config": s.config or {},
             "max_acquisitions_p": s.max_acquisitions_p,
             "max_acquisitions_d": s.max_acquisitions_d,
             "max_acquisitions_c": s.max_acquisitions_c,
@@ -422,6 +425,7 @@ def app_mercato(request):
         "sort": sort,
         "refund_mode": refund_mode,
         "is_mantra": is_mantra,
+        "market_session_types": MarketSession.SessionType.choices,
     })
     return render(request, "auctions/app_mercato.html", ctx)
 

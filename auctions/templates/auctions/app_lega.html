@@ -73,8 +73,48 @@
         .tbl-hide-mobile { display: none !important; }
         .tbl-record-mobile { display: block !important; font-size: 10.5px; color: var(--muted); font-weight: 600; margin-top: 1px; }
         .table td, .table th { padding: 9px 6px !important; font-size: 12.5px !important; }
+        .tier-top8 { border-left: 3px solid #10b981; }
+        .tier-playoff { border-left: 3px solid #06b6d4; }
+        .tier-out { border-left: 3px solid rgba(255,255,255,0.1); opacity: 0.75; }
     }
 </style>
+
+    <!-- Regolamento della Competizione (Visualizzazione Rapida) -->
+    {% if current_competition %}
+    <details class="comp-rules-card" style="margin-bottom:14px;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:10px 14px;font-size:12.5px;">
+        <summary style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;font-weight:800;color:var(--ink);user-select:none;">
+            <span style="display:flex;align-items:center;gap:8px;">
+                <span>📋</span>
+                <span>Regolamento: <b>{{ current_competition.name }}</b></span>
+                <span class="status-pill" style="font-size:10px;text-transform:uppercase;">{{ current_competition.get_kind_display }}</span>
+            </span>
+            <span style="font-size:11px;color:var(--accent);font-weight:700;">Vedi Regole &raquo;</span>
+        </summary>
+        <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(auto-fit, minmax(160px, 1fr));gap:10px;color:var(--ink-soft);font-size:12px;">
+            <div><span class="muted" style="font-size:11px;display:block;">Periodo Giornate</span><b>G{{ current_competition.settings.start_giornata|default:1 }} &rarr; {% if current_competition.settings.end_giornata %}G{{ current_competition.settings.end_giornata }}{% else %}Fine Stagione{% endif %}</b></div>
+            <div><span class="muted" style="font-size:11px;display:block;">Punti Risultato</span><b>Vittoria {{ current_competition.settings.win_points|default:3 }} · Pari {{ current_competition.settings.draw_points|default:1 }} · Sconfitta {{ current_competition.settings.loss_points|default:0 }}</b></div>
+            <div><span class="muted" style="font-size:11px;display:block;">Soglie Gol</span><b>1° Gol a {{ current_competition.settings.goal_threshold|default:66.0 }}pt (+{{ current_competition.settings.goal_step|default:6.0 }}pt)</b></div>
+            <div><span class="muted" style="font-size:11px;display:block;">Fattore Campo</span><b>+{{ current_competition.settings.home_bonus|default:0.0 }} pt casa</b></div>
+            {% if current_competition.kind == "FORMULA_1" %}
+            <div style="grid-column: 1 / -1;background:rgba(255,255,255,0.03);padding:8px 12px;border-radius:8px;">
+                <b style="color:var(--accent);">🏎️ Scala Punti Gran Premio (Formula 1):</b> 1°: 25pt · 2°: 18pt · 3°: 15pt · 4°: 12pt · 5°: 10pt · 6°: 8pt · 7°: 6pt · 8°: 4pt · 9°: 2pt · 10°: 1pt. Classifica generale su punti GP, con spareggio per podi e fantavoti totali.
+            </div>
+            {% elif current_competition.kind == "SURVIVAL" %}
+            <div style="grid-column: 1 / -1;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);padding:8px 12px;border-radius:8px;color:#fca5a5;">
+                <b>💀 Regola Eliminazione Diretta (L'Uomo Morto):</b> Al termine di ogni turno calcolato, la squadra ancora in vita con il punteggio più basso viene eliminata. Chi resiste fino all'ultimo turno viene proclamato campione.
+            </div>
+            {% elif current_competition.kind == "SWISS_LEAGUE" %}
+            <div style="grid-column: 1 / -1;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);padding:8px 12px;border-radius:8px;">
+                <b style="color:var(--accent);">🌐 Girone Svizzero / Champions:</b> Tabella unica a girone unico. Prime 8 classificate qualificate direttamente agli Ottavi; posizioni 9-24 ai Play-off; posizioni 25+ eliminate.
+            </div>
+            {% elif current_competition.kind == "FANTA_DAVIS" %}
+            <div style="grid-column: 1 / -1;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);padding:8px 12px;border-radius:8px;color:#93c5fd;">
+                <b>🎾 Formula Davis a Coppie (2vs2):</b> Le squadre competono accoppiate a due a due. Il punteggio della coppia è determinato dalla somma combinata delle prestazioni dei due manager.
+            </div>
+            {% endif %}
+        </div>
+    </details>
+    {% endif %}
 
     {% if competition_data.kind == "table" %}
     <!-- Classic Head-to-head League Table -->
@@ -115,6 +155,205 @@
                 {% endfor %}
             </tbody>
         </table>
+    </div>
+
+    {% elif competition_data.kind == "formula_1" %}
+    <!-- Formula 1 Grand Prix Standings Table -->
+    <div style="overflow-x:auto;">
+        <table class="table" style="width:100%;font-size:13px;border-collapse:collapse;white-space:nowrap;">
+            <thead>
+                <tr style="border-bottom:1px solid var(--line);color:var(--muted);text-align:left;">
+                    <th style="padding:8px;width:32px;">Pos</th>
+                    <th style="padding:8px;">Squadra / Scuderia</th>
+                    <th style="padding:8px;text-align:center;" title="Gran Premi vinti">🥇 GP Vinti</th>
+                    <th style="padding:8px;text-align:center;" title="Podi conquistati (1°-3°)">🏆 Podi</th>
+                    <th style="padding:8px;text-align:center;" title="Miglior punteggio di giornata (Giro Veloce)">⚡ Best GP</th>
+                    <th class="tbl-hide-mobile" style="padding:8px;text-align:center;">Totale Fantapunti</th>
+                    <th style="padding:8px;text-align:right;">Punti GP</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in competition_data.standings %}
+                <tr style="border-bottom:1px solid var(--line-soft, rgba(255,255,255,.05));">
+                    <td style="padding:8px;"><b {% if forloop.counter <= 3 %}style="color:var(--accent);"{% endif %}>{{ forloop.counter }}</b></td>
+                    <td style="padding:8px;">
+                        <b>{{ row.team.display_name }}</b>
+                        {% if participant and row.team.id == participant.id %}<small style="color:var(--accent)"> · tu</small>{% endif %}
+                    </td>
+                    <td style="padding:8px;text-align:center;"><b>{{ row.wins }}</b></td>
+                    <td style="padding:8px;text-align:center;">{{ row.podiums }}</td>
+                    <td style="padding:8px;text-align:center;"><small style="color:var(--accent);font-weight:700;">{{ row.best_score|floatformat:1 }}</small></td>
+                    <td class="tbl-hide-mobile" style="padding:8px;text-align:center;">{{ row.total_fantapunti|floatformat:1 }}</td>
+                    <td style="padding:8px;text-align:right;"><b style="color:var(--accent);font-size:16px;font-family:var(--display);">{{ row.gp_points }}</b></td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7" style="padding:14px;text-align:center;" class="muted">Nessun Gran Premio disputato finora.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% elif competition_data.kind == "survival" %}
+    <!-- Survival Cup / L'Uomo Morto -->
+    <div style="display:flex;gap:10px;margin-bottom:12px;">
+        <div style="flex:1;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.25);border-radius:10px;padding:8px 12px;text-align:center;">
+            <div style="font-size:10px;font-weight:800;text-transform:uppercase;color:var(--muted)">Squadre in gara</div>
+            <div style="font-family:var(--display);font-size:20px;font-weight:900;color:var(--accent)">{{ competition_data.alive_count }}</div>
+        </div>
+        <div style="flex:1;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:10px;padding:8px 12px;text-align:center;">
+            <div style="font-size:10px;font-weight:800;text-transform:uppercase;color:var(--muted)">Eliminati</div>
+            <div style="font-family:var(--display);font-size:20px;font-weight:900;color:#f87171">{{ competition_data.eliminated_count }}</div>
+        </div>
+    </div>
+    <div style="overflow-x:auto;">
+        <table class="table" style="width:100%;font-size:13px;border-collapse:collapse;white-space:nowrap;">
+            <thead>
+                <tr style="border-bottom:1px solid var(--line);color:var(--muted);text-align:left;">
+                    <th style="padding:8px;width:32px;">#</th>
+                    <th style="padding:8px;">Squadra</th>
+                    <th style="padding:8px;text-align:center;">Stato</th>
+                    <th style="padding:8px;text-align:center;">Turni Sopravvissuti</th>
+                    <th style="padding:8px;text-align:right;">Totale Fantapunti</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in competition_data.standings %}
+                <tr style="border-bottom:1px solid var(--line-soft, rgba(255,255,255,.05)); {% if not row.is_alive %}opacity:0.6;{% endif %}">
+                    <td style="padding:8px;"><b>{{ forloop.counter }}</b></td>
+                    <td style="padding:8px;">
+                        <b {% if not row.is_alive %}style="text-decoration:line-through;"{% endif %}>{{ row.team.display_name }}</b>
+                        {% if participant and row.team.id == participant.id %}<small style="color:var(--accent)"> · tu</small>{% endif %}
+                    </td>
+                    <td style="padding:8px;text-align:center;">
+                        {% if row.is_alive %}
+                        <span class="status-pill s-OPEN" style="font-size:11px;font-weight:800;background:rgba(16,185,129,0.15);color:var(--accent);">{{ row.status_text }}</span>
+                        {% else %}
+                        <span class="status-pill s-CLOSED" style="font-size:10.5px;color:#f87171;background:rgba(239,68,68,0.12);">{{ row.status_text }}</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding:8px;text-align:center;">{{ row.giornate_survived }}</td>
+                    <td style="padding:8px;text-align:right;"><b style="color:var(--accent);font-size:15px;">{{ row.total_fantapunti|floatformat:1 }}</b></td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5" style="padding:14px;text-align:center;" class="muted">Nessuna giornata calcolata.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% elif competition_data.kind == "swiss_league" %}
+    <!-- Swiss League / Champions UEFA -->
+    <div style="overflow-x:auto;">
+        <table class="table" style="width:100%;font-size:13px;border-collapse:collapse;white-space:nowrap;">
+            <thead>
+                <tr style="border-bottom:1px solid var(--line);color:var(--muted);text-align:left;">
+                    <th style="padding:8px;width:32px;">Pos</th>
+                    <th style="padding:8px;">Squadra</th>
+                    <th style="padding:8px;text-align:center;">Fase</th>
+                    <th class="tbl-hide-mobile" style="padding:8px;text-align:center;">G</th>
+                    <th class="tbl-hide-mobile" style="padding:8px;text-align:center;">V</th>
+                    <th class="tbl-hide-mobile" style="padding:8px;text-align:center;">P</th>
+                    <th class="tbl-hide-mobile" style="padding:8px;text-align:center;">S</th>
+                    <th class="tbl-hide-mobile" style="padding:8px;text-align:center;">Gol</th>
+                    <th style="padding:8px;text-align:right;">Punti</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in competition_data.standings %}
+                <tr class="tier-{{ row.tier }}" style="border-bottom:1px solid var(--line-soft, rgba(255,255,255,.05));">
+                    <td style="padding:8px;"><b {% if row.tier == 'top8' %}style="color:var(--accent);"{% endif %}>{{ forloop.counter }}</b></td>
+                    <td style="padding:8px;">
+                        <b>{{ row.team.display_name }}</b>
+                        {% if participant and row.team.id == participant.id %}<small style="color:var(--accent)"> · tu</small>{% endif %}
+                    </td>
+                    <td style="padding:8px;text-align:center;">
+                        {% if row.tier == 'top8' %}
+                        <span class="status-pill s-OPEN" style="font-size:10px;font-weight:800;">Top 8 Ottavi</span>
+                        {% elif row.tier == 'playoff' %}
+                        <span class="status-pill" style="font-size:10px;background:rgba(6,182,212,0.15);color:#06b6d4;">Play-off</span>
+                        {% else %}
+                        <span class="status-pill s-CLOSED" style="font-size:10px;">Eliminato</span>
+                        {% endif %}
+                    </td>
+                    <td class="tbl-hide-mobile" style="padding:8px;text-align:center;">{{ row.played }}</td>
+                    <td class="tbl-hide-mobile" style="padding:8px;text-align:center;">{{ row.won }}</td>
+                    <td class="tbl-hide-mobile" style="padding:8px;text-align:center;">{{ row.drawn }}</td>
+                    <td class="tbl-hide-mobile" style="padding:8px;text-align:center;">{{ row.lost }}</td>
+                    <td class="tbl-hide-mobile" style="padding:8px;text-align:center;"><small class="muted">{{ row.goals_for }}:{{ row.goals_against }}</small></td>
+                    <td style="padding:8px;text-align:right;"><b style="color:var(--accent);font-size:16px;">{{ row.points }}</b></td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="9" style="padding:14px;text-align:center;" class="muted">Nessuna partita giocata ancora.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% elif competition_data.kind == "fanta_davis" %}
+    <!-- Fanta-Davis a Coppie -->
+    <div style="overflow-x:auto;">
+        <table class="table" style="width:100%;font-size:13px;border-collapse:collapse;white-space:nowrap;">
+            <thead>
+                <tr style="border-bottom:1px solid var(--line);color:var(--muted);text-align:left;">
+                    <th style="padding:8px;width:32px;">Pos</th>
+                    <th style="padding:8px;">Coppia Fanta-Davis</th>
+                    <th style="padding:8px;text-align:center;">Componenti</th>
+                    <th style="padding:8px;text-align:center;">Fantapunti Combinati</th>
+                    <th style="padding:8px;text-align:right;">Punti Coppia</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for pair in competition_data.pairs %}
+                <tr style="border-bottom:1px solid var(--line-soft, rgba(255,255,255,.05));">
+                    <td style="padding:8px;"><b {% if forloop.counter <= 3 %}style="color:var(--accent);"{% endif %}>{{ forloop.counter }}</b></td>
+                    <td style="padding:8px;"><b>{{ pair.pair_name }}</b></td>
+                    <td style="padding:8px;text-align:center;">
+                        <small class="muted">{{ pair.team_1.display_name }} ({{ pair.t1_pts }}pt) + {{ pair.team_2.display_name }} ({{ pair.t2_pts }}pt)</small>
+                    </td>
+                    <td style="padding:8px;text-align:center;">{{ pair.total_fantapunti|floatformat:1 }}</td>
+                    <td style="padding:8px;text-align:right;"><b style="color:var(--accent);font-size:16px;">{{ pair.points }}</b></td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5" style="padding:14px;text-align:center;" class="muted">Nessuna coppia calcolata.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% elif competition_data.kind == "groups_knockout" %}
+    <!-- Groups Knockout (Girone A e Girone B) -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:16px;">
+        {% for gname, gtable in competition_data.groups.items %}
+        <div style="background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:12px;">
+            <div style="font-family:var(--display);font-size:15px;font-weight:900;color:var(--accent);margin-bottom:8px;text-transform:uppercase;">
+                {{ gname }}
+            </div>
+            <table class="table" style="width:100%;font-size:12.5px;border-collapse:collapse;">
+                <thead>
+                    <tr style="border-bottom:1px solid var(--line);color:var(--muted);text-align:left;">
+                        <th style="padding:6px;width:24px;">#</th>
+                        <th style="padding:6px;">Squadra</th>
+                        <th style="padding:6px;text-align:center;">G</th>
+                        <th style="padding:6px;text-align:center;">Gol</th>
+                        <th style="padding:6px;text-align:right;">Pt</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in gtable %}
+                    <tr style="border-bottom:1px solid rgba(255,255,255,.05);">
+                        <td style="padding:6px;"><b>{{ forloop.counter }}</b></td>
+                        <td style="padding:6px;"><b>{{ row.team.display_name }}</b></td>
+                        <td style="padding:6px;text-align:center;">{{ row.played }}</td>
+                        <td style="padding:6px;text-align:center;"><small class="muted">{{ row.goals_for }}:{{ row.goals_against }}</small></td>
+                        <td style="padding:6px;text-align:right;"><b style="color:var(--accent);">{{ row.points }}</b></td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="5" style="padding:10px;text-align:center;" class="muted">Nessuna partita.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endfor %}
     </div>
 
     {% elif competition_data.kind == "points" %}
@@ -345,6 +584,16 @@
         background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent);
     }
 
+    .cwz-kind-info {
+        margin-top: 8px; padding: 8px 10px; background: rgba(255,255,255,0.03);
+        border: 1px solid rgba(255,255,255,0.07); border-radius: 8px;
+        font-size: 11.5px; line-height: 1.45; color: var(--muted);
+    }
+    .cwz-kind-card.selected .cwz-kind-info {
+        background: rgba(16,185,129,0.06); border-color: rgba(16,185,129,0.22); color: var(--ink-soft);
+    }
+    .cwz-kind-info b { color: var(--ink); }
+
     .cwz-nav-btns {
         display: flex; gap: 10px; margin-top: 18px;
     }
@@ -389,59 +638,135 @@
                     Passo 1 di 5 · Seleziona il Formato
                 </div>
 
+                <!-- 1. Campionato Classico -->
                 <div class="cwz-kind-card selected" id="cwz-card-ROUND_ROBIN" onclick="selectCompKind('ROUND_ROBIN', this)">
                     <div class="cwz-kind-icon">🏆</div>
                     <div style="flex:1">
                         <div class="cwz-kind-title">Campionato (Scontri Diretti 1vs1) <span class="cwz-kind-badge" style="color:var(--accent)">Consigliato</span></div>
                         <div class="cwz-kind-desc">Girone all'italiana con algoritmo di Berger, calendario bilanciato andata/ritorno e classifica classica a punti (3-1-0).</div>
+                        <div class="cwz-kind-info">
+                            <b>ℹ️ Informativa:</b> La regina delle competizioni. Scontri diretti a coppie con fasce gol (66-72-78 pt) e calendario armonico. Ogni vittoria assegna 3 punti, il pareggio 1 punto.
+                        </div>
                     </div>
                 </div>
 
-                <div class="cwz-kind-card" id="cwz-card-TOTAL_POINTS" onclick="selectCompKind('TOTAL_POINTS', this)">
+                <!-- 2. Formula 1 Gran Premio -->
+                <div class="cwz-kind-card" id="cwz-card-FORMULA_1" onclick="selectCompKind('FORMULA_1', this)">
                     <div class="cwz-kind-icon">🏎️</div>
                     <div style="flex:1">
-                        <div class="cwz-kind-title">Gran Premio (Somma Punti) <span class="cwz-kind-badge">Formula 1</span></div>
-                        <div class="cwz-kind-desc">Classifica generale a somma aritmetica cumulativa di tutti i fantavoti. Vince la rosa più costante della stagione.</div>
+                        <div class="cwz-kind-title">Formula 1 (Punti GP di Giornata) <span class="cwz-kind-badge" style="color:#f59e0b">Novità</span></div>
+                        <div class="cwz-kind-desc">Punti mondiali assegnati ai primi 10 fantapunteggi di ogni giornata (25, 18, 15, 12, 10, 8, 6, 4, 2, 1).</div>
+                        <div class="cwz-kind-info">
+                            <b>ℹ️ Informativa:</b> Ispirato al Mondiale di F1: ogni turno è un Gran Premio! La squadra che fa il miglior punteggio vince 25 pt GP, la seconda 18 pt, fino al 10° classificato (1 pt). Premia la qualità e la costanza al vertice.
+                        </div>
                     </div>
                 </div>
 
+                <!-- 3. Survival Cup / L'Uomo Morto -->
+                <div class="cwz-kind-card" id="cwz-card-SURVIVAL" onclick="selectCompKind('SURVIVAL', this)">
+                    <div class="cwz-kind-icon">💀</div>
+                    <div style="flex:1">
+                        <div class="cwz-kind-title">Survival Cup (L'Uomo Morto) <span class="cwz-kind-badge" style="color:#ef4444">Battle Royale</span></div>
+                        <div class="cwz-kind-desc">In ogni giornata il punteggio più basso tra le squadre vive viene eliminato, fino all'ultimo superstite.</div>
+                        <div class="cwz-kind-info">
+                            <b>ℹ️ Informativa:</b> La modalità più adrenalinica del fantacalcio: non serve essere i migliori, l'importante è NON essere gli ultimi! Ogni turno miete una vittima. L'ultima rosa rimasta vince il trofeo.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. Champions a Girone Svizzero -->
+                <div class="cwz-kind-card" id="cwz-card-SWISS_LEAGUE" onclick="selectCompKind('SWISS_LEAGUE', this)">
+                    <div class="cwz-kind-icon">🌐</div>
+                    <div style="flex:1">
+                        <div class="cwz-kind-title">Nuova Champions a Girone Svizzero <span class="cwz-kind-badge" style="color:#06b6d4">Formula UEFA</span></div>
+                        <div class="cwz-kind-desc">Girone unico continentale: Top 8 qualificate direttamente agli Ottavi, posizioni 9-24 ai Play-off di spareggio.</div>
+                        <div class="cwz-kind-info">
+                            <b>ℹ️ Informativa:</b> Riproduce la nuova UEFA Champions League a classifica unica. Ogni sfida vale punti preziosi per entrare nelle prime 8 o evitare l'eliminazione diretta.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5. Fanta-Davis a Coppie -->
+                <div class="cwz-kind-card" id="cwz-card-FANTA_DAVIS" onclick="selectCompKind('FANTA_DAVIS', this)">
+                    <div class="cwz-kind-icon">🎾</div>
+                    <div style="flex:1">
+                        <div class="cwz-kind-title">Fanta-Davis a Coppie (2vs2) <span class="cwz-kind-badge" style="color:#8b5cf6">A Squadre</span></div>
+                        <div class="cwz-kind-desc">I manager gareggiano in coppie (2vs2), sommando i punti e i gol dei due componenti in ogni singola giornata.</div>
+                        <div class="cwz-kind-info">
+                            <b>ℹ️ Informativa:</b> Format tennistico cooperativo: gioca in tandem con un alleato di lega. Le coppie si affrontano a colpi di fantapunti combinati, creando strategie e sinergie uniche tra le rose.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 6. Coppa a Gironi + Fase Finale -->
+                <div class="cwz-kind-card" id="cwz-card-GROUPS_KNOCKOUT" onclick="selectCompKind('GROUPS_KNOCKOUT', this)">
+                    <div class="cwz-kind-icon">🏅</div>
+                    <div style="flex:1">
+                        <div class="cwz-kind-title">Coppa a Gironi + Fase Finale <span class="cwz-kind-badge">Champions Classica</span></div>
+                        <div class="cwz-kind-desc">Squadre divise in gironi (Girone A e Girone B) con scontri diretti e qualificazione alle fasi a eliminazione.</div>
+                        <div class="cwz-kind-info">
+                            <b>ℹ️ Informativa:</b> Prima fase a gironi con sfide testa a testa per stabilire il ranking, poi tabellone a eliminazione diretta dai quarti/semifinali fino alla finale.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 7. Coppa a Eliminazione Diretta -->
                 <div class="cwz-kind-card" id="cwz-card-KNOCKOUT" onclick="selectCompKind('KNOCKOUT', this)">
                     <div class="cwz-kind-icon">🥊</div>
                     <div style="flex:1">
                         <div class="cwz-kind-title">Coppa a Eliminazione Diretta <span class="cwz-kind-badge">Tabellone</span></div>
                         <div class="cwz-kind-desc">Tabellone tennistico a eliminazione (Quarti, Semifinali, Finale) con sfide secche o andata e ritorno.</div>
+                        <div class="cwz-kind-info">
+                            <b>ℹ️ Informativa:</b> Sfide da dentro o fuori stile Coppa Italia o FA Cup. Puoi scegliere turni a gara secca o con doppio confronto di andata e ritorno con fattore campo.
+                        </div>
                     </div>
                 </div>
 
-                <div class="cwz-kind-card" id="cwz-card-GROUPS_KNOCKOUT" onclick="selectCompKind('GROUPS_KNOCKOUT', this)">
-                    <div class="cwz-kind-icon">🌐</div>
-                    <div style="flex:1">
-                        <div class="cwz-kind-title">Coppa a Gironi + Fase Finale <span class="cwz-kind-badge">Champions</span></div>
-                        <div class="cwz-kind-desc">Squadre divise in gironi (Girone A e Girone B) con scontri diretti e qualificazione alle fasi a eliminazione.</div>
-                    </div>
-                </div>
-
+                <!-- 8. Supercoppa di Lega -->
                 <div class="cwz-kind-card" id="cwz-card-SUPERCOPPA" onclick="selectCompKind('SUPERCOPPA', this)">
                     <div class="cwz-kind-icon">🛡️</div>
                     <div style="flex:1">
                         <div class="cwz-kind-title">Supercoppa di Lega <span class="cwz-kind-badge">Gara Secca</span></div>
                         <div class="cwz-kind-desc">Sfida secca testa a testa in una singola giornata tra due squadre scelte (es. Campione vs Vincitore Coppa).</div>
+                        <div class="cwz-kind-info">
+                            <b>ℹ️ Informativa:</b> Partita secca inaugurale o di metà stagione che mette in palio un titolo prestigioso tra le due migliori squadre della lega.
+                        </div>
                     </div>
                 </div>
 
+                <!-- 9. Battle Royale -->
                 <div class="cwz-kind-card" id="cwz-card-BATTLE_ROYALE" onclick="selectCompKind('BATTLE_ROYALE', this)">
                     <div class="cwz-kind-icon">⚔️</div>
                     <div style="flex:1">
                         <div class="cwz-kind-title">Battle Royale <span class="cwz-kind-badge">Tutti vs Tutti</span></div>
                         <div class="cwz-kind-desc">In ogni singola giornata ciascuna squadra affronta contemporaneamente tutte le altre rose della lega.</div>
+                        <div class="cwz-kind-info">
+                            <b>ℹ️ Informativa:</b> Se in una giornata ci sono 8 squadre, la tua formazione disputa 7 partite virtuali contemporanee: ogni avversario superato ti regala 3 punti.
+                        </div>
                     </div>
                 </div>
 
+                <!-- 10. Torneo a Fasi (Apertura / Clausura) -->
                 <div class="cwz-kind-card" id="cwz-card-SEASON_SPLIT" onclick="selectCompKind('SEASON_SPLIT', this)">
                     <div class="cwz-kind-icon">🌓</div>
                     <div style="flex:1">
                         <div class="cwz-kind-title">Torneo a Fasi (Apertura / Clausura) <span class="cwz-kind-badge">A Fasi</span></div>
                         <div class="cwz-kind-desc">Stagione suddivisa in due campionati distinti e indipendenti, con eventuale finalissima scudetto tra i vincitori.</div>
+                        <div class="cwz-kind-info">
+                            <b>ℹ️ Informativa:</b> Suddivide la stagione in due tronconi separati. Chi ha iniziato male può ripartire da zero alla 20ª giornata con il Torneo di Clausura!
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 11. Gran Premio Classico (Somma Punti) -->
+                <div class="cwz-kind-card" id="cwz-card-TOTAL_POINTS" onclick="selectCompKind('TOTAL_POINTS', this)">
+                    <div class="cwz-kind-icon">🎯</div>
+                    <div style="flex:1">
+                        <div class="cwz-kind-title">Gran Premio Classico (Somma Punti) <span class="cwz-kind-badge">Meritocratico</span></div>
+                        <div class="cwz-kind-desc">Classifica generale a somma aritmetica cumulativa di tutti i fantavoti. Vince la rosa più costante della stagione.</div>
+                        <div class="cwz-kind-info">
+                            <b>ℹ️ Informativa:</b> Nessun fattore fortuna legato al calendario o ai gol subiti: solo la pura somma dei fantavoti totalizzati giornata dopo giornata.
+                        </div>
                     </div>
                 </div>
 
@@ -464,11 +789,14 @@
                     <div style="font-size:11px;font-weight:700;color:var(--muted);margin-top:8px;">Suggerimenti rapidi:</div>
                     <div class="cwz-chips">
                         <span class="cwz-chip" onclick="selectCompPreset('🏆 Campionato Serie A')">🏆 Campionato Serie A</span>
-                        <span class="cwz-chip" onclick="selectCompPreset('🌟 Champions Cup')">🌟 Champions Cup</span>
+                        <span class="cwz-chip" onclick="selectCompPreset('🏎️ Gran Premio Formula 1')">🏎️ Gran Premio Formula 1</span>
+                        <span class="cwz-chip" onclick="selectCompPreset('💀 Survival Cup (L\'Uomo Morto)')">💀 Survival Cup</span>
+                        <span class="cwz-chip" onclick="selectCompPreset('🌐 Champions League Svizzera')">🌐 Champions Svizzera</span>
+                        <span class="cwz-chip" onclick="selectCompPreset('🎾 Coppa Fanta-Davis')">🎾 Coppa Fanta-Davis</span>
+                        <span class="cwz-chip" onclick="selectCompPreset('🏅 Champions Cup a Gironi')">🏅 Champions Cup</span>
                         <span class="cwz-chip" onclick="selectCompPreset('🥊 Coppa di Lega')">🥊 Coppa di Lega</span>
-                        <span class="cwz-chip" onclick="selectCompPreset('🏎️ Gran Premio Fantapunti')">🏎️ Gran Premio Fantapunti</span>
-                        <span class="cwz-chip" onclick="selectCompPreset('🛡️ Supercoppa FantaManager')">🛡️ Supercoppa FantaManager</span>
-                        <span class="cwz-chip" onclick="selectCompPreset('⚔️ Battle Royale Cup')">⚔️ Battle Royale Cup</span>
+                        <span class="cwz-chip" onclick="selectCompPreset('🛡️ Supercoppa FantaManager')">🛡️ Supercoppa</span>
+                        <span class="cwz-chip" onclick="selectCompPreset('⚔️ Battle Royale Cup')">⚔️ Battle Royale</span>
                     </div>
                 </div>
 
@@ -563,6 +891,11 @@
             <div class="cwz-step-panel" id="cwz-step-4">
                 <div style="font-size:12px;font-weight:800;text-transform:uppercase;color:var(--accent);letter-spacing:.08em;margin-bottom:10px;">
                     Passo 4 di 5 · Calcolo & Punteggi Partita
+                </div>
+
+                <!-- Informativa Regole specifica per il formato selezionato -->
+                <div class="cwz-field-box" id="cwz-step4-format-notice" style="background:rgba(255,255,255,0.03);border-color:rgba(255,255,255,0.1);font-size:12px;color:var(--ink-soft);line-height:1.5;">
+                    Configura i criteri di punteggio per le partite di questa competizione:
                 </div>
 
                 <div class="cwz-field-box">
@@ -670,12 +1003,16 @@
 
     const KIND_LABELS = {
         'ROUND_ROBIN': 'Campionato (Scontri Diretti 1vs1)',
-        'TOTAL_POINTS': 'Gran Premio (Somma Punti)',
-        'KNOCKOUT': 'Coppa a Eliminazione Diretta',
+        'FORMULA_1': 'Formula 1 (Punti GP di Giornata)',
+        'SURVIVAL': "Survival Cup (L'Uomo Morto)",
+        'SWISS_LEAGUE': 'Nuova Champions a Girone Svizzero',
+        'FANTA_DAVIS': 'Fanta-Davis a Coppie (2vs2)',
         'GROUPS_KNOCKOUT': 'Coppa a Gironi + Playoff',
+        'KNOCKOUT': 'Coppa a Eliminazione Diretta',
         'SUPERCOPPA': 'Supercoppa di Lega (Sfida Secca)',
         'BATTLE_ROYALE': 'Battle Royale (Tutti vs Tutti)',
-        'SEASON_SPLIT': 'Torneo a Fasi (Apertura/Clausura)'
+        'SEASON_SPLIT': 'Torneo a Fasi (Apertura/Clausura)',
+        'TOTAL_POINTS': 'Gran Premio Classico (Somma Punti)'
     };
 
     function openCompWizard() {
@@ -706,13 +1043,34 @@
         if (supercoppaWrap) supercoppaWrap.style.display = (kind === 'SUPERCOPPA') ? 'block' : 'none';
         if (endGWrap) endGWrap.style.display = (kind === 'SUPERCOPPA') ? 'none' : 'block';
 
+        const noticeEl = document.getElementById("cwz-step4-format-notice");
+        if (noticeEl) {
+            if (kind === 'FORMULA_1') {
+                noticeEl.innerHTML = "🏎️ <b>Formula 1:</b> Ad ogni giornata i primi 10 fantavoti ricevono punti GP ufficiali (25, 18, 15, 12, 10, 8, 6, 4, 2, 1). Non servono fasce gol per la classifica mondiale!";
+            } else if (kind === 'SURVIVAL') {
+                noticeEl.innerHTML = "💀 <b>Survival Cup:</b> A ogni turno l'ultima squadra in graduatoria viene eliminata senza pietà fino alla finale. La classifica premia i superstiti.";
+            } else if (kind === 'SWISS_LEAGUE') {
+                noticeEl.innerHTML = "🌐 <b>Girone Svizzero:</b> Si applicano i punti vittoria/pareggio e le soglie gol sottostanti. Le prime 8 vanno agli Ottavi, dal 9° al 24° posto ai Play-off.";
+            } else if (kind === 'FANTA_DAVIS') {
+                noticeEl.innerHTML = "🎾 <b>Fanta-Davis:</b> Le partite tra le coppie sommano le prestazioni dei singoli componenti per determinare la squadra vincitrice.";
+            } else if (kind === 'TOTAL_POINTS') {
+                noticeEl.innerHTML = "🎯 <b>Somma Punti:</b> Classifica aritmetica pura determinata dalla somma di tutti i voti stagionali senza scontri diretti.";
+            } else {
+                noticeEl.innerHTML = "🏆 <b>Scontri Diretti 1vs1:</b> Configura i punti per vittoria (3), pareggio (1), sconfitta (0), soglie gol e bonus fattore campo.";
+            }
+        }
+
         // Suggest a good default name if default was unchanged
         const nameIn = document.getElementById("cwz-name-input");
-        if (nameIn && (!nameIn.value || nameIn.value === 'Campionato 1vs1' || nameIn.value.includes('Campionato') || nameIn.value.includes('Coppa') || nameIn.value.includes('Gran Premio') || nameIn.value.includes('Supercoppa'))) {
+        if (nameIn && (!nameIn.value || nameIn.value === 'Campionato 1vs1' || nameIn.value.includes('Campionato') || nameIn.value.includes('Coppa') || nameIn.value.includes('Gran Premio') || nameIn.value.includes('Supercoppa') || nameIn.value.includes('Survival') || nameIn.value.includes('Champions') || nameIn.value.includes('Davis'))) {
             if (kind === 'ROUND_ROBIN') nameIn.value = "Campionato Serie A";
+            else if (kind === 'FORMULA_1') nameIn.value = "Gran Premio Formula 1";
+            else if (kind === 'SURVIVAL') nameIn.value = "Survival Cup (L'Uomo Morto)";
+            else if (kind === 'SWISS_LEAGUE') nameIn.value = "Champions League Svizzera";
+            else if (kind === 'FANTA_DAVIS') nameIn.value = "Coppa Fanta-Davis a Coppie";
             else if (kind === 'TOTAL_POINTS') nameIn.value = "Gran Premio Fantapunti";
-            else if (kind === 'KNOCKOUT') nameIn.value = "Coppa di Lega";
-            else if (kind === 'GROUPS_KNOCKOUT') nameIn.value = "Champions Cup";
+            else if (kind === 'KNOCKOUT') nameIn.value = "Coppa di Lega a Eliminazione";
+            else if (kind === 'GROUPS_KNOCKOUT') nameIn.value = "Champions Cup a Gironi";
             else if (kind === 'SUPERCOPPA') nameIn.value = "Supercoppa di Lega";
             else if (kind === 'BATTLE_ROYALE') nameIn.value = "Battle Royale Cup";
             else if (kind === 'SEASON_SPLIT') nameIn.value = "Campionato Apertura & Clausura";
