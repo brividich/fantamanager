@@ -19,13 +19,24 @@ class MarketSession(models.Model):
         CLOSED   = "closed",   "Chiuso (in attesa di spoglio)"
         RESOLVED = "resolved", "Concluso (spoglio eseguito)"
 
+    class SessionType(models.TextChoices):
+        SEALED_BIDS   = "sealed_bids",   "Mercato a Buste Segrete"
+        FREE_AGENCY   = "free_agency",   "Mercato Libero Continuo (Svincolati Immediati)"
+        WAIVER_WIRE   = "waiver_wire",   "Draft di Riparazione (Waiver a Turni)"
+        BUYOUT_CLAUSE = "buyout_clause", "Mercato con Clausole Rescisorie"
+        LIVE_AUCTION  = "live_auction",  "Asta Live di Riparazione"
+
     league = models.ForeignKey(
         League, on_delete=models.CASCADE, related_name="market_sessions"
     )
     title = models.CharField(max_length=200, default="Mercato di Riparazione")
+    session_type = models.CharField(
+        max_length=20, choices=SessionType.choices, default=SessionType.SEALED_BIDS
+    )
     status = models.CharField(
         max_length=12, choices=Status.choices, default=Status.DRAFT
     )
+    config = models.JSONField(default=dict, blank=True)
     opens_at = models.DateTimeField(null=True, blank=True)
     closes_at = models.DateTimeField(null=True, blank=True)
 

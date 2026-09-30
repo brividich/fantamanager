@@ -193,3 +193,34 @@ class CompetitionsEngineTests(TestCase):
         self.assertEqual(new_comp.settings["home_bonus"], 1.0)
         self.assertGreater(new_comp.fixtures.count(), 0)
 
+    def test_new_formats_standings_computation(self):
+        f1_comp = Competition.objects.create(
+            season=self.season, name="GP F1", kind=Competition.Type.FORMULA_1
+        )
+        survival_comp = Competition.objects.create(
+            season=self.season, name="Survival", kind=Competition.Type.SURVIVAL
+        )
+        swiss_comp = Competition.objects.create(
+            season=self.season, name="Swiss", kind=Competition.Type.SWISS_LEAGUE
+        )
+        davis_comp = Competition.objects.create(
+            season=self.season, name="Davis", kind=Competition.Type.FANTA_DAVIS
+        )
+
+        # Compute standings for each
+        f1_data = compute_competition_standings(f1_comp)
+        self.assertEqual(f1_data["kind"], "formula_1")
+        self.assertEqual(len(f1_data["standings"]), 8)
+
+        survival_data = compute_competition_standings(survival_comp)
+        self.assertEqual(survival_data["kind"], "survival")
+        self.assertEqual(survival_data["alive_count"], 8)
+
+        swiss_data = compute_competition_standings(swiss_comp)
+        self.assertEqual(swiss_data["kind"], "swiss_league")
+
+        davis_data = compute_competition_standings(davis_comp)
+        self.assertEqual(davis_data["kind"], "fanta_davis")
+        self.assertGreaterEqual(len(davis_data["pairs"]), 4)
+
+
