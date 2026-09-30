@@ -310,10 +310,15 @@ def app_lega(request):
     auctions = auctions.filter(league=league) if league is not None else auctions.filter(league__isnull=True)
     auctions = [a for a in auctions.order_by("-id") if a.status != Auction.Status.DRAFT]
 
-    from ..services.competitions import ensure_league_season_and_competitions, compute_competition_standings
+    from ..services.competitions import (
+        ensure_league_season_and_competitions,
+        compute_competition_standings,
+        get_competition_matchdays,
+    )
     season, competitions = ensure_league_season_and_competitions(league)
     current_competition = None
     competition_data = None
+    competition_matchdays = []
 
     if season and competitions:
         comp_id = request.GET.get("comp")
@@ -324,6 +329,13 @@ def app_lega(request):
 
         if current_competition:
             competition_data = compute_competition_standings(current_competition)
+            competition_matchdays = get_competition_matchdays(
+                current_competition,
+                participant_id=participant.id if participant else None,
+            )
+
+    active_tab = request.GET.get("tab", "classifica")
+    target_giornata = request.GET.get("giornata", "")
 
     ctx.update({
         "standings": _app_standings(league, participant.id if participant else None),
@@ -331,6 +343,9 @@ def app_lega(request):
         "competitions": competitions,
         "current_competition": current_competition,
         "competition_data": competition_data,
+        "competition_matchdays": competition_matchdays,
+        "active_tab": active_tab,
+        "target_giornata": target_giornata,
     })
     return render(request, "auctions/app_lega.html", ctx)
 

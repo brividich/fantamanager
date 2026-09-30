@@ -138,3 +138,40 @@ class CompetitionsEngineTests(TestCase):
         resp = self.client.post(del_url)
         self.assertEqual(resp.status_code, 302)
         self.assertFalse(Competition.objects.filter(id=new_comp.id).exists())
+
+    def test_get_competition_matchdays_and_app_view(self):
+        from auctions.services.competitions import get_competition_matchdays
+        comp = Competition.objects.create(
+            season=self.season,
+            name="Campionato 1vs1",
+            kind=Competition.Type.ROUND_ROBIN,
+        )
+        setup_round_robin_competition(comp)
+
+        # Mark Giornata 1 as scored and create GiornataScores
+        g1 = self.season.giornate.get(number=1)
+        g1.status = Giornata.Status.SCORED
+        g1.save()
+        GiornataScore.objects.create(giornata=g1, participant=self.teams[0], total=Decimal("78.0"), goals=2)
+        GiornataScore.objects.create(giornata=g1, participant=self.teams[1], total=Decimal("71.5"), goals=1)
+
+        # Verify get_competition_matchdays returns all 38 matchdays
+        matchdays = get_competition_matchdays(comp, participant_id=self.teams[0].id)
+        self.assertEqual(len(matchdays), 38)
+        self.assertEqual(matchdays[0]["giornata"].number, 1)
+        self.assertTrue(matchdays[0]["has_user_match"])
+        self.assertTrue(matchdays[0]["is_scored"])
+
+        # Test app_lega view rendering with competitions and tab=giornate
+        user_participant = self.teams[0]
+        # Login participant via session
+        session = self.client.session
+        session["participant_id"] = user_participant.id
+        session.save()
+
+        from django.urls import reverse
+        resp = self.client.get(reverse("app_lega") + f"?comp={comp.id}&tab=giornate")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Tutte le Giornate")
+        self.assertContains(resp, "Giornata 1")
+        self.assertContains(resp, "La tua sfida")
