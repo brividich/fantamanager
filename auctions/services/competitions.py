@@ -600,8 +600,8 @@ def _compute_battle_royale_standings(competition):
     for g in season.giornate.filter(status=Giornata.Status.SCORED).order_by("number"):
         day_results = compute_coppa_italia_battle_royale(g)
         for res in day_results:
-            pid = res["participant_id"]
-            if pid in cum_standings:
+            pid = res.get("participant_id") or (res["participant"].id if "participant" in res else None)
+            if pid and pid in cum_standings:
                 c = cum_standings[pid]
                 c["battle_points"] += res["battle_points"]
                 c["total_fantapunti"] += res["fantapunti"]

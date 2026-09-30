@@ -238,6 +238,7 @@ def compute_coppa_italia_battle_royale(giornata: Giornata) -> List[Dict[str, Any
 
         results.append({
             "participant": p1,
+            "participant_id": p1.id,
             "team_name": p1.display_name,
             "fantapunti": s1.total,
             "goals": g1,
