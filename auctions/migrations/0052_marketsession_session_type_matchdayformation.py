@@ -4,6 +4,30 @@ import django.db.models.deletion
 from django.db import migrations, models
 
 
+def add_session_type_if_not_exists(apps, schema_editor):
+    connection = schema_editor.connection
+    with connection.cursor() as cursor:
+        if connection.vendor == 'postgresql':
+            cursor.execute(
+                "ALTER TABLE auctions_marketsession ADD COLUMN IF NOT EXISTS session_type varchar(20) NOT NULL DEFAULT 'repair';"
+            )
+        elif connection.vendor == 'sqlite':
+            cursor.execute("PRAGMA table_info(auctions_marketsession);")
+            cols = [row[1] for row in cursor.fetchall()]
+            if 'session_type' not in cols:
+                cursor.execute(
+                    "ALTER TABLE auctions_marketsession ADD COLUMN session_type varchar(20) NOT NULL DEFAULT 'repair';"
+                )
+        else:
+            try:
+                schema_editor.add_field(
+                    apps.get_model('auctions', 'MarketSession'),
+                    models.CharField(max_length=20, default='repair')
+                )
+            except Exception:
+                pass
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -11,10 +35,17 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='marketsession',
-            name='session_type',
-            field=models.CharField(choices=[('repair', 'Mercato di Riparazione (Buste)'), ('renewals', 'Mercato Rinnovi Contratti')], default='repair', max_length=20),
+        migrations.SeparateDatabaseAndState(
+            state_operations=[
+                migrations.AddField(
+                    model_name='marketsession',
+                    name='session_type',
+                    field=models.CharField(choices=[('repair', 'Mercato di Riparazione (Buste)'), ('renewals', 'Mercato Rinnovi Contratti')], default='repair', max_length=20),
+                ),
+            ],
+            database_operations=[
+                migrations.RunPython(add_session_type_if_not_exists, migrations.RunPython.noop),
+            ],
         ),
         migrations.CreateModel(
             name='MatchdayFormation',
