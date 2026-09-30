@@ -1,16 +1,16 @@
 {% extends "auctions/app_base.html" %}
-{% block title %}Mercato & Sessioni — FantaManager{% endblock %}
+{% block title %}Mercato — FantaManager{% endblock %}
 {% block mainclass %}fit{% endblock %}
 {% block app %}
 <style>
     /* ==========================================================================
-       MERCATO HUB & WORKSPACE DESIGN SYSTEM (Mobile-first, Premium App Aesthetic)
+       UNIFIED MERCATO DESIGN SYSTEM (Hub, Workspace & Dedicated League Wizard)
+       Clean, native mobile app feel. Eliminates redundant/confusing labels.
        ========================================================================== */
 
-    /* Top Breadcrumb & Switcher */
-    .merc-top-bar {
-        display: flex; align-items: center; justify-content: space-between;
-        gap: 12px; margin-bottom: 14px; flex-wrap: wrap;
+    .merc-head {
+        display: flex; align-items: flex-end; justify-content: space-between;
+        gap: 12px; margin-bottom: 12px; flex-wrap: wrap;
     }
     .merc-title-group h1 {
         font-family: var(--display); font-weight: 900; font-size: 24px;
@@ -20,28 +20,7 @@
         font-size: 12px; color: var(--muted); font-weight: 600; margin: 3px 0 0;
     }
 
-    .merc-view-toggle {
-        display: inline-flex; background: var(--panel-2); border: 1px solid var(--line);
-        border-radius: 12px; padding: 3px; gap: 3px;
-    }
-    .merc-toggle-btn {
-        padding: 6px 12px; border-radius: 9px; font-size: 11.5px; font-weight: 800;
-        border: none; background: none; color: var(--muted); cursor: pointer;
-        display: inline-flex; align-items: center; gap: 6px; transition: all .15s ease;
-        text-decoration: none;
-    }
-    .merc-toggle-btn.active {
-        background: var(--accent); color: #0a1108; box-shadow: 0 2px 8px -2px var(--accent-glow);
-    }
-    .merc-toggle-btn .badge-pill {
-        padding: 2px 6px; border-radius: 10px; font-size: 10px; font-weight: 900;
-        background: rgba(0,0,0,.15);
-    }
-    .merc-toggle-btn.active .badge-pill {
-        background: rgba(10,17,8,.2); color: #0a1108;
-    }
-
-    /* Status Pills */
+    /* ---- Status Pills ---- */
     .status-pill {
         display: inline-flex; align-items: center; gap: 6px;
         padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 800;
@@ -64,164 +43,149 @@
     .status-resolved {
         background: rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.35);
     }
-    .status-live {
-        background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.4);
-    }
-    .status-live::before {
-        content: ""; width: 7px; height: 7px; border-radius: 50%;
-        background: #ef4444; box-shadow: 0 0 8px #ef4444;
-        animation: pulse-dot 1.2s infinite;
-    }
     @keyframes pulse-dot {
         0%, 100% { opacity: 1; transform: scale(1); }
         50% { opacity: .4; transform: scale(1.3); }
     }
 
-    /* ---- HUB VIEW (PANORAMICA MERCATI ATTIVI) ---- */
+    /* ---- Hub Section Styles ---- */
     .hub-section-title {
         display: flex; align-items: center; justify-content: space-between;
         margin: 16px 0 10px; font-family: var(--display); font-weight: 900;
-        font-size: 15px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink);
+        font-size: 14.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink);
     }
     .hub-section-title small {
         font-family: var(--sans); font-size: 11.5px; font-weight: 700; color: var(--muted); text-transform: none;
     }
 
-    @media (max-width: 600px) {
-        .merc-top-bar { flex-direction: column; align-items: stretch; gap: 10px; }
-        .merc-view-toggle { width: 100%; display: flex; }
-        .merc-toggle-btn { flex: 1; justify-content: center; padding: 8px 10px; font-size: 12px; }
+    .hub-grid {
+        display: grid; grid-template-columns: 1fr; gap: 12px; margin-bottom: 16px;
+    }
+    @media (min-width: 640px) {
+        .hub-grid { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
     }
 
-    .markets-grid {
-        display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
-        gap: 14px; margin-bottom: 20px;
-    }
-    @media (max-width: 480px) {
-        .markets-grid { grid-template-columns: 1fr; gap: 12px; }
-    }
-
-    .market-card {
+    .hub-card {
         background: var(--panel-2); border: 1px solid var(--line); border-radius: 16px;
         padding: 16px; display: flex; flex-direction: column; justify-content: space-between;
-        transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
+        gap: 12px; transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
         position: relative; overflow: hidden;
     }
-    .market-card:hover {
+    .hub-card:hover {
         border-color: rgba(255,255,255,.2);
         box-shadow: 0 8px 24px -6px rgba(0,0,0,.45);
         transform: translateY(-2px);
     }
-    .market-card.highlight {
-        background: linear-gradient(145deg, rgba(8, 124, 240, 0.12), rgba(0, 229, 153, 0.08));
-        border-color: rgba(0, 229, 153, 0.35);
+    .hub-card.is-open {
+        background: linear-gradient(145deg, rgba(16,185,129,0.12), rgba(6,78,59,0.22));
+        border-color: var(--accent-line, rgba(0, 229, 153, 0.35));
     }
 
-    .mc-header {
-        display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 10px;
+    .hc-top {
+        display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;
     }
-    .mc-title {
+    .hc-badge-tag {
+        font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em;
+        color: var(--muted); margin-bottom: 4px; display: flex; align-items: center; gap: 6px;
+    }
+    .hc-title {
         font-family: var(--display); font-weight: 900; font-size: 18px; color: var(--ink); line-height: 1.15;
     }
-    .mc-type {
-        font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em;
-        color: var(--muted); margin-bottom: 3px; display: flex; align-items: center; gap: 6px;
+    .hc-desc {
+        font-size: 12px; color: var(--muted); line-height: 1.4; margin-top: 4px;
     }
-    .mc-desc {
-        font-size: 12.5px; color: var(--muted); line-height: 1.4; margin-bottom: 14px;
+    .hc-chips {
+        display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;
     }
-    .mc-meta-chips {
-        display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px;
-    }
-    .mc-chip {
+    .hc-chip {
         padding: 4px 8px; border-radius: 8px; font-size: 11px; font-weight: 700;
         background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08); color: var(--ink);
     }
-    .mc-chip.active-bids {
+    .hc-chip.active-bids {
         background: rgba(0, 229, 153, 0.15); color: #00e599; border-color: rgba(0, 229, 153, 0.3);
     }
-
-    .mc-action {
-        display: flex; align-items: center; justify-content: space-between; gap: 10px;
-        padding-top: 12px; border-top: 1px solid var(--line);
-    }
-    .mc-action-btn {
-        width: 100%; padding: 10px 14px; border-radius: 10px; font-weight: 800; font-size: 13px;
+    .mc-btn-primary {
+        width: 100%; padding: 11px 14px; border-radius: 10px; font-weight: 800; font-size: 13.5px;
         border: none; cursor: pointer; text-align: center; text-decoration: none;
         display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-        background: var(--panel-3, rgba(255,255,255,.08)); color: var(--ink);
-        transition: all .15s ease;
+        background: var(--accent); color: #0a1108; transition: opacity .15s ease;
+        touch-action: manipulation; box-shadow: 0 4px 14px -2px var(--accent-glow, rgba(0,229,153,.3));
     }
-    .mc-action-btn:hover {
-        background: var(--accent); color: #0a1108;
+    .mc-btn-primary:hover { opacity: .92; }
+    .mc-btn-secondary {
+        width: 100%; padding: 10px 14px; border-radius: 10px; font-weight: 800; font-size: 13px;
+        border: 1px solid var(--line); cursor: pointer; text-align: center; text-decoration: none;
+        display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+        background: rgba(255,255,255,.06); color: var(--ink); transition: all .15s ease;
+        touch-action: manipulation;
     }
-    .mc-action-btn.primary {
-        background: var(--accent); color: #0a1108;
-    }
-    .mc-action-btn.primary:hover {
-        opacity: .92; box-shadow: 0 4px 14px -2px var(--accent-glow);
-    }
+    .mc-btn-secondary:hover { background: rgba(255,255,255,.12); }
 
-    /* ---- WORKSPACE VIEW (IL MERCATO SELEZIONATO) ---- */
-    .workspace-top-bar {
-        display: flex; align-items: center; justify-content: space-between; gap: 10px;
-        background: var(--panel-2); border: 1px solid var(--line); border-radius: 14px;
-        padding: 12px 14px; margin-bottom: 12px; flex-wrap: wrap;
+    .mc-btn-wizard {
+        display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 9px;
+        background: var(--accent); color: #0a1108; font-size: 12px; font-weight: 800; border: none;
+        cursor: pointer; transition: transform .12s, filter .15s; touch-action: manipulation;
+        box-shadow: 0 2px 8px -2px var(--accent-glow, rgba(0,229,153,.4));
     }
-    .ws-nav-left {
-        display: flex; align-items: center; gap: 10px; min-width: 0;
+    .mc-btn-wizard:hover { filter: brightness(1.08); }
+    .mc-btn-wizard:active { transform: scale(0.97); }
+
+    /* ---- Workspace Top Bar ---- */
+    .ws-top-bar {
+        background: var(--panel-2); border: 1px solid var(--line); border-radius: 14px;
+        padding: 12px 14px; margin-bottom: 12px; display: flex; align-items: center;
+        justify-content: space-between; gap: 10px; flex-wrap: wrap;
     }
     .ws-back-btn {
-        padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 800;
+        display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px;
+        border-radius: 9px; font-size: 12.5px; font-weight: 800;
         background: rgba(255,255,255,.08); color: var(--ink); border: 1px solid var(--line);
-        cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;
+        text-decoration: none; cursor: pointer; transition: background .12s ease;
     }
-    .ws-back-btn:hover { background: rgba(255,255,255,.14); }
-    .ws-title {
-        font-family: var(--display); font-weight: 900; font-size: 16px; color: var(--ink);
-        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    .ws-back-btn:hover { background: rgba(255,255,255,.15); }
+    .ws-title-wrap h2 {
+        font-family: var(--display); font-weight: 900; font-size: 17px; color: var(--ink); margin: 0; line-height: 1.1;
     }
-    .ws-stats {
-        display: flex; align-items: center; gap: 12px; font-size: 12px; font-weight: 700; color: var(--muted);
+    .ws-title-wrap .sub {
+        font-size: 11.5px; color: var(--muted); font-weight: 600; margin-top: 3px; display: flex; align-items: center; gap: 6px;
     }
-    .ws-stats b { color: var(--ink); }
 
-    /* Segmented Navigation in Workspace */
-    .ws-tabs {
-        display: flex; gap: 6px; margin-bottom: 14px; overflow-x: auto; padding-bottom: 2px;
+    /* Active Session Hero Card */
+    .session-hero-card {
+        background: linear-gradient(135deg, rgba(16,185,129,0.12), rgba(6,78,59,0.22));
+        border: 1px solid var(--accent-line, rgba(0,229,153,.3));
+        border-radius: var(--radius, 14px); padding: 12px 14px; margin-bottom: 12px;
     }
-    .ws-tab-btn {
-        flex: 1; min-width: 120px; padding: 10px 14px; border-radius: 10px; font-size: 13px; font-weight: 800;
-        background: var(--panel-2); border: 1px solid var(--line); color: var(--muted);
-        cursor: pointer; text-align: center; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-        transition: all .12s ease;
+    .shc-stats {
+        display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
     }
-    .ws-tab-btn.active {
-        background: rgba(255,255,255,.1); color: var(--ink); border-color: rgba(255,255,255,.25);
+    .shc-stat {
+        text-align: center; background: rgba(0,0,0,0.25); border: 1px solid var(--line);
+        padding: 8px 6px; border-radius: 10px;
     }
-    .ws-tab-btn .tab-count {
-        padding: 2px 7px; border-radius: 99px; font-size: 11px; background: rgba(255,255,255,.1); color: var(--ink);
+    .shc-stat .v {
+        font-family: var(--display); font-weight: 900; font-size: 16px; color: var(--ink); line-height: 1.1;
     }
-    .ws-tab-btn.active .tab-count {
-        background: var(--accent); color: #0a1108;
+    .shc-stat .k {
+        font-size: 9.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-top: 2px;
     }
 
     /* Filters row */
-    .market-filters { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+    .market-filters { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
     .search-row { display: flex; gap: 8px; }
     .search-input {
         flex: 1; min-width: 0; padding: 10px 14px; border-radius: 10px;
         background: var(--panel-2); border: 1px solid var(--line); color: var(--ink);
-        font-family: var(--sans); font-size: 14px; font-weight: 600;
+        font-family: var(--sans); font-size: 13.5px; font-weight: 600;
     }
     .search-input:focus { outline: none; border-color: var(--accent); }
     .role-chips {
-        display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px;
+        display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px;
         scrollbar-width: none; -webkit-overflow-scrolling: touch;
     }
     .role-chips::-webkit-scrollbar { display: none; }
     .role-chip {
-        padding: 7px 13px; border-radius: 9px; font-size: 12px; font-weight: 800;
+        padding: 7px 12px; border-radius: 9px; font-size: 12px; font-weight: 800;
         background: var(--panel-2); border: 1px solid var(--line); color: var(--muted);
         text-decoration: none; text-transform: uppercase; white-space: nowrap; flex-shrink: 0;
         transition: all .12s; touch-action: manipulation;
@@ -235,13 +199,13 @@
     /* Free agents list */
     .fa-card { margin-bottom: 14px; }
     .free-agent-row {
-        padding: 10px 14px; border-bottom: 1px solid var(--line);
-        display: flex; align-items: center; justify-content: space-between; gap: 10px;
+        padding: 10px 12px; border-bottom: 1px solid var(--line);
+        display: flex; align-items: center; justify-content: space-between; gap: 8px;
         transition: background .12s ease;
     }
     .free-agent-row:last-child { border-bottom: none; }
     .free-agent-row:hover { background: rgba(255,255,255,.02); }
-    .fa-main { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+    .fa-main { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; cursor: pointer; }
     .fa-meta { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
     .fa-name { font-weight: 800; font-size: 14px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .fa-sub { font-size: 11.5px; color: var(--muted); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -264,7 +228,7 @@
     .bid-row:last-child { border-bottom: none; }
     .bid-prio {
         width: 24px; height: 24px; border-radius: 6px; background: rgba(255,255,255,.08);
-        display: flex; align-items: center; justify-content: center; font-size: 11.5px; font-weight: 900;
+        display: flex; align-items: center; justify-content: center; font-size: 11.5px; font-weight: 900; flex-shrink: 0;
     }
     .bid-del-btn {
         background: none; border: 1px solid rgba(239,68,68,.3); color: #ef4444; border-radius: 6px;
@@ -272,7 +236,7 @@
     }
     .bid-del-btn:hover { background: rgba(239,68,68,.15); }
 
-    /* Modal */
+    /* Modal Sheet Generic */
     .modal-overlay {
         position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.75);
         display: flex; align-items: flex-end; justify-content: center;
@@ -285,12 +249,12 @@
         transform: translateY(100%); transition: transform .25s cubic-bezier(0.16, 1, 0.3, 1);
     }
     .modal-overlay.open .modal-sheet { transform: translateY(0); }
-    .modal-sheet h2 { font-size: 18px; font-weight: 900; margin: 0 0 14px; }
+    .modal-sheet h2 { font-size: 18px; font-weight: 900; margin: 0 0 14px; font-family: var(--display); letter-spacing: .02em; }
     .form-group { margin-bottom: 14px; }
     .form-group label { display: block; font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
     .form-group input, .form-group select {
         width: 100%; padding: 10px 12px; border-radius: 10px; background: var(--panel-2);
-        border: 1px solid var(--line); color: var(--ink); font-size: 14px; font-weight: 600;
+        border: 1px solid var(--line); color: var(--ink); font-size: 14px; font-weight: 600; box-sizing: border-box;
     }
     .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--accent); }
     .modal-btns { display: flex; gap: 8px; margin-top: 18px; }
@@ -300,85 +264,160 @@
     .btn-submit { background: var(--accent); color: #0a1108; }
     .btn-cancel { background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); }
 
-    /* Responsive adjustments */
     @media (min-width: 640px) {
         .modal-overlay { align-items: center; }
         .modal-sheet { border-radius: 20px; transform: scale(.95); transition: transform .2s ease-out; }
         .modal-overlay.open .modal-sheet { transform: scale(1); }
     }
+
+    /* ---- Dedicated League Market Wizard Styles ---- */
+    .wizard-overlay {
+        position: fixed; inset: 0; z-index: 120; background: rgba(0,0,0,.8);
+        display: flex; align-items: flex-end; justify-content: center;
+        opacity: 0; pointer-events: none; transition: opacity .25s ease;
+    }
+    .wizard-overlay.open { opacity: 1; pointer-events: auto; }
+    .wizard-sheet {
+        background: var(--bg-deep, #0b1511); border: 1px solid var(--line); border-radius: 24px 24px 0 0;
+        width: 100%; max-width: 580px; padding: 20px 20px calc(24px + env(safe-area-inset-bottom, 16px));
+        max-height: 90vh; overflow-y: auto; transform: translateY(100%); transition: transform .3s cubic-bezier(0.16, 1, 0.3, 1);
+        display: flex; flex-direction: column; box-sizing: border-box;
+    }
+    .wizard-overlay.open .wizard-sheet { transform: translateY(0); }
+    @media (min-width: 640px) {
+        .wizard-overlay { align-items: center; }
+        .wizard-sheet { border-radius: 24px; transform: scale(.95); padding: 24px; }
+        .wizard-overlay.open .wizard-sheet { transform: scale(1); }
+    }
+
+    .wz-header {
+        display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px;
+    }
+    .wz-title {
+        font-family: var(--display); font-weight: 900; font-size: 19px; color: var(--ink); line-height: 1.1; margin: 0;
+    }
+    .wz-league-badge {
+        font-size: 11px; font-weight: 800; color: var(--accent); background: rgba(0,229,153,.1);
+        padding: 3px 8px; border-radius: 6px; border: 1px solid var(--accent-line, rgba(0,229,153,.25));
+    }
+    .wz-close {
+        background: none; border: none; font-size: 22px; color: var(--muted); cursor: pointer; padding: 0 4px; line-height: 1;
+    }
+
+    .wz-steps-bar {
+        display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 16px;
+    }
+    .wz-step-pill {
+        height: 4px; border-radius: 2px; background: rgba(255,255,255,.1); transition: background .2s ease;
+    }
+    .wz-step-pill.active { background: var(--accent); }
+    .wz-step-pill.done { background: #10b981; }
+
+    .wz-step-panel { display: none; }
+    .wz-step-panel.active { display: block; animation: wzFadeIn .2s ease-out; }
+    @keyframes wzFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+    .wz-option-cards {
+        display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 14px;
+    }
+    .wz-opt-card {
+        padding: 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel-2);
+        cursor: pointer; display: flex; align-items: flex-start; gap: 12px; transition: all .15s ease;
+    }
+    .wz-opt-card:hover { border-color: rgba(255,255,255,.3); }
+    .wz-opt-card.selected {
+        border-color: var(--accent); background: rgba(0,229,153,.08);
+    }
+    .wz-opt-text h4 { margin: 0 0 3px; font-size: 14px; font-weight: 800; color: var(--ink); }
+    .wz-opt-text p { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.35; }
+    .wz-kind-info {
+        display: none;
+        margin-top: 8px; padding: 8px 10px; background: rgba(255,255,255,0.03);
+        border: 1px solid rgba(255,255,255,0.07); border-radius: 8px;
+        font-size: 11.5px; line-height: 1.45; color: var(--muted);
+    }
+    .wz-opt-card.selected .wz-kind-info {
+        display: block;
+        animation: fadeIn .2s ease;
+        background: rgba(0,229,153,0.06); border-color: rgba(0,229,153,0.22); color: var(--ink-soft);
+    }
+    .wz-kind-info b { color: var(--ink); }
+
+    .wz-nav-btns {
+        display: flex; gap: 10px; margin-top: 20px;
+    }
+    .wz-nav-btns button {
+        flex: 1; padding: 12px; border-radius: 10px; font-weight: 800; font-size: 14px; cursor: pointer; border: none;
+    }
+    .wz-field-box {
+        background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px;
+    }
+    .wz-field-box label {
+        display: block; font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 6px;
+    }
 </style>
 
-<!-- =========================================================================
-     TOP BAR: HEADER & VIEW TOGGLE
-     ========================================================================= -->
-<div class="merc-top-bar">
+<!-- Top Bar -->
+<div class="merc-head">
     <div class="merc-title-group">
-        <h1>Mercato & Trattative</h1>
-        <p>{{ league.name }} · <b>{{ participant.remaining_credits|floatformat:0 }} FM</b> disponibili · Rosa: <b>{{ my_roster|length }}</b> calciatori</p>
-    </div>
-
-    <!-- Toggle tra Panoramica Mercati e Spazio Operativo -->
-    <div class="merc-view-toggle">
-        <button type="button" class="merc-toggle-btn {% if initial_view == 'hub' %}active{% endif %}" id="btn-show-hub" onclick="switchMainView('hub')">
-            <span>⚡ Mercati</span>
-            <span class="badge-pill">{{ active_markets_count }}</span>
-        </button>
-        {% if market_session %}
-        <button type="button" class="merc-toggle-btn {% if initial_view == 'workspace' %}active{% endif %}" id="btn-show-workspace" onclick="switchMainView('workspace')">
-            <span>🎯 {{ market_session.title|truncatechars:18 }}</span>
-            {% if my_bids %}<span class="badge-pill">{{ my_bids|length }}</span>{% endif %}
-        </button>
-        {% endif %}
+        <h1>Mercato</h1>
+        <p>{{ app_league.name }} · Budget disponibile: <b>{{ participant.remaining_credits|floatformat:0 }} FM</b> · Rosa: <b>{{ my_roster|length }}</b> calciatori</p>
     </div>
 </div>
 
 {% include "auctions/_slot_strip.html" %}
 
 <!-- =========================================================================
-     1. VISTA: HUB DEI MERCATI ATTIVI ("vedo i mercati attivi -> seleziono")
+     VISTA 1: HUB DEI MERCATI ATTIVI ("Entro -> Vedo i Mercati Attivi")
      ========================================================================= -->
-<div id="view-hub" style="{% if initial_view != 'hub' %}display:none;{% endif %}">
+<div id="view-hub" {% if initial_view != "hub" %}style="display:none;"{% endif %}>
 
-    <!-- Se c'è asta live in corso -->
+    <!-- Se c'è un'asta live attiva in sala -->
     {% if active_auction %}
-    <div class="market-card highlight" style="margin-bottom:16px;border-color:rgba(239,68,68,.5)">
-        <div class="mc-header">
+    <div class="hub-card is-open" style="border-color:rgba(239,68,68,.5);margin-bottom:14px">
+        <div class="hc-top">
             <div>
-                <div class="mc-type"><svg class="ic" style="width:14px;height:14px"><use href="#i-gavel"/></svg> Asta Live in Sala</div>
-                <div class="mc-title">{{ active_auction.title }}</div>
+                <div class="hc-badge-tag"><svg class="ic" style="width:13px;height:13px;color:#ef4444"><use href="#i-gavel"/></svg> Asta Live in Sala</div>
+                <div class="hc-title">{{ active_auction.title }}</div>
+                <div class="hc-desc">La sala d'asta live è attiva ora per la tua lega. Partecipa con rilanci istantanei.</div>
             </div>
-            <span class="status-pill status-live">Live Ora</span>
+            <span class="status-pill status-open" style="background:rgba(239,68,68,.15);color:#ef4444;border-color:rgba(239,68,68,.35)">Live Ora</span>
         </div>
-        <div class="mc-desc">La sala d'asta live è attiva. Partecipa con rilanci istantanei in tempo reale.</div>
-        <div class="mc-action">
-            <a class="mc-action-btn primary" href="{% url 'bid' active_auction.id %}">
-                <span>Entra nella Sala Asta</span>
-                <span>→</span>
-            </a>
-        </div>
+        <a class="mc-btn-primary" href="{% url 'bid' active_auction.id %}" style="background:#ef4444;color:#fff">
+            <span>Entra nella Sala Asta</span>
+            <span>→</span>
+        </a>
     </div>
     {% endif %}
 
-    <!-- Sezione: Sessioni di Riparazione (Buste) -->
+    <!-- Sezione: Sessioni di Mercato a Buste -->
     <div class="hub-section-title">
         <span>Sessioni di Mercato a Buste</span>
-        <small>{{ active_sessions|length }} aperte</small>
+        <div style="display:flex;align-items:center;gap:10px">
+            <small>{{ active_sessions|length }} aperta{% if active_sessions|length != 1 %}e{% endif %}</small>
+            {% if manages_app_league or is_app_admin %}
+            <button type="button" class="mc-btn-wizard" onclick="openMarketWizard()" title="Avvia il wizard per creare una nuova sessione per {{ app_league.name }}">
+                <svg class="ic" style="width:13px;height:13px"><use href="#i-plus"/></svg>
+                <span>Nuovo Mercato</span>
+            </button>
+            {% endif %}
+        </div>
     </div>
 
-    <div class="markets-grid">
+    <div class="hub-grid">
         {% for s in sessions_list %}
-        <div class="market-card {% if s.is_open %}highlight{% endif %}">
+        <div class="hub-card {% if s.is_open %}is-open{% endif %}">
             <div>
-                <div class="mc-header">
+                <div class="hc-top">
                     <div>
-                        <div class="mc-type">
+                        <div class="hc-badge-tag">
                             <svg class="ic" style="width:13px;height:13px"><use href="#i-shield"/></svg>
-                            Mercato di Riparazione
+                            {{ s.session_type_display }}
                         </div>
-                        <div class="mc-title">{{ s.title }}</div>
+                        <div class="hc-title">{{ s.title }}</div>
                     </div>
                     {% if s.is_open %}
-                    <span class="status-pill status-open">Aperto</span>
+                    <span class="status-pill status-open">Buste Aperte</span>
                     {% elif s.status == "resolved" %}
                     <span class="status-pill status-resolved">Spoglio Eseguito</span>
                     {% else %}
@@ -386,227 +425,244 @@
                     {% endif %}
                 </div>
 
-                <div class="mc-desc">
+                <div class="hc-desc">
                     {% if s.is_open %}
-                        {% if s.closes_at %}Chiusura offerte: <b>{{ s.closes_at|date:"d/m/Y H:i" }}</b>{% else %}Finestra aperta: consegna le tue buste segrete prima dello spoglio.{% endif %}
+                        {% if s.closes_at %}Chiusura offerte: <b>{{ s.closes_at|date:"d/m/Y H:i" }}</b>{% else %}Finestra aperta: consegna le tue offerte a busta chiusa.{% endif %}
                     {% elif s.status == "resolved" %}
-                        Spoglio completato: visualizza le assegnazioni e l'esito delle tue buste.
+                        Spoglio ufficiale eseguito: controlla le aggiudicazioni e le tue offerte.
                     {% else %}
-                        In attesa dello scrutinio da parte dell'amministratore.
+                        Consegna buste terminata. In attesa dello spoglio da parte della lega.
                     {% endif %}
                 </div>
 
-                <div class="mc-meta-chips">
+                <div class="hc-chips">
                     {% if s.bids_count > 0 %}
-                    <span class="mc-chip active-bids">✉ {{ s.bids_count }} tue buste ({{ s.bids_total }} FM)</span>
+                    <span class="hc-chip active-bids">✉ {{ s.bids_count }}{% if s.max_bids %}/{{ s.max_bids }}{% endif %} tue buste ({{ s.bids_total }} FM)</span>
                     {% else %}
-                    <span class="mc-chip">Nessuna busta inviata</span>
-                    {% endif %}
-
-                    {% if s.max_bids %}
-                    <span class="mc-chip">Max {{ s.max_bids }} offerte</span>
+                    <span class="hc-chip">{% if s.max_bids %}0/{{ s.max_bids }} buste{% else %}Nessuna busta consegnata{% endif %}</span>
                     {% endif %}
 
                     {% if s.require_same_role_release %}
-                    <span class="mc-chip">Taglio pari ruolo obbligatorio</span>
+                    <span class="hc-chip">Taglio pari ruolo obbligatorio</span>
                     {% elif s.allow_conditional_release %}
-                    <span class="mc-chip">Tagli condizionati abilitati</span>
+                    <span class="hc-chip">Tagli condizionati abilitati</span>
+                    {% endif %}
+
+                    {% if s.budget_rule == "total" %}
+                    <span class="hc-chip">Regola: Totale offerte ≤ budget</span>
                     {% endif %}
                 </div>
             </div>
 
-            <div class="mc-action">
-                {% if s.is_selected %}
-                <button type="button" class="mc-action-btn primary" onclick="switchMainView('workspace')">
-                    <span>{% if s.is_open %}Entra nel Mercato & Offri{% else %}Vedi Esiti & Buste{% endif %}</span>
+            <div>
+                {% if s.is_open %}
+                <a href="?session_id={{ s.id }}" class="mc-btn-primary">
+                    <span>Entra nella Sessione & Offri</span>
                     <span>→</span>
-                </button>
+                </a>
                 {% else %}
-                <a href="?session_id={{ s.id }}&view=workspace" class="mc-action-btn {% if s.is_open %}primary{% endif %}">
-                    <span>Seleziona questo Mercato</span>
+                <a href="?session_id={{ s.id }}" class="mc-btn-secondary">
+                    <span>Vedi Buste & Esiti</span>
                     <span>→</span>
                 </a>
                 {% endif %}
             </div>
         </div>
         {% empty %}
-        <div class="a-card" style="grid-column: 1 / -1; padding: 24px; text-align: center">
+        <div class="a-card" style="padding: 24px; text-align: center">
             <svg class="ic" style="width:36px;height:36px;margin:0 auto 10px;color:var(--muted)"><use href="#i-shield"/></svg>
             <div style="font-weight:900;font-size:16px;color:var(--ink);margin-bottom:4px">Nessuna sessione a buste attiva</div>
-            <div style="font-size:13px;color:var(--muted)">L'amministratore di lega aprirà le prossime finestre di riparazione non appena programmate.</div>
+            <div style="font-size:13px;color:var(--muted)">L'amministratore programmerà le prossime finestre di mercato. Puoi comunque consultare il Listone Svincolati e le quotazioni.</div>
+            {% if manages_app_league or is_app_admin %}
+            <div style="margin-top:14px">
+                <button type="button" class="mc-btn-primary" style="display:inline-flex;width:auto;padding:10px 18px" onclick="openMarketWizard()">
+                    <svg class="ic" style="width:14px;height:14px"><use href="#i-plus"/></svg>
+                    <span>Apri Nuovo Mercato (Wizard)</span>
+                </button>
+            </div>
+            {% endif %}
         </div>
         {% endfor %}
     </div>
 
-    <!-- Sezione: Altri Mercati (Scambi, Salary Cap) -->
+    <!-- Sezione: Scambi e Listone Svincolati -->
     <div class="hub-section-title">
-        <span>Altri Mercati & Trattative</span>
+        <span>Altre Opzioni di Mercato</span>
     </div>
 
-    <div class="markets-grid">
+    <div class="hub-grid">
         <!-- Card Scambi -->
         {% if trades_enabled %}
-        <div class="market-card">
+        <div class="hub-card">
             <div>
-                <div class="mc-header">
+                <div class="hc-top">
                     <div>
-                        <div class="mc-type"><svg class="ic" style="width:13px;height:13px"><use href="#i-swap"/></svg> Trattative Dirette</div>
-                        <div class="mc-title">Scambi tra Squadre</div>
+                        <div class="hc-badge-tag"><svg class="ic" style="width:13px;height:13px"><use href="#i-swap"/></svg> Trattative Dirette</div>
+                        <div class="hc-title">Scambi tra Squadre</div>
                     </div>
-                    <span class="status-pill status-open">Attivo</span>
-                </div>
-                <div class="mc-desc">
-                    Proponi scambi di calciatori e crediti alle altre squadre per rinforzare la tua rosa.
-                </div>
-                <div class="mc-meta-chips">
-                    {% if incoming_trades %}
-                    <span class="mc-chip active-bids" style="background:rgba(239,68,68,.2);color:#ef4444;border-color:rgba(239,68,68,.4)">
-                        {{ incoming_trades }} da valutare
+                    {% if incoming_trades > 0 %}
+                    <span class="status-pill status-open" style="background:rgba(245,158,11,0.2);color:#f59e0b;border-color:rgba(245,158,11,0.4)">
+                        🔔 {{ incoming_trades }} da valutare
                     </span>
-                    {% else %}
-                    <span class="mc-chip">Nessuna proposta in sospeso</span>
                     {% endif %}
                 </div>
+                <div class="hc-desc">
+                    Proponi scambi di calciatori e crediti con le altre rose della lega, o valuta le proposte che hai ricevuto.
+                </div>
             </div>
-            <div class="mc-action">
-                <a href="{% url 'app_scambi' %}" class="mc-action-btn">
-                    <span>Vai agli Scambi</span>
-                    <span>→</span>
-                </a>
-            </div>
+            <a href="{% url 'app_scambi' %}" class="mc-btn-secondary">
+                <span>Vai alla Sezione Scambi</span>
+                <span>→</span>
+            </a>
         </div>
         {% endif %}
 
-        <!-- Card Extra Salary Cap (se aperto) -->
-        {% if cap and cap.extra_open %}
-        <div class="market-card">
+        <!-- Card Listone Svincolati -->
+        <div class="hub-card">
             <div>
-                <div class="mc-header">
+                <div class="hc-top">
                     <div>
-                        <div class="mc-type"><svg class="ic" style="width:13px;height:13px"><use href="#i-award"/></svg> Finanze & Monte Ingaggi</div>
-                        <div class="mc-title">Extra salary cap</div>
+                        <div class="hc-badge-tag"><svg class="ic" style="width:13px;height:13px"><use href="#i-users"/></svg> Calciatori Liberi</div>
+                        <div class="hc-title">Listone Svincolati</div>
+                    </div>
+                    <span class="hc-chip" style="align-self:flex-start">{{ page.paginator.count }} liberi</span>
+                </div>
+                <div class="hc-desc">
+                    Consulta tutte le quotazioni ufficiali, statistiche, fantamedie e ruoli per preparare le tue future mosse di mercato.
+                </div>
+            </div>
+            <a href="?view=listone" class="mc-btn-secondary">
+                <span>Consulta Listone Svincolati</span>
+                <span>→</span>
+            </a>
+        </div>
+
+        <!-- Card Extra Salary Cap (se abilitato) -->
+        {% if cap and cap.extra_open %}
+        <div class="hub-card">
+            <div>
+                <div class="hc-top">
+                    <div>
+                        <div class="hc-badge-tag"><svg class="ic" style="width:13px;height:13px"><use href="#i-award"/></svg> Gestione Stipendi</div>
+                        <div class="hc-title">Extra Salary Cap</div>
                     </div>
                     <span class="status-pill status-open">Aperto</span>
                 </div>
-                <div class="mc-desc">
-                    <b>Tetto salariale</b>: converti il tuo budget residuo per ampliare il tetto consentito per gli stipendi.
-                    <br><small style="color:var(--muted)">{{ cap.extra_cost }} FM di budget → {{ cap.extra_gain }} FM di tetto.</small>
+                <div class="hc-desc">
+                    Converti budget residuo per ampliare il tetto consentito per gli stipendi della tua rosa.
                 </div>
-                <form method="post" action="{% url 'app_extra_cap' %}" onsubmit="return confirm('Convertire budget in tetto salariale? L\'operazione non si annulla.');" style="margin-top:10px">
-                    {% csrf_token %}
-                    <div style="display:flex;gap:8px;align-items:center">
-                        <select name="blocks" style="flex:1;padding:8px;font-size:12px;border-radius:8px;background:var(--panel-2);border:1px solid var(--line);color:var(--ink)">
-                            {% for n in "1234" %}<option value="{{ n }}">{{ n }}× (−{% widthratio cap.extra_cost 1 n %} FM, +{% widthratio cap.extra_gain 1 n %} Tetto)</option>{% endfor %}
-                        </select>
-                        <button type="submit" class="role-chip on" style="border:none;cursor:pointer;padding:8px 14px">Converti</button>
-                    </div>
-                </form>
             </div>
+            <a href="?session_id={{ market_session.id }}&tab=cap" class="mc-btn-secondary">
+                <span>Gestisci Extra Cap</span>
+                <span>→</span>
+            </a>
         </div>
         {% endif %}
     </div>
-
-    <!-- Consultazione Svincolati Rapida -->
-    {% if market_session %}
-    <div class="a-card" style="padding:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
-        <div>
-            <div style="font-weight:900;font-size:15px;color:var(--ink)">Listone Svincolati</div>
-            <div style="font-size:12.5px;color:var(--muted)">Esplora tutti i calciatori liberi, controlla le quotazioni e prepara le tue offerte.</div>
-        </div>
-        <button type="button" class="mc-action-btn primary" style="width:auto;padding:8px 16px" onclick="switchMainView('workspace'); switchWsTab('svincolati')">
-            <span>Sfoglia Svincolati ({{ page.paginator.count }})</span>
-            <span>→</span>
-        </button>
-    </div>
-    {% endif %}
 
 </div>
 
 
 <!-- =========================================================================
-     2. VISTA: WORKSPACE MERCATO SELEZIONATO ("vedo il mercato e agisco")
+     VISTA 2: WORKSPACE MERCATO SELEZIONATO ("Seleziono -> Vedo il Mercato & Agisco")
      ========================================================================= -->
-<div id="view-workspace" style="{% if initial_view == 'hub' %}display:none;{% endif %}">
+<div id="view-workspace" {% if initial_view == "hub" %}style="display:none;"{% endif %}>
 
-    {% if market_session %}
-    <!-- Top Bar Mercato Selezionato -->
-    <div class="workspace-top-bar">
-        <div class="ws-nav-left">
-            <button type="button" class="ws-back-btn" onclick="switchMainView('hub')">
-                <span>‹</span>
-                <span>Tutti i Mercati</span>
-            </button>
-            <div>
-                <div class="ws-title">{{ market_session.title }}</div>
-                <div style="display:flex;align-items:center;gap:6px;margin-top:2px">
-                    {% if market_open %}
-                    <span class="status-pill status-open" style="font-size:10px;padding:2px 8px">Buste Aperte</span>
-                    {% elif market_session.status == "resolved" %}
-                    <span class="status-pill status-resolved" style="font-size:10px;padding:2px 8px">Spoglio eseguito</span>
-                    {% else %}
-                    <span class="status-pill status-closed" style="font-size:10px;padding:2px 8px">Consegna chiusa</span>
-                    {% endif %}
-                    {% if market_session.closes_at %}
-                    <span style="font-size:11px;color:var(--muted)">· Chiusura: <b>{{ market_session.closes_at|date:"d/m/Y H:i" }}</b></span>
-                    {% endif %}
-                </div>
+    <!-- Workspace Top Bar con Tasto Indietro a Tutti i Mercati -->
+    <div class="ws-top-bar">
+        <a href="{% url 'app_mercato' %}" class="ws-back-btn">
+            <svg class="ic" style="width:15px;height:15px"><use href="#i-arrow-left"/></svg>
+            <span>Tutti i Mercati</span>
+        </a>
+
+        <div class="ws-title-wrap" style="flex:1;min-width:0">
+            {% if is_listone_view and not requested_session_id %}
+            <h2>Listone Svincolati</h2>
+            <div class="sub">Tutti i calciatori liberi e quotazioni di lega</div>
+            {% elif market_session %}
+            <h2>{{ market_session.title }}</h2>
+            <div class="sub">
+                {% if market_open %}
+                <span class="status-pill status-open" style="font-size:10px;padding:2px 7px">Buste Aperte</span>
+                {% if market_session.closes_at %}<span>Chiusura: <b>{{ market_session.closes_at|date:"d/m H:i" }}</b></span>{% endif %}
+                {% elif market_session.status == "resolved" %}
+                <span class="status-pill status-resolved" style="font-size:10px;padding:2px 7px">Spoglio Eseguito</span>
+                {% else %}
+                <span class="status-pill status-closed" style="font-size:10px;padding:2px 7px">Consegna Chiusa</span>
+                {% endif %}
             </div>
-        </div>
-
-        <div class="ws-stats">
-            <span>Budget: <b style="color:var(--accent)">{{ participant.remaining_credits|floatformat:0 }} FM</b></span>
-            <span>·</span>
-            <span>Buste inviate: <b>{{ my_bids|length }}{% if market_session.max_bids %}/{{ market_session.max_bids }}{% endif %}</b></span>
-            {% if my_bids_total %}
-            <span>·</span>
-            <span>Totale offerto: <b>{{ my_bids_total }} FM</b></span>
+            {% else %}
+            <h2>Mercato</h2>
             {% endif %}
         </div>
+
+        {% if sessions_list|length > 1 and not is_listone_view %}
+        <div style="flex-shrink:0">
+            <select onchange="location.href='?session_id='+this.value" style="background:var(--panel-3, rgba(255,255,255,.08));border:1px solid var(--line);color:var(--ink);padding:6px 10px;border-radius:10px;font-size:12px;font-weight:700" aria-label="Cambia sessione di mercato">
+                {% for s in sessions_list %}
+                <option value="{{ s.id }}" {% if market_session and s.id == market_session.id %}selected{% endif %}>
+                    {{ s.title }} ({{ s.status_display }})
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
     </div>
 
-    <!-- Schede di navigazione interna al mercato -->
-    <div class="ws-tabs">
-        <button type="button" class="ws-tab-btn active" id="ws-btn-svincolati" onclick="switchWsTab('svincolati')">
-            <span>Svincolati & Offerte</span>
-        </button>
-        <button type="button" class="ws-tab-btn" id="ws-btn-buste" onclick="switchWsTab('buste')">
-            <span>Le mie Buste</span>
-            <span class="tab-count" id="tab-bids-badge">{{ my_bids|length }}</span>
-        </button>
-        <button type="button" class="ws-tab-btn" id="ws-btn-regole" onclick="switchWsTab('regole')">
-            <span>Regolamento Sessione</span>
-        </button>
-    </div>
-    {% else %}
-    <!-- Top Bar Consultazione Svincolati (quando non c'è una sessione a buste) -->
-    <div class="workspace-top-bar">
-        <div class="ws-nav-left">
-            <button type="button" class="ws-back-btn" onclick="switchMainView('hub')">
-                <span>‹</span>
-                <span>Tutti i Mercati</span>
-            </button>
-            <div>
-                <div class="ws-title">Listone Svincolati</div>
-                <div style="font-size:11px;color:var(--muted)">Consultazione calciatori liberi e quotazioni</div>
+    <!-- Active Session Hero Stats -->
+    {% if market_session and not is_listone_view %}
+    <div class="session-hero-card">
+        <div class="shc-stats">
+            <div class="shc-stat">
+                <div class="v" style="color:var(--accent)">{{ participant.remaining_credits|floatformat:0 }} <small style="font-size:10px">FM</small></div>
+                <div class="k">Budget Libero</div>
             </div>
-        </div>
-        <div class="ws-stats">
-            <span>Budget disponibile: <b style="color:var(--accent)">{{ participant.remaining_credits|floatformat:0 }} FM</b></span>
+            <div class="shc-stat">
+                <div class="v">{{ my_bids|length }}{% if market_session.max_bids %}/{{ market_session.max_bids }}{% endif %}</div>
+                <div class="k">Buste Inviate</div>
+            </div>
+            <div class="shc-stat">
+                <div class="v">{{ my_bids_total }} <small style="font-size:10px">FM</small></div>
+                <div class="k">Totale Offerto</div>
+            </div>
         </div>
     </div>
     {% endif %}
 
-    <!-- ---------------------------------------------------------------------
-         TAB 1: SVINCOLATI & RICERCA (Sempre consultabile!)
-         --------------------------------------------------------------------- -->
-    <div id="ws-pane-svincolati">
+    <!-- Segmented Navigation dentro il Workspace -->
+    <div class="a-seg" data-asec-default="svincolati" style="margin-bottom:14px;">
+        <button type="button" data-asec-go="svincolati" class="on">
+            Svincolati & Offerte
+        </button>
+        {% if market_session %}
+        <button type="button" data-asec-go="buste">
+            Le mie Buste {% if my_bids %}<span class="n">{{ my_bids|length }}</span>{% endif %}
+        </button>
+        <button type="button" data-asec-go="regole">
+            Regolamento
+        </button>
+        {% endif %}
+        {% if cap and cap.extra_open %}
+        <button type="button" data-asec-go="cap">
+            Extra Cap
+        </button>
+        {% endif %}
+    </div>
+
+    <!-- =====================================================================
+         TAB 1: SVINCOLATI & RICERCA
+         ===================================================================== -->
+    <div data-asec="svincolati">
         <!-- Filtri ricerca svincolati -->
         <form method="get" class="market-filters" id="fa-filters">
-            {% if market_session %}<input type="hidden" name="session_id" value="{{ market_session.id }}">{% endif %}
-            <input type="hidden" name="view" value="workspace">
+            {% if market_session and not is_listone_view %}<input type="hidden" name="session_id" value="{{ market_session.id }}">{% endif %}
+            {% if is_listone_view %}<input type="hidden" name="view" value="listone">{% endif %}
             <div class="search-row">
                 <input type="search" name="q" value="{{ q }}" placeholder="Cerca calciatore o squadra..." class="search-input" aria-label="Cerca calciatore o squadra">
                 <button type="submit" class="role-chip on" style="cursor:pointer;border:none;padding:0 18px;font-size:13px">Cerca</button>
+                {% if q %}
+                <a href="?{% if market_session %}session_id={{ market_session.id }}{% elif is_listone_view %}view=listone{% endif %}" class="role-chip" style="cursor:pointer;text-decoration:none;padding:0 12px;font-size:12px;background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.3);display:inline-flex;align-items:center;line-height:1;" title="Azzera ricerca">✕ Resetta</a>
+                {% endif %}
             </div>
             <div class="role-chips" role="radiogroup" aria-label="Ruolo">
                 {% for code, label in role_filters %}
@@ -633,12 +689,12 @@
         <div class="a-card fa-card">
             <div class="a-label">
                 <svg class="ic"><use href="#i-users"/></svg>
-                Calciatori Svincolati ({{ page.paginator.count }}){% if page.paginator.num_pages > 1 %} · pagina {{ page.number }}/{{ page.paginator.num_pages }}{% endif %}
+                Calciatori Svincolati ({{ page.paginator.count }}){% if page.paginator.num_pages > 1 %} · Pagina {{ page.number }}/{{ page.paginator.num_pages }}{% endif %}
             </div>
             <div class="fa-list">
             {% for pl in free_agents %}
             <div class="free-agent-row">
-                <div class="fa-main">
+                <div class="fa-main" onclick="openPlayerModal('{{ pl.name|escapejs }}', '{{ pl.role }}', '{{ pl.team|escapejs }}', '{{ pl.fanta_avg|floatformat:2|default:'' }}', '{{ pl.goals|default:0 }}', '{{ pl.assists|default:0 }}', '{{ pl.quota|floatformat:0 }}')">
                     <span class="role-badge role-{{ pl.role }}">{{ pl.role }}</span>
                     <div class="fa-meta">
                         <span class="fa-name">{% if pl.watched %}<span title="Nei tuoi obiettivi">🎯 </span>{% endif %}{{ pl.name }}</span>
@@ -647,7 +703,7 @@
                             {% if is_mantra and pl.roles_display %} · <span style="color:var(--accent)">{{ pl.roles_display }}</span>{% endif %}
                             {% if pl.fanta_avg %} · Fm: <b>{{ pl.fanta_avg|floatformat:2 }}</b>{% endif %}
                             {% if market_open and pl.id in my_bid_player_ids %}
-                            <br><span style="color:var(--accent);font-weight:800">✉ Busta inviata</span>
+                            · <span style="color:var(--accent);font-weight:800">✉ Busta inviata</span>
                             {% endif %}
                         </span>
                     </div>
@@ -678,21 +734,21 @@
         {% if page.has_other_pages %}
         <nav class="search-row" style="justify-content:space-between;align-items:center;margin:8px 0 16px" aria-label="Pagine svincolati">
             {% if page.has_previous %}
-            <a class="role-chip" href="?{{ base_query }}&page={{ page.previous_page_number }}&view=workspace">‹ Precedenti</a>
+            <a class="role-chip" href="?{{ base_query }}&page={{ page.previous_page_number }}">‹ Precedenti</a>
             {% else %}<span></span>{% endif %}
             <span style="font-size:12px;color:var(--muted);font-weight:700">{{ page.number }} / {{ page.paginator.num_pages }}</span>
             {% if page.has_next %}
-            <a class="role-chip" href="?{{ base_query }}&page={{ page.next_page_number }}&view=workspace">Successivi ›</a>
+            <a class="role-chip" href="?{{ base_query }}&page={{ page.next_page_number }}">Successivi ›</a>
             {% else %}<span></span>{% endif %}
         </nav>
         {% endif %}
     </div>
 
-    {% if market_session %}
-    <!-- ---------------------------------------------------------------------
+    <!-- =====================================================================
          TAB 2: LE MIE BUSTE CONSEGNATE
-         --------------------------------------------------------------------- -->
-    <div id="ws-pane-buste" style="display:none">
+         ===================================================================== -->
+    {% if market_session %}
+    <div data-asec="buste">
         <div class="a-card bids-card" id="my-bids-card">
             <div class="a-label">
                 <svg class="ic"><use href="#i-shield"/></svg>
@@ -749,33 +805,68 @@
         </div>
     </div>
 
-    <!-- ---------------------------------------------------------------------
+    <!-- =====================================================================
          TAB 3: REGOLAMENTO & ESITI SPOGLIO
-         --------------------------------------------------------------------- -->
-    <div id="ws-pane-regole" style="display:none">
+         ===================================================================== -->
+    <div data-asec="regole">
         <div class="a-card" style="padding:16px;margin-bottom:14px">
-            <div style="font-family:var(--display);font-weight:900;font-size:16px;color:var(--ink);margin-bottom:10px">Regole di questa Sessione</div>
-            <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(240px, 1fr));gap:12px;font-size:13px">
-                <div style="background:rgba(255,255,255,.04);padding:10px 12px;border-radius:10px">
-                    <span style="color:var(--muted);display:block;font-size:11px;font-weight:700">REGOLA BUDGET</span>
-                    <b>{% if market_session.budget_rule == "total" %}Totale offerte ≤ budget{% else %}Ogni offerta ≤ budget, conta priorità{% endif %}</b>
+            <div class="a-label" style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;">
+                <span><svg class="ic"><use href="#i-gavel"/></svg> Regole della Sessione</span>
+                <span class="status-pill" style="font-size:11px;font-weight:800;color:var(--accent);">{{ market_session.get_session_type_display }}</span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(220px, 1fr));gap:10px;font-size:13px">
+                <div style="background:var(--panel-2);padding:10px 12px;border-radius:10px;border:1px solid var(--line);">
+                    <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Tipologia Mercato</span>
+                    <b style="font-size:13.5px;color:var(--accent)">{{ market_session.get_session_type_display }}</b>
                 </div>
-                <div style="background:rgba(255,255,255,.04);padding:10px 12px;border-radius:10px">
-                    <span style="color:var(--muted);display:block;font-size:11px;font-weight:700">SPAREGGIO PARI MERITO</span>
-                    <b>{% if market_session.tie_break == "first" %}Vince chi offre per primo{% else %}Decide l'amministratore / sorteggio{% endif %}</b>
+                {% if market_session.session_type == "FREE_AGENCY" %}
+                <div style="background:var(--panel-2);padding:10px 12px;border-radius:10px;border:1px solid var(--line);">
+                    <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Limite Cambi Settimanali</span>
+                    <b style="font-size:13.5px">{% if market_session.config.fa_max_moves %}{{ market_session.config.fa_max_moves }} a settimana{% else %}Illimitati{% endif %}</b>
                 </div>
-                <div style="background:rgba(255,255,255,.04);padding:10px 12px;border-radius:10px">
-                    <span style="color:var(--muted);display:block;font-size:11px;font-weight:700">SOSTITUZIONE ROSA</span>
-                    <b>{% if market_session.require_same_role_release %}Obbligatoria con pari ruolo{% elif market_session.allow_conditional_release %}Taglio condizionato facoltativo{% else %}Nessun taglio consentito{% endif %}</b>
+                <div style="background:var(--panel-2);padding:10px 12px;border-radius:10px;border:1px solid var(--line);">
+                    <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Costo Tesseramento</span>
+                    <b style="font-size:13.5px">{% if market_session.config.fa_cost_type == "base" %}Prezzo base (1 Credito){% else %}Quotazione attuale Listone{% endif %}</b>
                 </div>
-                <div style="background:rgba(255,255,255,.04);padding:10px 12px;border-radius:10px">
-                    <span style="color:var(--muted);display:block;font-size:11px;font-weight:700">RIMBORSO SVINCOLI</span>
-                    <b>{{ market_session.get_release_refund_mode_display }}</b>
+                {% elif market_session.session_type == "WAIVER_WIRE" %}
+                <div style="background:var(--panel-2);padding:10px 12px;border-radius:10px;border:1px solid var(--line);">
+                    <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Ordine di Priorità</span>
+                    <b style="font-size:13.5px">{% if market_session.config.waiver_order_type == "rolling" %}Rotazione continua{% else %}Inverso di classifica{% endif %}</b>
+                </div>
+                <div style="background:var(--panel-2);padding:10px 12px;border-radius:10px;border:1px solid var(--line);">
+                    <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Finestra Reclami</span>
+                    <b style="font-size:13.5px">{{ market_session.config.waiver_claim_hours|default:24 }} ore</b>
+                </div>
+                {% elif market_session.session_type == "BUYOUT_CLAUSE" %}
+                <div style="background:var(--panel-2);padding:10px 12px;border-radius:10px;border:1px solid var(--line);">
+                    <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Moltiplicatore Clausola</span>
+                    <b style="font-size:13.5px">{{ market_session.config.buyout_multiplier|default:1.5 }}x costo originale</b>
+                </div>
+                <div style="background:var(--panel-2);padding:10px 12px;border-radius:10px;border:1px solid var(--line);">
+                    <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Protezione Post-Acquisto</span>
+                    <b style="font-size:13.5px">{{ market_session.config.buyout_min_hold_days|default:7 }} giorni</b>
+                </div>
+                {% endif %}
+                <div style="background:var(--panel-2);padding:10px 12px;border-radius:10px;border:1px solid var(--line);">
+                    <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Regola Budget</span>
+                    <b style="font-size:13.5px">{% if market_session.budget_rule == "total" %}Totale offerte ≤ budget{% else %}Ogni offerta ≤ budget, conta priorità{% endif %}</b>
+                </div>
+                <div style="background:var(--panel-2);padding:10px 12px;border-radius:10px;border:1px solid var(--line);">
+                    <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Spareggio Pari Merito</span>
+                    <b style="font-size:13.5px">{% if market_session.tie_break == "first" %}Vince chi offre per primo{% else %}Decide l'amministratore / sorteggio{% endif %}</b>
+                </div>
+                <div style="background:var(--panel-2);padding:10px 12px;border-radius:10px;border:1px solid var(--line);">
+                    <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Sostituzione Rosa</span>
+                    <b style="font-size:13.5px">{% if market_session.require_same_role_release %}Obbligatoria con pari ruolo{% elif market_session.allow_conditional_release %}Taglio condizionato facoltativo{% else %}Nessun taglio consentito{% endif %}</b>
+                </div>
+                <div style="background:var(--panel-2);padding:10px 12px;border-radius:10px;border:1px solid var(--line);">
+                    <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Rimborso Svincoli</span>
+                    <b style="font-size:13.5px">{{ market_session.get_release_refund_mode_display }}</b>
                 </div>
                 {% if market_session.max_bids %}
-                <div style="background:rgba(255,255,255,.04);padding:10px 12px;border-radius:10px">
-                    <span style="color:var(--muted);display:block;font-size:11px;font-weight:700">OFFERTE MASSIME</span>
-                    <b>{{ market_session.max_bids }} buste per squadra</b>
+                <div style="background:var(--panel-2);padding:10px 12px;border-radius:10px;border:1px solid var(--line);">
+                    <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Offerte Massime</span>
+                    <b style="font-size:13.5px">{{ market_session.max_bids }} buste per squadra</b>
                 </div>
                 {% endif %}
             </div>
@@ -783,7 +874,7 @@
 
         {% if market_session.status == "resolved" and market_session.results_summary %}
         <div class="a-card" style="padding:16px">
-            <div style="font-family:var(--display);font-weight:900;font-size:16px;color:var(--ink);margin-bottom:10px">Esiti dello Spoglio Ufficiale</div>
+            <div class="a-label"><svg class="ic"><use href="#i-trophy"/></svg> Esiti dello Spoglio Ufficiale</div>
             <div style="font-size:13px;color:var(--muted);line-height:1.5">
                 Spoglio eseguito regolarmente dall'amministrazione. Controlla lo stato delle tue buste nella scheda "Le mie Buste".
             </div>
@@ -792,11 +883,366 @@
     </div>
     {% endif %}
 
+    <!-- =====================================================================
+         TAB 4: EXTRA SALARY CAP (Se abilitato)
+         ===================================================================== -->
+    {% if cap and cap.extra_open %}
+    <div data-asec="cap">
+        <div class="a-card" style="padding:16px;">
+            <div class="a-label"><svg class="ic"><use href="#i-award"/></svg> Extra salary cap</div>
+            <div style="font-size:13px;color:var(--muted);line-height:1.4;margin-bottom:14px">
+                Converti il tuo budget residuo per ampliare il tetto consentito per gli stipendi della tua rosa.
+                <br><b style="color:var(--ink)">{{ cap.extra_cost }} FM di budget → {{ cap.extra_gain }} FM di tetto salariale.</b>
+            </div>
+            <form method="post" action="{% url 'app_extra_cap' %}" onsubmit="return confirm('Convertire budget in tetto salariale? L\'operazione non si annulla.');">
+                {% csrf_token %}
+                <div style="display:flex;gap:8px;align-items:center;max-width:400px">
+                    <select name="blocks" style="flex:1;padding:10px 12px;font-size:13px;border-radius:10px;background:var(--panel-2);border:1px solid var(--line);color:var(--ink)">
+                        {% for n in "1234" %}<option value="{{ n }}">{{ n }}× (−{% widthratio cap.extra_cost 1 n %} FM, +{% widthratio cap.extra_gain 1 n %} Tetto)</option>{% endfor %}
+                    </select>
+                    <button type="submit" class="role-chip on" style="border:none;cursor:pointer;padding:10px 18px;font-size:13px">Converti</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
 </div>
 
 
 <!-- =========================================================================
-     3. MODAL: INVIA / MODIFICA BUSTA
+     MODAL WIZARD: NUOVO MERCATO (Dedicato alla singola lega: {{ app_league.name }})
+     ========================================================================= -->
+{% if manages_app_league or is_app_admin %}
+<div class="wizard-overlay" id="market-wizard-modal" onclick="if(event.target===this) closeMarketWizard()">
+    <div class="wizard-sheet">
+        <div class="wz-header">
+            <div>
+                <h3 class="wz-title">Nuovo Mercato</h3>
+                <span class="wz-league-badge">{{ app_league.name }}</span>
+            </div>
+            <button type="button" class="wz-close" onclick="closeMarketWizard()" aria-label="Chiudi">&times;</button>
+        </div>
+
+        <!-- Indicatori di progresso a 4 step -->
+        <div class="wz-steps-bar">
+            <div class="wz-step-pill active" id="wz-pill-1"></div>
+            <div class="wz-step-pill" id="wz-pill-2"></div>
+            <div class="wz-step-pill" id="wz-pill-3"></div>
+            <div class="wz-step-pill" id="wz-pill-4"></div>
+        </div>
+
+        <form id="market-wizard-form" method="post" action="{% url 'admin_market_create' %}">
+            {% csrf_token %}
+            <input type="hidden" name="league_id" value="{{ app_league.id }}">
+            <input type="hidden" name="from" value="app">
+
+            <!-- STEP 1: Tipo di Mercato e Nome -->
+            <div class="wz-step-panel active" id="wz-step-1">
+                <p style="font-size:12.5px;color:var(--muted);margin:0 0 14px">
+                    Configura una nuova finestra di mercato per <b>{{ app_league.name }}</b>. Scegli la tipologia desiderata:
+                </p>
+
+                <div class="wz-option-cards">
+                    <!-- 1. Buste Segrete -->
+                    <label class="wz-opt-card selected" id="opt-kind-buste" onclick="selectMarketKind('buste')">
+                        <input type="radio" name="market_kind" value="buste" checked>
+                        <div class="wz-opt-text" style="flex:1">
+                            <h4>✉️ Mercato a Buste Segrete</h4>
+                            <p>I partecipanti consegnano offerte segrete sugli svincolati prima della scadenza. Spoglio trasparente a data stabilita.</p>
+                            <div class="wz-kind-info">
+                                <b>ℹ️ Informativa:</b> Ogni squadra invia le proprie offerte senza svelare crediti né obiettivi agli avversari. Alla scadenza, le buste vengono aperte simultaneamente e il miglior offerente acquista il calciatore, con eventuale svincolo contestuale per fare spazio in rosa.
+                            </div>
+                        </div>
+                    </label>
+
+                    <!-- 2. Free Agency -->
+                    <label class="wz-opt-card" id="opt-kind-free_agency" onclick="selectMarketKind('free_agency')">
+                        <input type="radio" name="market_kind" value="free_agency">
+                        <div class="wz-opt-text" style="flex:1">
+                            <h4>⚡ Mercato Libero Continuo (Free Agency)</h4>
+                            <p>Acquisto istantaneo direttamente dal listone svincolati al prezzo di quotazione (chi primo arriva compra).</p>
+                            <div class="wz-kind-info">
+                                <b>ℹ️ Informativa:</b> Dinamica 24/7 stile NBA / Fantacalcio.it: non serve attendere finestre di chiusura. Se un titolare si infortuna o vuoi cogliere un'occasione all'istante, il primo manager che acquista tessere il calciatore al costo della sua quotazione attuale.
+                            </div>
+                        </div>
+                    </label>
+
+                    <!-- 3. Waiver Wire a Turni -->
+                    <label class="wz-opt-card" id="opt-kind-waiver_wire" onclick="selectMarketKind('waiver_wire')">
+                        <input type="radio" name="market_kind" value="waiver_wire">
+                        <div class="wz-opt-text" style="flex:1">
+                            <h4>📋 Draft di Riparazione (Waiver Wire a Turni)</h4>
+                            <p>Reclami a turni periodici: le squadre con classifica peggiore (o a rotazione) hanno priorità assoluta di scelta.</p>
+                            <div class="wz-kind-info">
+                                <b>ℹ️ Informativa:</b> Massima equità competitiva: i manager inseriscono una lista di priorità sui calciatori svincolati. Il sistema assegna le scelte partendo dall'ultima squadra in classifica o secondo rotazione continua, impedendo il monopolio delle squadre di vertice.
+                            </div>
+                        </div>
+                    </label>
+
+                    <!-- 4. Clausole Rescisorie -->
+                    <label class="wz-opt-card" id="opt-kind-buyout_clause" onclick="selectMarketKind('buyout_clause')">
+                        <input type="radio" name="market_kind" value="buyout_clause">
+                        <div class="wz-opt-text" style="flex:1">
+                            <h4>💰 Mercato con Clausole Rescisorie</h4>
+                            <p>Possibilità di pagare la clausola per scippare un giocatore tesserato da un'altra squadra della lega.</p>
+                            <div class="wz-kind-info">
+                                <b>ℹ️ Informativa:</b> Calciomercato d'assalto in stile Liga Spagnola: ogni calciatore ha una clausola di rescissione (es. 1.5x o 2.0x del prezzo d'asta). Pagando l'intera cifra, il giocatore si trasferisce subito e la squadra venditrice riceve l'indennizzo in crediti per reinvestire.
+                            </div>
+                        </div>
+                    </label>
+
+                    <!-- 5. Asta Live -->
+                    <label class="wz-opt-card" id="opt-kind-live" onclick="selectMarketKind('live')">
+                        <input type="radio" name="market_kind" value="live">
+                        <div class="wz-opt-text" style="flex:1">
+                            <h4>🔨 Asta Live di Riparazione</h4>
+                            <p>Asta dal vivo in sala (chiama e rilancia in tempo reale) con crediti residui per completare le rose.</p>
+                            <div class="wz-kind-info">
+                                <b>ℹ️ Informativa:</b> L'adrenalina dell'asta sincrona con chiamata del giocatore, cronometro a scalare e rilanci istantanei. Ideale per le sessioni collettive di settembre e gennaio.
+                            </div>
+                        </div>
+                    </label>
+                </div>
+
+                <div class="form-group" id="wz-buste-title-group">
+                    <label for="wz-title-input">Titolo della Sessione</label>
+                    <input type="text" id="wz-title-input" name="title" value="Mercato di Riparazione a Buste" required class="search-input" placeholder="Es. Mercato di Riparazione, Buste 1ª Giornata...">
+                </div>
+
+                <div class="wz-nav-btns">
+                    <button type="button" class="btn-cancel" onclick="closeMarketWizard()">Annulla</button>
+                    <button type="button" class="mc-btn-primary" id="wz-btn-step1-next" onclick="wizardNextStep(1)">Continua &rarr;</button>
+                </div>
+            </div>
+
+            <!-- STEP 2: Date & Tempistiche (Buste) -->
+            <div class="wz-step-panel" id="wz-step-2">
+                <p style="font-size:12.5px;color:var(--muted);margin:0 0 14px">
+                    Imposta quando aprire e chiudere la consegna delle offerte per <b>{{ app_league.name }}</b>:
+                </p>
+
+                <div class="wz-field-box">
+                    <label>Apertura Consegna Buste</label>
+                    <div style="display:flex;flex-direction:column;gap:8px">
+                        <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--ink);cursor:pointer">
+                            <input type="radio" name="open_timing" value="now" checked onchange="toggleTimingInputs()">
+                            Apri subito alla creazione
+                        </label>
+                        <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--ink);cursor:pointer">
+                            <input type="radio" name="open_timing" value="later" onchange="toggleTimingInputs()">
+                            Programma apertura automatica nel futuro
+                        </label>
+                    </div>
+                    <div id="wz-opens-at-wrap" style="display:none;margin-top:10px">
+                        <input type="datetime-local" name="opens_at" id="wz-opens-at" class="search-input">
+                        <small style="color:var(--muted);font-size:11px;display:block;margin-top:4px">La sessione resterà programmata e si aprirà da sola all'orario indicato.</small>
+                    </div>
+                </div>
+
+                <div class="wz-field-box">
+                    <label for="wz-closes-at">Chiusura Consegna Buste (Consigliata)</label>
+                    <input type="datetime-local" name="closes_at" id="wz-closes-at" class="search-input">
+                    <small style="color:var(--muted);font-size:11px;display:block;margin-top:4px">
+                        Allo scadere di questo orario, la consegna delle buste viene bloccata e la sessione è pronta per lo spoglio ufficiale.
+                    </small>
+                </div>
+
+                <div class="wz-nav-btns">
+                    <button type="button" class="btn-cancel" onclick="wizardPrevStep(2)">&larr; Indietro</button>
+                    <button type="button" class="mc-btn-primary" onclick="wizardNextStep(2)">Regole &rarr;</button>
+                </div>
+            </div>
+
+            <!-- STEP 3: Regolamento Sessione -->
+            <div class="wz-step-panel" id="wz-step-3">
+                <p style="font-size:12.5px;color:var(--muted);margin:0 0 14px">
+                    Definisci i criteri di spesa e aggiudicazione per questa sessione:
+                </p>
+
+                <!-- Regole specifiche: Buste Segrete -->
+                <div id="wz-buste-rules">
+                    <div class="wz-field-box">
+                        <label>Regola di Spesa Budget</label>
+                        <div style="display:flex;flex-direction:column;gap:8px">
+                            <label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;font-weight:700;color:var(--ink);cursor:pointer">
+                                <input type="radio" name="budget_rule" value="priority" checked style="margin-top:3px">
+                                <div>
+                                    Ordine di preferenza (Consigliata)
+                                    <span style="display:block;font-size:11.5px;font-weight:500;color:var(--muted)">Ogni offerta deve rientrare nel budget; allo spoglio vale l'ordine di priorità assegnato.</span>
+                                </div>
+                            </label>
+                            <label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;font-weight:700;color:var(--ink);cursor:pointer">
+                                <input type="radio" name="budget_rule" value="total" style="margin-top:3px">
+                                <div>
+                                    Totale cumulativo
+                                    <span style="display:block;font-size:11.5px;font-weight:500;color:var(--muted)">Il totale delle offerte non può superare il budget; le offerte più alte in eccesso si annullano.</span>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="wz-field-box">
+                        <label>Spareggio in caso di Offerte Identiche</label>
+                        <select name="tie_break" class="search-input" style="font-size:13px">
+                            <option value="first">Vince chi ha inserito l'offerta per primo (Cronologico)</option>
+                            <option value="manual">Decide l'amministratore (scelta o sorteggio)</option>
+                        </select>
+                    </div>
+
+                    <div class="wz-field-box">
+                        <label for="wz-max-bids">Offerte Massime per Squadra</label>
+                        <input type="number" id="wz-max-bids" name="max_bids" value="0" min="0" class="search-input" placeholder="0 = nessun limite">
+                        <small style="color:var(--muted);font-size:11px;display:block;margin-top:4px">Imposta 0 se le squadre possono fare quante offerte desiderano.</small>
+                    </div>
+                </div>
+
+                <!-- Regole specifiche: Free Agency -->
+                <div id="wz-fa-rules" style="display:none;">
+                    <div class="wz-field-box">
+                        <label for="wz-fa-max-moves">Limite Movimenti Settimanali per Squadra</label>
+                        <select name="fa_max_moves" id="wz-fa-max-moves" class="search-input">
+                            <option value="1">Massimo 1 acquisto a settimana</option>
+                            <option value="2">Massimo 2 acquisti a settimana</option>
+                            <option value="3" selected>Massimo 3 acquisti a settimana (Consigliato)</option>
+                            <option value="5">Massimo 5 acquisti a settimana</option>
+                            <option value="0">Illimitati (Nessun limite di cambi)</option>
+                        </select>
+                        <small style="color:var(--muted);font-size:11px;display:block;margin-top:4px">Fissa un tetto per evitare rivoluzioni continue delle rose durante la stagione.</small>
+                    </div>
+                    <div class="wz-field-box">
+                        <label>Costo di Acquisto del Giocatore</label>
+                        <select name="fa_cost_type" class="search-input">
+                            <option value="quotation" selected>Quotazione attuale del Listone</option>
+                            <option value="base">Prezzo base simbolico (1 Credito)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Regole specifiche: Waiver Wire -->
+                <div id="wz-waiver-rules" style="display:none;">
+                    <div class="wz-field-box">
+                        <label>Criterio di Priorità Chiamate</label>
+                        <select name="waiver_order_type" class="search-input">
+                            <option value="inverse_standing" selected>Inverso di Classifica (L'ultima squadra sceglie per prima)</option>
+                            <option value="rolling">Rotazione Continua (Chi sceglie scala all'ultimo posto)</option>
+                        </select>
+                        <small style="color:var(--muted);font-size:11px;display:block;margin-top:4px">Favorisce il riequilibrio competitivo della lega.</small>
+                    </div>
+                    <div class="wz-field-box">
+                        <label>Durata Finestra Reclami (Claim Window)</label>
+                        <select name="waiver_claim_hours" class="search-input">
+                            <option value="24" selected>24 ore (1 giorno lavorativo)</option>
+                            <option value="48">48 ore (2 giorni)</option>
+                            <option value="72">72 ore (3 giorni)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Regole specifiche: Clausole Rescisorie -->
+                <div id="wz-clause-rules" style="display:none;">
+                    <div class="wz-field-box">
+                        <label>Moltiplicatore Valore Clausola Rescissoria</label>
+                        <select name="buyout_multiplier" class="search-input">
+                            <option value="1.2">1.2x del costo d'acquisto (+20% indennizzo)</option>
+                            <option value="1.5" selected>1.5x del costo d'acquisto (+50% indennizzo)</option>
+                            <option value="2.0">2.0x del costo d'acquisto (Doppio del valore d'asta)</option>
+                            <option value="2.5">2.5x del costo d'acquisto</option>
+                        </select>
+                        <small style="color:var(--muted);font-size:11px;display:block;margin-top:4px">La squadra cedente incassa l'intero importo pagato dal manager acquirente.</small>
+                    </div>
+                    <div class="wz-field-box">
+                        <label>Giorni Minimi di Protezione Post-Acquisto</label>
+                        <select name="buyout_min_hold_days" class="search-input">
+                            <option value="7" selected>7 giorni di protezione (Nessuno scippo immediato)</option>
+                            <option value="14">14 giorni di protezione (2 settimane)</option>
+                            <option value="0">Nessuna protezione (Clausola sempre azionabile)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Regole comuni: Svincoli e rimborsi -->
+                <div class="wz-field-box">
+                    <label>Svincoli e Tagli Rosa</label>
+                    <div style="display:flex;flex-direction:column;gap:10px">
+                        <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;color:var(--ink);cursor:pointer">
+                            <input type="checkbox" name="require_same_role_release" value="1" id="wz-req-role">
+                            Obbligo sostituzione pari ruolo (ogni acquisto richiede un taglio)
+                        </label>
+                        <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;color:var(--ink);cursor:pointer">
+                            <input type="checkbox" name="allow_conditional_release" value="1" checked id="wz-cond-rel">
+                            Consenti tagli condizionati facoltativi
+                        </label>
+                        <div style="margin-top:4px">
+                            <label style="font-size:11.5px;color:var(--muted)">Rimborso per i calciatori svincolati</label>
+                            <select name="refund_mode" class="search-input" style="font-size:13px">
+                                <option value="purchase">Costo di acquisto originale</option>
+                                <option value="current">Quotazione attuale dal listone</option>
+                                <option value="none">Nessun rimborso (0 FM)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="wz-nav-btns">
+                    <button type="button" class="btn-cancel" onclick="wizardPrevStep(3)">&larr; Indietro</button>
+                    <button type="button" class="mc-btn-primary" onclick="wizardNextStep(3)">Riepilogo &rarr;</button>
+                </div>
+            </div>
+
+            <!-- STEP 4: Notifiche & Conferma Finale -->
+            <div class="wz-step-panel" id="wz-step-4">
+                <p style="font-size:12.5px;color:var(--muted);margin:0 0 14px">
+                    Controlla il riepilogo prima di creare la sessione per <b>{{ app_league.name }}</b>:
+                </p>
+
+                <div style="background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:16px;font-size:13px">
+                    <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+                        <span style="color:var(--muted)">Lega:</span>
+                        <b style="color:var(--ink)">{{ app_league.name }}</b>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+                        <span style="color:var(--muted)">Tipo:</span>
+                        <b style="color:var(--accent)" id="sum-kind">Mercato a Buste Segrete</b>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+                        <span style="color:var(--muted)">Titolo:</span>
+                        <b style="color:var(--ink)" id="sum-title">Mercato di Riparazione</b>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+                        <span style="color:var(--muted)">Apertura:</span>
+                        <b style="color:var(--ink)" id="sum-opens">Immediata</b>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+                        <span style="color:var(--muted)">Chiusura:</span>
+                        <b style="color:var(--ink)" id="sum-closes">Manuale</b>
+                    </div>
+                    <div style="display:flex;justify-content:space-between">
+                        <span style="color:var(--muted)">Regola Budget:</span>
+                        <b style="color:var(--ink)" id="sum-budget">Priorità</b>
+                    </div>
+                </div>
+
+                <div class="wz-field-box">
+                    <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--ink);cursor:pointer;margin:0">
+                        <input type="checkbox" name="notify" value="1" checked style="width:18px;height:18px;accent-color:var(--accent)">
+                        Invia notifica email automatica a tutte le squadre
+                    </label>
+                </div>
+
+                <div class="wz-nav-btns">
+                    <button type="button" class="btn-cancel" onclick="wizardPrevStep(4)">&larr; Indietro</button>
+                    <button type="submit" class="mc-btn-primary">Crea e Attiva Mercato 🚀</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+
+<!-- =========================================================================
+     MODAL: INVIA / MODIFICA BUSTA
      ========================================================================= -->
 {% if market_open and market_session %}
 <div class="modal-overlay" id="bid-modal" onclick="if(event.target===this) closeBidModal()">
@@ -886,38 +1332,154 @@
     const REMAINING_CREDITS = {{ participant.remaining_credits|floatformat:0 }};
     const CSRF_TOKEN = '{{ csrf_token }}';
 
-    function switchMainView(viewName) {
-        const hubEl = document.getElementById("view-hub");
-        const wsEl = document.getElementById("view-workspace");
-        const btnHub = document.getElementById("btn-show-hub");
-        const btnWs = document.getElementById("btn-show-workspace");
+    {% if manages_app_league or is_app_admin %}
+    /* ---- Dedicated League Market Wizard Functions ---- */
+    let currentWzStep = 1;
+    let selectedWzKind = 'buste';
 
-        if (viewName === 'workspace') {
-            if (hubEl) hubEl.style.display = "none";
-            if (wsEl) wsEl.style.display = "block";
-            if (btnHub) btnHub.classList.remove("active");
-            if (btnWs) btnWs.classList.add("active");
+    function openMarketWizard() {
+        const modal = document.getElementById("market-wizard-modal");
+        if (!modal) return;
+        currentWzStep = 1;
+        setWizardStep(1);
+        modal.classList.add("open");
+    }
+
+    function closeMarketWizard() {
+        const modal = document.getElementById("market-wizard-modal");
+        if (modal) modal.classList.remove("open");
+    }
+
+    const MARKET_KIND_LABELS = {
+        'buste': 'Mercato a Buste Segrete',
+        'free_agency': 'Mercato Libero Continuo (Free Agency)',
+        'waiver_wire': 'Draft di Riparazione (Waiver Wire a Turni)',
+        'buyout_clause': 'Mercato con Clausole Rescisorie',
+        'live': 'Asta Live di Riparazione'
+    };
+
+    function selectMarketKind(kind) {
+        selectedWzKind = kind;
+        document.querySelectorAll(".wz-opt-card").forEach(c => c.classList.remove("selected"));
+        const card = document.getElementById("opt-kind-" + kind);
+        if (card) {
+            card.classList.add("selected");
+            const radio = card.querySelector("input[type='radio']");
+            if (radio) radio.checked = true;
+        }
+
+        const titleGrp = document.getElementById("wz-buste-title-group");
+        const nextBtn = document.getElementById("wz-btn-step1-next");
+
+        // Rule containers in Step 3
+        const busteRules = document.getElementById("wz-buste-rules");
+        const faRules = document.getElementById("wz-fa-rules");
+        const waiverRules = document.getElementById("wz-waiver-rules");
+        const clauseRules = document.getElementById("wz-clause-rules");
+
+        if (busteRules) busteRules.style.display = (kind === 'buste') ? 'block' : 'none';
+        if (faRules) faRules.style.display = (kind === 'free_agency') ? 'block' : 'none';
+        if (waiverRules) waiverRules.style.display = (kind === 'waiver_wire') ? 'block' : 'none';
+        if (clauseRules) clauseRules.style.display = (kind === 'buyout_clause') ? 'block' : 'none';
+
+        if (kind === 'live') {
+            if (titleGrp) titleGrp.style.display = "none";
+            if (nextBtn) nextBtn.textContent = "Vai al Setup Asta Live →";
         } else {
-            if (wsEl) wsEl.style.display = "none";
-            if (hubEl) hubEl.style.display = "block";
-            if (btnHub) btnHub.classList.add("active");
-            if (btnWs) btnWs.classList.remove("active");
+            if (titleGrp) titleGrp.style.display = "block";
+            if (nextBtn) nextBtn.textContent = "Continua →";
+        }
+
+        // Suggest default title
+        const titleIn = document.getElementById("wz-title-input");
+        if (titleIn && (!titleIn.value || titleIn.value === 'Mercato di Riparazione' || titleIn.value.includes('Buste') || titleIn.value.includes('Free Agency') || titleIn.value.includes('Waiver') || titleIn.value.includes('Clausol'))) {
+            if (kind === 'buste') titleIn.value = "Mercato di Riparazione a Buste";
+            else if (kind === 'free_agency') titleIn.value = "Finestra Free Agency";
+            else if (kind === 'waiver_wire') titleIn.value = "Draft Waiver Wire a Turni";
+            else if (kind === 'buyout_clause') titleIn.value = "Sessione Clausole Rescisorie";
         }
     }
 
-    function switchWsTab(tabName) {
-        const tabs = ['svincolati', 'buste', 'regole'];
-        tabs.forEach(t => {
-            const pane = document.getElementById("ws-pane-" + t);
-            const btn = document.getElementById("ws-btn-" + t);
-            if (pane) pane.style.display = (t === tabName) ? "block" : "none";
-            if (btn) {
-                if (t === tabName) btn.classList.add("active");
-                else btn.classList.remove("active");
+    function setWizardStep(step) {
+        currentWzStep = step;
+        for (let i = 1; i <= 4; i++) {
+            const panel = document.getElementById("wz-step-" + i);
+            const pill = document.getElementById("wz-pill-" + i);
+            if (panel) panel.classList.toggle("active", i === step);
+            if (pill) {
+                pill.classList.toggle("active", i === step);
+                pill.classList.toggle("done", i < step);
             }
-        });
+        }
+        if (step === 4) updateWizardSummary();
     }
 
+    function wizardNextStep(fromStep) {
+        if (fromStep === 1) {
+            if (selectedWzKind === 'live') {
+                location.href = "{% url 'admin_auction_wizard' %}?league={{ app_league.id }}&mode=REPAIR_AUCTION";
+                return;
+            }
+            const titleIn = document.getElementById("wz-title-input");
+            if (!titleIn || !titleIn.value.trim()) {
+                alert("Inserisci un titolo per la sessione di mercato.");
+                return;
+            }
+        }
+        setWizardStep(fromStep + 1);
+    }
+
+    function wizardPrevStep(fromStep) {
+        setWizardStep(fromStep - 1);
+    }
+
+    function toggleTimingInputs() {
+        const rads = document.getElementsByName("open_timing");
+        const wrap = document.getElementById("wz-opens-at-wrap");
+        let later = false;
+        for (let r of rads) {
+            if (r.checked && r.value === 'later') later = true;
+        }
+        if (wrap) wrap.style.display = later ? 'block' : 'none';
+    }
+
+    function updateWizardSummary() {
+        const sumKind = document.getElementById("sum-kind");
+        if (sumKind) sumKind.textContent = MARKET_KIND_LABELS[selectedWzKind] || selectedWzKind;
+
+        const titleIn = document.getElementById("wz-title-input");
+        const sumTitle = document.getElementById("sum-title");
+        if (sumTitle && titleIn) sumTitle.textContent = titleIn.value || "Mercato di Riparazione";
+
+        const opensIn = document.getElementById("wz-opens-at");
+        const sumOpens = document.getElementById("sum-opens");
+        const timingRads = document.getElementsByName("open_timing");
+        let isLater = false;
+        for (let r of timingRads) if (r.checked && r.value === 'later') isLater = true;
+        if (sumOpens) {
+            sumOpens.textContent = (isLater && opensIn && opensIn.value) ? opensIn.value.replace("T", " ") : "Subito alla creazione";
+        }
+
+        const closesIn = document.getElementById("wz-closes-at");
+        const sumCloses = document.getElementById("sum-closes");
+        if (sumCloses) {
+            sumCloses.textContent = (closesIn && closesIn.value) ? closesIn.value.replace("T", " ") : "Manuale dall'admin";
+        }
+
+        const sumBudget = document.getElementById("sum-budget");
+        const budgetRads = document.getElementsByName("budget_rule");
+        let bRule = "Ordine di preferenza";
+        for (let r of budgetRads) if (r.checked && r.value === 'total') bRule = "Totale offerte cumulativo";
+        if (sumBudget) sumBudget.textContent = bRule;
+    }
+
+    // Auto-open wizard if requested via URL param (?open_wizard=1)
+    if (new URLSearchParams(location.search).get("open_wizard") === "1") {
+        setTimeout(openMarketWizard, 150);
+    }
+    {% endif %}
+
+    /* ---- Bid Modal Functions ---- */
     function openBidModal(id, name, role, team, quota) {
         const modal = document.getElementById("bid-modal");
         if (!modal) return;
@@ -998,7 +1560,7 @@
                 closeBidModal();
                 if(window.showToast) {
                     window.showToast("Busta inviata correttamente!", "success");
-                    setTimeout(() => location.reload(), 800);
+                    setTimeout(() => location.reload(), 700);
                 } else location.reload();
             } else {
                 if(window.showToast) window.showToast(res.message || "Errore durante l'invio della busta", "error");
@@ -1026,7 +1588,7 @@
                 if (row) row.remove();
                 if(window.showToast) {
                     window.showToast("Busta ritirata con successo", "success");
-                    setTimeout(() => location.reload(), 800);
+                    setTimeout(() => location.reload(), 700);
                 } else location.reload();
             } else {
                 if(window.showToast) window.showToast(res.message || "Impossibile eliminare l'offerta", "error");
@@ -1038,5 +1600,14 @@
             else alert("Errore di connessione");
         }
     }
+
+    // Auto-select tab if ?tab= is specified in URL
+    (function() {
+        const tab = new URLSearchParams(location.search).get("tab");
+        if (tab) {
+            const btn = document.querySelector(`.a-seg button[data-asec-go="${tab}"]`);
+            if (btn) btn.click();
+        }
+    })();
 </script>
 {% endblock %}

@@ -13,6 +13,7 @@ from unittest import mock
 from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase
+from django.urls import reverse
 
 from .. import remote, services
 from ..models import Auction, AuctionSession, League, Participant, Player
@@ -402,7 +403,7 @@ class ResumeSessionTests(AdminLeagueRbacBase):
     def test_resume_latest_only_picks_a_session_the_user_manages(self):
         self._as(self.foreign_admin)
         resp = self.client.post("/admin-auction/sessions/resume-latest/")
-        self.assertRedirects(resp, "/dashboard/sessions/", fetch_redirect_response=False)
+        self.assertRedirects(resp, reverse("admin_sessions"), fetch_redirect_response=False)
         self.assertFalse(self._resumed(self.session).exists())
         self.assertFalse(self._resumed(self.legacy_session).exists())
 

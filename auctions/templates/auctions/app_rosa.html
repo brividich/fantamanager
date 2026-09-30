@@ -1,69 +1,80 @@
 {% extends "auctions/app_base.html" %}
-{% block title %}Rosa — FantaManager{% endblock %}
+{% block title %}{% if is_mine %}Rosa{% else %}Rosa {{ viewed_participant.display_name }}{% endif %} — FantaManager{% endblock %}
 {% block mainclass %}fit{% endblock %}
 {% block app %}
 <style>
-    .rosa-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-    .rosa-kpis { display: flex; gap: 8px; flex-wrap: wrap; }
-    .rosa-kpi { padding: 8px 12px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--line);
-                display: flex; flex-direction: column; align-items: flex-end; min-width: 76px; }
-    .rosa-kpi b { font-family: var(--display); font-size: 18px; color: var(--ink); line-height: 1.05; }
-    .rosa-kpi b small { font-size: 11px; color: var(--muted); font-weight: 600; }
-    .rosa-kpi span { font-size: 9.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
-    .rosa-kpi.cta { justify-content: center; align-items: center; flex-direction: row; gap: 6px; text-decoration: none;
-                    background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent);
-                    font-weight: 800; font-size: 12px; letter-spacing: .06em; text-transform: uppercase;
-                    transition: transform .1s; }
+    .rosa-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+    .rosa-team-select {
+        padding: 5px 10px; border-radius: 8px; background: var(--panel-2);
+        border: 1px solid var(--line); color: var(--ink); font-size: 13px;
+        font-weight: 700; cursor: pointer; outline: none; transition: border-color .15s, box-shadow .15s;
+        max-width: 240px;
+    }
+    .rosa-team-select:focus, .rosa-team-select:hover { border-color: var(--accent); }
+    .rosa-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; width: 100%; }
+    .rosa-kpi { padding: 9px 12px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line);
+                display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+    .rosa-kpi b { font-family: var(--display); font-size: 19px; color: var(--ink); line-height: 1.1; }
+    .rosa-kpi b small { font-size: 11px; color: var(--muted); font-weight: 700; }
+    .rosa-kpi span { font-size: 9.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-top: 2px; }
+    .rosa-kpi.cta { background: var(--accent); border-color: var(--accent); color: #0a1108; text-decoration: none;
+                    font-weight: 800; font-size: 13px; letter-spacing: .04em; text-transform: uppercase;
+                    flex-direction: row; gap: 6px; box-shadow: 0 4px 12px var(--accent-glow); transition: transform .12s; }
     .rosa-kpi.cta:active { transform: scale(0.96); }
-    .rosa-kpi.cta .ic { width: 16px; height: 16px; }
+    .rosa-kpi.cta .ic { width: 18px; height: 18px; }
 
-    .rosa-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
-    .rosa-col { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
-    .rosa-col-head { display: flex; align-items: center; gap: 8px; padding: 11px 14px;
-                     border-bottom: 1px solid var(--line); font-size: 11px; font-weight: 800;
-                     letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
-    .rosa-col-head .cnt { margin-left: auto; letter-spacing: .04em; color: var(--ink); }
+    @media (max-width: 600px) {
+        .rosa-kpis { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+        .rosa-kpi { padding: 10px; }
+        .rosa-kpi b { font-size: 18px; }
+    }
+
+    .rosa-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+    .rosa-col { display: flex; flex-direction: column; padding: 0; overflow: hidden; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+    .rosa-col-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px;
+                     border-bottom: 1px solid var(--line); font-size: 12px; font-weight: 800;
+                     letter-spacing: .08em; text-transform: uppercase; color: var(--muted); background: var(--panel-2); }
+    .rosa-col-head .cnt { margin-left: auto; letter-spacing: .02em; color: var(--ink); font-size: 12.5px; }
     .rosa-col-head .cnt small { color: var(--muted); font-weight: 600; }
     .rosa-col-head .cnt.full { color: #eab308; }
 
     .pl-row { display: flex; align-items: center; justify-content: space-between;
-              gap: 8px; padding: 9px 12px; margin-bottom: 6px; border-radius: 12px;
-              background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.05);
+              gap: 8px; padding: 10px 12px; margin: 6px 8px; border-radius: 12px;
+              background: rgba(255,255,255,.02); border: 1px solid var(--line);
               transition: background .12s, border-color .12s; }
-    .pl-row:last-child { margin-bottom: 0; }
-    .pl-row:hover { background: rgba(255,255,255,.06); border-color: rgba(16,185,129,0.3); }
-    .pl-id { min-width: 0; flex: 1; display: flex; align-items: center; gap: 10px; }
+    .pl-row:hover { background: rgba(255,255,255,.05); border-color: var(--accent-line); }
+    .pl-id { min-width: 0; flex: 1; display: flex; align-items: center; gap: 8px; cursor: pointer; }
     .pl-ava { width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0; overflow: hidden;
-              background: var(--panel-2); border: 1px solid var(--line); }
+              background: var(--panel-2); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; }
     .pl-ava img { width: 100%; height: 100%; object-fit: cover; }
-    .pl-txt { min-width: 0; flex: 1; }
+    .pl-txt { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
     .pl-name { display: block; font-weight: 800; font-size: 14px; color: var(--ink);
                white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
     .pl-sub { display: block; font-size: 11px; color: var(--muted); font-weight: 600;
               white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .pl-sub .mr { color: var(--accent); }
     .pl-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-    .pl-fm { font-size: 12px; font-weight: 800; color: var(--accent); text-align: right; min-width: 32px;
-             font-variant-numeric: tabular-nums; }
-    .pl-fm.none { color: var(--muted); font-weight: 600; }
-    .pl-cost { font-family: var(--display); font-weight: 900; font-size: 15px; color: var(--ink);
-               text-align: right; min-width: 38px; font-variant-numeric: tabular-nums; }
-    .pl-cost small { font-size: 10px; color: var(--muted); font-weight: 600; }
-    .pl-rel { width: 28px; height: 28px; border-radius: 8px; cursor: pointer; padding: 0;
+    .pl-fm { font-size: 12.5px; font-weight: 900; color: var(--accent); text-align: right; min-width: 34px;
+             font-variant-numeric: tabular-nums; background: var(--accent-soft); padding: 3px 6px; border-radius: 6px; }
+    .pl-fm.none { color: var(--muted); font-weight: 600; background: transparent; }
+    .pl-cost { font-family: var(--display); font-weight: 900; font-size: 16px; color: var(--ink);
+               text-align: right; min-width: 44px; font-variant-numeric: tabular-nums; }
+    .pl-cost small { font-size: 11px; color: var(--muted); font-weight: 600; }
+    .pl-rel { width: 30px; height: 30px; border-radius: 8px; cursor: pointer; padding: 0;
               display: flex; align-items: center; justify-content: center;
-              background: transparent; color: var(--muted); border: 1px solid var(--line);
+              background: var(--panel-2); color: var(--muted); border: 1px solid var(--line);
               font-size: 13px; font-weight: 800; line-height: 1; transition: all .12s; }
-    .pl-rel:hover, .pl-rel:focus-visible { color: #f87171; border-color: rgba(239,68,68,.45); background: rgba(239,68,68,.12); }
-    .rosa-empty { padding: 16px 12px; font-size: 12px; color: var(--muted); text-align: center; }
-    .pl-ct { font-size: 10.5px; font-weight: 800; padding: 2px 6px; border-radius: 6px; white-space: nowrap;
-             background: rgba(255,255,255,.05); color: var(--muted); text-align: center; min-width: 26px; }
-    .pl-ct.last { background: rgba(234,179,8,.15); color: #eab308; }
-    .pl-ct.exp { background: rgba(239,68,68,.15); color: #f87171; }
-    .pl-dice { font-size: 11px; font-weight: 800; padding: 4px 7px; border-radius: 6px; cursor: pointer; white-space: nowrap;
-               background: var(--accent); color: #0a1108; border: none; line-height: 1.2; height: auto; min-height: 0; }
-    .renew-card { border-color: rgba(234,179,8,.4); }
-    .renew-row { display: flex; align-items: center; gap: 10px; padding: 7px 12px; border-bottom: 1px solid var(--line);
-                 font-size: 13px; text-transform: none; letter-spacing: normal; color: var(--ink); margin: 0; }
+    .pl-rel:hover, .pl-rel:active { color: #f87171; border-color: rgba(239,68,68,.45); background: rgba(239,68,68,.15); }
+    .rosa-empty { padding: 24px 12px; font-size: 13px; color: var(--muted); text-align: center; }
+    .pl-ct { font-size: 11px; font-weight: 800; padding: 3px 7px; border-radius: 6px; white-space: nowrap;
+             background: rgba(255,255,255,.05); color: var(--muted); text-align: center; border: 1px solid var(--line); }
+    .pl-ct.last { background: rgba(234,179,8,.15); color: #eab308; border-color: rgba(234,179,8,.3); }
+    .pl-ct.exp { background: rgba(239,68,68,.15); color: #f87171; border-color: rgba(239,68,68,.3); }
+    .pl-dice { font-size: 12px; font-weight: 800; padding: 4px 8px; border-radius: 7px; cursor: pointer; white-space: nowrap;
+                background: var(--accent); color: #0a1108; border: none; line-height: 1.2; height: auto; min-height: 0; }
+    .renew-row { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-bottom: 1px solid var(--line);
+                  font-size: 13px; text-transform: none; letter-spacing: normal; color: var(--ink); margin: 0; }
     .renew-row:last-child { border-bottom: none; }
 
     @media (max-width: 640px) {
@@ -72,54 +83,47 @@
         .rosa-kpi.cta { grid-column: span 2; padding: 12px; font-size: 13px; }
     }
     @media (min-width: 880px) {
-        .rosa-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); }
+        .rosa-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .rosa-seg { display: none !important; }
+        .rosa-col.asec-off { display: flex !important; }
     }
     @media (min-width: 1240px) {
-        .rosa-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: auto; }
+        .rosa-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
     }
 </style>
 
 <div class="rosa-head">
-    <div class="tab-head">
-        <h1>La mia rosa</h1>
-        <p>{{ roster_count }}{% if plan.total_slots %}/{{ plan.total_slots }}{% endif %} giocatori{% if is_mantra %} · Mantra{% endif %}</p>
+    <div class="tab-head" style="flex:1; min-width:200px;">
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <h1>{% if is_mine %}La mia rosa{% else %}Rosa {{ viewed_participant.display_name }}{% endif %}</h1>
+            {% if league_teams|length > 1 %}
+            <div>
+                <select class="rosa-team-select" onchange="location.href='?team=' + this.value" aria-label="Seleziona squadra">
+                    {% for t in league_teams %}
+                    <option value="{{ t.id }}" {% if t.id == viewed_participant.id %}selected{% endif %}>
+                        {{ t.display_name }}{% if t.id == participant.id %} ★ (La mia rosa){% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+        </div>
+        <p>{{ roster_count }}{% if plan.total_slots %}/{{ plan.total_slots }}{% endif %} giocatori{% if is_mantra %} · Mantra{% endif %}{% if not is_mine %} · <a href="{% url 'app_rosa' %}" style="color:var(--accent);text-decoration:none;font-weight:700;">← Torna alla mia rosa</a>{% endif %}</p>
     </div>
     <div class="rosa-kpis">
-        <div class="rosa-kpi"><b>{{ participant.remaining_credits|floatformat:0 }}<small> FM</small></b><span>Crediti</span></div>
+        <div class="rosa-kpi"><b>{{ viewed_participant.remaining_credits|floatformat:0 }}<small> FM</small></b><span>Crediti</span></div>
         <div class="rosa-kpi"><b>{{ roster_value|floatformat:0 }}<small> FM</small></b><span>Valore rosa</span></div>
         <div class="rosa-kpi"><b>{% if roster_fm %}{{ roster_fm|floatformat:2 }}{% else %}—{% endif %}</b><span>Fm media</span></div>
+        {% if is_mine %}
         <a class="rosa-kpi cta" href="{% url 'app_formazione' %}"><svg class="ic"><use href="#i-table"/></svg> Formazione</a>
+        {% else %}
+        <div class="rosa-kpi"><b>{{ roster_count }}{% if plan.total_slots %}<small>/{{ plan.total_slots }}</small>{% endif %}</b><span>Slot rosa</span></div>
+        {% endif %}
     </div>
 </div>
 
-{% if renewals_open and expiring %}
-<section class="a-card renew-card">
-    <div class="a-label"><svg class="ic"><use href="#i-doc"/></svg> Rinnovi di contratto · stagione {{ app_league.season_number }}</div>
-    {% if expiring.0.renewal_declared is None %}
-    <form method="post" action="{% url 'app_renewals_declare' %}" onsubmit="return confirm('Confermi la dichiarazione? I giocatori non spuntati verranno svincolati subito.');">
-        {% csrf_token %}
-        <div style="padding:4px 12px 8px;font-size:12px;color:var(--muted)">Dichiara chi vuoi provare a rinnovare: gli altri vengono svincolati subito. Poi tiri il dado rinnovo (3 facce verdi, 3 rosse).</div>
-        {% for p in expiring %}
-        <label class="renew-row" style="cursor:pointer"><input type="checkbox" name="renew" value="{{ p.id }}" checked>
-            <span class="role-badge role-{{ p.role }}">{{ p.role }}</span> <b>{{ p.name }}</b> <span class="muted">{{ p.team }}</span></label>
-        {% endfor %}
-        <div style="padding:10px 12px;text-align:right"><button type="submit" class="pl-dice" style="padding:7px 14px">Conferma dichiarazione</button></div>
-    </form>
-    {% else %}
-    {% for p in expiring %}
-    <div class="renew-row">
-        <span class="role-badge role-{{ p.role }}">{{ p.role }}</span> <b>{{ p.name }}</b>
-        <form method="post" action="{% url 'app_renewal_roll' p.id %}" style="margin-left:auto">
-            {% csrf_token %}<button type="submit" class="pl-dice">🎲 Dado rinnovo</button>
-        </form>
-    </div>
-    {% endfor %}
-    {% endif %}
-</section>
-{% endif %}
-
 {% if loaned_out %}
-<div class="a-card" style="padding:8px 12px;font-size:12.5px">
+<div class="a-card" style="padding:10px 14px;font-size:13px">
     <b>Prestati:</b> {% for p in loaned_out %}{{ p.name }} → {{ p.owner.display_name }} ({{ p.loan_sessions_left }} sess.){% if not forloop.last %} · {% endif %}{% endfor %}
 </div>
 {% endif %}
@@ -131,9 +135,11 @@
     <div class="renew-row">
         <span class="role-badge role-{{ p.role }}">{{ p.role }}</span> <b>{{ p.name }}</b>
         <span class="muted">{{ p.left_club|default:"estero" }} · {{ p.contract_years|default_if_none:"?" }} anni · vale {{ p.abroad_compensation|floatformat:0 }} FM</span>
+        {% if is_mine %}
         <form method="post" action="{% url 'app_list_release' p.id %}" style="margin-left:auto" onsubmit="return confirm('Svincolare {{ p.name|escapejs }} e incassare {{ p.abroad_compensation|floatformat:0 }} FM?');">
             {% csrf_token %}<button type="submit" class="pl-dice">Svincola e incassa</button>
         </form>
+        {% endif %}
     </div>
     {% endfor %}
 </section>
@@ -143,10 +149,10 @@
 <div class="soon">
     <svg class="ic"><use href="#i-shirt"/></svg>
     <b>Rosa vuota</b>
-    <span>Quando vinci giocatori all'asta compaiono qui, divisi per ruolo.</span>
+    <span>{% if is_mine %}Quando vinci giocatori all'asta compaiono qui, divisi per ruolo.{% else %}Nessun giocatore in rosa per questa squadra.{% endif %}</span>
 </div>
 {% else %}
-<div class="a-seg" data-asec-default="all" style="margin-bottom:12px;">
+<div class="a-seg rosa-seg" data-asec-default="all" style="margin-bottom:12px;">
     <button type="button" data-asec-go="all" class="on">Tutti <span class="n">{{ roster_count }}</span></button>
     {% for group in roster_groups %}
     <button type="button" data-asec-go="{{ group.code }}">{{ group.code }} <span class="n">{{ group.list|length }}</span></button>
@@ -155,18 +161,22 @@
 
 <div class="rosa-grid fit-body">
     {% for group in roster_groups %}
-    <section class="a-card rosa-col" data-asec="{{ group.code }}" aria-label="{{ group.label }}">
+    <section class="rosa-col" data-asec="{{ group.code }}" data-role-group="{{ group.code }}" aria-label="{{ group.label }}">
         <div class="rosa-col-head">
             <span class="role-badge role-{{ group.code }}">{{ group.code }}</span>
             {{ group.label }}
             <span class="cnt{% if group.slots and group.list|length >= group.slots %} full{% endif %}">{{ group.list|length }}{% if group.slots %}<small>/{{ group.slots }}</small>{% endif %}
                 <small> · {{ group.cost|floatformat:0 }} FM</small></span>
         </div>
-        <div class="fit-scroll">
+        <div class="fit-scroll" style="padding:4px 0;">
             {% for pl in group.list %}
-            <div class="pl-row{% if contracts_on %} ct{% endif %}" title="{% if pl.avg_vote %}Mv {{ pl.avg_vote|floatformat:2 }} · {% endif %}{% if pl.presences %}{{ pl.presences }} presenze · {% endif %}{% if pl.goals %}{{ pl.goals }} gol · {% endif %}{% if pl.assists %}{{ pl.assists }} assist · {% endif %}Quotazione {{ pl.initial_price|floatformat:0 }}">
-                <div class="pl-id" style="cursor:pointer;" onclick="openPlayerModal('{{ pl.name|escapejs }}', '{{ pl.role }}', '{{ pl.team|escapejs }}', '{{ pl.fanta_avg|floatformat:2|default:'' }}', '{{ pl.goals|default:0 }}', '{{ pl.assists|default:0 }}', '{{ pl.initial_price|floatformat:0 }}')">
-                    {% if pl.photo_url %}<span class="pl-ava"><img src="{{ pl.photo_url }}" alt="" loading="lazy"></span>{% endif %}
+            <div class="pl-row" title="{% if pl.avg_vote %}Mv {{ pl.avg_vote|floatformat:2 }} · {% endif %}{% if pl.presences %}{{ pl.presences }} presenze · {% endif %}{% if pl.goals %}{{ pl.goals }} gol · {% endif %}{% if pl.assists %}{{ pl.assists }} assist · {% endif %}Quotazione {{ pl.initial_price|floatformat:0 }}">
+                <div class="pl-id" onclick="openPlayerModal('{{ pl.name|escapejs }}', '{{ pl.role }}', '{{ pl.team|escapejs }}', '{{ pl.fanta_avg|floatformat:2|default:'' }}', '{{ pl.goals|default:0 }}', '{{ pl.assists|default:0 }}', '{{ pl.initial_price|floatformat:0 }}')">
+                    {% if pl.photo_url %}
+                    <span class="pl-ava"><img src="{{ pl.photo_url }}" alt="" loading="lazy"></span>
+                    {% else %}
+                    <span class="pl-ava"><span class="role-badge role-{{ pl.role }}" style="font-size:10px;padding:2px 4px;">{{ pl.role }}</span></span>
+                    {% endif %}
                     <span class="pl-txt">
                         <span class="pl-name">{{ pl.name }}</span>
                         <span class="pl-sub">{{ pl.team }}{% if is_mantra and pl.roles_display %} · <span class="mr">{{ pl.roles_display }}</span>{% endif %}{% if pl.loan_from_id %} · <span style="color:#eab308">in prestito</span>{% endif %}{% if pl.goals %} · ⚽{{ pl.goals }}{% endif %}{% if pl.assists %} · A{{ pl.assists }}{% endif %}</span>
@@ -177,24 +187,21 @@
                     <span class="pl-cost">{{ pl.cost|floatformat:0 }}<small> FM</small></span>
                     {% if contracts_on %}
                     {% if pl.contract_years is None %}
-                    <span style="display:flex;gap:3px">
-                    <form method="post" action="{% url 'app_contract_roll' pl.id %}" style="margin:0">
-                        {% csrf_token %}<button type="submit" class="pl-dice" title="Tira il dado contratti">🎲</button>
-                    </form>
-                    <form method="post" action="{% url 'app_contract_u21' pl.id %}" onsubmit="return confirm('Dichiarare {{ pl.name|escapejs }} come scommessa Under 21? Contratto fisso di 3 anni, una sola per stagione.');" style="margin:0">
-                        {% csrf_token %}<button type="submit" class="pl-dice" style="background:var(--panel-2);color:var(--ink);border:1px solid var(--line)" title="Scommessa Under 21 (3 anni)">U21</button>
-                    </form>
-                    </span>
+                    <span class="pl-ct" title="Durata contratto da assegnare">da tirare</span>
                     {% else %}
                     <span class="pl-ct{% if pl.contract_years == 1 %} last{% elif pl.contract_years == 0 %} exp{% endif %}"
-                          title="{% if pl.contract_years == 0 %}Contratto scaduto{% elif pl.contract_years == 1 %}Ultimo anno di contratto{% else %}{{ pl.contract_years }} anni di contratto{% endif %}">{% if pl.contract_years == 0 %}scad.{% else %}{{ pl.contract_years }}a{% endif %}</span>
+                          title="{% if pl.contract_is_u21 %}Scommessa Under 21 · {% endif %}{% if pl.contract_years == 0 %}Contratto scaduto{% elif pl.contract_years == 1 %}Ultimo anno di contratto{% else %}{{ pl.contract_years }} ann{{ pl.contract_years|pluralize:'o,i' }}{% endif %}">
+                        {% if pl.contract_is_u21 %}<small style="font-size:9px;opacity:0.85;font-weight:700">U21 </small>{% endif %}{% if pl.contract_years == 0 %}scad.{% else %}{{ pl.contract_years }}a{% endif %}
+                    </span>
                     {% endif %}
                     {% endif %}
+                    {% if is_mine %}
                     <form method="post" action="{% url 'participant_release_player' pl.id %}"
                           onsubmit="return confirm('Svincolare {{ pl.name|escapejs }}? Recuperi {{ pl.cost|floatformat:0 }} FM.');" style="margin:0">
                         {% csrf_token %}
                         <button type="submit" class="pl-rel" title="Svincola {{ pl.name }}" aria-label="Svincola {{ pl.name }}">✕</button>
                     </form>
+                    {% endif %}
                 </div>
             </div>
             {% empty %}
@@ -206,3 +213,4 @@
 </div>
 {% endif %}
 {% endblock %}
+

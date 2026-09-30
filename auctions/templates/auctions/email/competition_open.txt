@@ -1,0 +1,7 @@
+Ciao {{ team.display_name }},
+
+È stata programmata una nuova competizione nella lega {{ league.name }}:
+{{ competition.name }} ({{ competition.get_kind_display }})
+
+Accedi all'app per visualizzare il calendario, le sfide e le classifiche:
+{{ link }}

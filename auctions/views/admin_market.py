@@ -384,7 +384,38 @@ def _session_rules(post):
     tie_break = post.get("tie_break")
     if tie_break not in MarketSession.TieBreak.values:
         tie_break = MarketSession.TieBreak.MANUAL
+
+    # Resolve session_type
+    raw_type = (post.get("session_type") or post.get("market_kind") or "").strip()
+    type_aliases = {
+        "buste": MarketSession.SessionType.SEALED_BIDS,
+        "live": MarketSession.SessionType.LIVE_AUCTION,
+        "free_agency": MarketSession.SessionType.FREE_AGENCY,
+        "waiver_wire": MarketSession.SessionType.WAIVER_WIRE,
+        "buyout_clause": MarketSession.SessionType.BUYOUT_CLAUSE,
+        "SEALED_BIDS": MarketSession.SessionType.SEALED_BIDS,
+        "LIVE_AUCTION": MarketSession.SessionType.LIVE_AUCTION,
+        "FREE_AGENCY": MarketSession.SessionType.FREE_AGENCY,
+        "WAIVER_WIRE": MarketSession.SessionType.WAIVER_WIRE,
+        "BUYOUT_CLAUSE": MarketSession.SessionType.BUYOUT_CLAUSE,
+    }
+    session_type = type_aliases.get(raw_type, MarketSession.SessionType.SEALED_BIDS)
+
+    # Session-specific configuration payload
+    config = {
+        "fa_max_moves": _parse_int(post.get("fa_max_moves") or 3),
+        "fa_cost_type": post.get("fa_cost_type") or "quotation",
+        "waiver_order_type": post.get("waiver_order_type") or "inverse_standing",
+        "waiver_claim_hours": _parse_int(post.get("waiver_claim_hours") or 24),
+        "buyout_multiplier": float(post.get("buyout_multiplier") or 1.5),
+        "buyout_min_hold_days": _parse_int(post.get("buyout_min_hold_days") or 7),
+        "live_timer_seconds": _parse_int(post.get("live_timer_seconds") or 15),
+        "description": (post.get("description") or "").strip(),
+    }
+
     return {
+        "session_type": session_type,
+        "config": config,
         "allow_conditional_release": post.get("allow_conditional_release") == "1",
         "require_same_role_release": post.get("require_same_role_release") == "1",
         "release_refund_mode": refund_mode,
@@ -451,6 +482,11 @@ def admin_market_create(request):
         )
     else:
         messages.success(request, f"Sessione '{session.title}' creata con successo e aperta alle offerte.")
+    if request.POST.get("from") == "app" or request.POST.get("next") == "app":
+        return redirect(f"{reverse('app_mercato')}?session_id={session.id}")
+    next_url = request.POST.get("next")
+    if next_url:
+        return redirect(next_url)
     return redirect(_dashboard_url(request, session))
 
 

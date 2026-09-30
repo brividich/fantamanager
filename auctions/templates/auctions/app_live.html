@@ -184,8 +184,7 @@
     {% endif %}
 </div>
 
-{% if active_auction %}
-<a class="a-cta" href="{% url 'bid' active_auction.id %}" style="background:rgba(239,68,68,0.15);border-color:rgba(239,68,68,0.4);margin-bottom:14px">
+<a class="a-cta" href="{% url 'bid' active_auction.id %}" style="background:rgba(239,68,68,0.15);border-color:rgba(239,68,68,0.4);margin-bottom:12px;">
     <svg class="ic" style="color:#ef4444"><use href="#i-gavel"/></svg>
     <span class="t">
         <b>Asta in diretta: {{ active_auction.title }}</b>

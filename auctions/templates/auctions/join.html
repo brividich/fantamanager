@@ -1,71 +1,296 @@
 {% extends "auctions/base.html" %}
-{% block title %}Entra nell'asta{% endblock %}
+{% block title %}Entra nell'Asta Live — FantaManager{% endblock %}
+{% block bodyclass %}role-player app-mode{% endblock %}
+{% block wrapclass %}app-wrap{% endblock %}
 
 {% block content %}
-<div class="mast">
-    <div class="eyebrow"><span class="rule"></span><svg class="ic"><use href="#i-shield"/></svg> Asta Live<span class="rule"></span></div>
-</div>
+<style>
+    .join-container {
+        max-width: 440px;
+        margin: 36px auto;
+        padding: 0 16px calc(32px + env(safe-area-inset-bottom));
+    }
+    @media (max-width: 480px) {
+        .join-container {
+            margin: 16px auto;
+            padding: 0 14px calc(24px + env(safe-area-inset-bottom));
+        }
+    }
 
-<details class="howto">
-    <summary><svg class="ic"><use href="#i-info"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
-    <div class="howto-body">
-        Da qui <b>entri come la tua squadra</b> per partecipare all'asta dal telefono.
-        <ol>
-            <li>Inserisci il <b>codice squadra</b> che ti ha dato l'organizzatore (se sei arrivato dal link/QR sei già riconosciuto).</li>
-            <li>Scegli l'<b>asta</b> a cui unirti.</li>
-            <li>Premi <b>Entra</b>: arrivi alla schermata delle offerte.</li>
-        </ol>
-        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Non hai un codice? Chiedilo a chi gestisce la regia.</div>
-    </div>
-</details>
+    .join-hero {
+        text-align: center;
+        margin-bottom: 22px;
+    }
+    .join-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 12px;
+        border-radius: 99px;
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+        color: var(--accent);
+        background: var(--accent-soft);
+        border: 1px solid var(--accent-line);
+        margin-bottom: 12px;
+    }
+    .join-badge .pulse-dot {
+        width: 6px; height: 6px; border-radius: 50%;
+        background: var(--accent);
+        box-shadow: 0 0 8px var(--accent);
+    }
+    .join-hero h1 {
+        font-family: var(--display);
+        font-size: 26px;
+        font-weight: 900;
+        letter-spacing: .02em;
+        margin: 0 0 6px;
+        color: var(--ink);
+    }
+    .join-hero p {
+        font-size: 13.5px;
+        color: var(--muted);
+        margin: 0;
+        line-height: 1.4;
+    }
 
-<div class="panel">
-    {% if recognized %}
-    <h1 style="margin-bottom:6px">Ciao, {{ recognized.display_name }} <svg class="ic"><use href="#i-wave"/></svg></h1>
-    <p class="muted" style="margin:0 0 20px; font-size:14px">Sei stato riconosciuto dal link. Scegli l'asta ed entra.</p>
-    {% else %}
-    <h1 style="margin-bottom:6px">Entra nell'asta</h1>
-    <p class="muted" style="margin:0 0 20px; font-size:14px">Inserisci il codice della tua squadra.</p>
-    {% endif %}
+    .join-card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: var(--radius, 18px);
+        padding: 24px 20px;
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+    }
 
-    {% if error %}
-    <div style="background:rgba(255,61,61,0.12); border:1px solid rgba(255,61,61,0.35);
-                color:var(--closed); padding:12px 14px; border-radius:8px; margin-bottom:16px; font-weight:600">
-        {{ error }}
-    </div>
-    {% endif %}
+    .howto-guide {
+        background: var(--panel-2);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 12px 14px;
+        margin-bottom: 20px;
+    }
+    .howto-guide summary {
+        font-size: 12.5px;
+        font-weight: 800;
+        color: var(--ink);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        list-style: none;
+    }
+    .howto-guide summary::-webkit-details-marker { display: none; }
+    .howto-guide .howto-body {
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px dashed var(--line);
+        font-size: 12.5px;
+        color: var(--muted);
+        line-height: 1.5;
+    }
+    .howto-guide ol {
+        margin: 6px 0 8px;
+        padding-left: 20px;
+    }
+    .howto-guide ol li {
+        margin-bottom: 4px;
+    }
 
-    <form method="post">
-        {% csrf_token %}
-        {% if token %}<input type="hidden" name="public_token" value="{{ token }}">{% endif %}
+    .join-recognized {
+        background: linear-gradient(135deg, rgba(34,197,94,0.12), var(--panel-2));
+        border: 1px solid rgba(34,197,94,0.35);
+        border-radius: 12px;
+        padding: 14px;
+        margin-bottom: 18px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .join-recognized .team-icon {
+        width: 38px; height: 38px; border-radius: 10px;
+        background: rgba(34,197,94,0.2); color: #22c55e;
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0;
+    }
 
-        {% if not recognized %}
-        <label for="access_code">Codice squadra</label>
-        <input id="access_code" name="access_code" maxlength="20"
-               autocomplete="off" placeholder="Inserisci il codice ricevuto"
-               style="font-size:20px; letter-spacing:0.14em; text-transform:uppercase; text-align:center">
-        {% endif %}
+    .form-group {
+        margin-bottom: 18px;
+    }
+    .form-group label {
+        display: block;
+        font-size: 11.5px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        color: var(--muted);
+        margin-bottom: 7px;
+    }
+    .form-group input, .form-group select {
+        width: 100%;
+        min-height: 48px;
+        padding: 12px 14px;
+        border-radius: 12px;
+        border: 1px solid var(--line);
+        background: var(--panel-2);
+        color: var(--ink);
+        font-size: 15.5px;
+        box-sizing: border-box;
+        transition: border-color .15s, box-shadow .15s, background .15s;
+    }
+    .form-group input:focus, .form-group select:focus {
+        border-color: var(--accent);
+        background: var(--panel);
+        box-shadow: 0 0 0 3px var(--accent-soft);
+        outline: none;
+    }
+    .code-input {
+        font-family: var(--font-mono, monospace);
+        font-size: 22px !important;
+        font-weight: 900;
+        letter-spacing: 0.16em;
+        text-align: center;
+        text-transform: uppercase;
+        border-color: var(--accent-line) !important;
+    }
 
-        {% if joinable or recognized %}
-        {# Online a stranger is shown no auction: the team code decides where they play. #}
-        <label for="auction_id">Asta</label>
-        <select id="auction_id" name="auction_id" required>
-            {% for a in joinable %}
-                <option value="{{ a.id }}"
-                    {% if request.GET.next == a.id|stringformat:'s' %}selected{% endif %}>
-                    {% if a.league %}[{{ a.league.name }}] {% endif %}{{ a.title }} — {{ a.get_status_display }}
-                </option>
-            {% empty %}
-                <option value="" disabled>Nessuna asta disponibile</option>
-            {% endfor %}
-        </select>
-        {% endif %}
+    .btn-join {
+        width: 100%;
+        min-height: 52px;
+        padding: 14px;
+        font-size: 16px;
+        font-weight: 900;
+        letter-spacing: .02em;
+        border-radius: 12px;
+        border: none;
+        background: var(--accent);
+        color: #0a1108;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        box-shadow: 0 4px 18px -2px var(--accent-glow);
+        transition: transform .12s ease, filter .15s ease;
+        touch-action: manipulation;
+    }
+    .btn-join:hover {
+        filter: brightness(1.06);
+    }
+    .btn-join:active { transform: scale(0.98); }
 
-        <div style="margin-top:22px">
-            <button type="submit" class="btn-ok" style="width:100%; font-size:18px; padding:18px">
-                Entra →
-            </button>
+    .join-footer {
+        margin-top: 20px;
+        text-align: center;
+    }
+    .join-footer a {
+        font-size: 13px;
+        color: var(--muted);
+        text-decoration: none;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: color .15s;
+    }
+    .join-footer a:hover {
+        color: var(--accent);
+    }
+</style>
+
+<div class="join-container">
+    <div class="join-hero">
+        <div class="join-badge">
+            <span class="pulse-dot"></span>
+            <span>Asta Live & Bidding</span>
         </div>
-    </form>
+        <h1>Partecipa all'Asta</h1>
+        <p>Unisciti alla sala d'asta dal tuo smartphone per fare offerte e rilanci in tempo reale.</p>
+    </div>
+
+    <details class="howto-guide">
+        <summary>
+            <span style="display:flex;align-items:center;gap:7px;">
+                <svg class="ic" style="width:16px;height:16px;color:var(--accent)"><use href="#i-info"/></svg>
+                Come partecipare all'asta
+            </span>
+            <span style="font-size:12px;color:var(--muted)">▼</span>
+        </summary>
+        <div class="howto-body">
+            <ol>
+                <li>Inserisci il <b>codice squadra</b> che ti ha dato l'organizzatore (se sei arrivato dal link/QR sei già riconosciuto).</li>
+                <li>Seleziona l'<b>asta attiva</b> a cui unirti.</li>
+                <li>Premi <b>Entra nell'Asta</b> per aprire il banco delle offerte in diretta.</li>
+            </ol>
+            <div style="font-size:11.5px;color:var(--muted);margin-top:6px;">
+                💡 <b>Non hai un codice?</b> Chiedilo all'amministratore che conduce la regia.
+            </div>
+        </div>
+    </details>
+
+    <div class="join-card">
+        {% if recognized %}
+        <div class="join-recognized">
+            <div class="team-icon">
+                <svg class="ic" style="width:20px;height:20px"><use href="#i-shield"/></svg>
+            </div>
+            <div>
+                <div style="font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#22c55e">Riconosciuto</div>
+                <div style="font-size:16px;font-weight:900;color:var(--ink)">{{ recognized.display_name }}</div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if error %}
+        <div style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.35);color:#ef4444;padding:11px 14px;border-radius:10px;font-size:13px;font-weight:700;margin-bottom:18px;display:flex;align-items:center;gap:8px">
+            <svg class="ic" style="width:16px;height:16px;flex-shrink:0"><use href="#i-x"/></svg>
+            <span>{{ error }}</span>
+        </div>
+        {% endif %}
+
+        <form method="post">
+            {% csrf_token %}
+            {% if token %}<input type="hidden" name="public_token" value="{{ token }}">{% endif %}
+
+            {% if not recognized %}
+            <div class="form-group">
+                <label for="access_code">Codice Squadra (PIN)</label>
+                <input id="access_code" name="access_code" class="code-input" maxlength="20"
+                       autocomplete="off" placeholder="ES. DRAGO23" required autofocus>
+            </div>
+            {% endif %}
+
+            {% if joinable or recognized %}
+            <div class="form-group">
+                <label for="auction_id">Seleziona Sessione Asta</label>
+                <select id="auction_id" name="auction_id" required>
+                    {% for a in joinable %}
+                        <option value="{{ a.id }}"
+                            {% if request.GET.next == a.id|stringformat:'s' %}selected{% endif %}>
+                            {% if a.league %}[{{ a.league.name }}] {% endif %}{{ a.title }} — {{ a.get_status_display }}
+                        </option>
+                    {% empty %}
+                        <option value="" disabled>Nessuna asta disponibile</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+
+            <button type="submit" class="btn-join">
+                <svg class="ic" style="width:20px;height:20px"><use href="#i-gavel"/></svg>
+                <span>Entra nell'asta &rarr;</span>
+            </button>
+        </form>
+    </div>
+
+    <div class="join-footer">
+        <a href="{% url 'app_login' %}">
+            <svg class="ic" style="width:14px;height:14px"><use href="#i-user"/></svg>
+            <span>Area Manageriale (Rosa, Buste e Formazione) &rarr;</span>
+        </a>
+    </div>
 </div>
 {% endblock %}

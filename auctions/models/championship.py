@@ -49,11 +49,15 @@ class Competition(models.Model):
     class Type(models.TextChoices):
         ROUND_ROBIN     = "ROUND_ROBIN",     "Campionato (Scontri Diretti 1vs1)"
         TOTAL_POINTS    = "TOTAL_POINTS",    "Gran Premio (Somma Punti)"
-        BATTLE_ROYALE   = "BATTLE_ROYALE",   "Battle Royale (Tutti contro Tutti)"
+        FORMULA_1       = "FORMULA_1",       "Formula 1 (Punti GP di Giornata)"
+        SURVIVAL        = "SURVIVAL",        "Survival Cup (L'Uomo Morto)"
+        SWISS_LEAGUE    = "SWISS_LEAGUE",    "Nuova Champions a Girone Svizzero"
+        FANTA_DAVIS     = "FANTA_DAVIS",     "Fanta-Davis a Coppie"
         KNOCKOUT        = "KNOCKOUT",        "Coppa a Eliminazione (Tabellone)"
         GROUPS_KNOCKOUT = "GROUPS_KNOCKOUT", "Coppa a Gironi + Fase Finale"
         SEASON_SPLIT    = "SEASON_SPLIT",    "Torneo a Fasi (Apertura / Clausura)"
         SUPERCOPPA      = "SUPERCOPPA",      "Supercoppa di Lega (Sfida Secca)"
+        BATTLE_ROYALE   = "BATTLE_ROYALE",   "Battle Royale (Tutti contro Tutti)"
 
     season     = models.ForeignKey(Season, on_delete=models.CASCADE, related_name="competitions")
     name       = models.CharField(max_length=120)
@@ -81,6 +85,7 @@ class Giornata(models.Model):
 
     season     = models.ForeignKey(Season, on_delete=models.CASCADE, related_name="giornate")
     number     = models.PositiveIntegerField()
+    serie_a_matchday = models.PositiveIntegerField(null=True, blank=True)
     status     = models.CharField(max_length=10, choices=Status.choices, default=Status.SCHEDULED)
     locked_at  = models.DateTimeField(null=True, blank=True)
     scored_at  = models.DateTimeField(null=True, blank=True)
