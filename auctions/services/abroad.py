@@ -30,7 +30,7 @@ from decimal import Decimal
 
 from django.core.cache import cache
 from django.db import connection, transaction
-from django.db.models import Max
+from django.db.models import Max, Q
 from django.utils import timezone
 
 from ..models import ContractEvent, Player, UefaClubRank
@@ -112,8 +112,9 @@ def flag_missing(league, names_missing):
     now = timezone.now()
     owned = Player.objects.filter(owner__league=league, abroad_list=False)
     flagged = owned.filter(name__in=names_missing, left_serie_a_at__isnull=True).update(left_serie_a_at=now)
-    owned.exclude(name__in=names_missing).filter(left_serie_a_at__isnull=False, left_rank_kind="").update(
-        left_serie_a_at=None, left_club="", left_rank_pos=None)
+    owned.exclude(name__in=names_missing).filter(
+        left_serie_a_at__isnull=False, left_rank_kind="", left_club=""
+    ).update(left_serie_a_at=None, left_club="", left_rank_pos=None)
     return flagged
 
 
@@ -286,7 +287,10 @@ def check_all_rosters(league, *, get=None, sleep=time.sleep, progress=None, toda
     if not af.is_configured():
         report["error"] = "API-Football non configurata: imposta APIFOOTBALL_KEY sul server e riavvia"
         return report
-    listone_teams = set(Player.objects.filter(league=league).exclude(team="").values_list("team", flat=True))
+    listone_teams = set(
+        Player.objects.filter(Q(league=league) | Q(league__isnull=True))
+        .exclude(team="").values_list("team", flat=True)
+    )
     listone_teams |= set(by_club)
     try:
         clubs = af.paced(af.italian_clubs, sorted(listone_teams), get=get, sleep=sleep)

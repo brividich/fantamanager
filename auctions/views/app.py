@@ -120,15 +120,7 @@ def app_home(request):
 def app_rosa(request):
     participant, ctx = _app_ctx(request, "rosa")
     if participant is None:
-        if ctx is not None and ctx.get("is_app_admin") and ctx.get("app_league"):
-            league = ctx["app_league"]
-            first_team = league.participants.order_by("display_name").first()
-            if first_team:
-                participant = first_team
-            else:
-                return _redirect_login(request, ctx)
-        else:
-            return _redirect_login(request, ctx)
+        return _redirect_login(request, ctx)
     league = participant.league
 
     target_id = request.GET.get("team")

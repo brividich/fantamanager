@@ -139,7 +139,9 @@ def _ascii(s):
 
 def _norm_club(s):
     s = _ascii(s).lower()
-    s = re.sub(r"\b(fc|cf|ac|as|sc|ssc|ss|us|afc|club|calcio|hellas|1907|1909|1913)\b", " ", s)
+    if "internazionale" in s:
+        s = re.sub(r"\binternazionale\b", "inter", s)
+    s = re.sub(r"\b(fc|cf|cfc|acf|bc|ac|as|sc|ssc|ss|us|afc|club|calcio|hellas|spa|srl|ssd|1907|1909|1913)\b", " ", s)
     return re.sub(r"[^a-z0-9]+", " ", s).strip()
 
 
@@ -150,6 +152,8 @@ def same_club(club, team):
         return False
     if len(b) <= 3:  # sigla (JUV, INT, …)
         return a.startswith(b)
+    if len(a) <= 3:
+        return b.startswith(a)
     return a == b or set(b.split()) <= set(a.split()) or set(a.split()) <= set(b.split())
 
 
@@ -157,15 +161,20 @@ def _search_term(name):
     """(parola da cercare, iniziale del nome) da un nome del listone.
 
     Il listone scrive "Martinez L.", "Esposito F.P.", "De Ketelaere": si cerca
-    la parola più lunga, le iniziali servono a scegliere fra gli omonimi.
+    la parola più lunga del cognome, le iniziali servono a scegliere fra gli omonimi.
     """
     words = [w for w in re.split(r"[\s.'’\-]+", _ascii(name)) if w]
     long_words = sorted((w for w in words if len(w) >= 4), key=len, reverse=True)
     if not long_words:
         return "", ""
     term = long_words[0]
-    # Le iniziali stanno dopo il cognome ("De" in "De Ketelaere" non lo è).
-    initials = [w for w in words[words.index(term) + 1:] if len(w) <= 2 and w[:1].isalpha()]
+    term_idx = words.index(term)
+    # Le iniziali di norma stanno dopo il cognome ("Martinez L.")
+    initials = [w for w in words[term_idx + 1:] if len(w) <= 2 and w[:1].isalpha()]
+    if not initials:
+        # Se prima del cognome c'è un'iniziale (es. "L. Martinez"), purché non sia una particella nobiliare
+        particles = {"de", "di", "da", "del", "van", "von", "le", "la", "el", "al", "st"}
+        initials = [w for w in words[:term_idx] if len(w) <= 2 and w.lower() not in particles and w[:1].isalpha()]
     return term, (initials[0][0].upper() if initials else "")
 
 
@@ -254,7 +263,10 @@ def lookup(name, team="", role="", *, get=requests.get):
         return None, "nessun trasferimento registrato su API-Football"
     last = max(moves, key=lambda t: t.get("date") or "")
     club = _club(last, "in")
-    if not club:
+    if not club or club.lower() in ("free agent", "free agency", "without club", "svincolato"):
+        out_c = _club(last, "out")
+        if out_c and (not team or same_club(out_c, team)):
+            return {"club": "Svincolato", "date": last.get("date")}, ""
         return None, "nessun trasferimento registrato su API-Football"
     if team and same_club(club, team):
         return None, f"per API-Football l'ultimo trasferimento è ancora verso {club}"
@@ -293,7 +305,7 @@ def italian_clubs(names, *, get=requests.get):
         for name, key in wanted.items():
             if name in mapping:
                 continue
-            same = [(tid, tname) for tid, tname in catalog if tid and _norm_club(tname) == key]
+            same = [(tid, tname) for tid, tname in catalog if tid and (_norm_club(tname) == key or same_club(tname, name))]
             if not same and len(key) <= 3:  # sigla (JUV, INT, …): il nome più corto che comincia così
                 same = sorted(((tid, tname) for tid, tname in catalog if tid and _norm_club(tname).startswith(key)),
                               key=lambda c: len(c[1]))
@@ -326,8 +338,8 @@ def departures(entries, players, club_id, is_serie_a, *, today=None, max_age_day
     trasferimenti corrisponde a più giocatori si lascia stare.
     Ritorna ``{player.id: {"club", "date"}}``.
     """
-    today = (today or date.today()).isoformat()
-    cutoff = (date.fromisoformat(today) - timedelta(days=max_age_days)).isoformat()
+    today_str = today.isoformat() if hasattr(today, "isoformat") else (today or date.today().isoformat())
+    cutoff = (date.fromisoformat(today_str) - timedelta(days=max_age_days)).isoformat()
     people = []
     for entry in entries or []:
         name = (entry.get("player") or {}).get("name") or ""
@@ -336,19 +348,36 @@ def departures(entries, players, club_id, is_serie_a, *, today=None, max_age_day
     for player in players:
         term, initial = _search_term(player.name)
         if not term:
-            continue
+            p_words = [w for w in re.split(r"[\s.'’\-]+", _ascii(player.name)) if w]
+            if not p_words:
+                continue
+            term = p_words[0]
+            initial = p_words[1][:1].upper() if len(p_words) > 1 and len(p_words[1]) <= 2 else ""
         matches = [(words, entry) for words, entry in people if term.lower() in words]
         if len(matches) > 1 and initial:
-            matches = [(words, entry) for words, entry in matches if words[0][:1].upper() == initial]
+            init_matches = [(words, entry) for words, entry in matches
+                            if any(w[:1].upper() == initial for w in words if w.lower() != term.lower())]
+            if init_matches:
+                matches = init_matches
         if len(matches) != 1:
             continue
         moves = [m for m in matches[0][1].get("transfers") or []
-                 if cutoff <= (m.get("date") or "")[:10] <= today]
+                 if cutoff <= (m.get("date") or "")[:10] <= today_str]
         if not moves:
             continue
         last = max(moves, key=lambda m: (m.get("date") or "")[:10])
-        dest = (last.get("teams") or {}).get("in") or {}
-        if not dest.get("name") or dest.get("id") == club_id or is_serie_a(dest):
+        teams = last.get("teams") or {}
+        dest = teams.get("in") or {}
+        out_team = teams.get("out") or {}
+        dest_name = dest.get("name") or ""
+
+        # Gestione svincolati / ritirati / contratti risolti
+        if not dest_name or dest_name.lower() in ("free agent", "free agency", "without club", "svincolato", "none"):
+            if out_team.get("id") == club_id or is_serie_a(out_team):
+                found[player.id] = {"club": "Svincolato", "date": (last.get("date") or "")[:10]}
             continue
-        found[player.id] = {"club": dest["name"], "date": (last.get("date") or "")[:10]}
+
+        if dest.get("id") == club_id or is_serie_a(dest):
+            continue
+        found[player.id] = {"club": dest_name, "date": (last.get("date") or "")[:10]}
     return found
