@@ -288,15 +288,16 @@
             <span class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase;">Tutte le Giornate</span>
         </div>
 
-        {% if fixtures_by_giornata %}
+        {% if competition_matchdays %}
         <div class="g-accordion">
-            {% for grp in fixtures_by_giornata %}
+            {% for m in competition_matchdays %}
             <div class="g-card">
                 <div class="g-card-head">
-                    <span>Giornata {{ grp.giornata.number }}</span>
-                    <span style="color:var(--muted);font-weight:600;font-size:11px">{{ grp.giornata.get_status_display }}</span>
+                    <span>Giornata {{ m.giornata.number }}</span>
+                    <span style="color:var(--muted);font-weight:600;font-size:11px">{{ m.giornata.get_status_display }}</span>
                 </div>
-                {% for f in grp.fixtures %}
+                {% if m.kind == "fixtures" %}
+                {% for f in m.fixtures %}
                 <div class="fix-row">
                     <div class="fix-teams">
                         <b>{{ f.home.display_name }}</b>
@@ -306,19 +307,52 @@
                     <div class="fix-score">
                         {% if f.computed %}
                         <span style="color:var(--accent)">{{ f.home_goals }} - {{ f.away_goals }}</span>
+                        {% if f.home_score is not None and f.away_score is not None %}
+                        <small class="muted" style="font-size:10px;font-weight:600;margin-left:4px;">({{ f.home_score|floatformat:1 }}-{{ f.away_score|floatformat:1 }})</small>
+                        {% endif %}
                         {% else %}
                         <span class="muted" style="font-size:11px;font-weight:500">— : —</span>
                         {% endif %}
                     </div>
                 </div>
                 {% endfor %}
+                {% elif m.kind == "points" %}
+                {% for sc in m.scores %}
+                <div class="fix-row">
+                    <div class="fix-teams">
+                        <span style="font-weight:800;color:var(--muted);width:20px;">#{{ sc.rank }}</span>
+                        <b>{{ sc.participant.display_name }}</b>
+                    </div>
+                    <div class="fix-score">
+                        <span style="color:var(--accent)">{{ sc.total|floatformat:1 }} FM</span>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="muted" style="font-size:12px;text-align:center;padding:6px 0;">In attesa di voti</div>
+                {% endfor %}
+                {% elif m.kind == "battle_royale" %}
+                {% for r in m.results %}
+                <div class="fix-row">
+                    <div class="fix-teams">
+                        <b>{{ r.team_name }}</b>
+                        <small class="muted" style="font-size:10px;">({{ r.record }})</small>
+                    </div>
+                    <div class="fix-score">
+                        <span style="color:var(--paused);font-weight:800;">+{{ r.battle_points }} Pt</span>
+                        <small class="muted" style="font-size:10px;">{{ r.fantapunti|floatformat:1 }} FM</small>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="muted" style="font-size:12px;text-align:center;padding:6px 0;">Punteggi non ancora calcolati</div>
+                {% endfor %}
+                {% endif %}
             </div>
             {% endfor %}
         </div>
         {% else %}
         <div class="muted" style="text-align:center;padding:32px 14px;">
-            Nessun calendario a scontri diretti per questa competizione.<br>
-            <small>I tornei a somma punti (Formula 1) e Battle Royale si calcolano automaticamente dai punteggi delle singole giornate.</small>
+            Nessun calendario programmato per questa competizione.<br>
+            <small>Usa i pulsanti sopra per configurare o rigenerare il calendario.</small>
         </div>
         {% endif %}
     </div>

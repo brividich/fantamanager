@@ -47,18 +47,17 @@ def admin_competitions(request):
     if not selected_comp and all_competitions:
         selected_comp = all_competitions[0]
 
+    from ..services.competitions import get_competition_matchdays
     competition_data = None
     fixtures_by_giornata = []
+    competition_matchdays = []
     if selected_comp:
         competition_data = compute_competition_standings(selected_comp)
-        # Group fixtures by Giornata
-        fixtures = list(selected_comp.fixtures.select_related("home", "away", "giornata").order_by("giornata__number", "id"))
-        grouped = defaultdict(list)
-        for f in fixtures:
-            grouped[f.giornata].append(f)
+        competition_matchdays = get_competition_matchdays(selected_comp)
         fixtures_by_giornata = [
-            {"giornata": g, "fixtures": grouped[g]}
-            for g in sorted(grouped.keys(), key=lambda x: x.number)
+            {"giornata": m["giornata"], "fixtures": m["fixtures"]}
+            for m in competition_matchdays
+            if m.get("kind") == "fixtures"
         ]
 
     teams = list(league.participants.filter(is_active=True).order_by("display_name"))
@@ -72,6 +71,7 @@ def admin_competitions(request):
         "selected_competition": selected_comp,
         "competition_data": competition_data,
         "fixtures_by_giornata": fixtures_by_giornata,
+        "competition_matchdays": competition_matchdays,
         "teams": teams,
         "giornate": giornate,
         "competition_types": Competition.Type.choices,

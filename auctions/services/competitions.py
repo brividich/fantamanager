@@ -357,3 +357,111 @@ def ensure_league_season_and_competitions(league):
 
     return season, competitions
 
+
+def get_competition_matchdays(competition, participant_id=None):
+    """Retrieve full matchday-by-matchday schedule and results for any competition.
+
+    Returns a list of dicts ordered by giornata number:
+    - For Round Robin / Bracket / Knockout: match fixtures with teams, scores, fantavoti, and user highlight.
+    - For Total Points: ranked managers with fantapunti per giornata.
+    - For Battle Royale: matchday battle results and records.
+    """
+    season = competition.season
+    giornate = list(season.giornate.all().order_by("number"))
+    matchdays = []
+
+    kind = competition.kind
+
+    if (
+        kind in (Competition.Type.ROUND_ROBIN, Competition.Type.SEASON_SPLIT, Competition.Type.KNOCKOUT, Competition.Type.SUPERCOPPA)
+        or competition.fixtures.exists()
+    ):
+        fixtures = list(
+            competition.fixtures.select_related("home", "away", "giornata")
+            .order_by("giornata__number", "id")
+        )
+        if fixtures:
+            # Map of scores for fantavoti
+            g_ids = list({f.giornata_id for f in fixtures})
+            scores = GiornataScore.objects.filter(giornata_id__in=g_ids).values("giornata_id", "participant_id", "total")
+            score_map = {(s["giornata_id"], s["participant_id"]): s["total"] for s in scores}
+
+            grouped = defaultdict(list)
+            for f in fixtures:
+                f.home_score = score_map.get((f.giornata_id, f.home_id))
+                f.away_score = score_map.get((f.giornata_id, f.away_id)) if f.away_id else None
+                f.is_user_match = bool(participant_id and (f.home_id == participant_id or f.away_id == participant_id))
+                grouped[f.giornata].append(f)
+
+            for g in sorted(grouped.keys(), key=lambda x: x.number):
+                fix_list = grouped[g]
+                matchdays.append({
+                    "giornata": g,
+                    "kind": "fixtures",
+                    "fixtures": fix_list,
+                    "has_user_match": any(f.is_user_match for f in fix_list),
+                    "is_scored": g.status == Giornata.Status.SCORED,
+                    "is_live": g.status == Giornata.Status.LIVE,
+                })
+            return matchdays
+
+    if kind == Competition.Type.TOTAL_POINTS:
+        settings = competition.settings or {}
+        start_g = settings.get("start_giornata", 1)
+        end_g = settings.get("end_giornata", season.matchdays or 38)
+        comp_giornate = [g for g in giornate if start_g <= g.number <= end_g]
+
+        all_scores = list(
+            GiornataScore.objects.filter(giornata__in=comp_giornate)
+            .select_related("participant", "giornata")
+        )
+        scores_by_g = defaultdict(list)
+        for s in all_scores:
+            scores_by_g[s.giornata_id].append(s)
+
+        for g in comp_giornate:
+            day_scores = sorted(scores_by_g[g.id], key=lambda x: x.total, reverse=True)
+            formatted_scores = []
+            for rank, s in enumerate(day_scores, start=1):
+                formatted_scores.append({
+                    "rank": rank,
+                    "participant": s.participant,
+                    "total": s.total,
+                    "goals": s.goals,
+                    "is_user": bool(participant_id and s.participant_id == participant_id),
+                })
+            matchdays.append({
+                "giornata": g,
+                "kind": "points",
+                "scores": formatted_scores,
+                "is_scored": len(formatted_scores) > 0,
+                "is_live": g.status == Giornata.Status.LIVE,
+            })
+        return matchdays
+
+    if kind == Competition.Type.BATTLE_ROYALE:
+        for g in giornate:
+            if g.status == Giornata.Status.SCORED:
+                day_res = compute_coppa_italia_battle_royale(g)
+                for r in day_res:
+                    r["is_user"] = bool(participant_id and r["participant"].id == participant_id)
+                matchdays.append({
+                    "giornata": g,
+                    "kind": "battle_royale",
+                    "results": day_res,
+                    "is_scored": True,
+                    "is_live": False,
+                })
+            else:
+                matchdays.append({
+                    "giornata": g,
+                    "kind": "battle_royale",
+                    "results": [],
+                    "is_scored": False,
+                    "is_live": g.status == Giornata.Status.LIVE,
+                })
+        return matchdays
+
+    return matchdays
+
+
