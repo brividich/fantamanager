@@ -18,6 +18,7 @@ from .championship import (
     Formation,
     Giornata,
     GiornataScore,
+    MatchdayFormation,
     PlayerPerformance,
     Season,
 )
@@ -77,5 +78,6 @@ __all__ = [
     "Giornata",
     "PlayerPerformance",
     "GiornataScore",
+    "MatchdayFormation",
     "Fixture",
 ]

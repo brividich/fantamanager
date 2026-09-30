@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json.schemastore.org/web-manifest-combined.json",
+  "id": "/app/",
+  "name": "FantaManager",
+  "short_name": "FantaManager",
+  "description": "Piattaforma per gestione leghe fantacalcio, formazioni, mercato a buste, scambi e aste live.",
+  "start_url": "/app/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait-primary",
+  "background_color": "#05182f",
+  "theme_color": "#05182f",
+  "categories": ["sports", "games", "entertainment"],
+  "lang": "it-IT",
+  "icons": [
+    {
+      "src": "/static/img/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/img/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/img/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Formazione",
+      "short_name": "Formazione",
+      "description": "Schiera la formazione titolare e la panchina",
+      "url": "/app/formazione/",
+      "icons": [{ "src": "/static/img/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Live Matchday",
+      "short_name": "Live",
+      "description": "Segui i voti e i risultati in tempo reale",
+      "url": "/app/live/",
+      "icons": [{ "src": "/static/img/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Mercato",
+      "short_name": "Mercato",
+      "description": "Consulta le buste e scambi",
+      "url": "/app/mercato/",
+      "icons": [{ "src": "/static/img/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Rosa Squadra",
+      "short_name": "Rosa",
+      "description": "Visualizza la tua rosa e i contratti",
+      "url": "/app/rosa/",
+      "icons": [{ "src": "/static/img/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

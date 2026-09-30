@@ -402,7 +402,7 @@ class ResumeSessionTests(AdminLeagueRbacBase):
     def test_resume_latest_only_picks_a_session_the_user_manages(self):
         self._as(self.foreign_admin)
         resp = self.client.post("/admin-auction/sessions/resume-latest/")
-        self.assertRedirects(resp, "/admin-auction/sessions/", fetch_redirect_response=False)
+        self.assertRedirects(resp, "/dashboard/sessions/", fetch_redirect_response=False)
         self.assertFalse(self._resumed(self.session).exists())
         self.assertFalse(self._resumed(self.legacy_session).exists())
 

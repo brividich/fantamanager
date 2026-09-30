@@ -242,6 +242,19 @@ def new_season(league_id):
     return {"ok": True, "season": league.season_number, "expired": expired, "listed_lost": listed_lost}
 
 
+def is_renewals_window_open(league):
+    """Verifica se la modalità di mercato rinnovi è aperta per la lega.
+    I contratti sono rinnovabili solo durante una sessione di mercato di tipo 'rinnovi' (o renewals_open).
+    """
+    if league is None or not league.contracts_enabled:
+        return False
+    from ..models import MarketSession
+    has_open_renewals_session = MarketSession.objects.filter(
+        league=league, session_type=MarketSession.SessionType.RENEWALS, status=MarketSession.Status.OPEN
+    ).exists()
+    return bool(has_open_renewals_session or league.renewals_open)
+
+
 def expiring(participant):
     return list(Player.objects.filter(owner=participant, contract_years=0, abroad_list=False).order_by("role", "name"))
 
@@ -250,12 +263,13 @@ def expiring(participant):
 def declare_renewals(participant_id, renew_ids):
     """Dichiarazione dei rinnovi (4.1): chi non è nella lista è svincolato subito.
 
-    Si fa una volta sola per stagione, prima di tirare il dado rinnovo.
+    Si fa una volta sola per stagione, prima di tirare il dado rinnovo,
+    esclusivamente durante una sessione di mercato Rinnovi.
     """
     participant = Participant.objects.select_related("league").get(pk=participant_id)
     league = participant.league
-    if league is None or not league.contracts_enabled or not league.renewals_open:
-        return _err("La finestra dei rinnovi non è aperta.")
+    if not is_renewals_window_open(league):
+        return _err("I contratti sono rinnovabili solo durante una sessione di mercato Rinnovi.")
     players = list(Player.objects.select_for_update().filter(owner=participant, contract_years=0, abroad_list=False))
     if not players:
         return _err("Non hai contratti scaduti da rinnovare.")
@@ -283,8 +297,8 @@ def roll_renewal(player_id, *, participant_id=None, by_admin=False, manual_green
     if error:
         return error
     league = player.owner.league
-    if not league.renewals_open:
-        return _err("La finestra dei rinnovi non è aperta.")
+    if not is_renewals_window_open(league):
+        return _err("I contratti sono rinnovabili solo durante una sessione di mercato Rinnovi.")
     if player.contract_years != 0 or player.renewal_declared is not True:
         return _err(f"{player.name} non è tra i rinnovi dichiarati.")
     manual = manual_green is not None

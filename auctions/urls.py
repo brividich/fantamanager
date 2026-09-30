@@ -12,6 +12,7 @@ urlpatterns = [
     path("onboarding/", views.onboarding_view, name="onboarding"),
     path("supervisor/", views.supervisor_dashboard, name="supervisor_dashboard"),
     path("supervisor/impersonate/exit/", views.supervisor_impersonate_exit, name="supervisor_impersonate_exit"),
+    path("supervisor/backup/download/", views.supervisor_backup_download, name="supervisor_backup_download"),
     path("portal/", views.home_portal, name="home_portal"),
 
     # Clean Sports Management Dashboard Routes

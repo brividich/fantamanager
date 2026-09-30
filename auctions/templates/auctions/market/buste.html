@@ -74,6 +74,13 @@ deliveries, preview, count and envelopes open in its own screen
         <input type="hidden" name="league_id" value="{{ current_league.id }}">
         <h3><svg class="ic"><use href="#i-mail"/></svg> Nuova sessione a buste</h3>
         <div class="mr-stack">
+            <label class="mr-field"><span class="mr-lbl">Tipo di Sessione</span>
+                <select name="session_type" class="mr-input" onchange="if(this.value==='renewals'){document.querySelector('input[name=title]').value='Mercato Rinnovi Contratti';}else{document.querySelector('input[name=title]').value='Mercato di Riparazione';}">
+                    <option value="repair" selected>Mercato di Riparazione (Buste)</option>
+                    <option value="renewals">Mercato Rinnovi Contratti (Dadi e rinnovi)</option>
+                </select>
+                <span class="mr-hint">La modalità Rinnovi abilita le squadre a confermare rinnovi e tirare i dadi contrattuali.</span>
+            </label>
             <label class="mr-field"><span class="mr-lbl">Titolo sessione</span>
                 <input type="text" name="title" value="Mercato di Riparazione" required class="mr-input"></label>
             <div class="mr-grid">

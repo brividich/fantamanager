@@ -8,6 +8,11 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="FantaManager">
+    {% load static %}
+    <link rel="apple-touch-icon" href="{% static 'img/apple-touch-icon.png' %}">
+    <link rel="icon" type="image/svg+xml" href="{% static 'img/icon.svg' %}">
+    <link rel="manifest" href="{% static 'manifest.json' %}">
     <meta name="format-detection" content="telephone=no">
     <title>{% block title %}FantaManager — Asta Live{% endblock %}</title>
     <!-- Webfonts are a nicety, not a dependency: FantaManager runs on a LAN
@@ -319,6 +324,40 @@
             document.addEventListener("touchstart", retryOnGesture, { once: true, passive: true });
             keepAwake();
         })();
+        </script>
+        <script>
+        // PWA Service Worker & Install Flow
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/static/sw.js')
+                    .catch(function(err) { console.debug('SW reg failed', err); });
+            });
+        }
+        window.deferredPWAInstallPrompt = null;
+        window.addEventListener('beforeinstallprompt', function(e) {
+            e.preventDefault();
+            window.deferredPWAInstallPrompt = e;
+            var triggers = document.querySelectorAll('.pwa-install-trigger');
+            triggers.forEach(function(el) { el.style.display = 'flex'; });
+        });
+        function triggerPWAInstall() {
+            if (window.deferredPWAInstallPrompt) {
+                window.deferredPWAInstallPrompt.prompt();
+                window.deferredPWAInstallPrompt.userChoice.then(function(choice) {
+                    if (choice && choice.outcome === 'accepted') {
+                        var triggers = document.querySelectorAll('.pwa-install-trigger');
+                        triggers.forEach(function(el) { el.style.display = 'none'; });
+                    }
+                    window.deferredPWAInstallPrompt = null;
+                });
+            } else {
+                if (window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches) {
+                    alert('FantaManager è già installato come app sul tuo dispositivo!');
+                } else {
+                    alert('Per installare l\'app:\n• Su iPhone / iPad: tocca il tasto "Condividi" in Safari e scegli "Aggiungi alla schermata Home".\n• Su Android: tocca i tre puntini in alto a destra e premi "Installa app" o "Aggiungi a Home".');
+                }
+            }
+        }
         </script>
     {% block scripts %}{% endblock %}
 </body>
