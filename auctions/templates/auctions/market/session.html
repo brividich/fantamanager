@@ -10,7 +10,7 @@ the result of the count, ties and (for the admin only) the envelopes.
 
 {% block mk_head %}
 <div>
-    <span class="kicker">Sessione a buste · {{ current_league.name }}</span>
+    <span class="kicker">{{ s.get_session_type_display }} · {{ current_league.name }}</span>
     <h1><svg class="ic"><use href="#i-mail"/></svg> {{ s.title }}</h1>
 </div>
 <span class="spacer"></span>
@@ -66,11 +66,13 @@ the result of the count, ties and (for the admin only) the envelopes.
             </form>
             {% endif %}
             {% if s.status == "open" or s.status == "closed" %}
-            <form method="post" action="{% url 'admin_market_resolve' s.id %}" onsubmit="return confirm({% if s.status == 'open' %}'Vuoi chiudere e scrutinare tutte le buste adesso? L\'operazione assegnerà i giocatori ed effettuerà i tagli.'{% else %}'Confermi lo spoglio delle buste?'{% endif %});">
+            {% if s.session_type != "free_agency" and s.session_type != "buyout_clause" %}
+            <form method="post" action="{% url 'admin_market_resolve' s.id %}" onsubmit="return confirm({% if s.session_type == 'waiver_wire' %}'Vuoi eseguire il draft Waiver Wire adesso? I calciatori verranno assegnati alle squadre secondo l\'ordine di scelta.'{% elif s.session_type == 'renewals' %}'Confermi la chiusura dei rinnovi? I contratti non rinnovati verranno svincolati definitivamente.'{% elif s.status == 'open' %}'Vuoi chiudere e scrutinare tutte le buste adesso? L\'operazione assegnerà i giocatori ed effettuerà i tagli.'{% else %}'Confermi lo spoglio delle buste?'{% endif %});">
                 {% csrf_token %}
                 <button type="submit" class="fm-btn fm-btn-primary fm-btn-sm">
-                    <svg class="ic"><use href="#i-play"/></svg> Scrutina buste</button>
+                    <svg class="ic"><use href="#i-play"/></svg> {% if s.session_type == "waiver_wire" %}Esegui Draft Waiver{% elif s.session_type == "renewals" %}Chiudi & Risolvi Rinnovi{% else %}Scrutina buste{% endif %}</button>
             </form>
+            {% endif %}
             {% endif %}
             {% if s.status != "resolved" %}
             <form method="post" action="{% url 'admin_market_notify' s.id %}"{% if mail_ready %} onsubmit="return confirm('Inviare l\'avviso della sessione alle {{ reachable }} squadre con un indirizzo email?');"{% endif %}>
@@ -81,12 +83,20 @@ the result of the count, ties and (for the admin only) the envelopes.
             </form>
             {% endif %}
             {% if s.status == "resolved" %}
+            <a href="{% url 'admin_print_buste_report' s.id %}" target="_blank" rel="noopener" class="fm-btn fm-btn-primary fm-btn-sm" title="Stampa o salva in PDF il Verbale Ufficiale di Spoglio">
+                <svg class="ic"><use href="#i-print"/></svg> Verbale (PDF)</a>
+            <a href="{% url 'admin_export_buste_csv' s.id %}" class="fm-btn fm-btn-secondary fm-btn-sm" title="Scarica il verbale in CSV">
+                <svg class="ic"><use href="#i-import"/></svg> CSV</a>
             <form method="post" action="{% url 'admin_market_undo' s.id %}" onsubmit="return confirm('Annullare lo spoglio? Acquisti e tagli verranno stornati e le buste torneranno in attesa.');">
                 {% csrf_token %}
                 <button type="submit" class="fm-btn btn-warn fm-btn-sm" title="Storna acquisti e tagli dello spoglio">
                     <svg class="ic"><use href="#i-refresh"/></svg> Annulla spoglio</button>
             </form>
             {% else %}
+            {% if s.session_type == "renewals" %}
+            <a href="{% url 'admin_print_renewals' %}?league={{ current_league.id }}" target="_blank" rel="noopener" class="fm-btn fm-btn-secondary fm-btn-sm" title="Stampa o salva in PDF il Report Rinnovi della Lega">
+                <svg class="ic"><use href="#i-print"/></svg> Report Rinnovi (PDF)</a>
+            {% endif %}
             <button type="button" class="fm-btn fm-btn-secondary fm-btn-sm" onclick="document.getElementById('modal-edit-rules').showModal()" title="Modifica le regole della sessione">
                 <svg class="ic"><use href="#i-gear"/></svg> Regole</button>
             {% endif %}
@@ -107,12 +117,24 @@ the result of the count, ties and (for the admin only) the envelopes.
 
     <div class="mk-kpis">
         <div class="mk-kpi">
-            <div class="k">Buste ricevute</div>
+            <div class="k">
+                {% if s.session_type == "free_agency" %}Acquisti live effettuati
+                {% elif s.session_type == "waiver_wire" %}Reclami ricevuti
+                {% elif s.session_type == "buyout_clause" %}Clausole pagate
+                {% elif s.session_type == "renewals" %}Rinnovi dichiarati
+                {% else %}Buste ricevute{% endif %}
+            </div>
             <div class="v">{{ s.n_bids }}</div>
-            <div class="s">{% if s.max_bids %}max {{ s.max_bids }} a squadra{% else %}senza limite{% endif %}</div>
+            <div class="s">
+                {% if s.session_type == "free_agency" %}{% if s.config.fa_max_moves %}max {{ s.config.fa_max_moves }} a sett.{% else %}illimitati{% endif %}
+                {% elif s.session_type == "waiver_wire" %}{% if s.config.waiver_order_type == "rolling" %}rotazione continua{% else %}inverso classifica{% endif %}
+                {% elif s.session_type == "buyout_clause" %}moltiplicatore {{ s.config.buyout_multiplier|default:1.5 }}x
+                {% elif s.session_type == "renewals" %}dadi e contratti
+                {% else %}{% if s.max_bids %}max {{ s.max_bids }} a squadra{% else %}senza limite{% endif %}{% endif %}
+            </div>
         </div>
         <div class="mk-kpi {% if participants_stats and delivered == participants_stats|length %}ok{% endif %}">
-            <div class="k">Squadre che hanno consegnato</div>
+            <div class="k">Squadre attive</div>
             <div class="v">{{ delivered }}<small>/{{ participants_stats|length }}</small></div>
             <div class="mk-bar"><span style="width:{% widthratio delivered participants_stats|length|default:1 100 %}%"></span></div>
         </div>
@@ -140,11 +162,28 @@ the result of the count, ties and (for the admin only) the envelopes.
     </div>
 
     <div class="mk-rules">
+        {% if s.session_type == "free_agency" %}
+        <span class="mk-rule">Tipo: <b>Mercato Libero Continuo (Free Agency)</b></span>
+        <span class="mk-rule">Limite cambi: <b>{% if s.config.fa_max_moves %}{{ s.config.fa_max_moves }} a settimana{% else %}Illimitati{% endif %}</b></span>
+        <span class="mk-rule">Costo acquisto: <b>{% if s.config.fa_cost_type == "base" %}Prezzo base (1 FM){% else %}Quotazione attuale Listone{% endif %}</b></span>
+        <span class="mk-rule">Svincoli: <b>{% if s.allow_conditional_release %}Svincolo contestuale con rimborso {{ s.get_release_refund_mode_display|lower }}{% else %}Nessun rimborso{% endif %}</b></span>
+        {% elif s.session_type == "waiver_wire" %}
+        <span class="mk-rule">Tipo: <b>Draft Waiver Wire a Turni</b></span>
+        <span class="mk-rule">Criterio priorità: <b>{% if s.config.waiver_order_type == "rolling" %}Rotazione Continua{% else %}Inverso di Classifica{% endif %}</b></span>
+        <span class="mk-rule">Finestra reclami: <b>{{ s.config.waiver_claim_hours|default:24 }} ore</b></span>
+        <span class="mk-rule">Tagli condizionati: <b>{% if s.allow_conditional_release %}Abilitati con rimborso {{ s.get_release_refund_mode_display|lower }}{% else %}Disabilitati{% endif %}</b></span>
+        {% elif s.session_type == "buyout_clause" %}
+        <span class="mk-rule">Tipo: <b>Mercato con Clausole Rescisorie</b></span>
+        <span class="mk-rule">Moltiplicatore clausola: <b>{{ s.config.buyout_multiplier|default:1.5 }}x valore d'asta</b></span>
+        <span class="mk-rule">Protezione post-acquisto: <b>{{ s.config.buyout_min_hold_days|default:7 }} giorni</b></span>
+        <span class="mk-rule">Accredito: <b>100% dell'importo accreditato alla squadra cedente</b></span>
+        {% else %}
         <span class="mk-rule">Offerte: <b>{% if s.max_bids %}max {{ s.max_bids }} per squadra{% else %}senza limite{% endif %}</b></span>
         <span class="mk-rule">Budget: <b>{% if s.budget_rule == "total" %}totale offerte ≤ budget{% else %}priorità{% endif %}</b></span>
         <span class="mk-rule">Pari merito: <b>{% if s.tie_break == "first" %}vince chi offre prima{% elif s.tie_break == "rebid" %}secondo sfoglio{% else %}decide l'admin{% endif %}</b></span>
         <span class="mk-rule">Taglio: <b>{% if s.require_same_role_release %}obbligatorio, pari ruolo{% elif s.allow_conditional_release %}facoltativo{% else %}no{% endif %}</b>{% if s.require_same_role_release or s.allow_conditional_release %} · rimborso {{ s.get_release_refund_mode_display|lower }}{% endif %}</span>
         <span class="mk-rule">Acquisti per ruolo: <b>P {{ s.max_acquisitions_p|default:"∞" }} · D {{ s.max_acquisitions_d|default:"∞" }} · C {{ s.max_acquisitions_c|default:"∞" }} · A {{ s.max_acquisitions_a|default:"∞" }}</b></span>
+        {% endif %}
     </div>
 </article>
 
@@ -164,6 +203,16 @@ the result of the count, ties and (for the admin only) the envelopes.
         <div class="mk-kpi {% if results.total_ties %}warn{% endif %}"><div class="v">{{ results.total_ties|default:0 }}</div><div class="k">Pareggi / ballottaggi</div></div>
         <div class="mk-kpi"><div class="v">{{ results.lost|length }}</div><div class="k">Buste non aggiudicate</div></div>
     </div>
+    {% if s.status == "resolved" %}
+    <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
+        <a href="{% url 'admin_print_buste_report' s.id %}" target="_blank" rel="noopener" class="fm-btn fm-btn-primary fm-btn-sm" style="display:inline-flex;align-items:center;gap:6px">
+            <svg class="ic"><use href="#i-print"/></svg> Stampa Verbale Ufficiale (PDF)
+        </a>
+        <a href="{% url 'admin_export_buste_csv' s.id %}" class="fm-btn fm-btn-secondary fm-btn-sm" style="display:inline-flex;align-items:center;gap:6px">
+            <svg class="ic"><use href="#i-import"/></svg> Esporta CSV Verbale
+        </a>
+    </div>
+    {% endif %}
 </div>
 
 {% if results.tied %}
@@ -224,6 +273,46 @@ the result of the count, ties and (for the admin only) the envelopes.
                 <td><span class="mk-fm">{{ w.amount }} FM</span></td>
                 <td>{% if w.released_player %}<span class="mk-cut">✂ {{ w.released_player }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
                 <td>{% if w.refund %}<span class="mk-plus">+{{ w.refund }} FM</span>{% else %}<span class="muted">0 FM</span>{% endif %}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% if results.rescinded %}
+<div class="fm-card" style="margin-top:14px">
+    <h3 class="mk-card-t"><svg class="ic"><use href="#i-refresh"/></svg> Rescissioni Contrattuali (Dado Rosso) <span class="cnt">{{ results.rescinded|length }}</span></h3>
+    <div class="table-scroll">
+        <table>
+            <thead><tr><th>Giocatore</th><th>Squadra Cedente</th><th>Esito</th></tr></thead>
+            <tbody>
+            {% for r in results.rescinded %}
+            <tr>
+                <td><b>{{ r.player_name }}</b></td>
+                <td>{{ r.participant_name }}</td>
+                <td><span class="tag t-warn">Rescissione (all'asta con indennizzo)</span></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% if results.released %}
+<div class="fm-card" style="margin-top:14px">
+    <h3 class="mk-card-t"><svg class="ic"><use href="#i-trash"/></svg> Svincolati a fine contratto <span class="cnt">{{ results.released|length }}</span></h3>
+    <div class="table-scroll">
+        <table>
+            <thead><tr><th>Giocatore</th><th>Squadra</th><th>Esito</th></tr></thead>
+            <tbody>
+            {% for r in results.released %}
+            <tr>
+                <td><b>{{ r.player_name }}</b></td>
+                <td>{{ r.participant_name }}</td>
+                <td><span class="tag">Non rinnovato (svincolato)</span></td>
             </tr>
             {% endfor %}
             </tbody>

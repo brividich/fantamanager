@@ -107,8 +107,13 @@
                 </select>
             </div>
             {% endif %}
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px">
+            <p style="margin:0">{{ roster_count }}{% if plan.total_slots %}/{{ plan.total_slots }}{% endif %} giocatori{% if is_mantra %} · Mantra{% endif %}{% if not is_mine %} · <a href="{% url 'app_rosa' %}" style="color:var(--accent);text-decoration:none;font-weight:700;">← Torna alla mia rosa</a>{% endif %}</p>
+            <a href="{% url 'app_print_team_sheet' %}?team={{ viewed_participant.id }}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:8px;background:var(--accent-soft);border:1px solid var(--accent-line);color:var(--accent);font-size:11.5px;font-weight:800;text-decoration:none;" title="Visualizza e stampa la Scheda Squadra ufficiale (formato A4/PDF identico al foglio di lega)">
+                <svg class="ic" style="width:13px;height:13px"><use href="#i-print"/></svg>
+                <span>Scheda Squadra (PDF)</span>
+            </a>
         </div>
-        <p>{{ roster_count }}{% if plan.total_slots %}/{{ plan.total_slots }}{% endif %} giocatori{% if is_mantra %} · Mantra{% endif %}{% if not is_mine %} · <a href="{% url 'app_rosa' %}" style="color:var(--accent);text-decoration:none;font-weight:700;">← Torna alla mia rosa</a>{% endif %}</p>
     </div>
     <div class="rosa-kpis">
         <div class="rosa-kpi"><b>{{ viewed_participant.remaining_credits|floatformat:0 }}<small> FM</small></b><span>Crediti</span></div>

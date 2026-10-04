@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 from django.contrib import messages
 from django.db.models import Count
-from django.http import HttpResponseForbidden
+from django.http import HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
@@ -17,6 +17,8 @@ from ..models import (
 from ..services import mail
 from ..services.trade import decide_trade
 from ..services.market import (
+    build_buste_csv,
+    get_buste_report_context,
     plan_market_resolution,
     resolve_market_session,
     settle_market_tie,
@@ -337,6 +339,34 @@ def admin_market_session(request, session_id):
 
 
 @staff_member_required
+def admin_print_buste_report(request, session_id):
+    """Visualizza e stampa in formato A4 / PDF il Verbale Ufficiale di Spoglio Buste."""
+    session, denied = _managed_session_or_403(request, session_id)
+    if denied:
+        return denied
+    ctx = get_buste_report_context(session.id)
+    if not ctx:
+        messages.error(request, "Impossibile generare il verbale per questa sessione.")
+        return redirect("admin_market_session", session_id=session.id)
+    ctx["back_url"] = reverse("admin_market_session", args=[session.id])
+    ctx["csv_url"] = reverse("admin_export_buste_csv", args=[session.id])
+    return render(request, "auctions/print_market_buste.html", ctx)
+
+
+@staff_member_required
+def admin_export_buste_csv(request, session_id):
+    """Scarica il file CSV del Verbale Ufficiale di Spoglio Buste."""
+    session, denied = _managed_session_or_403(request, session_id)
+    if denied:
+        return denied
+    csv_bytes = build_buste_csv(session)
+    name = f"Verbale_Spoglio_{session.id}_{session.league.id if session.league else 'mercato'}.csv"
+    resp = HttpResponse(csv_bytes, content_type="text/csv; charset=utf-8")
+    resp["Content-Disposition"] = f'attachment; filename="{name}"'
+    return resp
+
+
+@staff_member_required
 def admin_market_trades(request):
     """Scambi: ratifications, history, rules and trade windows."""
     league, denied = _league_or_403(request)
@@ -389,17 +419,23 @@ def _session_rules(post):
     raw_type = (post.get("session_type") or post.get("market_kind") or "").strip()
     type_aliases = {
         "buste": MarketSession.SessionType.SEALED_BIDS,
+        "repair": MarketSession.SessionType.REPAIR,
+        "renewals": MarketSession.SessionType.RENEWALS,
         "live": MarketSession.SessionType.LIVE_AUCTION,
+        "live_auction": MarketSession.SessionType.LIVE_AUCTION,
         "free_agency": MarketSession.SessionType.FREE_AGENCY,
         "waiver_wire": MarketSession.SessionType.WAIVER_WIRE,
         "buyout_clause": MarketSession.SessionType.BUYOUT_CLAUSE,
+        "sealed_bids": MarketSession.SessionType.SEALED_BIDS,
         "SEALED_BIDS": MarketSession.SessionType.SEALED_BIDS,
         "LIVE_AUCTION": MarketSession.SessionType.LIVE_AUCTION,
         "FREE_AGENCY": MarketSession.SessionType.FREE_AGENCY,
         "WAIVER_WIRE": MarketSession.SessionType.WAIVER_WIRE,
         "BUYOUT_CLAUSE": MarketSession.SessionType.BUYOUT_CLAUSE,
+        "REPAIR": MarketSession.SessionType.REPAIR,
+        "RENEWALS": MarketSession.SessionType.RENEWALS,
     }
-    session_type = type_aliases.get(raw_type, MarketSession.SessionType.SEALED_BIDS)
+    session_type = type_aliases.get(raw_type, MarketSession.SessionType.REPAIR if raw_type == "repair" else MarketSession.SessionType.SEALED_BIDS)
 
     # Session-specific configuration payload
     config = {
@@ -440,11 +476,17 @@ def admin_market_create(request):
     if not user_can_manage_league(request.user, league):
         return HttpResponseForbidden(_FORBIDDEN_MSG)
 
-    session_type = (request.POST.get("session_type") or "repair").strip().lower()
-    if session_type not in (MarketSession.SessionType.REPAIR, MarketSession.SessionType.RENEWALS):
-        session_type = MarketSession.SessionType.REPAIR
+    rules = _session_rules(request.POST)
+    session_type = rules.pop("session_type", MarketSession.SessionType.REPAIR)
 
-    default_title = "Mercato Rinnovi Contratti" if session_type == MarketSession.SessionType.RENEWALS else "Mercato di Riparazione a Buste"
+    default_title_map = {
+        MarketSession.SessionType.RENEWALS: "Mercato Rinnovi Contratti",
+        MarketSession.SessionType.FREE_AGENCY: "Finestra Free Agency",
+        MarketSession.SessionType.WAIVER_WIRE: "Sessione Waiver a Turni",
+        MarketSession.SessionType.BUYOUT_CLAUSE: "Sessione Clausole Rescisorie",
+        MarketSession.SessionType.LIVE_AUCTION: "Asta Live di Riparazione",
+    }
+    default_title = default_title_map.get(session_type, "Mercato di Riparazione a Buste")
     title = (request.POST.get("title") or default_title).strip()
 
     opens_at = _parse_local_datetime(request.POST.get("opens_at"))
@@ -463,7 +505,7 @@ def admin_market_create(request):
         status=status,
         opens_at=opens_at,
         closes_at=closes_at,
-        **_session_rules(request.POST),
+        **rules,
     )
 
     if session_type == MarketSession.SessionType.RENEWALS and status == MarketSession.Status.OPEN:
@@ -542,10 +584,16 @@ def admin_market_resolve(request, session_id):
     summary = resolve_market_session(session.id)
     won_count = summary.get("total_acquisitions", 0)
     ties_count = summary.get("total_ties", 0)
-    messages.success(
-        request,
-        f"Spoglio completato per '{session.title}': {won_count} acquisti assegnati, {ties_count} situazioni di pareggio.",
-    )
+    if session.session_type == MarketSession.SessionType.WAIVER_WIRE:
+        messages.success(
+            request,
+            f"Draft Waiver completato per '{session.title}': {won_count} calciatori assegnati secondo l'ordine di priorità.",
+        )
+    else:
+        messages.success(
+            request,
+            f"Spoglio completato per '{session.title}': {won_count} acquisti assegnati, {ties_count} situazioni di pareggio.",
+        )
     return redirect(_dashboard_url(request, session))
 
 

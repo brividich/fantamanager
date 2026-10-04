@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verbale di Spoglio {{ session.title }} — {{ league.name }}</title>
+<style>
+    @page { size: A4 portrait; margin: 8mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #e9e9e9; color: #000;
+           font-family: "Century Gothic", "Avenir Next", "Avenir", "Trebuchet MS", Arial, sans-serif;
+           -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .toolbar { position: sticky; top: 0; z-index: 2; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+               padding: 10px 16px; background: #10223a; color: #fff; font-size: 14px; }
+    .toolbar b { flex: 1 1 auto; }
+    .toolbar a, .toolbar button { font: inherit; font-weight: 700; color: #fff; background: #087cf0; border: 0;
+               border-radius: 8px; padding: 8px 14px; cursor: pointer; text-decoration: none; }
+    .toolbar a.ghost { background: transparent; border: 1px solid rgba(255,255,255,.35); }
+    .pages { overflow-x: auto; padding: 14px 0; }
+    .sheet { width: 196mm; min-height: 283mm; margin: 0 auto 14px; padding: 6mm 6mm; background: #fff;
+             box-shadow: 0 2px 10px rgba(0,0,0,.18); break-after: page; page-break-after: always; }
+    .sheet:last-child { break-after: auto; page-break-after: auto; }
+
+    .header-box { border-bottom: 2px solid #000; padding-bottom: 3.5mm; margin-bottom: 4mm; display: flex; justify-content: space-between; align-items: flex-start; }
+    .league-name { font-size: 11pt; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #444; }
+    .main-title { font-size: 17pt; font-weight: 800; text-transform: uppercase; margin: 1.5mm 0 1mm; line-height: 1.1; }
+    .session-meta { font-size: 9pt; color: #333; line-height: 1.35; }
+
+    .summary-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2.5mm; margin-bottom: 4mm; }
+    .sum-box { border: 1px solid #aaa; padding: 2mm 1mm; text-align: center; background: #f8fafc; border-radius: 2mm; }
+    .sum-val { font-size: 13pt; font-weight: 800; color: #087cf0; line-height: 1; }
+    .sum-lbl { font-size: 7pt; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #555; margin-top: 1mm; }
+
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 8.5pt; margin-bottom: 4mm; }
+    td, th { border: 1px solid #aaa; padding: 1mm 1.5mm; height: 4.6mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    th { background: #e7e6e6; font-size: 7.8pt; font-weight: 700; text-align: center; }
+    .sec-hdr { background: #e2efda; font-size: 9pt; font-weight: 800; text-align: left; padding: 1.5mm 2mm; border: 1px solid #aaa; }
+    .c { text-align: center; }
+    .r { text-align: right; }
+    .b { font-weight: 700; }
+
+    .role-badge { display: inline-block; padding: 1px 4px; border-radius: 3px; font-weight: 800; font-size: 7.5pt; text-align: center; }
+    .role-P { background: #fef3c7; color: #b45309; }
+    .role-D { background: #e0f2fe; color: #0369a1; }
+    .role-C { background: #dcfce7; color: #15803d; }
+    .role-A { background: #fee2e2; color: #b91c1c; }
+
+    .taglio-tag { font-size: 7.5pt; color: #dc2626; font-weight: 600; }
+    .refund-tag { font-size: 7.5pt; color: #16a34a; font-weight: 700; }
+
+    .sign-box { margin-top: 5mm; display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; font-size: 8.2pt; break-inside: avoid; }
+    .sign-line { border-top: 1px solid #000; margin-top: 10mm; text-align: center; font-size: 7.5pt; color: #444; }
+
+    @media print {
+        body { background: #fff; }
+        .toolbar { display: none; }
+        .pages { padding: 0; overflow: visible; }
+        .sheet { box-shadow: none; margin: 0; padding: 0; width: auto; min-height: 0; }
+    }
+</style>
+</head>
+<body>
+<div class="toolbar">
+    <b>Verbale di Spoglio Ufficiale · {{ session.title }} · {{ league.name }}</b>
+    <button type="button" onclick="window.print()">Stampa / salva PDF</button>
+    {% if csv_url %}<a class="ghost" href="{{ csv_url }}">Scarica CSV</a>{% endif %}
+    {% if back_url %}<a class="ghost" href="{{ back_url }}">Torna indietro</a>{% endif %}
+</div>
+
+<div class="pages">
+<section class="sheet">
+    <div class="header-box">
+        <div>
+            <div class="league-name">{{ league.name }}</div>
+            <div class="main-title">Verbale Ufficiale di Spoglio Buste</div>
+            <div class="session-meta">
+                Sessione: <b>{{ session.title }}</b> · Modalità: <b>{{ session.get_session_type_display }}</b><br>
+                Data Spoglio: <b>{{ resolved_at|date:"d/m/Y H:i"|default:"In corso" }}</b> · Regola Budget: <b>{{ session.get_budget_rule_display }}</b>
+            </div>
+        </div>
+        <div style="text-align:right;font-size:8.5pt;color:#666">
+            <b>FantaManager</b><br>
+            Documento Ufficiale di Lega<br>
+            Omologazione Esito
+        </div>
+    </div>
+
+    <!-- Indicatori Riepilogo Spoglio -->
+    <div class="summary-grid">
+        <div class="sum-box">
+            <div class="sum-val">{{ total_acquisitions }}</div>
+            <div class="sum-lbl">Aggiudicazioni</div>
+        </div>
+        <div class="sum-box">
+            <div class="sum-val">{{ total_spent }} <small style="font-size:9pt">FM</small></div>
+            <div class="sum-lbl">Crediti Spesi</div>
+        </div>
+        <div class="sum-box">
+            <div class="sum-val">{{ total_refund }} <small style="font-size:9pt">FM</small></div>
+            <div class="sum-lbl">Crediti Rimborsati</div>
+        </div>
+        <div class="sum-box">
+            <div class="sum-val">{{ role_counts.P }}P · {{ role_counts.D }}D · {{ role_counts.C }}C · {{ role_counts.A }}A</div>
+            <div class="sum-lbl">Reparti Assegnati</div>
+        </div>
+        <div class="sum-box">
+            <div class="sum-val">{{ tied_list|length }}</div>
+            <div class="sum-lbl">Spareggi Risolti</div>
+        </div>
+    </div>
+
+    <!-- Tabella 1: Assegnazioni Ufficiali -->
+    <table>
+        <colgroup>
+            <col style="width:4%">
+            <col style="width:5%">
+            <col style="width:23%">
+            <col style="width:13%">
+            <col style="width:23%">
+            <col style="width:10%">
+            <col style="width:22%">
+        </colgroup>
+        <thead>
+            <tr><td class="sec-hdr" colspan="7">1. QUADRO ASSEGNAZIONI UFFICIALI CALCIATORI</td></tr>
+            <tr>
+                <th>#</th>
+                <th>R.</th>
+                <th>CALCIATORE</th>
+                <th>SQUADRA</th>
+                <th>SOCIETÀ VINCITRICE</th>
+                <th>OFFERTA</th>
+                <th>TAGLIO CONDIZIONATO</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for w in won_list %}
+            <tr>
+                <td class="c b">{{ forloop.counter }}</td>
+                <td class="c"><span class="role-badge role-{{ w.player_role }}">{{ w.player_role }}</span></td>
+                <td class="b">{{ w.player_name }}</td>
+                <td>{{ w.player_team }}</td>
+                <td class="b" style="color:#0f172a">{{ w.winner_name }}</td>
+                <td class="c b" style="color:#087cf0">{{ w.amount }} FM</td>
+                <td>
+                    {% if w.released_player %}
+                    <span class="taglio-tag">✂ {{ w.released_player }}</span>
+                    {% if w.refund %}<span class="refund-tag">(+{{ w.refund }} FM)</span>{% endif %}
+                    {% else %}
+                    <span style="color:#999">—</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" class="c" style="padding:10px;color:#888">Nessun calciatore aggiudicato in questa sessione.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Tabella 2: Spareggi e Parità (se presenti) -->
+    {% if tied_list %}
+    <table>
+        <colgroup>
+            <col style="width:4%">
+            <col style="width:5%">
+            <col style="width:25%">
+            <col style="width:11%">
+            <col style="width:28%">
+            <col style="width:27%">
+        </colgroup>
+        <thead>
+            <tr><td class="sec-hdr" colspan="6">2. RISOLUZIONE SPAREGGI & OFFERTE PARITARIE</td></tr>
+            <tr>
+                <th>#</th>
+                <th>R.</th>
+                <th>CALCIATORE</th>
+                <th>OFFERTA</th>
+                <th>SOCIETÀ IN PARITÀ</th>
+                <th>ESITO / ASSEGNAZIONE</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in tied_list %}
+            <tr>
+                <td class="c b">{{ forloop.counter }}</td>
+                <td class="c"><span class="role-badge role-{{ t.player_role }}">{{ t.player_role }}</span></td>
+                <td class="b">{{ t.player_name }}</td>
+                <td class="c b">{{ t.amount }} FM</td>
+                <td>
+                    {% for c in t.contenders %}
+                    {{ c.participant_name }}{% if not forloop.last %} vs {% endif %}
+                    {% endfor %}
+                </td>
+                <td class="b" style="color:#16a34a">
+                    {% if t.settled %}
+                    Assegnato a {{ t.settled.winner_name }} ({{ t.settled.method }})
+                    {% else %}
+                    Risolto da regolamento
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    <!-- Tabella 3: Bilancio Movimenti & Crediti per Società -->
+    <table>
+        <colgroup>
+            <col style="width:25%">
+            <col style="width:11%">
+            <col style="width:11%">
+            <col style="width:11%">
+            <col style="width:12%">
+            <col style="width:30%">
+        </colgroup>
+        <thead>
+            <tr><td class="sec-hdr" colspan="6">{% if tied_list %}3{% else %}2{% endif %}. BILANCIO MOVIMENTI E CREDITI PER SOCIETÀ</td></tr>
+            <tr>
+                <th>SOCIETÀ</th>
+                <th>ACQUISTI</th>
+                <th>SPESA FM</th>
+                <th>RIMBORSI</th>
+                <th>SALDO NETTO</th>
+                <th>DETTAGLIO CALCIATORI ACQUISTATI</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for st in teams_breakdown %}
+            <tr>
+                <td class="b">{{ st.display_name }}</td>
+                <td class="c b">{{ st.won_players|length }}</td>
+                <td class="c b" style="color:#dc2626">-{{ st.total_spent }} FM</td>
+                <td class="c b" style="color:#16a34a">+{{ st.total_refund }} FM</td>
+                <td class="c b">{{ st.net_spent }} FM</td>
+                <td style="font-size:7.8pt">
+                    {% for p in st.won_players %}
+                    {{ p.player_name }} ({{ p.amount }} FM){% if not forloop.last %} · {% endif %}
+                    {% empty %}—{% endfor %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="c" style="color:#888">Nessun movimento registrato per le società.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Dichiarazione di Omologazione & Firme -->
+    <div style="font-size:7.5pt;color:#555;line-height:1.4;margin-top:3mm;border-top:1px dashed #aaa;padding-top:2mm">
+        Si certifica che le operazioni di spoglio delle buste si sono svolte in piena regolarità conformemente al Regolamento di Lega. L'assegnazione dei diritti sulle prestazioni sportive dei calciatori di cui sopra è definitiva ed efficace dalla data odierna.
+    </div>
+
+    <div class="sign-box">
+        <div>
+            <div style="font-weight:700">Per la Commissione di Lega:</div>
+            <div class="sign-line">L'Amministratore di Lega</div>
+        </div>
+        <div>
+            <div style="font-weight:700;text-align:right">Per le Società Partecipanti:</div>
+            <div class="sign-line">I Presidenti di Lega</div>
+        </div>
+    </div>
+</section>
+</div>
+</body>
+</html>

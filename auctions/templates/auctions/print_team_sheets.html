@@ -63,8 +63,8 @@
 <div class="toolbar">
     <b>{% if sheets|length == 1 %}Scheda {{ sheets.0.participant.display_name }}{% else %}Schede squadre · {{ league.name }}{% endif %}</b>
     <button type="button" onclick="window.print()">Stampa / salva PDF</button>
-    <a class="ghost" href="{% url 'admin_export_team_sheets' %}?league={{ league.id }}{% if sheets|length == 1 %}&team={{ sheets.0.participant.id }}{% endif %}">Excel</a>
-    <a class="ghost" href="{% url 'admin_export' %}?league={{ league.id }}">Torna all'export</a>
+    <a class="ghost" href="{% if export_xlsx_url %}{{ export_xlsx_url }}{% else %}{% url 'admin_export_team_sheets' %}?league={{ league.id }}{% if sheets|length == 1 %}&team={{ sheets.0.participant.id }}{% endif %}{% endif %}">Excel</a>
+    <a class="ghost" href="{% if back_url %}{{ back_url }}{% else %}{% url 'admin_export' %}?league={{ league.id }}{% endif %}">Torna indietro</a>
 </div>
 <div class="pages">
 {% for s in sheets %}

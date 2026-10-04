@@ -43,8 +43,8 @@
 <div class="toolbar">
     <b>Rinnovo contratti {{ season }} · {{ league.name }}</b>
     <button type="button" onclick="window.print()">Stampa / salva PDF</button>
-    <a class="ghost" href="{% url 'admin_export_renewals' %}?league={{ league.id }}">Excel</a>
-    <a class="ghost" href="{% url 'admin_contracts' %}?league={{ league.id }}">Torna ai contratti</a>
+    <a class="ghost" href="{% if export_xlsx_url %}{{ export_xlsx_url }}{% else %}{% url 'admin_export_renewals' %}?league={{ league.id }}{% endif %}">Excel</a>
+    <a class="ghost" href="{% if back_url %}{{ back_url }}{% else %}{% url 'admin_contracts' %}?league={{ league.id }}{% endif %}">Torna indietro</a>
 </div>
 <div class="pages">
 <div class="page">
