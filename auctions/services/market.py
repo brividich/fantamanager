@@ -2,6 +2,7 @@
 from collections import defaultdict
 from decimal import Decimal, InvalidOperation
 import logging
+import math
 
 from django.db import transaction
 from django.db.models import F
@@ -568,6 +569,10 @@ class _Plan:
 def plan_market_resolution(session_id):
     """Simula lo spoglio senza scrivere nulla. Ritorna il riepilogo previsto."""
     session = MarketSession.objects.select_related("league").get(pk=session_id)
+    if session.session_type == MarketSession.SessionType.WAIVER_WIRE:
+        return plan_waiver_resolution(session.id)
+    if session.session_type in (MarketSession.SessionType.FREE_AGENCY, MarketSession.SessionType.BUYOUT_CLAUSE):
+        return {"won": [], "tied": [], "lost": [], "total_acquisitions": 0, "total_ties": 0, "open_ties": 0, "preview": True}
     plan = _Plan(session).run()
     return _summary(plan, preview=True)
 
@@ -604,7 +609,8 @@ def _apply_award(session, participant, player, amount, release, refund):
     """Write one acquisition: ownership, optional cut, credits and roster log."""
     player.owner = participant
     player.cost = amount
-    player.save(update_fields=["owner", "cost"])
+    player.acquired_at = timezone.now()
+    player.save(update_fields=["owner", "cost", "acquired_at"])
     from .contracts import on_player_acquired
     on_player_acquired(player)
 
@@ -653,6 +659,127 @@ def resolve_market_session(session_id):
 
     if session.status == MarketSession.Status.RESOLVED:
         return session.results_summary
+
+    if session.session_type == MarketSession.SessionType.WAIVER_WIRE:
+        return resolve_waiver_session(session.id)
+
+    if session.session_type == MarketSession.SessionType.FREE_AGENCY:
+        moves = list(RosterLog.objects.filter(
+            participant__league=session.league,
+            note__startswith=f"Acquisto Free Agency: {session.title}"
+        ).order_by("-created_at"))
+        summary = {
+            "won": [
+                {
+                    "player_name": m.player_name,
+                    "player_role": m.player_role,
+                    "winner_name": m.participant_name,
+                    "amount": int(m.credits_delta),
+                    "released_player": None,
+                }
+                for m in moves
+            ],
+            "total_acquisitions": len(moves),
+            "total_ties": 0,
+            "open_ties": 0,
+            "resolved_at": timezone.now().isoformat(),
+        }
+        session.results_summary = summary
+        session.status = MarketSession.Status.RESOLVED
+        session.save(update_fields=["status", "results_summary", "updated_at"])
+        return summary
+
+    if session.session_type == MarketSession.SessionType.BUYOUT_CLAUSE:
+        moves = list(RosterLog.objects.filter(
+            participant__league=session.league,
+            note__startswith="Clausola rescissoria pagata a"
+        ).order_by("-created_at"))
+        summary = {
+            "won": [
+                {
+                    "player_name": m.player_name,
+                    "player_role": m.player_role,
+                    "winner_name": m.participant_name,
+                    "amount": int(m.credits_delta),
+                    "released_player": None,
+                }
+                for m in moves
+            ],
+            "total_acquisitions": len(moves),
+            "total_ties": 0,
+            "open_ties": 0,
+            "resolved_at": timezone.now().isoformat(),
+        }
+        session.results_summary = summary
+        session.status = MarketSession.Status.RESOLVED
+        session.save(update_fields=["status", "results_summary", "updated_at"])
+        return summary
+
+    if session.session_type == MarketSession.SessionType.RENEWALS:
+        from .contracts import close_renewals
+        # Comma 4.1: Chi non è stato dichiarato per il rinnovo è svincolato
+        undeclared = list(Player.objects.filter(
+            owner__league=session.league,
+            contract_years=0,
+            abroad_list=False,
+            renewal_declared__isnull=True,
+        ))
+        auto_released = []
+        for p in undeclared:
+            auto_released.append({
+                "player_name": p.name,
+                "participant_name": p.owner.display_name if p.owner else "Svincolato",
+            })
+            p.owner = None
+            p.cost = Decimal("0")
+            p.contract_years = None
+            p.save(update_fields=["owner", "cost", "contract_years"])
+
+        # Gather ContractEvents from current season
+        from ..models import ContractEvent
+        events = list(ContractEvent.objects.filter(
+            league=session.league,
+            season=session.league.season_number,
+        ).order_by("-created_at"))
+
+        renewed_events = [e for e in events if e.kind == ContractEvent.Kind.RENEWED]
+        rescinded_events = [e for e in events if e.kind == ContractEvent.Kind.RESCINDED]
+        not_renewed_events = [e for e in events if e.kind == ContractEvent.Kind.NOT_RENEWED]
+
+        summary = {
+            "won": [
+                {
+                    "player_name": e.player_name,
+                    "player_role": e.player.role if e.player else "A",
+                    "winner_name": e.participant_name,
+                    "amount": 0,
+                    "released_player": None,
+                    "years": e.years,
+                }
+                for e in renewed_events
+            ],
+            "renewed": [
+                {"player_name": e.player_name, "participant_name": e.participant_name, "years": e.years}
+                for e in renewed_events
+            ],
+            "rescinded": [
+                {"player_name": e.player_name, "participant_name": e.participant_name}
+                for e in rescinded_events
+            ],
+            "released": [
+                {"player_name": e.player_name, "participant_name": e.participant_name}
+                for e in not_renewed_events
+            ] + auto_released,
+            "total_acquisitions": len(renewed_events),
+            "total_ties": 0,
+            "open_ties": 0,
+            "resolved_at": timezone.now().isoformat(),
+        }
+        close_renewals(session.league_id)
+        session.results_summary = summary
+        session.status = MarketSession.Status.RESOLVED
+        session.save(update_fields=["status", "results_summary", "updated_at"])
+        return summary
 
     plan = _Plan(session).run()
     logger.info(
@@ -910,3 +1037,763 @@ def sync_market_schedule(league=None):
         closes_at__isnull=False, closes_at__lte=now,
     ).update(status=MarketSession.Status.CLOSED, updated_at=now)
     return opened, closed
+
+
+# =============================================================================
+# MERCATO LIBERO CONTINUO (FREE AGENCY)
+# =============================================================================
+
+@transaction.atomic
+def acquire_free_agent(session_id, participant_id, player_id, release_player_id=None):
+    """Instant acquisition of a free agent (Free Agency mode)."""
+    try:
+        session = MarketSession.objects.select_for_update().get(pk=session_id)
+    except MarketSession.DoesNotExist:
+        return {"ok": False, "error": "session_not_found", "message": "Sessione non trovata."}
+
+    if not session.is_open:
+        return {"ok": False, "error": "session_closed", "message": "La finestra di mercato è chiusa."}
+
+    if session.session_type != MarketSession.SessionType.FREE_AGENCY:
+        return {"ok": False, "error": "invalid_session_type", "message": "Questa sessione non è impostata per il Mercato Libero (Free Agency)."}
+
+    try:
+        participant = Participant.objects.select_for_update().get(pk=participant_id)
+    except Participant.DoesNotExist:
+        return {"ok": False, "error": "participant_not_found", "message": "Partecipante non trovato."}
+
+    if not participant.is_active or participant.league_id != session.league_id:
+        return {"ok": False, "error": "invalid_participant", "message": "Partecipante non valido per questa lega."}
+
+    cfg = session.config or {}
+    max_moves = int(cfg.get("fa_max_moves") or 0)
+    if max_moves > 0:
+        week_ago = timezone.now() - timezone.timedelta(days=7)
+        moves_count = RosterLog.objects.filter(
+            participant=participant,
+            action=RosterLog.Action.ASSIGN,
+            created_at__gte=week_ago,
+            note__startswith=f"Acquisto Free Agency: {session.title}"
+        ).count()
+        if moves_count >= max_moves:
+            return {
+                "ok": False,
+                "error": "move_limit_reached",
+                "message": f"Hai raggiunto il limite di {max_moves} cambi per questa settimana ({moves_count}/{max_moves} effettuati)."
+            }
+
+    try:
+        player = Player.objects.select_for_update().get(pk=player_id)
+    except Player.DoesNotExist:
+        return {"ok": False, "error": "player_not_found", "message": "Calciatore non trovato."}
+
+    if player.owner_id is not None or player.league_id != session.league_id:
+        return {"ok": False, "error": "player_unavailable", "message": "Calciatore non più disponibile tra gli svincolati."}
+
+    from .bidding import gk_clubs_problem
+    if gk_clubs_problem(participant, player):
+        return {"ok": False, "error": "gk_clubs", "message": "Hai già portieri di due squadre di Serie A: puoi prendere solo portieri di quelle squadre."}
+
+    cost_type = cfg.get("fa_cost_type", "quotation")
+    if cost_type == "base":
+        cost = Decimal("1")
+    else:
+        p = player.price_for(session.league)
+        cost = p if (p is not None and p >= 1) else Decimal("1")
+
+    release_player = None
+    refund = Decimal("0")
+    if release_player_id:
+        try:
+            release_player = Player.objects.select_for_update().get(pk=release_player_id)
+        except Player.DoesNotExist:
+            return {"ok": False, "error": "release_player_not_found", "message": "Calciatore da svincolare non trovato."}
+
+        if release_player.owner_id != participant.id:
+            return {"ok": False, "error": "release_player_not_owned", "message": "Il calciatore da svincolare non appartiene alla tua rosa."}
+
+        if session.require_same_role_release and release_player.role != player.role:
+            return {"ok": False, "error": "release_wrong_role", "message": f"Devi tagliare un calciatore dello stesso ruolo ({player.role})."}
+
+        refund = _calc_release_refund(session, release_player)
+    elif session.require_same_role_release:
+        return {"ok": False, "error": "release_required", "message": f"Ogni acquisto deve sostituire un tuo calciatore di pari ruolo ({player.role})."}
+
+    league = session.league
+    cap = league.slots_for(player.role)
+    if cap > 0:
+        bucket = league.slot_roles(player.role)
+        current_count = Player.objects.filter(owner=participant, abroad_list=False, role__in=bucket).count()
+        if release_player is not None and release_player.role in bucket:
+            current_count -= 1
+        if current_count + 1 > cap:
+            return {
+                "ok": False,
+                "error": "roster_full",
+                "message": f"Rosa piena per il ruolo {player.role} ({cap} slot). Taglia un calciatore per fargli spazio."
+            }
+
+    available = participant.remaining_credits + refund
+    if cost > available:
+        return {
+            "ok": False,
+            "error": "insufficient_credits",
+            "message": f"Crediti insufficienti. Costo: {cost:.0f} FM, Disponibili: {available:.0f} FM."
+        }
+
+    from .salary import purchase_room
+    room = purchase_room(participant, market_session=session)
+    if room is not None and cost > room:
+        return {"ok": False, "error": "salary_cap", "message": f"Tetto salariale superato: puoi spendere al massimo {room:.0f} FM."}
+
+    player.owner = participant
+    player.cost = cost
+    player.acquired_at = timezone.now()
+    player.save(update_fields=["owner", "cost", "acquired_at"])
+    from .contracts import on_player_acquired
+    on_player_acquired(player)
+
+    if release_player is not None:
+        release_player.owner = None
+        release_player.cost = Decimal("0")
+        release_player.save(update_fields=["owner", "cost"])
+        RosterLog.objects.create(
+            participant=participant,
+            participant_name=participant.display_name,
+            player_name=release_player.name,
+            player_role=release_player.role,
+            action=RosterLog.Action.RELEASE,
+            credits_delta=-refund,
+            by_admin=False,
+            note=f"Taglio Free Agency: {session.title}",
+        )
+
+    Participant.objects.filter(pk=participant.id).update(
+        spent_credits=F("spent_credits") + (cost - refund)
+    )
+    RosterLog.objects.create(
+        participant=participant,
+        participant_name=participant.display_name,
+        player_name=player.name,
+        player_role=player.role,
+        action=RosterLog.Action.ASSIGN,
+        credits_delta=cost,
+        by_admin=False,
+        note=f"Acquisto Free Agency: {session.title}",
+    )
+    logger.info(
+        f"Free Agency acquire: session={session_id}, participant='{participant.display_name}', "
+        f"player='{player.name}', cost={cost:.0f} FM, release={release_player.name if release_player else None}"
+    )
+
+    return {
+        "ok": True,
+        "message": f"{player.name} acquistato con successo per {cost:.0f} FM!",
+        "player_id": player.id,
+        "player_name": player.name,
+        "cost": int(cost),
+        "refund": int(refund),
+    }
+
+
+# =============================================================================
+# MERCATO CON CLAUSOLE RESCISORIE (BUYOUT CLAUSE)
+# =============================================================================
+
+@transaction.atomic
+def execute_buyout(session_id, buyer_id, player_id, release_player_id=None):
+    """Exercise a buyout clause on an opponent's player (Buyout Clause mode)."""
+    try:
+        session = MarketSession.objects.select_for_update().get(pk=session_id)
+    except MarketSession.DoesNotExist:
+        return {"ok": False, "error": "session_not_found", "message": "Sessione non trovata."}
+
+    if not session.is_open:
+        return {"ok": False, "error": "session_closed", "message": "La finestra di mercato è chiusa."}
+
+    if session.session_type != MarketSession.SessionType.BUYOUT_CLAUSE:
+        return {"ok": False, "error": "invalid_session_type", "message": "Questa sessione non ammette clausole rescissorie."}
+
+    try:
+        buyer = Participant.objects.select_for_update().get(pk=buyer_id)
+    except Participant.DoesNotExist:
+        return {"ok": False, "error": "buyer_not_found", "message": "Partecipante acquirente non trovato."}
+
+    if not buyer.is_active or buyer.league_id != session.league_id:
+        return {"ok": False, "error": "invalid_buyer", "message": "Partecipante non valido per questa lega."}
+
+    try:
+        player = Player.objects.select_for_update().get(pk=player_id)
+    except Player.DoesNotExist:
+        return {"ok": False, "error": "player_not_found", "message": "Calciatore non trovato."}
+
+    if player.owner_id is None or player.league_id != session.league_id:
+        return {"ok": False, "error": "player_not_owned", "message": "Il calciatore è svincolato, non puoi pagare una clausola su di lui."}
+
+    if player.owner_id == buyer.id:
+        return {"ok": False, "error": "already_owned", "message": "Il calciatore appartiene già alla tua squadra!"}
+
+    seller = Participant.objects.select_for_update().get(pk=player.owner_id)
+
+    cfg = session.config or {}
+    hold_days = int(cfg.get("buyout_min_hold_days") or 7)
+    if hold_days > 0:
+        if player.acquired_at is not None:
+            days_held = (timezone.now() - player.acquired_at).total_seconds() / 86400.0
+            if days_held < hold_days:
+                days_left = max(1, int(hold_days - days_held) + 1)
+                return {
+                    "ok": False,
+                    "error": "player_protected",
+                    "message": f"{player.name} è protetto da clausola per altri {days_left} giorni.",
+                }
+        else:
+            last_assign = RosterLog.objects.filter(
+                participant=seller,
+                player_name=player.name,
+                action__in=[RosterLog.Action.ASSIGN, RosterLog.Action.ADMIN_ASSIGN, RosterLog.Action.TRADE]
+            ).order_by("-created_at").first()
+            if last_assign is not None:
+                days_held = (timezone.now() - last_assign.created_at).total_seconds() / 86400.0
+                if days_held < hold_days:
+                    days_left = max(1, int(hold_days - days_held) + 1)
+                    return {
+                        "ok": False,
+                        "error": "player_protected",
+                        "message": f"{player.name} è protetto da clausola per altri {days_left} giorni.",
+                    }
+
+    mult = float(cfg.get("buyout_multiplier") or 1.5)
+    base_cost = player.cost if (player.cost is not None and player.cost >= 1) else Decimal("1")
+    buyout_amount = Decimal(str(math.ceil(float(base_cost) * mult))).quantize(Decimal("1"))
+
+    release_player = None
+    refund = Decimal("0")
+    if release_player_id:
+        try:
+            release_player = Player.objects.select_for_update().get(pk=release_player_id)
+        except Player.DoesNotExist:
+            return {"ok": False, "error": "release_player_not_found", "message": "Calciatore da svincolare non trovato."}
+        if release_player.owner_id != buyer.id:
+            return {"ok": False, "error": "release_player_not_owned", "message": "Il calciatore da svincolare non appartiene alla tua rosa."}
+        if session.require_same_role_release and release_player.role != player.role:
+            return {"ok": False, "error": "release_wrong_role", "message": f"Devi tagliare un calciatore dello stesso ruolo ({player.role})."}
+        refund = _calc_release_refund(session, release_player)
+    elif session.require_same_role_release:
+        return {"ok": False, "error": "release_required", "message": f"Devi tagliare un calciatore dello stesso ruolo ({player.role})."}
+
+    league = session.league
+    cap = league.slots_for(player.role)
+    if cap > 0:
+        bucket = league.slot_roles(player.role)
+        current_count = Player.objects.filter(owner=buyer, abroad_list=False, role__in=bucket).count()
+        if release_player is not None and release_player.role in bucket:
+            current_count -= 1
+        if current_count + 1 > cap:
+            return {
+                "ok": False,
+                "error": "roster_full",
+                "message": f"Rosa piena per il ruolo {player.role} ({cap} slot). Taglia un giocatore per fargli spazio.",
+            }
+
+    available = buyer.remaining_credits + refund
+    if buyout_amount > available:
+        return {
+            "ok": False,
+            "error": "insufficient_credits",
+            "message": f"Crediti insufficienti. La clausola è {buyout_amount:.0f} FM, ne hai {available:.0f} FM.",
+        }
+
+    from .salary import purchase_room
+    room = purchase_room(buyer, market_session=session)
+    if room is not None and buyout_amount > room:
+        return {"ok": False, "error": "salary_cap", "message": f"Tetto salariale superato: puoi spendere al massimo {room:.0f} FM."}
+
+    if release_player is not None:
+        release_player.owner = None
+        release_player.cost = Decimal("0")
+        release_player.save(update_fields=["owner", "cost"])
+        RosterLog.objects.create(
+            participant=buyer,
+            participant_name=buyer.display_name,
+            player_name=release_player.name,
+            player_role=release_player.role,
+            action=RosterLog.Action.RELEASE,
+            credits_delta=-refund,
+            by_admin=False,
+            note=f"Taglio per clausola {player.name}: {session.title}",
+        )
+
+    player.owner = buyer
+    player.cost = buyout_amount
+    player.acquired_at = timezone.now()
+    player.save(update_fields=["owner", "cost", "acquired_at"])
+    from .contracts import on_player_acquired
+    on_player_acquired(player)
+
+    Participant.objects.filter(pk=seller.id).update(
+        spent_credits=F("spent_credits") - buyout_amount
+    )
+    RosterLog.objects.create(
+        participant=seller,
+        participant_name=seller.display_name,
+        player_name=player.name,
+        player_role=player.role,
+        action=RosterLog.Action.RELEASE,
+        credits_delta=-buyout_amount,
+        by_admin=False,
+        note=f"Clausola rescissoria pagata da {buyer.display_name}: +{buyout_amount:.0f} FM",
+    )
+
+    Participant.objects.filter(pk=buyer.id).update(
+        spent_credits=F("spent_credits") + (buyout_amount - refund)
+    )
+    RosterLog.objects.create(
+        participant=buyer,
+        participant_name=buyer.display_name,
+        player_name=player.name,
+        player_role=player.role,
+        action=RosterLog.Action.ASSIGN,
+        credits_delta=buyout_amount,
+        by_admin=False,
+        note=f"Clausola rescissoria pagata a {seller.display_name}: {buyout_amount:.0f} FM",
+    )
+
+    logger.info(
+        f"Buyout executed: session={session_id}, buyer='{buyer.display_name}', seller='{seller.display_name}', "
+        f"player='{player.name}', amount={buyout_amount:.0f} FM"
+    )
+
+    return {
+        "ok": True,
+        "message": f"Clausola rescissoria esercitata con successo! {player.name} è ora della tua squadra.",
+        "player_id": player.id,
+        "player_name": player.name,
+        "amount": int(buyout_amount),
+        "seller_name": seller.display_name,
+    }
+
+
+# =============================================================================
+# DRAFT WAIVER WIRE A TURNI
+# =============================================================================
+
+@transaction.atomic
+def place_waiver_claim(session_id, participant_id, player_id, priority=1, release_player_id=None):
+    """Place or update a ranked waiver claim for a free agent."""
+    try:
+        session = MarketSession.objects.select_for_update().get(pk=session_id)
+    except MarketSession.DoesNotExist:
+        return {"ok": False, "error": "session_not_found", "message": "Sessione non trovata."}
+
+    if not session.is_open:
+        return {"ok": False, "error": "session_closed", "message": "La finestra waiver è chiusa."}
+
+    try:
+        participant = Participant.objects.select_for_update().get(pk=participant_id)
+    except Participant.DoesNotExist:
+        return {"ok": False, "error": "participant_not_found", "message": "Partecipante non trovato."}
+
+    if not participant.is_active or participant.league_id != session.league_id:
+        return {"ok": False, "error": "invalid_participant", "message": "Partecipante non valido per questa lega."}
+
+    try:
+        player = Player.objects.get(pk=player_id)
+    except Player.DoesNotExist:
+        return {"ok": False, "error": "player_not_found", "message": "Calciatore non trovato."}
+
+    if player.owner_id is not None or player.league_id != session.league_id:
+        return {"ok": False, "error": "player_unavailable", "message": "Calciatore non disponibile sul mercato svincolati."}
+
+    cfg = session.config or {}
+    cost_type = cfg.get("fa_cost_type", "quotation")
+    if cost_type == "base":
+        cost = Decimal("1")
+    else:
+        p = player.price_for(session.league)
+        cost = p if (p is not None and p >= 1) else Decimal("1")
+
+    release_player = None
+    if release_player_id:
+        try:
+            release_player = Player.objects.get(pk=release_player_id)
+        except Player.DoesNotExist:
+            return {"ok": False, "error": "release_player_not_found", "message": "Calciatore da svincolare non trovato."}
+        if release_player.owner_id != participant.id:
+            return {"ok": False, "error": "release_player_not_owned", "message": "Il calciatore da svincolare non appartiene alla tua rosa."}
+
+    try:
+        prio = max(1, int(priority or 1))
+    except (ValueError, TypeError):
+        prio = 1
+
+    existing = MarketBid.objects.filter(session=session, participant=participant, player=player).first()
+    if existing is not None:
+        existing.priority = prio
+        existing.amount = cost
+        existing.release_player = release_player
+        existing.status = MarketBid.Status.PENDING
+        existing.save(update_fields=["priority", "amount", "release_player", "status", "updated_at"])
+        bid = existing
+    else:
+        bid = MarketBid.objects.create(
+            session=session,
+            participant=participant,
+            player=player,
+            amount=cost,
+            priority=prio,
+            release_player=release_player,
+            status=MarketBid.Status.PENDING,
+        )
+
+    return {
+        "ok": True,
+        "claim_id": bid.id,
+        "bid_id": bid.id,
+        "message": f"Reclamo waiver inserito per {player.name} con priorità #{prio}!",
+        "claim": {
+            "id": bid.id,
+            "player_id": player.id,
+            "player_name": player.name,
+            "player_role": player.role,
+            "player_team": player.team,
+            "priority": bid.priority,
+            "amount": int(bid.amount),
+        },
+    }
+
+
+def delete_waiver_claim(session_id, participant_id, claim_id):
+    """Remove a waiver claim."""
+    return delete_market_bid(session_id, participant_id, claim_id)
+
+
+def _run_waiver_draft(session, preview=False):
+    """Executes or previews waiver claims in round-robin order."""
+    cfg = session.config or {}
+    order_type = cfg.get("waiver_order_type", "inverse_standing")
+
+    all_participants = {
+        p.id: p for p in Participant.objects.filter(league=session.league, is_active=True)
+    }
+
+    order_ids = []
+    if order_type == "inverse_standing":
+        season = session.league.seasons.order_by("-created_at").first()
+        if season:
+            try:
+                from .calendar import standings
+                std = standings(season)
+                order_ids = [r["participant_id"] for r in reversed(std) if r["participant_id"] in all_participants]
+            except Exception:
+                order_ids = []
+    elif order_type == "rolling":
+        saved_order = cfg.get("waiver_order")
+        if isinstance(saved_order, list):
+            order_ids = [pid for pid in saved_order if pid in all_participants]
+
+    for pid in all_participants:
+        if pid not in order_ids:
+            order_ids.append(pid)
+
+    claims = list(
+        MarketBid.objects.filter(session=session, status=MarketBid.Status.PENDING)
+        .select_related("participant", "player", "release_player")
+        .order_by("priority", "-amount", "created_at")
+    )
+
+    claims_by_p = defaultdict(list)
+    for c in claims:
+        claims_by_p[c.participant_id].append(c)
+
+    awarded_player_ids = set()
+    won_list = []
+    outcome = {}
+    rolling_order = list(order_ids)
+
+    owned = defaultdict(lambda: defaultdict(int))
+    for owner_id, role in Player.objects.filter(
+        owner_id__in=list(all_participants), abroad_list=False
+    ).values_list("owner_id", "role"):
+        owned[owner_id][role] += 1
+
+    remaining_credits = {pid: p.remaining_credits for pid, p in all_participants.items()}
+    from .salary import purchase_room
+    cap_room = {pid: purchase_room(p, market_session=session) for pid, p in all_participants.items()}
+
+    while True:
+        round_pick_made = False
+        current_round_participants = list(rolling_order)
+
+        for pid in current_round_participants:
+            user_claims = [c for c in claims_by_p[pid] if c.id not in outcome]
+            pick_claim = None
+            for c in user_claims:
+                if c.player_id in awarded_player_ids:
+                    outcome[c.id] = (MarketBid.Status.LOST, "Calciatore già assegnato a un'altra squadra con priorità più alta")
+                    continue
+
+                release = None
+                refund = Decimal("0")
+                if c.release_player_id:
+                    if c.release_player.owner_id == pid:
+                        release = c.release_player
+                        refund = _calc_release_refund(session, release)
+                    else:
+                        if session.require_same_role_release:
+                            outcome[c.id] = (MarketBid.Status.LOST, "Il calciatore da tagliare non è più in rosa")
+                            continue
+
+                if session.require_same_role_release and (release is None or release.role != c.player.role):
+                    outcome[c.id] = (MarketBid.Status.LOST, f"Richiesto taglio di pari ruolo ({c.player.role})")
+                    continue
+
+                role = c.player.role
+                cap = session.league.slots_for(role)
+                if cap > 0:
+                    bucket = session.league.slot_roles(role)
+                    count = sum(owned[pid][r] for r in bucket)
+                    if release is not None and release.role in bucket:
+                        count -= 1
+                    if count + 1 > cap:
+                        outcome[c.id] = (MarketBid.Status.LOST, f"Rosa piena per il ruolo {role} ({cap} slot)")
+                        continue
+
+                available = remaining_credits[pid] + refund
+                if available < c.amount:
+                    outcome[c.id] = (MarketBid.Status.LOST, f"Crediti insufficienti (disponibili: {available:.0f} FM)")
+                    continue
+
+                room = cap_room.get(pid)
+                if room is not None and c.amount > room:
+                    outcome[c.id] = (MarketBid.Status.LOST, f"Tetto salariale superato (margine {room:.0f} FM)")
+                    continue
+
+                pick_claim = (c, release, refund)
+                break
+
+            if pick_claim is not None:
+                c, rel, ref = pick_claim
+                awarded_player_ids.add(c.player_id)
+                outcome[c.id] = (MarketBid.Status.WON, "Assegnato al turno waiver")
+
+                owned[pid][c.player.role] += 1
+                if rel:
+                    owned[pid][rel.role] -= 1
+                remaining_credits[pid] -= (c.amount - ref)
+                if cap_room.get(pid) is not None:
+                    cap_room[pid] -= c.amount
+
+                won_list.append({
+                    "bid_id": c.id,
+                    "player_id": c.player_id,
+                    "player_name": c.player.name,
+                    "player_role": c.player.role,
+                    "player_team": c.player.team,
+                    "winner_id": pid,
+                    "winner_name": all_participants[pid].display_name,
+                    "amount": int(c.amount),
+                    "released_player_id": rel.id if rel else None,
+                    "released_player": rel.name if rel else None,
+                    "released_player_cost": str(rel.cost) if rel else None,
+                    "refund": int(ref),
+                    "refund_exact": str(ref),
+                })
+
+                if not preview:
+                    _apply_award(session, all_participants[pid], c.player, c.amount, rel, ref)
+
+                if order_type == "rolling":
+                    rolling_order.remove(pid)
+                    rolling_order.append(pid)
+
+                round_pick_made = True
+
+        if not round_pick_made:
+            break
+
+    for c in claims:
+        if c.id not in outcome:
+            outcome[c.id] = (MarketBid.Status.LOST, "Reclamo superato o non soddisfatto nel draft")
+
+    if not preview:
+        for c in claims:
+            st, nt = outcome[c.id]
+            c.status = st
+            c.note = nt[:200]
+            c.save(update_fields=["status", "note", "updated_at"])
+
+        if order_type == "rolling":
+            session.config["waiver_order"] = rolling_order
+            session.save(update_fields=["config", "updated_at"])
+
+    lost_list = []
+    for c in claims:
+        st, nt = outcome[c.id]
+        if st == MarketBid.Status.LOST:
+            lost_list.append({
+                "bid_id": c.id,
+                "player_name": c.player.name,
+                "player_role": c.player.role,
+                "participant_name": c.participant.display_name,
+                "amount": int(c.amount),
+                "note": nt,
+            })
+
+    summary = {
+        "won": won_list,
+        "tied": [],
+        "lost": lost_list,
+        "total_acquisitions": len(won_list),
+        "total_ties": 0,
+        "open_ties": 0,
+        "waiver_order": [all_participants[pid].display_name for pid in rolling_order],
+    }
+    if preview:
+        summary["preview"] = True
+    else:
+        summary["resolved_at"] = timezone.now().isoformat()
+        session.results_summary = summary
+        session.status = MarketSession.Status.RESOLVED
+        session.save(update_fields=["status", "results_summary", "updated_at"])
+
+    return summary
+
+
+def plan_waiver_resolution(session_id):
+    """Simula lo spoglio waiver senza scrivere modifiche."""
+    session = MarketSession.objects.select_related("league").get(pk=session_id)
+    return _run_waiver_draft(session, preview=True)
+
+
+@transaction.atomic
+def resolve_waiver_session(session_id):
+    """Esegue lo spoglio ufficiale waiver con assegnazioni e log."""
+    session = MarketSession.objects.select_for_update().select_related("league").get(pk=session_id)
+    if session.status == MarketSession.Status.RESOLVED:
+        return session.results_summary
+    return _run_waiver_draft(session, preview=False)
+
+
+def get_buste_report_context(session_id):
+    """Costruisce il dataset strutturato per il Verbale Ufficiale di Spoglio Buste."""
+    session = MarketSession.objects.select_related("league").filter(pk=session_id).first()
+    if not session:
+        return None
+    league = session.league
+    summary = session.results_summary or {}
+    won_list = summary.get("won", [])
+    lost_list = summary.get("lost", [])
+    tied_list = summary.get("tied", [])
+
+    participants = list(Participant.objects.filter(league=league).order_by("display_name"))
+    teams_stats = {}
+    for p in participants:
+        teams_stats[p.id] = {
+            "participant": p,
+            "display_name": p.display_name,
+            "won_players": [],
+            "cuts": [],
+            "lost_count": 0,
+            "total_spent": 0,
+            "total_refund": 0,
+            "net_spent": 0,
+            "credits_remaining": p.remaining_credits,
+        }
+
+    for w in won_list:
+        pid = w.get("winner_id")
+        target_st = teams_stats.get(pid)
+        if not target_st:
+            w_name = w.get("winner_name")
+            for st in teams_stats.values():
+                if st["display_name"] == w_name:
+                    target_st = st
+                    break
+        if target_st:
+            target_st["won_players"].append(w)
+            target_st["total_spent"] += w.get("amount", 0)
+            if w.get("released_player"):
+                target_st["cuts"].append({
+                    "name": w.get("released_player"),
+                    "refund": w.get("refund", 0),
+                })
+                target_st["total_refund"] += w.get("refund", 0)
+
+    for l in lost_list:
+        pname = l.get("participant_name")
+        for st in teams_stats.values():
+            if st["display_name"] == pname:
+                st["lost_count"] += 1
+                break
+
+    for st in teams_stats.values():
+        st["net_spent"] = st["total_spent"] - st["total_refund"]
+
+    role_counts = {"P": 0, "D": 0, "C": 0, "A": 0}
+    for w in won_list:
+        r = w.get("player_role", "")
+        if r in role_counts:
+            role_counts[r] += 1
+
+    return {
+        "session": session,
+        "league": league,
+        "summary": summary,
+        "won_list": won_list,
+        "lost_list": lost_list,
+        "tied_list": tied_list,
+        "role_counts": role_counts,
+        "teams_breakdown": [st for st in teams_stats.values() if st["won_players"] or st["lost_count"] > 0],
+        "all_teams_stats": list(teams_stats.values()),
+        "total_spent": sum(w.get("amount", 0) for w in won_list),
+        "total_refund": sum(w.get("refund", 0) for w in won_list),
+        "total_acquisitions": len(won_list),
+        "resolved_at": summary.get("resolved_at") or session.updated_at,
+    }
+
+
+def build_buste_csv(session):
+    """Genera il file CSV per il Verbale Ufficiale di Spoglio Buste."""
+    import csv, io
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=";")
+    writer.writerow(["VERBALE UFFICIALE DI SPOGLIO BUSTE"])
+    writer.writerow(["Sessione", session.title])
+    writer.writerow(["Lega", session.league.name if session.league else ""])
+    summary = session.results_summary or {}
+    writer.writerow(["Data Spoglio", summary.get("resolved_at") or ""])
+    writer.writerow([])
+    writer.writerow([
+        "Stato", "Ruolo", "Calciatore", "Squadra Serie A", "Societa Aggiudicataria / Offerente",
+        "Offerta FM", "Priorita", "Taglio Condizionato", "Rimborso FM", "Note"
+    ])
+    for w in summary.get("won", []):
+        writer.writerow([
+            "AGGIUDICATO",
+            w.get("player_role", ""),
+            w.get("player_name", ""),
+            w.get("player_team", ""),
+            w.get("winner_name", ""),
+            w.get("amount", 0),
+            w.get("priority", 1),
+            w.get("released_player", "") or "",
+            w.get("refund", 0),
+            "Aggiudicazione definitiva"
+        ])
+    for l in summary.get("lost", []):
+        writer.writerow([
+            "NON AGGIUDICATO",
+            l.get("player_role", ""),
+            l.get("player_name", ""),
+            l.get("player_team", ""),
+            l.get("participant_name", ""),
+            l.get("amount", 0),
+            l.get("priority", 1),
+            "",
+            0,
+            l.get("note", "")
+        ])
+    return output.getvalue().encode("utf-8-sig")
+
+

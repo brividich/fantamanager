@@ -1,5 +1,7 @@
 """Product shell (mobile-first FantaManager app; session-participant identity)."""
 import json
+import math
+from decimal import Decimal
 from django.core.paginator import Paginator
 from django.db.models import Case, F, Q, Value, When
 from django.db.models.functions import Coalesce
@@ -7,8 +9,7 @@ from django.shortcuts import redirect, render
 
 from django.contrib import messages
 from django.contrib.auth import authenticate, login as auth_login, logout as auth_logout
-from django.contrib.auth.models import User
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
@@ -25,6 +26,7 @@ from ..models import (
     Participant,
     Player,
     PlayerPerformance,
+    RosterLog,
     Season,
     Trade,
 )
@@ -510,6 +512,127 @@ def app_mercato(request):
     active_auc = ctx.get("active_auction")
     active_markets_count = len(active_sessions) + (1 if (league and league.trades_enabled) else 0) + (1 if active_auc else 0)
 
+    # Mode-specific data for Free Agency, Buyout Clause, and Waiver Wire
+    moves_this_week = 0
+    moves_left = None
+    opponents_players = []
+    waiver_claims = []
+    waiver_order_preview = []
+    
+    session_type_val = getattr(market_session, "session_type", MarketSession.SessionType.SEALED_BIDS)
+    is_free_agency = bool(market_session and session_type_val == MarketSession.SessionType.FREE_AGENCY)
+    is_buyout_clause = bool(market_session and session_type_val == MarketSession.SessionType.BUYOUT_CLAUSE)
+    is_waiver_wire = bool(market_session and session_type_val == MarketSession.SessionType.WAIVER_WIRE)
+    is_live_auction = bool(market_session and session_type_val == MarketSession.SessionType.LIVE_AUCTION)
+    is_renewals = bool(market_session and session_type_val == MarketSession.SessionType.RENEWALS)
+    is_buste = bool(market_session and session_type_val in (MarketSession.SessionType.SEALED_BIDS, MarketSession.SessionType.REPAIR))
+
+    if market_session and is_free_agency:
+        week_ago = timezone.now() - timezone.timedelta(days=7)
+        moves_this_week = RosterLog.objects.filter(
+            participant=participant,
+            action=RosterLog.Action.ASSIGN,
+            created_at__gte=week_ago,
+            note__startswith=f"Acquisto Free Agency: {market_session.title}"
+        ).count()
+        max_m = int((market_session.config or {}).get("fa_max_moves") or 0)
+        if max_m > 0:
+            moves_left = max(0, max_m - moves_this_week)
+
+    if market_session and is_buyout_clause:
+        opp_qs = Player.objects.filter(league=league, owner__isnull=False).exclude(owner=participant).select_related("owner").order_by("owner__display_name", "role", "-cost", "name")
+        mult = float((market_session.config or {}).get("buyout_multiplier") or 1.5)
+        hold_days = int((market_session.config or {}).get("buyout_min_hold_days") or 7)
+        now = timezone.now()
+        for pl in opp_qs:
+            base_cost = pl.cost if (pl.cost is not None and pl.cost >= 1) else Decimal("1")
+            pl.buyout_price = int(math.ceil(float(base_cost) * mult))
+            if hold_days > 0 and pl.acquired_at:
+                days_held = (now - pl.acquired_at).total_seconds() / 86400.0
+                if days_held < hold_days:
+                    pl.is_protected = True
+                    pl.protected_days_left = max(1, int(hold_days - days_held) + 1)
+                else:
+                    pl.is_protected = False
+                    pl.protected_days_left = 0
+            else:
+                pl.is_protected = False
+                pl.protected_days_left = 0
+            opponents_players.append(pl)
+
+    if market_session and is_waiver_wire:
+        waiver_claims = services.get_participant_market_bids(market_session.id, participant.id)
+        order_type = (market_session.config or {}).get("waiver_order_type", "inverse_standing")
+        if order_type == "inverse_standing":
+            season = league.seasons.order_by("-created_at").first() if league else None
+            if season:
+                try:
+                    from ..services.calendar import standings
+                    std = standings(season)
+                    for r in reversed(std):
+                        p_obj = Participant.objects.filter(pk=r["participant_id"]).first()
+                        if p_obj:
+                            waiver_order_preview.append(p_obj.display_name)
+                except Exception:
+                    pass
+        elif order_type == "rolling":
+            saved = (market_session.config or {}).get("waiver_order") or []
+            for pid in saved:
+                p_obj = Participant.objects.filter(pk=pid).first()
+                if p_obj:
+                    waiver_order_preview.append(p_obj.display_name)
+        if not waiver_order_preview and league:
+            waiver_order_preview = list(Participant.objects.filter(league=league, is_active=True).values_list("display_name", flat=True))
+
+    my_expiring = []
+    my_to_roll = []
+    renewals_declared = False
+    has_undecided_renewals = False
+    league_expiring_summary = []
+    contract_rules_info = None
+    contract_faces_list = [1, 2, 3]
+
+    if league and league.contracts_enabled:
+        contract_rules_info = services.contract_rules(league)
+        contract_faces_list = sorted(set(services.contract_faces(league)))
+        my_expiring = list(Player.objects.filter(owner=participant, contract_years=0, abroad_list=False).order_by("role", "name"))
+        my_to_roll = list(Player.objects.filter(owner=participant, contract_years__isnull=True, abroad_list=False).order_by("role", "name"))
+        for p in my_to_roll:
+            p.min_years = services.contract_min_years(league, p.cost, p.role)
+        renewals_declared = len(my_expiring) > 0 and all(p.renewal_declared is not None for p in my_expiring)
+        has_undecided_renewals = any(p.renewal_declared is None for p in my_expiring)
+
+        for t in Participant.objects.filter(league=league, is_active=True).order_by("display_name"):
+            t_exp = list(Player.objects.filter(owner=t, contract_years=0, abroad_list=False).order_by("role", "name"))
+            if t_exp:
+                league_expiring_summary.append({
+                    "team": t,
+                    "players": t_exp,
+                    "declared": all(p.renewal_declared is not None for p in t_exp),
+                    "count": len(t_exp),
+                })
+
+    buste_results = None
+    if market_session and market_session.status == MarketSession.Status.RESOLVED:
+        summary = market_session.results_summary or {}
+        won_list = summary.get("won", [])
+        lost_list = summary.get("lost", [])
+        tied_list = summary.get("tied", [])
+        my_won = [w for w in won_list if w.get("winner_id") == participant.id or w.get("winner_name") == participant.display_name]
+        my_lost = [l for l in lost_list if l.get("participant_name") == participant.display_name]
+        buste_results = {
+            "won": won_list,
+            "lost": lost_list,
+            "tied": tied_list,
+            "my_won": my_won,
+            "my_lost": my_lost,
+            "total_acquisitions": summary.get("total_acquisitions", len(won_list)),
+            "resolved_at": summary.get("resolved_at"),
+            "renewed": summary.get("renewed", []),
+            "rescinded": summary.get("rescinded", []),
+            "released": summary.get("released", []),
+        }
+
     # Initial view logic: entering /app/mercato/ lands on the Hub.
     # Selecting a session (?session_id=X) or listone (?view=listone) lands on the workspace.
     requested_view = request.GET.get("view")
@@ -543,6 +666,25 @@ def app_mercato(request):
         "my_bid_player_ids": my_bid_player_ids,
         "my_bids_total": my_bids_total,
         "bids_left": bids_left,
+        "moves_this_week": moves_this_week,
+        "moves_left": moves_left,
+        "opponents_players": opponents_players,
+        "waiver_claims": waiver_claims,
+        "waiver_order_preview": waiver_order_preview,
+        "is_free_agency": is_free_agency,
+        "is_buyout_clause": is_buyout_clause,
+        "is_waiver_wire": is_waiver_wire,
+        "is_live_auction": is_live_auction,
+        "is_renewals": is_renewals,
+        "is_buste": is_buste,
+        "my_expiring": my_expiring,
+        "my_to_roll": my_to_roll,
+        "renewals_declared": renewals_declared,
+        "has_undecided_renewals": has_undecided_renewals,
+        "league_expiring_summary": league_expiring_summary,
+        "contract_rules_info": contract_rules_info,
+        "contract_faces_list": contract_faces_list,
+        "buste_results": buste_results,
         "trades_enabled": bool(league and league.trades_enabled),
         "incoming_trades": Trade.objects.filter(receiver=participant, status=Trade.Status.PENDING).count(),
         "role": role,
@@ -612,6 +754,122 @@ def app_market_delete_bid(request):
     )
     if res.get("ok") and session_id:
         res["my_bids"] = services.get_participant_market_bids(session_id, participant.id)
+    return JsonResponse(res)
+
+
+@require_POST
+def app_market_free_agency_buy(request):
+    """Instant acquisition endpoint for Free Agency."""
+    participant, _ = _app_ctx(request, "mercato")
+    if participant is None:
+        return JsonResponse({"ok": False, "error": "not_authenticated"}, status=401)
+
+    if request.content_type == "application/json":
+        try:
+            body = json.loads(request.body.decode("utf-8"))
+        except Exception:
+            body = {}
+    else:
+        body = request.POST
+
+    session_id = body.get("session_id")
+    player_id = body.get("player_id")
+    release_player_id = body.get("release_player_id") or None
+
+    res = services.acquire_free_agent(
+        session_id=session_id,
+        participant_id=participant.id,
+        player_id=player_id,
+        release_player_id=release_player_id,
+    )
+    return JsonResponse(res)
+
+
+@require_POST
+def app_market_buyout_execute(request):
+    """Buyout clause execution endpoint."""
+    participant, _ = _app_ctx(request, "mercato")
+    if participant is None:
+        return JsonResponse({"ok": False, "error": "not_authenticated"}, status=401)
+
+    if request.content_type == "application/json":
+        try:
+            body = json.loads(request.body.decode("utf-8"))
+        except Exception:
+            body = {}
+    else:
+        body = request.POST
+
+    session_id = body.get("session_id")
+    player_id = body.get("player_id")
+    release_player_id = body.get("release_player_id") or None
+
+    res = services.execute_buyout(
+        session_id=session_id,
+        buyer_id=participant.id,
+        player_id=player_id,
+        release_player_id=release_player_id,
+    )
+    return JsonResponse(res)
+
+
+@require_POST
+def app_market_waiver_claim(request):
+    """Submit or update a waiver wire claim."""
+    participant, _ = _app_ctx(request, "mercato")
+    if participant is None:
+        return JsonResponse({"ok": False, "error": "not_authenticated"}, status=401)
+
+    if request.content_type == "application/json":
+        try:
+            body = json.loads(request.body.decode("utf-8"))
+        except Exception:
+            body = {}
+    else:
+        body = request.POST
+
+    session_id = body.get("session_id")
+    player_id = body.get("player_id")
+    priority = body.get("priority", 1)
+    release_player_id = body.get("release_player_id") or None
+
+    res = services.place_waiver_claim(
+        session_id=session_id,
+        participant_id=participant.id,
+        player_id=player_id,
+        priority=priority,
+        release_player_id=release_player_id,
+    )
+    if res.get("ok") and session_id:
+        res["my_claims"] = services.get_participant_market_bids(session_id, participant.id)
+    return JsonResponse(res)
+
+
+@require_POST
+def app_market_waiver_delete(request):
+    """Delete a waiver wire claim."""
+    participant, _ = _app_ctx(request, "mercato")
+    if participant is None:
+        return JsonResponse({"ok": False, "error": "not_authenticated"}, status=401)
+
+    if request.content_type == "application/json":
+        try:
+            body = json.loads(request.body.decode("utf-8"))
+        except Exception:
+            body = {}
+    else:
+        body = request.POST
+
+    session_id = body.get("session_id")
+    claim_id = body.get("claim_id") or body.get("bid_id")
+
+    res = services.delete_waiver_claim(
+        session_id=session_id,
+        participant_id=participant.id,
+        claim_id=claim_id,
+    )
+    if res.get("ok") and session_id:
+        res["my_claims"] = services.get_participant_market_bids(session_id, participant.id)
     return JsonResponse(res)
 
 
@@ -730,10 +988,24 @@ def app_trade_cancel(request, trade_id):
 
 
 def _contract_feedback(request, res, ok_message):
+    is_ajax = (
+        request.headers.get("x-requested-with") == "XMLHttpRequest"
+        or request.content_type == "application/json"
+        or "application/json" in request.headers.get("accept", "")
+    )
+    if is_ajax:
+        msg = ok_message(res) if res.get("ok") else (res.get("message") or "Operazione non riuscita.")
+        res["feedback_message"] = msg
+        return JsonResponse(res)
+
     if res.get("ok"):
         messages.success(request, ok_message(res))
     else:
         messages.error(request, res.get("message") or "Operazione non riuscita.")
+
+    target = request.POST.get("next") or request.GET.get("next")
+    if target == "mercato":
+        return redirect("app_mercato")
     return redirect("app_rosa")
 
 
@@ -1032,3 +1304,123 @@ def app_fixture_detail(request, fixture_id):
     )
     details = get_fixture_details(fixture)
     return JsonResponse({"success": True, "fixture": details})
+
+
+def app_print_team_sheet(request, participant_id=None):
+    """Visualizza e stampa la Scheda Squadra ufficiale (formato A4 identico al PDF di lega)."""
+    participant, ctx = _app_ctx(request, "rosa")
+    if participant is None:
+        return _redirect_login(request, ctx)
+    league = participant.league
+    target_id = participant.id
+    if participant_id:
+        target_p = Participant.objects.filter(pk=participant_id, league=league).first()
+        if target_p:
+            target_id = target_p.id
+    elif request.GET.get("team"):
+        try:
+            target_p = Participant.objects.filter(pk=int(request.GET.get("team")), league=league).first()
+            if target_p:
+                target_id = target_p.id
+        except (ValueError, TypeError):
+            pass
+    from .. import team_sheets
+    sheets = team_sheets.team_sheets(league, [target_id])
+    back_url = reverse("app_rosa") if target_id == participant.id else f"{reverse('app_rosa')}?team={target_id}"
+    export_xlsx_url = reverse("app_export_team_sheet_xlsx", args=[target_id])
+    return render(request, "auctions/print_team_sheets.html", {
+        "league": league,
+        "sheets": sheets,
+        "back_url": back_url,
+        "export_xlsx_url": export_xlsx_url,
+    })
+
+
+def app_export_team_sheet_xlsx(request, participant_id=None):
+    """Download del foglio Excel della Scheda Squadra."""
+    participant, ctx = _app_ctx(request, "rosa")
+    if participant is None:
+        return _redirect_login(request, ctx)
+    league = participant.league
+    target_p = participant
+    if participant_id:
+        p = Participant.objects.filter(pk=participant_id, league=league).first()
+        if p:
+            target_p = p
+    elif request.GET.get("team"):
+        try:
+            p = Participant.objects.filter(pk=int(request.GET.get("team")), league=league).first()
+            if p:
+                target_p = p
+        except (ValueError, TypeError):
+            pass
+    from .. import team_sheets
+    data = team_sheets.build_team_sheets_xlsx(league, [target_p.id])
+    slug_name = "".join(c if c.isalnum() else "_" for c in target_p.display_name).strip("_")
+    resp = HttpResponse(data, content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    resp["Content-Disposition"] = f'attachment; filename="{slug_name}_scheda.xlsx"'
+    return resp
+
+
+def app_print_renewals(request):
+    """Visualizza e stampa il Report Ufficiale Rinnovi Contratti della lega."""
+    participant, ctx = _app_ctx(request, "mercato")
+    if participant is None:
+        return _redirect_login(request, ctx)
+    league = participant.league
+    from .. import team_sheets
+    season = team_sheets.season_label(team_sheets.season_start())
+    blocks = team_sheets.renewal_rows(league)
+    return render(request, "auctions/print_renewals.html", {
+        "league": league,
+        "season": season,
+        "blocks": blocks,
+        "back_url": f"{reverse('app_mercato')}?tab=rinnovi",
+        "export_xlsx_url": reverse("app_export_renewals_xlsx"),
+    })
+
+
+def app_export_renewals_xlsx(request):
+    """Download del foglio Excel ufficiale dei rinnovi della lega."""
+    participant, ctx = _app_ctx(request, "mercato")
+    if participant is None:
+        return _redirect_login(request, ctx)
+    league = participant.league
+    from .. import team_sheets
+    data = team_sheets.build_renewals_xlsx(league)
+    season = team_sheets.season_label(team_sheets.season_start())
+    resp = HttpResponse(data, content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    resp["Content-Disposition"] = f'attachment; filename="Rinnovi_{season}.xlsx"'
+    return resp
+
+
+def app_print_buste_report(request, session_id):
+    """Visualizza e stampa il Verbale Ufficiale di Spoglio Buste."""
+    participant, ctx = _app_ctx(request, "mercato")
+    if participant is None:
+        return _redirect_login(request, ctx)
+    session = MarketSession.objects.filter(pk=session_id, league=participant.league).first()
+    if not session:
+        return redirect("app_mercato")
+    ctx_report = services.get_buste_report_context(session.id)
+    if not ctx_report:
+        return redirect("app_mercato")
+    ctx_report["back_url"] = f"{reverse('app_mercato')}?session_id={session.id}&tab=esito_spoglio"
+    ctx_report["csv_url"] = reverse("app_export_buste_csv", args=[session.id])
+    return render(request, "auctions/print_market_buste.html", ctx_report)
+
+
+def app_export_buste_csv(request, session_id):
+    """Scarica il file CSV del Verbale Ufficiale di Spoglio Buste."""
+    participant, ctx = _app_ctx(request, "mercato")
+    if participant is None:
+        return _redirect_login(request, ctx)
+    session = MarketSession.objects.filter(pk=session_id, league=participant.league).first()
+    if not session:
+        return redirect("app_mercato")
+    csv_bytes = services.build_buste_csv(session)
+    name = f"Verbale_Spoglio_{session.id}.csv"
+    resp = HttpResponse(csv_bytes, content_type="text/csv; charset=utf-8")
+    resp["Content-Disposition"] = f'attachment; filename="{name}"'
+    return resp
+
