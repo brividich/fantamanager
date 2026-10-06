@@ -253,6 +253,10 @@ def sync_players(rows, *, league=None, replace=False, prune=False):
         from ..services.abroad import flag_missing
         flagged_left = flag_missing(league, owned_not_in_listone)
 
+    # I giocatori nuovi del listone si collegano subito all'anagrafica comune.
+    from ..services.footballers import link_players
+    link_players(Player.objects.filter(league=league) if league else Player.objects.filter(league__isnull=True))
+
     return {
         "created": created,
         "updated": updated,

@@ -25,11 +25,16 @@ stessi testi**.
   I dati arrivano da `session_manage_context` / `trades_manage_context`
   (`views/admin_market.py`). Ogni form manda `next` = la pagina da cui parte,
   così l'azione torna lì (console o app); `_back()` accetta solo indirizzi del sito.
+- L'anagrafica dei calciatori (API-Football, unica per tutte le leghe):
+  `_footballers.html`, in `admin_footballers.html` (console) e
+  `app_footballers.html` (app); dati da `footballers_context`
+  (`views/footballers.py`).
 - Dove l'app non ha ancora una sua schermata (contratti lato admin, giocatori,
   squadre) apre quella della console: una sola versione.
 - I test di parità confrontano web e app: `MarketWizardParityTests` e
   `MarketManageParityTests` in `auctions/tests/test_market.py`,
-  `CompetitionWizardParityTests` in `auctions/tests/test_competitions.py`.
+  `CompetitionWizardParityTests` in `auctions/tests/test_competitions.py`,
+  `FootballersPageTests` in `auctions/tests/test_footballers.py`.
 
 ## Ogni lega è separata
 
