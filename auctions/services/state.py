@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from django.utils import timezone
 
-from .. import health, mantra
+from .. import health
 from ..models import Auction, Player
 from .lifecycle import stuck_closed_lot
 from .sealed import sealed_status

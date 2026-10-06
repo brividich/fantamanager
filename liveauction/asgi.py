@@ -16,14 +16,19 @@ django_asgi_app = get_asgi_application()
 
 from channels.auth import AuthMiddlewareStack  # noqa: E402
 from channels.routing import ProtocolTypeRouter, URLRouter  # noqa: E402
+from channels.security.websocket import AllowedHostsOriginValidator  # noqa: E402
 
 import auctions.routing  # noqa: E402
 
 application = ProtocolTypeRouter(
     {
         "http": django_asgi_app,
-        "websocket": AuthMiddlewareStack(
-            URLRouter(auctions.routing.websocket_urlpatterns)
+        # The Origin must be one of ALLOWED_HOSTS: another site open in the
+        # same browser cannot open a socket with the team's session and bid.
+        "websocket": AllowedHostsOriginValidator(
+            AuthMiddlewareStack(
+                URLRouter(auctions.routing.websocket_urlpatterns)
+            )
         ),
     }
 )

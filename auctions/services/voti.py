@@ -11,8 +11,8 @@ from typing import Any, Dict, List, Optional
 
 from django.db import transaction
 
-from ..models import Giornata, GiornataScore, League, Participant, Player, PlayerPerformance
-from ..providers.importers import _find_match, _norm
+from ..models import Giornata, GiornataScore, League, Player, PlayerPerformance
+from ..providers.importers import _find_match
 from .scoring import compute_giornata
 
 logger = logging.getLogger(__name__)

@@ -199,6 +199,42 @@ class VotiServicesTests(TestCase):
         })
         self.assertEqual(resp_cons.status_code, 302)
 
+    def test_live_buttons_act_on_the_admins_league_only(self):
+        """Giornata 1 of another league is not this league admin's to close."""
+        self.league.owner = self.user
+        self.league.save()
+        other = League.objects.create(name="Altra", budget=Decimal("600"))
+        other_season = Season.objects.create(name="2026/2027", league=other, is_current=True)
+        mine = Giornata.objects.create(season=self.season, number=1, status=Giornata.Status.LIVE)
+        theirs = Giornata.objects.create(season=other_season, number=1, status=Giornata.Status.LIVE)
+        self.client.force_login(self.user)
+        self.client.post("/dashboard/giornate/live-consolidate/", {
+            "giornata_number": "1", "league_id": str(self.league.id)})
+        mine.refresh_from_db()
+        theirs.refresh_from_db()
+        self.assertEqual(mine.status, Giornata.Status.SCORED)
+        self.assertEqual(theirs.status, Giornata.Status.LIVE)
+
+    def test_live_buttons_refused_to_a_user_managing_no_league(self):
+        outsider = User.objects.create_user("outsider", password="pw")
+        g = Giornata.objects.create(season=self.season, number=1, status=Giornata.Status.LIVE)
+        self.client.force_login(outsider)
+        for url in ("/dashboard/giornate/live-sync/", "/dashboard/giornate/live-consolidate/"):
+            with self.subTest(url=url):
+                r = self.client.post(url, {"giornata_number": "1", "provider": "simulation"})
+                self.assertEqual(r.status_code, 403)
+        g.refresh_from_db()
+        self.assertEqual(g.status, Giornata.Status.LIVE)
+
+    def test_junk_giornata_number_is_not_a_500(self):
+        self.league.owner = self.user
+        self.league.save()
+        self.client.force_login(self.user)
+        r = self.client.get("/dashboard/giornate/?giornata=boh")
+        self.assertNotEqual(r.status_code, 500)
+        r = self.client.post("/dashboard/giornate/live-consolidate/", {"giornata_number": "x"})
+        self.assertEqual(r.status_code, 302)
+
     def test_supervisor_live_sync_actions(self):
         superadmin = User.objects.create_superuser("super_live", password="pw")
         self.client.force_login(superadmin)

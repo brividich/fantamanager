@@ -27,7 +27,7 @@
                 </svg> Nuova Asta
             </a>
             <button type="button" class="fm-btn fm-btn-ghost fm-btn-sm" onclick="openSystemLogs()">
-                📋 Log Sistema
+                Log di sistema
             </button>
         </div>
     </div>
@@ -135,9 +135,9 @@
                 <span class="fm-badge-pill pill-subtle">{{ current_league.get_game_mode_display }}</span>
                 <span class="fm-badge-pill pill-subtle">Budget {{ current_league.budget|floatformat:0 }} FM</span>
                 <span class="fm-badge-pill pill-subtle">{{ current_league.slots_label }}</span>
-                <span class="fm-badge-pill pill-subtle">👑 {{ current_league.owner.username|default:"Presidente" }}</span>
+                {% if current_league.owner %}<span class="fm-badge-pill pill-subtle" title="Admin della lega">Admin: {{ current_league.owner.username }}</span>{% endif %}
                 <a class="fm-badge-pill pill-accent" href="{% url 'dashboard_hub' %}"
-                    title="Visualizza tutte le leghe">⇄ Cambia Lega</a>
+                    title="Visualizza tutte le leghe">Cambia lega</a>
             </div>
             <h1 class="fm-sport-title">Console Gestionale · {{ current_league.name }}</h1>
             <p class="fm-sport-desc">Centro di controllo completo: gestione rose per reparto, crediti, iscritti e
@@ -394,11 +394,13 @@
                             <h2 class="sport-card-title">Sessioni d'Asta</h2>
                             <div class="sport-card-sub">Sessioni live e programmate per questa lega.</div>
                         </div>
+                        {% if auctions %}
                         <a class="fm-btn fm-btn-secondary fm-btn-sm" href="{% url 'admin_auction_wizard' %}">
                             <svg class="ic">
                                 <use href="#i-plus" />
                             </svg> Nuova Asta
                         </a>
+                        {% endif %}
                     </div>
                     {% if auctions %}
                     <div class="sport-auctions-list">
@@ -447,7 +449,6 @@
                             <h2 class="sport-card-title">Centro Operativo</h2>
                             <div class="sport-card-sub">Strumenti rapidi di gestione fantacalcistica.</div>
                         </div>
-                        <span class="sport-card-tag">Cockpit</span>
                     </div>
 
                     <div class="sport-tools-grid">
@@ -563,7 +564,7 @@
                             <h2 class="sport-card-title">Ultime Assegnazioni</h2>
                             <div class="sport-card-sub">Calciatori battuti all'asta di recente.</div>
                         </div>
-                        <span class="sport-card-tag">Mercato</span>
+                        <span class="sport-card-tag">Asta</span>
                     </div>
 
                     {% if recent_assignments %}
@@ -1871,12 +1872,12 @@ Link: {{ p.join_url }}
     <div class="fm-sport-foot">
         <div class="foot-left">
             <span class="fm-status-dot-green"></span>
-            <span class="foot-sys-txt"><b>FantaManager Sport Engine</b> · Daphne ASGI porta 8001 · Database {{ db_engine }}</span>
+            <span class="foot-sys-txt"><b>FantaManager</b>{% if request.user.is_superuser %} · Database {{ db_engine }}{% endif %}</span>
         </div>
         <div class="foot-right">
             {% if request.user.is_superuser %}
             <button type="button" class="fm-btn fm-btn-ghost fm-btn-xs" onclick="openSystemLogs()">
-                📋 Log Sistema
+                Log di sistema
             </button>
             {% endif %}
             <a class="fm-btn fm-btn-ghost fm-btn-xs" href="{% url 'admin_config' %}">

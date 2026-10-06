@@ -123,7 +123,7 @@
             <span class="qa-badge ok">Aperto</span>
             {% endif %}
         </div>
-        <div class="qa-title">Mercato & Buste</div>
+        <div class="qa-title">Mercato</div>
         <div class="qa-sub">Offerte e svincoli</div>
     </a>
     <a href="{% url 'app_live' %}" class="qa-card">
@@ -165,7 +165,7 @@
 <a class="a-cta" href="{% url 'app_mercato' %}" style="margin-bottom:12px">
     <svg class="ic" style="color:var(--accent)"><use href="#i-mail"/></svg>
     <span class="t">
-        <b>Buste aperte: {{ open_market.title }}</b>
+        <b>{% if open_market.session_type == "sealed_bids" or open_market.session_type == "repair" %}Buste aperte{% elif open_market.session_type == "renewals" %}Rinnovi aperti{% else %}Mercato aperto{% endif %}: {{ open_market.title }}</b>
         <span>{% if open_market.closes_at %}Chiude il {{ open_market.closes_at|date:"d/m H:i" }}{% else %}Consegna le tue offerte{% endif %}{% if my_open_bids %} · {{ my_open_bids }} bust{{ my_open_bids|pluralize:"a,e" }} inviat{{ my_open_bids|pluralize:"a,e" }}{% endif %}</span>
     </span>
     <span class="go">›</span>

@@ -540,19 +540,31 @@ the same league.
     </section>
 
     <section class="a-card" aria-labelledby="rg-market-h" data-asec="overview">
-        <div class="a-label" id="rg-market-h"><svg class="ic"><use href="#i-mail"/></svg> Mercato a buste
+        <div class="a-label" id="rg-market-h"><svg class="ic"><use href="#i-mail"/></svg> Mercato
             <a href="{% url 'admin_market_dashboard' %}{{ league_q }}" style="margin-left:auto;font-size:11px;letter-spacing:.06em">Gestisci</a></div>
         {% for s in market_sessions %}
-        <a class="a-row" href="{% url 'admin_market_session' s.id %}" style="text-decoration:none;color:inherit">
+        <a class="a-row" href="{% url 'app_regia_market_session' s.id %}" style="text-decoration:none;color:inherit">
             <span class="nm">{{ s.title }}<small>{{ s.get_status_display }}</small></span>
             <span class="val" style="font-size:12px;color:var(--muted)">{% if s.closes_at %}{{ s.closes_at|date:"d/m H:i" }}{% endif %}</span>
         </a>
         {% empty %}
-        <p class="muted" style="font-size:13px;padding:4px 0">Nessuna sessione di buste.</p>
+        <p class="muted" style="font-size:13px;padding:4px 0">Nessuna sessione di mercato.</p>
         {% endfor %}
         <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
             <button type="button" class="fm-btn fm-btn-primary fm-btn-sm" onclick="openMarketWizard()"><svg class="ic"><use href="#i-plus"/></svg> Nuovo Mercato</button>
             <a class="fm-btn fm-btn-outline fm-btn-sm" href="{% url 'admin_market_buste' %}{{ league_q }}"><svg class="ic"><use href="#i-mail"/></svg> Console Buste</a>
+        </div>
+    </section>
+
+    <section class="a-card" aria-labelledby="rg-trset-h" data-asec="overview">
+        <div class="a-label" id="rg-trset-h"><svg class="ic"><use href="#i-swap"/></svg> Scambi
+            <a href="{% url 'app_regia_trades' %}{{ league_q }}" style="margin-left:auto;font-size:11px;letter-spacing:.06em">Gestisci</a></div>
+        <p class="muted" style="font-size:13px;padding:4px 0">
+            {% if app_league.trades_enabled %}Attivi{% if app_league.trades_need_approval %} · con ratifica{% endif %}{% else %}Disattivati{% endif %}
+            {% if trades_to_ratify %} · <b>{{ trades_to_ratify|length }} da ratificare</b>{% endif %}
+        </p>
+        <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
+            <a class="fm-btn fm-btn-primary fm-btn-sm" href="{% url 'app_regia_trades' %}{{ league_q }}"><svg class="ic"><use href="#i-gear"/></svg> Regole, periodi e ratifiche</a>
         </div>
     </section>
 
@@ -568,7 +580,7 @@ the same league.
         <p class="muted" style="font-size:13px;padding:4px 0">Nessuna competizione configurata.</p>
         {% endfor %}
         <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
-            <a class="fm-btn fm-btn-primary fm-btn-sm" href="{% url 'app_lega' %}?open_comp_wizard=1&tab=competizioni"><svg class="ic"><use href="#i-plus"/></svg> Nuova competizione (Wizard)</a>
+            <a class="fm-btn fm-btn-primary fm-btn-sm" href="{% url 'app_lega' %}?open_comp_wizard=1&tab=competizioni"><svg class="ic"><use href="#i-plus"/></svg> Nuova Competizione</a>
             <a class="fm-btn fm-btn-outline fm-btn-sm" href="{% url 'admin_competitions' %}{{ league_q }}"><svg class="ic"><use href="#i-table"/></svg> Tabelloni & Calendari</a>
         </div>
     </section>

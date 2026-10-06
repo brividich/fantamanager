@@ -46,7 +46,7 @@
 <div class="altro-col">
 {% if participant %}
 <div class="a-card">
-    <div class="a-label"><svg class="ic"><use href="#i-shield"/></svg> Profilo Squadra</div>
+    <div class="a-label"><svg class="ic"><use href="#i-shield"/></svg> Profilo squadra</div>
     <div class="a-row">
         <span class="nm">Squadra</span>
         <span class="val" style="font-weight:900;font-size:15px;color:var(--ink)">{{ participant.display_name }}</span>
@@ -56,11 +56,11 @@
         <span class="val">{% if app_league %}<b>{{ app_league.name }}</b>{% else %}—{% endif %}</span>
     </div>
     <div class="a-row">
-        <span class="nm">Crediti Residui</span>
+        <span class="nm">Crediti residui</span>
         <span class="val"><b style="color:var(--accent);font-family:var(--display);font-size:16px">{{ participant.remaining_credits|floatformat:0 }}</b> <span class="muted" style="font-size:12px">/ {{ participant.credits|floatformat:0 }} FM</span></span>
     </div>
     <div class="a-row">
-        <span class="nm">Modalità Accesso</span>
+        <span class="nm">Accesso</span>
         <span class="val">
             {% if viewing_as %}
                 <span class="status-pill" style="background:rgba(255,181,38,0.14);color:var(--paused);border:1px solid rgba(255,181,38,0.35);font-size:10.5px">Vista admin ({{ request.user.username }})</span>
@@ -74,7 +74,7 @@
 </div>
 
 <div class="a-card">
-    <div class="a-label"><svg class="ic"><use href="#i-lock"/></svg> Codice di Accesso Squadra (PIN)</div>
+    <div class="a-label"><svg class="ic"><use href="#i-lock"/></svg> PIN della squadra</div>
     <form method="post" action="{% url 'app_update_pin' %}" style="display:flex;flex-direction:column;gap:12px">
         {% csrf_token %}
         <div class="muted" style="font-size:12.5px;line-height:1.45">
@@ -118,7 +118,7 @@
         <div class="at-left">
             <span class="at-icon" style="color:var(--paused); background:rgba(255,181,38,0.14);border-color:rgba(255,181,38,0.3);"><svg class="ic"><use href="#i-gavel"/></svg></span>
             <div>
-                <span style="display:block;line-height:1.2">Regia della Lega</span>
+                <span style="display:block;line-height:1.2">Regia della lega</span>
                 <small class="muted" style="font-size:11.5px;font-weight:600">Pannello organizzatore e admin</small>
             </div>
         </div>
@@ -140,13 +140,13 @@
 
     <div class="a-card" style="border:1px solid rgba(19,181,255,0.3);background:linear-gradient(135deg, rgba(19,181,255,0.08), rgba(34,197,94,0.06));border-radius:12px;padding:14px;margin-bottom:10px;">
         <div class="a-label" style="color:#13b5ff;font-weight:800;font-size:12px;margin-bottom:6px;display:flex;align-items:center;gap:6px;">
-            <svg class="ic" style="color:#13b5ff"><use href="#i-shield"/></svg> Applicazione Mobile (PWA)
+            <svg class="ic" style="color:#13b5ff"><use href="#i-shield"/></svg> App sul telefono
         </div>
         <div style="font-size:12.5px;line-height:1.45;color:var(--muted);margin-bottom:12px">
             Installa FantaManager sulla schermata Home del tuo smartphone o tablet per aprirla a tutto schermo come una vera app nativa, senza barre del browser.
         </div>
         <button type="button" onclick="triggerPWAInstall()" class="fm-btn fm-btn-primary" style="width:100%;justify-content:center;font-weight:800;gap:8px">
-            📲 Installa App su Telefono
+            Installa l'app sul telefono
         </button>
     </div>
 
@@ -154,7 +154,7 @@
         <div class="at-left">
             <span class="at-icon"><svg class="ic"><use href="#i-pulse"/></svg></span>
             <div>
-                <span style="display:block;line-height:1.2">Tema dell'Interfaccia</span>
+                <span style="display:block;line-height:1.2">Tema</span>
                 <small class="muted" style="font-size:11.5px;font-weight:600">Alterna modalità scura / chiara</small>
             </div>
         </div>
@@ -164,7 +164,7 @@
     function updateThemeLabel() {
         const isLight = document.documentElement.classList.contains('light-theme');
         const lbl = document.getElementById('fm-theme-label');
-        if(lbl) lbl.innerHTML = isLight ? '☀️ Chiaro' : '🌙 Scuro';
+        if(lbl) lbl.textContent = isLight ? 'Chiaro' : 'Scuro';
     }
     updateThemeLabel();
     function toggleFmTheme(e) {
@@ -184,7 +184,7 @@
         <div class="at-left">
             <span class="at-icon"><svg class="ic"><use href="#i-swap"/></svg></span>
             <div>
-                <span style="display:block;line-height:1.2">{% if participant %}Cambia Squadra / Account{% else %}Collega una Squadra{% endif %}</span>
+                <span style="display:block;line-height:1.2">{% if participant %}Cambia squadra o account{% else %}Collega una squadra{% endif %}</span>
                 <small class="muted" style="font-size:11.5px;font-weight:600">Accedi con un altro codice o profilo</small>
             </div>
         </div>
@@ -195,7 +195,7 @@
         <div class="at-left">
             <span class="at-icon" style="color:#ef4444;background:rgba(239,68,68,0.1);border-color:rgba(239,68,68,0.25);"><svg class="ic"><use href="#i-lock"/></svg></span>
             <div>
-                <span style="display:block;line-height:1.2">Disconnetti (Logout)</span>
+                <span style="display:block;line-height:1.2">Esci</span>
                 <small style="font-size:11.5px;font-weight:600;color:rgba(239,68,68,0.8)">Chiudi la sessione corrente</small>
             </div>
         </div>
@@ -215,12 +215,6 @@
     </a>
     {% endif %}
 
-    <div class="soon" style="margin-top:2px;">
-        <svg class="ic"><use href="#i-gear"/></svg>
-        <b>Impostazioni & Notifiche</b>
-        <span>Preferenze estese, avvisi push e gestione account completa in arrivo.</span>
-        <span class="soon-tag">In arrivo</span>
-    </div>
 </div>
 </div>
 {% endblock %}

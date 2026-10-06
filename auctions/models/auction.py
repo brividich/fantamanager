@@ -184,6 +184,12 @@ class Auction(models.Model):
     # Quanto dura ogni scrutinio: il tempo per scrivere la propria busta.
     sealed_seconds = models.PositiveIntegerField(default=45)
 
+    # Le buste rispettano le stesse regole dei rilanci: tetto salariale (1.2),
+    # portieri di al massimo N squadre (2.02) e niente riacquisto di chi ha
+    # perso il giocatore al rinnovo (4.02). Spento, alle buste contano solo
+    # crediti e slot: è la lega a scegliere.
+    sealed_enforce_rules = models.BooleanField(default=True)
+
     # Stato in corso (non è configurazione): 0 = nessuno scrutinio aperto,
     # 1 = primo giro di buste, 2+ = spareggi dopo un pari merito.
     sealed_round = models.PositiveIntegerField(default=0)

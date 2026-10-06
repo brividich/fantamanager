@@ -26,6 +26,18 @@ def gk_clubs_problem(participant, player):
     return player.team not in clubs and len(clubs) >= limit
 
 
+def rescinded_rebuy_blocked(auction, participant):
+    """4.02: chi ha perso il giocatore al rinnovo può ricomprarlo solo se al
+    primo giro di chiamata nessun'altra squadra ha fatto offerte (invenduto)."""
+    if not auction.player_id or auction.player.rescinded_from_id != participant.id:
+        return False
+    from ..models import AuctionCycleResult
+    passed_unsold = AuctionCycleResult.objects.filter(
+        auction=auction, player_id=auction.player_id, assigned=False,
+    ).exclude(cycle=auction.current_cycle).exists()
+    return not passed_unsold
+
+
 @transaction.atomic
 def place_bid(auction_id, participant_id, increment, *, user_agent="", ip_address=None):
     """Register a rilancio, or reject it with a single, predictable reason."""
@@ -63,15 +75,8 @@ def place_bid(auction_id, participant_id, increment, *, user_agent="", ip_addres
     if not participates_in(participant, auction):
         return _reject(Reject.WRONG_LEAGUE)
 
-    if auction.player_id and auction.player.rescinded_from_id == participant.id:
-        # 4.02: chi l'ha perso al rinnovo può ricomprarlo solo se al primo giro
-        # di chiamata nessun'altra squadra ha fatto offerte (lotto invenduto).
-        from ..models import AuctionCycleResult
-        passed_unsold = AuctionCycleResult.objects.filter(
-            auction=auction, player_id=auction.player_id, assigned=False,
-        ).exclude(cycle=auction.current_cycle).exists()
-        if not passed_unsold:
-            return _reject(Reject.RESCINDED_REBUY)
+    if rescinded_rebuy_blocked(auction, participant):
+        return _reject(Reject.RESCINDED_REBUY)
 
     if auction.player_id and gk_clubs_problem(participant, auction.player):
         return _reject(Reject.GK_CLUBS)
@@ -118,7 +123,11 @@ def place_bid(auction_id, participant_id, increment, *, user_agent="", ip_addres
         .exists()
     )
     if recent:
-        return _reject(Reject.RATE_LIMITED, inc=inc)
+        # Not written to the bid log: a burst of taps would otherwise add a
+        # row (and take the write lock) per tap while the room is bidding.
+        logger.info("Rilancio troppo ravvicinato [Asta #%s] da '%s'",
+                    auction.id, participant.display_name)
+        return BidResult(False, bid=None, reason=Reject.RATE_LIMITED)
 
     if auction.ends_at is None:
         remaining_at_bid = None

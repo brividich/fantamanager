@@ -201,12 +201,12 @@ class CompetitionsEngineTests(TestCase):
         resp = self.client.get(reverse("app_lega") + f"?league={self.league.id}&open_comp_wizard=1")
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "comp-wizard-modal")
-        self.assertContains(resp, "Nuova Competizione (Wizard)")
+        self.assertContains(resp, "Nuova Competizione")
 
         # GET app_regia
         regia = self.client.get(reverse("app_regia") + f"?league={self.league.id}")
         self.assertEqual(regia.status_code, 200)
-        self.assertContains(regia, "Nuova competizione (Wizard)")
+        self.assertContains(regia, "Nuova Competizione")
 
         # POST admin_competition_create with from=app
         create_url = reverse("admin_competition_create")

@@ -1,13 +1,14 @@
 """Views for Matchday (Giornate) and Voti management, scoring, and Battle Royale."""
 import logging
 from django.contrib import messages
-from django.http import HttpResponseForbidden, JsonResponse
+from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
-from ..models import Giornata, GiornataScore, League, PlayerPerformance, Season
+from ..models import Giornata, League, Season
 from ..services.voti import compute_coppa_italia_battle_royale, import_voti_giornata, parse_voti_file
-from .common import current_league, manageable_leagues, staff_member_required, user_can_manage_league
+from .common import (current_league, form_int, manageable_leagues, staff_member_required,
+                     user_can_manage_league)
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ def admin_giornate(request):
             Giornata.objects.create(season=season, number=num)
         giornate = list(season.giornate.all().order_by("number"))
 
-    selected_num = int(request.GET.get("giornata") or 1)
+    selected_num = form_int(request.GET.get("giornata"), 1, min_value=1)
     current_giornata = next((g for g in giornate if g.number == selected_num), giornate[0] if giornate else None)
 
     if request.method == "POST" and current_giornata:
@@ -94,7 +95,7 @@ def admin_upload_voti(request):
     if league and not user_can_manage_league(request.user, league):
         return HttpResponseForbidden("Non hai i permessi per gestire questa lega.")
 
-    giornata_num = int(request.POST.get("giornata_number") or 1)
+    giornata_num = form_int(request.POST.get("giornata_number"), 1, min_value=1)
     season = Season.objects.filter(league=league, is_current=True).first()
     if not season:
         season = Season.objects.create(league=league, name=f"Stagione 2026/27 · {league.name}", is_current=True)
@@ -131,17 +132,31 @@ def admin_upload_voti(request):
 admin_voti_import = admin_upload_voti
 
 
+def _live_league(request):
+    """The league the giornate page is on, if this user manages it: the live
+    buttons act on that league only, never on every league at once."""
+    league = current_league(request)
+    if league is None:
+        league = manageable_leagues(request.user).first()
+    if league is None or not user_can_manage_league(request.user, league):
+        return None
+    return league
+
+
 @staff_member_required
 @require_POST
 def admin_live_voti_sync(request):
     """Trigger on-demand live matchday rating synchronization."""
     from ..services.voti_live import LiveSyncManager
-    giornata_num = int(request.POST.get("giornata_number") or 1)
+    league = _live_league(request)
+    if league is None:
+        return HttpResponseForbidden("Non hai i permessi per gestire questa lega.")
+    giornata_num = form_int(request.POST.get("giornata_number"), 1, min_value=1)
     provider = request.POST.get("provider") or "fantacalcio_web"
 
     mgr = LiveSyncManager.get_instance()
     mgr.provider = provider
-    res = mgr.sync_now(giornata_num=giornata_num, is_provisional=True)
+    res = mgr.sync_now(giornata_num=giornata_num, is_provisional=True, leagues=[league])
 
     if res.get("status") == "SUCCESS":
         messages.success(
@@ -159,8 +174,11 @@ def admin_live_voti_sync(request):
 def admin_live_voti_consolidate(request):
     """Consolidate provisional live votes into official final scored matchday."""
     from ..services.voti_live import LiveSyncManager
-    giornata_num = int(request.POST.get("giornata_number") or 1)
-    res = LiveSyncManager.get_instance().consolidate_official(giornata_num)
+    league = _live_league(request)
+    if league is None:
+        return HttpResponseForbidden("Non hai i permessi per gestire questa lega.")
+    giornata_num = form_int(request.POST.get("giornata_number"), 1, min_value=1)
+    res = LiveSyncManager.get_instance().consolidate_official(giornata_num, leagues=[league])
     messages.success(request, f"✅ Giornata {giornata_num} consolidata ufficialmente su voti definitivi ({res.get('giornate_count')} leghe chiuse).")
     return redirect(f"/app/giornate/?giornata={giornata_num}")
 

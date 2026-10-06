@@ -26,7 +26,7 @@
     .ss-bar i { display: block; height: 100%; background: var(--accent); }
     .ss-bar i.hot { background: #eab308; }
     .ss-set { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 8px 12px; align-items: center; font-size: 12.5px; }
-    @media (max-width: 1100px) { .ss-steps, .ss-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 1100px) { .ss-steps, .ss-grid { grid-template-columns: minmax(0, 1fr); } }
 </style>
 
 {% include "auctions/_console_head.html" %}
@@ -85,6 +85,7 @@
 <div class="ss-grid">
     <section class="panel">
         <h3 style="margin:0 0 8px;font-size:15px">Squadre, classifiche e tetto salariale</h3>
+        <div class="table-scroll">
         <table class="ss-table">
             <thead><tr>
                 <th>Squadra</th>
@@ -112,6 +113,7 @@
             {% endfor %}
             </tbody>
         </table>
+        </div>
         <div style="display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap;font-size:12px">
             <button type="submit" form="f-prev" class="ss-btn ghost">Salva classifica anno precedente</button>
             <span class="muted">Serve solo alla prima stagione gestita qui. Le posizioni «Fine» e «Metà» si usano solo se non c'è una fonte automatica.</span>

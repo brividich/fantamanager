@@ -29,6 +29,33 @@ def clear_ticker_error(auction_id):
         _TICKER_ERRORS.pop(int(auction_id), None)
 
 
+def live_ticker_errors():
+    """How many auctions have a fresh ticker failure."""
+    now = time.time()
+    with _LOCK:
+        return sum(1 for e in _TICKER_ERRORS.values() if now - e["at"] <= ERROR_TTL_SECONDS)
+
+
+def healthz(request):
+    """Liveness probe for Docker and the reverse proxy: the process answers
+    and the database takes a query. No login, no routing, no details beyond
+    a yes/no per part — 503 when the database is not reachable."""
+    from django.db import connection
+    from django.http import JsonResponse
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+        db_ok = True
+    except Exception:
+        db_ok = False
+    return JsonResponse(
+        {"ok": db_ok, "db": "ok" if db_ok else "error",
+         "ticker_errors": live_ticker_errors()},
+        status=200 if db_ok else 503,
+    )
+
+
 def ticker_error(auction_id):
     """The most recent tick failure for this auction, or None if it's
     stale (older than ERROR_TTL_SECONDS) or there wasn't one."""

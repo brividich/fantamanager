@@ -190,7 +190,10 @@ from .app import (
     app_print_buste_report,
     app_export_buste_csv,
 )
-from .app_admin import app_regia, app_view_as, app_view_as_exit, league_admin_digest
+from .app_admin import (
+    app_regia, app_regia_market_session, app_regia_trades, app_view_as, app_view_as_exit,
+    league_admin_digest,
+)
 from .bidder import (
     _auction_for_join,
     bid_page,
@@ -412,6 +415,8 @@ __all__ = [
     "app_altro",
     # app_admin (Regia inside the app)
     "app_regia",
+    "app_regia_market_session",
+    "app_regia_trades",
     "app_view_as",
     "app_view_as_exit",
     "league_admin_digest",

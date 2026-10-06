@@ -164,6 +164,18 @@ class LifecycleTests(TestCase):
 
 
 @override_settings(BID_MIN_INTERVAL_MS=0)
+class StartBackupTests(TestCase):
+    def test_starting_an_auction_takes_a_snapshot(self):
+        """The copy of the state before the first lot is sold."""
+        Player.objects.create(name="Listone", role="A")
+        auction = make_live_auction(status=Auction.Status.READY, ends_at=None,
+                                    flow_mode=Auction.FlowMode.CALL)
+        with mock.patch("auctions.services.lifecycle._backup_async") as backup_mock, \
+                self.captureOnCommitCallbacks(execute=True):
+            services.start_auction(auction.id)
+        backup_mock.assert_called_once_with(reason="asta avviata")
+
+
 class AdminCancelBidViewTests(TestCase):
     """HTTP contract for the "storico offerte" panel's Annulla button."""
 

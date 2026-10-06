@@ -11,7 +11,8 @@ session, so switching league on one side is already done on the other.
 from decimal import Decimal
 
 from django.contrib import messages
-from django.shortcuts import redirect, render
+from django.http import HttpResponseForbidden
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
@@ -19,6 +20,7 @@ from .. import services
 from ..services import mail
 from ..models import Auction, MarketBid, MarketSession, Participant, Player, Trade
 from .admin_dashboard import _classifica_standings
+from .admin_market import session_manage_context, trades_manage_context
 from .app import _redirect_login
 from .common import (
     SESSION_LEAGUE_KEY,
@@ -27,6 +29,7 @@ from .common import (
     app_admin_league,
     app_admin_leagues,
     participant_join_url,
+    user_can_manage_league,
 )
 
 _LEVEL_ORDER = {"live": 0, "warn": 1, "info": 2, "ok": 3}
@@ -66,33 +69,33 @@ def league_admin_digest(league):
             "warn", "swap",
             f"{to_ratify} scambi{'o' if to_ratify == 1 else ''} da ratificare",
             "Le due squadre hanno accettato: tocca a te approvare o bocciare.",
-            "#scambi", "Ratifica"))
+            reverse("app_regia_trades") + q, "Ratifica"))
 
     services.sync_market_schedule(league)
     sessions = MarketSession.objects.filter(league=league)
-    market_url = reverse("admin_market_dashboard") + q
     closed = sessions.filter(status=MarketSession.Status.CLOSED).first()
     if closed is not None:
         items.append(_todo(
             "warn", "mail", f"Spoglio da fare: {closed.title}",
             "Le buste sono chiuse: controlla l'anteprima e assegna i giocatori.",
-            f"{market_url}&session={closed.id}", "Vai allo spoglio"))
+            reverse("app_regia_market_session", args=[closed.id]), "Vai allo spoglio"))
     opened = sessions.filter(status=MarketSession.Status.OPEN).first()
     if opened is not None:
         delivered = (MarketBid.objects.filter(session=opened)
                      .values("participant_id").distinct().count())
         teams_n = Participant.objects.filter(league=league, is_active=True).count()
         when = f" · chiude il {opened.closes_at:%d/%m %H:%M}" if opened.closes_at else ""
+        is_buste = opened.session_type in (MarketSession.SessionType.SEALED_BIDS, MarketSession.SessionType.REPAIR)
         items.append(_todo(
-            "info", "mail", f"Buste aperte: {opened.title}",
-            f"{delivered}/{teams_n} squadre hanno consegnato{when}.",
-            f"{market_url}&session={opened.id}", "Segui"))
+            "info", "mail", f"{'Buste aperte' if is_buste else 'Mercato aperto'}: {opened.title}",
+            f"{delivered}/{teams_n} squadre {'hanno consegnato' if is_buste else 'hanno già agito'}{when}.",
+            reverse("app_regia_market_session", args=[opened.id]), "Segui"))
     draft = sessions.filter(status=MarketSession.Status.DRAFT).first()
     if draft is not None:
         items.append(_todo(
             "info", "mail", f"Sessione in bozza: {draft.title}",
             "Le squadre non la vedono finché non la apri.",
-            f"{market_url}&session={draft.id}", "Apri"))
+            reverse("app_regia_market_session", args=[draft.id]), "Apri"))
 
     pool = Player.objects.filter(league=league).count()
     teams = Participant.objects.filter(league=league, is_active=True)
@@ -246,3 +249,45 @@ def app_view_as_exit(request):
     # Land on the Regia of the league whose team was being viewed.
     suffix = f"?league={viewed_league}" if viewed_league else ""
     return redirect(reverse("app_regia") + suffix)
+
+
+def app_regia_market_session(request, session_id):
+    """One market session, managed from the app: the console's own screen
+    (market/_session_manage.html) inside the app shell."""
+    participant, ctx = _app_ctx(request, "regia")
+    if ctx is None:
+        return _redirect_login(request, ctx)
+    session = get_object_or_404(MarketSession.objects.select_related("league"), pk=session_id)
+    league = session.league
+    if not user_can_manage_league(request.user, league):
+        return HttpResponseForbidden("Non hai i permessi per gestire il mercato di questa lega.")
+    request.session[SESSION_LEAGUE_KEY] = league.id
+    ctx.update(session_manage_context(request, session))
+    ctx.update({
+        "app_league": league,
+        "active_auction": _app_active_auction(league),
+        "manages_app_league": True,
+        "mk_back": reverse("app_regia_market_session", args=[session.id]),
+        "mk_list": f"{reverse('app_regia')}?league={league.id}",
+    })
+    return render(request, "auctions/app_regia_session.html", ctx)
+
+
+def app_regia_trades(request):
+    """The league's trades, managed from the app: the console's own screen
+    (market/_trades_manage.html) inside the app shell."""
+    participant, ctx = _app_ctx(request, "regia")
+    if ctx is None:
+        return _redirect_login(request, ctx)
+    league = app_admin_league(request, ctx["admin_leagues"], participant)
+    if league is None:
+        messages.error(request, "La Regia è per chi gestisce una lega: il tuo account non ne gestisce nessuna.")
+        return redirect("app_home")
+    ctx.update(trades_manage_context(league))
+    ctx.update({
+        "app_league": league,
+        "active_auction": _app_active_auction(league),
+        "manages_app_league": True,
+        "mk_back": f"{reverse('app_regia_trades')}?league={league.id}",
+    })
+    return render(request, "auctions/app_regia_trades.html", ctx)

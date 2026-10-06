@@ -216,6 +216,81 @@ class SealedBidTests(TestCase):
 
 
 @override_settings(BID_MIN_INTERVAL_MS=0)
+@override_settings(BID_MIN_INTERVAL_MS=0)
+class SealedBidRulesTests(TestCase):
+    """Alle buste valgono le regole dei rilanci, se la lega lo sceglie
+    (``sealed_enforce_rules``): tetto salariale, portieri, riacquisto 4.02."""
+
+    def setUp(self):
+        self.league = League.objects.create(
+            name="Lega", budget=Decimal("1000"), gk_max_clubs=2,
+            slots_p=3, slots_d=8, slots_c=8, slots_a=6,
+        )
+        self.keeper = Player.objects.create(
+            name="Numero Uno", role="P", team="Napoli", league=self.league,
+            initial_price=Decimal("1"))
+        self.a = Participant.objects.create(
+            display_name="Alfa", league=self.league, credits=Decimal("1000"))
+        self.b = Participant.objects.create(
+            display_name="Beta", league=self.league, credits=Decimal("1000"))
+
+    def _sealed_auction(self, **kwargs):
+        opts = dict(
+            league=self.league, player=self.keeper,
+            starting_price=Decimal("1"), current_price=Decimal("60"),
+            min_increment=Decimal("1"), quick_increments="1,5,10",
+            sealed_bids=True, enforce_limits=False,
+        )
+        opts.update(kwargs)
+        auction = make_live_auction(**opts)
+        services.open_sealed_now(auction.id)
+        auction.refresh_from_db()
+        return auction
+
+    def _two_club_keepers(self, team):
+        for club in ("Inter", "Milan"):
+            Player.objects.create(name=f"P {club}", role="P", team=club,
+                                  league=self.league, owner=team)
+
+    def test_gk_clubs_rule_applies_to_envelopes(self):
+        self._two_club_keepers(self.b)
+        auction = self._sealed_auction()
+        r = services.place_sealed_bid(auction.id, self.b.id, "70")
+        self.assertFalse(r.accepted)
+        self.assertEqual(r.reason, services.Reject.GK_CLUBS)
+
+    def test_rules_off_only_credits_and_slots_count(self):
+        self._two_club_keepers(self.b)
+        auction = self._sealed_auction(sealed_enforce_rules=False)
+        r = services.place_sealed_bid(auction.id, self.b.id, "70")
+        self.assertTrue(r.accepted)
+
+    def test_salary_cap_applies_to_envelopes(self):
+        auction = self._sealed_auction()
+        with mock.patch("auctions.services.salary.check_purchase",
+                        return_value="Tetto salariale"):
+            r = services.place_sealed_bid(auction.id, self.a.id, "70")
+        self.assertFalse(r.accepted)
+        self.assertEqual(r.reason, services.Reject.SALARY_CAP)
+
+    def test_salary_cap_ignored_when_rules_off(self):
+        auction = self._sealed_auction(sealed_enforce_rules=False)
+        with mock.patch("auctions.services.salary.check_purchase",
+                        return_value="Tetto salariale"):
+            r = services.place_sealed_bid(auction.id, self.a.id, "70")
+        self.assertTrue(r.accepted)
+
+    def test_lost_at_renewal_cannot_be_rebought_by_envelope(self):
+        self.keeper.rescinded_from = self.a
+        self.keeper.save()
+        auction = self._sealed_auction()
+        r = services.place_sealed_bid(auction.id, self.a.id, "70")
+        self.assertFalse(r.accepted)
+        self.assertEqual(r.reason, services.Reject.RESCINDED_REBUY)
+        # Gli altri scrivono la loro busta come sempre.
+        self.assertTrue(services.place_sealed_bid(auction.id, self.b.id, "70").accepted)
+
+
 class SealedBidViewTests(TestCase):
     """I comandi di regia e le pagine, con l'asta alle buste accesa."""
 
@@ -273,6 +348,36 @@ class SealedBidViewTests(TestCase):
         self.assertEqual(self.auction.sealed_threshold_d, 0)
         self.assertEqual(self.auction.sealed_threshold_a, 200)
         self.assertEqual(self.auction.sealed_seconds, 90)
+
+    def test_settings_form_saves_the_rules_choice(self):
+        self.assertTrue(self.auction.sealed_enforce_rules)
+        self.client.post(f"/admin-auction/{self.auction.id}/edit/", {
+            "sealed_bids": "1", "sealed_enforce_rules": "0",
+        })
+        self.auction.refresh_from_db()
+        self.assertFalse(self.auction.sealed_enforce_rules)
+        # Spunta + gemello nascosto: il form posta "0" e poi "1".
+        self.client.post(f"/admin-auction/{self.auction.id}/edit/", {
+            "sealed_bids": "1", "sealed_enforce_rules": ["0", "1"],
+        })
+        self.auction.refresh_from_db()
+        self.assertTrue(self.auction.sealed_enforce_rules)
+
+    def test_rules_choice_survives_a_saved_session(self):
+        self.auction.sealed_enforce_rules = False
+        self.auction.save()
+        session = services.save_session(self.auction.id, name="Ripresa")
+        self.assertFalse(services.resume_session(session.id).sealed_enforce_rules)
+
+    def test_forms_offer_the_rules_choice(self):
+        r = self.client.get(f"/admin-auction/?auction={self.auction.id}")
+        self.assertContains(r, 'name="sealed_enforce_rules"')
+        self.assertContains(r, "Alle buste valgono le regole dei rilanci")
+        for url in ("/admin-auction/wizard/", "/admin-auction/setup/"):
+            with self.subTest(url=url):
+                r = self.client.get(url)
+                self.assertContains(r, 'name="sealed_enforce_rules"')
+                self.assertContains(r, "Alle buste valgono le regole dei rilanci")
 
     def test_settings_form_can_switch_the_option_off(self):
         self.client.post(f"/admin-auction/{self.auction.id}/edit/", {})

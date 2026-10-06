@@ -156,7 +156,8 @@ def module_lines(module):
     Trequarti [7,8,9], Attacco [10]. Le etichette centrali si adattano a quanti
     reparti ha davvero il modulo: un 4-4-2 non ha la riga trequarti.
     """
-    slots = MODULES.get(module) or MODULES[DEFAULT_MODULE]
+    if module not in MODULES:
+        module = DEFAULT_MODULE
     counts = [int(n) for n in module.split("-") if n.isdigit()]
     # Nome del reparto: il primo è sempre il portiere, l'ultimo l'attacco, e i
     # reparti in mezzo scalano dalla difesa in avanti.

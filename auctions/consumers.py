@@ -23,6 +23,31 @@ LATENCY_WARN_COOLDOWN = 60
 REACTION_ALLOWED = {"👍", "🔥", "😱", "😂", "💰", "👏", "😮", "🤡", "❤️", "🎉"}
 REACTION_COOLDOWN = 0.4  # seconds between reactions from one connection
 
+# Bids and envelopes from one connection: a small burst goes through (a double
+# tap still gets its usual answer, "stai già vincendo" and the like), anything
+# beyond it is answered here without touching the database. Each attempt that
+# reaches place_bid takes the write lock, so a phone firing taps in a loop
+# would otherwise slow every other team's bids down.
+BID_BURST = 4             # attempts allowed back to back
+BID_REFILL_PER_SECOND = 4  # attempts regained per second
+
+
+class _TokenBucket:
+    def __init__(self, capacity, refill_per_second):
+        self.capacity = capacity
+        self.refill = refill_per_second
+        self.tokens = float(capacity)
+        self.stamp = None
+
+    def take(self, now):
+        if self.stamp is not None:
+            self.tokens = min(self.capacity, self.tokens + (now - self.stamp) * self.refill)
+        self.stamp = now
+        if self.tokens < 1:
+            return False
+        self.tokens -= 1
+        return True
+
 
 _ROOM_TICKERS = {}
 _ROOM_LOCK = asyncio.Lock()
@@ -145,6 +170,7 @@ class AuctionConsumer(AsyncWebsocketConsumer):
         self.participant_name = None
         self._last_latency_warn = 0  # monotonic seconds
         self._last_reaction = 0      # monotonic seconds
+        self._bid_bucket = _TokenBucket(BID_BURST, BID_REFILL_PER_SECOND)
 
         auction = await self._get_auction()
         if auction is None:
@@ -211,9 +237,13 @@ class AuctionConsumer(AsyncWebsocketConsumer):
             await self.channel_layer.group_discard(self.group_name, self.channel_name)
 
     async def receive(self, text_data=None, bytes_data=None):
+        # Anything a client sends is untrusted: a frame that is not a JSON
+        # object is ignored instead of raising and dropping the connection.
         try:
             data = json.loads(text_data or "{}")
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, TypeError, ValueError):
+            return
+        if not isinstance(data, dict):
             return
         action = data.get("action")
 
@@ -231,9 +261,15 @@ class AuctionConsumer(AsyncWebsocketConsumer):
 
     # --- Bid handling -------------------------------------------------------
 
+    def _bid_allowed(self):
+        return self._bid_bucket.take(asyncio.get_event_loop().time())
+
     async def _handle_bid(self, data):
         if not self.participant_id:
             await self.send_json({"type": "bid_rejected", "reason": "no_session"})
+            return
+        if not self._bid_allowed():
+            await self.send_json({"type": "bid_rejected", "reason": services.Reject.RATE_LIMITED})
             return
 
         increment = data.get("increment")
@@ -283,6 +319,9 @@ class AuctionConsumer(AsyncWebsocketConsumer):
         if not self.participant_id:
             await self.send_json({"type": "sealed_rejected", "reason": "no_session"})
             return
+        if not self._bid_allowed():
+            await self.send_json({"type": "sealed_rejected", "reason": services.Reject.RATE_LIMITED})
+            return
         result = await database_sync_to_async(services.place_sealed_bid)(
             self.auction_id, self.participant_id, data.get("amount"),
         )
@@ -319,7 +358,10 @@ class AuctionConsumer(AsyncWebsocketConsumer):
     async def _handle_latency_warning(self, data):
         if not self.participant_name:
             return
-        ping = int(data.get("ping", 0))
+        try:
+            ping = int(float(data.get("ping", 0)))
+        except (TypeError, ValueError, OverflowError):
+            return
         if ping < LATENCY_WARN_MS:
             return
 
