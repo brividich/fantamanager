@@ -16,6 +16,37 @@ from .common import SESSION_LEAGUE_KEY, _session_participant, manageable_leagues
 logger = logging.getLogger(__name__)
 
 
+def _login_usernames(identifier):
+    """The existing accounts ``identifier`` may name, best match first.
+
+    Phones capitalise the first letter of a text field, so "Mario" must find
+    "mario": an exact username wins, then the email (any case), then the
+    username in any case.
+    """
+    names = list(User.objects.filter(username=identifier).values_list("username", flat=True))
+    if "@" in identifier:
+        names += User.objects.filter(email__iexact=identifier).values_list("username", flat=True)[:3]
+    if not names:
+        names += User.objects.filter(username__iexact=identifier).values_list("username", flat=True)[:3]
+    return list(dict.fromkeys(names))
+
+
+def authenticate_identifier(request, identifier, password):
+    """The account for username/email ``identifier`` and ``password``, or None.
+
+    Shared by the console login and the app login. The password is tried as
+    typed and, if different, without the spaces a keyboard's autocomplete adds
+    at the ends.
+    """
+    passwords = list(dict.fromkeys([password, password.strip()]))
+    for username in _login_usernames(identifier.strip()):
+        for pw in passwords:
+            user = authenticate(request, username=username, password=pw)
+            if user is not None:
+                return user
+    return None
+
+
 def _spectator_auctions(*statuses):
     """Running auctions listed on the sign-in page as quick links to their
     screen. Only on a trusted LAN: online the screen wants its token, and a
@@ -90,21 +121,14 @@ def login_view(request):
 
     if request.method == "POST":
         identifier = (request.POST.get("identifier") or "").strip()
-        password = (request.POST.get("password") or "").strip()
+        password = request.POST.get("password") or ""
 
-        if not identifier or not password:
+        if not identifier or not password.strip():
             error = "Inserisci nome utente / email e password."
         elif throttle.blocked(request, "login"):
             error = throttle.MESSAGE
         else:
-            # Look up username if email was entered
-            username = identifier
-            if "@" in identifier:
-                user_obj = User.objects.filter(email__iexact=identifier).first()
-                if user_obj:
-                    username = user_obj.username
-
-            user = authenticate(request, username=username, password=password)
+            user = authenticate_identifier(request, identifier, password)
             if user is not None:
                 if not user.is_active:
                     error = "Questo account è disattivato. Contatta l'amministratore."
