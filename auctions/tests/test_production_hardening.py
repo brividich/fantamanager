@@ -376,9 +376,37 @@ class SupervisorBackupDownloadTests(TestCase):
         self.assertIn(resp.status_code, (403, 404))
 
     def test_superadmin_can_download_snapshot(self):
+        # The test database lives in memory: no file to copy, so the
+        # snapshot is simulated; what is checked is that it gets served.
         self.client.force_login(self.superadmin)
-        resp = self.client.get(reverse("supervisor_backup_download"))
-        self.assertEqual(resp.status_code, 200)
-        self.assertTrue(resp.has_header("Content-Disposition"))
-        self.assertIn("attachment", resp["Content-Disposition"])
+        with tempfile.TemporaryDirectory() as tmp:
+            snap = Path(tmp) / "db-20261006-120000.sqlite3"
+            snap.write_bytes(b"SQLite format 3\x00")
+            with mock.patch("auctions.backup.backup_database", return_value=snap):
+                resp = self.client.get(reverse("supervisor_backup_download"))
+            self.assertEqual(resp.status_code, 200)
+            self.assertTrue(resp.has_header("Content-Disposition"))
+            self.assertIn("attachment", resp["Content-Disposition"])
+            self.assertIn(snap.name, resp["Content-Disposition"])
+            resp.close()
+
+    def test_postgres_serves_the_latest_dump_not_the_request_file(self):
+        self.client.force_login(self.superadmin)
+        with tempfile.TemporaryDirectory() as tmp, override_settings(BACKUP_DIR=tmp), \
+                mock.patch("auctions.backup._is_postgres", return_value=True):
+            dump = Path(tmp) / "pg-20261006-120000.sql.gz"
+            dump.write_bytes(b"\x1f\x8b dump")
+            resp = self.client.get(reverse("supervisor_backup_download"))
+            self.assertEqual(resp.status_code, 200)
+            self.assertIn(dump.name, resp["Content-Disposition"])
+            self.assertEqual(b"".join(resp.streaming_content), b"\x1f\x8b dump")
+            # A fresh dump was asked for, for the next download.
+            self.assertTrue(any(p.name != dump.name for p in Path(tmp).iterdir()))
+
+    def test_postgres_without_dumps_is_404(self):
+        self.client.force_login(self.superadmin)
+        with tempfile.TemporaryDirectory() as tmp, override_settings(BACKUP_DIR=tmp), \
+                mock.patch("auctions.backup._is_postgres", return_value=True):
+            resp = self.client.get(reverse("supervisor_backup_download"))
+            self.assertEqual(resp.status_code, 404)
 
