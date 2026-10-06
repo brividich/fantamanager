@@ -265,7 +265,7 @@
                 <input type="text" id="acc_identifier" name="identifier"
                        placeholder="Es. mario o mario@email.it"
                        value="{% if user.is_authenticated %}{{ user.username }}{% endif %}"
-                       autocomplete="username" required>
+                       autocomplete="username" required autocapitalize="none" autocorrect="off" spellcheck="false">
             </div>
 
             <div class="form-group">

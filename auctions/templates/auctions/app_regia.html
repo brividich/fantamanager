@@ -302,8 +302,14 @@ the same league.
     .role-C { color: #22c55e; }
     .role-A { color: #ef4444; }
     .rg-role .pl { display: flex; justify-content: space-between; gap: 6px; font-size: 12.5px; padding: 2.5px 0; }
-    .rg-role .pl span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
-    .rg-role .pl span:last-child { color: var(--muted); font-variant-numeric: tabular-nums; font-weight: 700; }
+    .rg-role .pl > span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+    .rg-role .pl-r { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; }
+    .rg-role .pl-c { color: var(--muted); font-variant-numeric: tabular-nums; font-weight: 700; }
+    /* Durata contratto (auctions/_contract_badge.html, come in Rosa e nella console) */
+    .pl-ct { font-size: 10px; font-weight: 800; padding: 1px 5px; border-radius: 5px; white-space: nowrap;
+             background: rgba(255,255,255,.05); color: var(--muted); border: 1px solid var(--line); }
+    .pl-ct.last { background: rgba(234,179,8,.15); color: #eab308; border-color: rgba(234,179,8,.3); }
+    .pl-ct.exp { background: rgba(239,68,68,.15); color: #f87171; border-color: rgba(239,68,68,.3); }
     .rg-role .none { font-size: 12px; color: var(--muted); }
     .rg-team-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; align-items: center; }
     .rg-team-actions form { margin: 0; }
@@ -458,7 +464,7 @@ the same league.
                     <div class="rg-role">
                         <div class="h"><span class="role-{{ g.code }}">●</span> {{ g.label }} · {{ g.list|length }}</div>
                         {% for pl in g.list %}
-                        <div class="pl"><span>{{ pl.name }}</span><span>{{ pl.cost|floatformat:0 }}</span></div>
+                        <div class="pl"><span>{{ pl.name }}</span><span class="pl-r">{% if app_league.contracts_enabled %}{% include "auctions/_contract_badge.html" %}{% endif %}<span class="pl-c">{{ pl.cost|floatformat:0 }}</span></span></div>
                         {% empty %}
                         <div class="none">—</div>
                         {% endfor %}
