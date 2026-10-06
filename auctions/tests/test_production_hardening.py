@@ -382,7 +382,10 @@ class SupervisorBackupDownloadTests(TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             snap = Path(tmp) / "db-20261006-120000.sqlite3"
             snap.write_bytes(b"SQLite format 3\x00")
-            with mock.patch("auctions.backup.backup_database", return_value=snap):
+            # SQLite branch on any test database (CI also runs on PostgreSQL).
+            with mock.patch("auctions.backup._is_postgres", return_value=False), \
+                    mock.patch("auctions.backup._db_path", return_value=Path(tmp) / "db.sqlite3"), \
+                    mock.patch("auctions.backup.backup_database", return_value=snap):
                 resp = self.client.get(reverse("supervisor_backup_download"))
             self.assertEqual(resp.status_code, 200)
             self.assertTrue(resp.has_header("Content-Disposition"))
