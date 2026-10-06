@@ -123,7 +123,11 @@ def place_bid(auction_id, participant_id, increment, *, user_agent="", ip_addres
         .exists()
     )
     if recent:
-        return _reject(Reject.RATE_LIMITED, inc=inc)
+        # Not written to the bid log: a burst of taps would otherwise add a
+        # row (and take the write lock) per tap while the room is bidding.
+        logger.info("Rilancio troppo ravvicinato [Asta #%s] da '%s'",
+                    auction.id, participant.display_name)
+        return BidResult(False, bid=None, reason=Reject.RATE_LIMITED)
 
     if auction.ends_at is None:
         remaining_at_bid = None

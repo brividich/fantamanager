@@ -70,6 +70,39 @@ class WebSocketFlowTests(TransactionTestCase):
         self.assertEqual(auction.current_price, Decimal("150"))
         await comm.disconnect()
 
+    async def test_a_burst_of_bids_is_cut_before_the_database(self):
+        from ..consumers import BID_BURST
+        auction = await self._live_auction("Raffica")
+        await Auction.objects.filter(pk=auction.id).aupdate(block_leader_rebid=False)
+        p = await Participant.objects.acreate(display_name="Tap", credits=Decimal("100000"))
+        comm = await self._connect(auction.id, p.id)
+        await comm.receive_json_from()  # initial state
+        for _ in range(BID_BURST + 6):
+            await comm.send_json_to({"action": "bid", "increment": 10})
+        rejected = 0
+        while not await comm.receive_nothing(timeout=0.5):
+            msg = await comm.receive_json_from()
+            if msg["type"] == "bid_rejected" and msg["reason"] == services.Reject.RATE_LIMITED:
+                rejected += 1
+        self.assertGreaterEqual(rejected, 6)
+        self.assertLessEqual(await Bid.objects.filter(participant=p).acount(), BID_BURST)
+        await comm.disconnect()
+
+    async def test_junk_frames_do_not_drop_the_connection(self):
+        auction = await self._live_auction("Junk")
+        p = await Participant.objects.acreate(display_name="Junk")
+        comm = await self._connect(auction.id, p.id)
+        await comm.receive_json_from()  # initial state
+        await comm.send_to(text_data="[1, 2, 3]")
+        await comm.send_to(text_data="42")
+        await comm.send_to(text_data="non json")
+        await comm.send_json_to({"action": "latency_warning", "ping": "tanto"})
+        await comm.send_json_to({"action": "latency_warning", "ping": None})
+        await comm.send_json_to({"action": "sync"})
+        state = await self._await_type(comm, "state")
+        self.assertEqual(state["current_price"], "100.00")
+        await comm.disconnect()
+
     async def test_bid_without_session_is_rejected(self):
         auction = await Auction.objects.acreate(
             title="WS2", starting_price=Decimal("100"), current_price=Decimal("100"),
