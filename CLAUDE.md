@@ -17,11 +17,19 @@ stessi testi**.
   - «Nuova Competizione»: `auctions/templates/auctions/_competition_wizard.html`,
     incluso da `app_lega.html` e `admin_competitions.html`.
   Un nuovo tipo, formato o regola si aggiunge nel partial, non nella pagina.
-- Dove l'app non ha una sua schermata (gestione di una sessione di mercato,
-  ratifica, contratti lato admin) apre quella della console: una sola versione.
-- I test di parità confrontano il wizard sulle pagine web e app
-  (`MarketWizardParityTests` in `auctions/tests/test_market.py`,
-  `CompetitionWizardParityTests` in `auctions/tests/test_competitions.py`).
+- Anche le schermate di gestione sono partial condivisi:
+  - una sessione di mercato: `market/_session_manage.html`, in
+    `market/session.html` (console) e `app_regia_session.html` (app);
+  - gli scambi (ratifiche, regole, periodi): `market/_trades_manage.html`, in
+    `market/scambi.html` (console) e `app_regia_trades.html` (app).
+  I dati arrivano da `session_manage_context` / `trades_manage_context`
+  (`views/admin_market.py`). Ogni form manda `next` = la pagina da cui parte,
+  così l'azione torna lì (console o app); `_back()` accetta solo indirizzi del sito.
+- Dove l'app non ha ancora una sua schermata (contratti lato admin, giocatori,
+  squadre) apre quella della console: una sola versione.
+- I test di parità confrontano web e app: `MarketWizardParityTests` e
+  `MarketManageParityTests` in `auctions/tests/test_market.py`,
+  `CompetitionWizardParityTests` in `auctions/tests/test_competitions.py`.
 
 ## Ogni lega è separata
 

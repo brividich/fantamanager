@@ -1,0 +1,21 @@
+{% extends "auctions/app_base.html" %}
+{% comment %}
+Una sessione di mercato gestita dall'app (Regia). Il contenuto è lo stesso
+partial della console (market/_session_manage.html): qui c'è solo la cornice.
+{% endcomment %}
+{% block title %}{{ s.title }} — Regia{% endblock %}
+{% block mainclass %}wide{% endblock %}
+{% block app %}
+{% include "auctions/market/_styles.html" %}
+<div class="mk c-amber">
+    <div class="mk-head">
+        <div>
+            <span class="kicker">{{ s.get_session_type_display }} · {{ current_league.name }}</span>
+            <h1><svg class="ic"><use href="#i-mail"/></svg> {{ s.title }}</h1>
+        </div>
+        <span class="spacer"></span>
+        <a class="fm-btn fm-btn-ghost" href="{{ mk_list }}"><svg class="ic"><use href="#i-arrow-left"/></svg> Regia</a>
+    </div>
+    {% include "auctions/market/_session_manage.html" %}
+</div>
+{% endblock %}

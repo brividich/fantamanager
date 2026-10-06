@@ -65,6 +65,16 @@ def _dashboard_url(request, session=None, league_id=None, tab=None):
     return f"{url}?league={league_id}" if league_id else url
 
 
+def _back(request, fallback):
+    """Where an action lands: the ``next`` page it came from (the console or
+    the app's Regia, both show the same partials), else ``fallback``."""
+    nxt = (request.POST.get("next") or "").strip()
+    if nxt and url_has_allowed_host_and_scheme(nxt, allowed_hosts={request.get_host()},
+                                               require_https=request.is_secure()):
+        return nxt
+    return fallback
+
+
 def _parse_local_datetime(raw):
     """Parse a ``datetime-local`` form value into an aware datetime (or None)."""
     raw = (raw or "").strip()
@@ -145,6 +155,13 @@ def _trades_data(league, now, full=False):
     if full:
         data["trades_recent"] = list(trades.exclude(status=Trade.Status.ACCEPTED)[:10])
     return data
+
+
+def trades_manage_context(league):
+    """Everything market/_trades_manage.html shows: the same data for the
+    console page and for the app's Regia."""
+    now = timezone.now()
+    return {"current_league": league, "now": now, **_trades_data(league, now, full=True)}
 
 
 def _repair_data(league):
@@ -287,14 +304,10 @@ def admin_market_buste(request):
     return _market_page(request, "auctions/market/buste.html", "buste", league, extra)
 
 
-@staff_member_required
-def admin_market_session(request, session_id):
-    """One buste session: deliveries, preview, count, ties and envelopes."""
-    session, denied = _managed_session_or_403(request, session_id)
-    if denied:
-        return denied
+def session_manage_context(request, session):
+    """Everything market/_session_manage.html shows for ``session``: the same
+    data for the console page and for the app's Regia."""
     league = session.league
-    request.session[SESSION_LEAGUE_KEY] = league.id
     sync_market_schedule(league)
     session = (
         MarketSession.objects.filter(pk=session.pk)
@@ -327,8 +340,11 @@ def admin_market_session(request, session_id):
         is_preview = True
 
     repair = _repair_data(league)
-    return _market_page(request, "auctions/market/session.html", "buste", league, {
+    return {
         "s": session,
+        "current_league": league,
+        "now": timezone.now(),
+        "mail_ready": mail.is_ready(),
         "participants_stats": participants_stats,
         "delivered": delivered,
         "bids_list": bids_list,
@@ -337,7 +353,27 @@ def admin_market_session(request, session_id):
         "free_total": repair["free_total"],
         "free_by_role": repair["free_by_role"],
         "reachable": len(mail.league_recipients(league)),
-    })
+        # Choices of the rules form (_market_rules_fields.html).
+        "refund_modes": Auction.RefundMode.choices,
+        "budget_rules": MarketSession.BudgetRule.choices,
+        "tie_breaks": MarketSession.TieBreak.choices,
+        "role_caps": [("P", "max_acquisitions_p"), ("D", "max_acquisitions_d"),
+                      ("C", "max_acquisitions_c"), ("A", "max_acquisitions_a")],
+    }
+
+
+@staff_member_required
+def admin_market_session(request, session_id):
+    """One buste session: deliveries, preview, count, ties and envelopes."""
+    session, denied = _managed_session_or_403(request, session_id)
+    if denied:
+        return denied
+    league = session.league
+    request.session[SESSION_LEAGUE_KEY] = league.id
+    ctx = session_manage_context(request, session)
+    ctx["mk_back"] = reverse("admin_market_session", args=[session.id])
+    ctx["mk_list"] = f"{reverse('admin_market_buste')}?league={league.id}"
+    return _market_page(request, "auctions/market/session.html", "buste", league, ctx)
 
 
 @staff_member_required
@@ -375,6 +411,8 @@ def admin_market_trades(request):
     if denied:
         return denied
     extra = _trades_data(league, timezone.now(), full=True) if league else {}
+    if league:
+        extra["mk_back"] = f"{reverse('admin_market_trades')}?league={league.id}"
     return _market_page(request, "auctions/market/scambi.html", "scambi", league, extra)
 
 
@@ -531,10 +569,7 @@ def admin_market_create(request):
         return redirect(f"{reverse('app_mercato')}?session_id={session.id}")
     if request.POST.get("from") == "regia":
         return redirect(f"{reverse('app_regia')}?league={league.id}")
-    next_url = request.POST.get("next")
-    if next_url:
-        return redirect(next_url)
-    return redirect(_dashboard_url(request, session))
+    return redirect(_back(request, _dashboard_url(request, session)))
 
 
 @staff_member_required
@@ -553,7 +588,7 @@ def admin_market_status(request, session_id):
             session.league.save(update_fields=["renewals_open"])
         label = "aperta" if new_status == MarketSession.Status.OPEN else "chiusa"
         messages.success(request, f"Sessione '{session.title}' {label}.")
-    return redirect(_dashboard_url(request, session))
+    return redirect(_back(request, _dashboard_url(request, session)))
 
 
 @staff_member_required
@@ -565,14 +600,14 @@ def admin_market_notify(request, session_id):
         return denied
     if session.status == MarketSession.Status.RESOLVED:
         messages.error(request, "La sessione è già stata scrutinata: niente da annunciare.")
-        return redirect(_dashboard_url(request, session))
+        return redirect(_back(request, _dashboard_url(request, session)))
     if not mail.is_ready():
         messages.error(request, "La posta non è configurata: impostala in Impostazioni → Posta.")
-        return redirect(_dashboard_url(request, session))
+        return redirect(_back(request, _dashboard_url(request, session)))
     report = mail.send_market_notice(request, session)
     (messages.success if report["sent"] and not report["failed"] else messages.warning)(
         request, "Avviso alle squadre: " + mail.report_message(report))
-    return redirect(_dashboard_url(request, session))
+    return redirect(_back(request, _dashboard_url(request, session)))
 
 
 @staff_member_required
@@ -584,7 +619,7 @@ def admin_market_resolve(request, session_id):
         return denied
     if session.status == MarketSession.Status.RESOLVED:
         messages.warning(request, f"La sessione '{session.title}' è già stata scrutinata.")
-        return redirect(_dashboard_url(request, session))
+        return redirect(_back(request, _dashboard_url(request, session)))
 
     summary = resolve_market_session(session.id)
     won_count = summary.get("total_acquisitions", 0)
@@ -599,7 +634,7 @@ def admin_market_resolve(request, session_id):
             request,
             f"Spoglio completato per '{session.title}': {won_count} acquisti assegnati, {ties_count} situazioni di pareggio.",
         )
-    return redirect(_dashboard_url(request, session))
+    return redirect(_back(request, _dashboard_url(request, session)))
 
 
 @staff_member_required
@@ -621,7 +656,7 @@ def admin_market_delete(request, session_id):
         league.renewals_open = has_other_open
         league.save(update_fields=["renewals_open"])
     messages.info(request, f"Sessione '{title}' eliminata.")
-    return redirect(_dashboard_url(request, league_id=league_id, tab="buste"))
+    return redirect(_back(request, _dashboard_url(request, league_id=league_id, tab="buste")))
 
 
 @staff_member_required
@@ -650,7 +685,7 @@ def admin_market_settle_tie(request, session_id):
         messages.success(request, f"Pareggio risolto {how}: vince {res['winner_name']}.")
     else:
         messages.error(request, res["message"])
-    return redirect(_dashboard_url(request, session))
+    return redirect(_back(request, _dashboard_url(request, session)))
 
 
 @staff_member_required
@@ -668,7 +703,7 @@ def admin_market_undo(request, session_id):
         )
     else:
         messages.error(request, res["message"])
-    return redirect(_dashboard_url(request, session))
+    return redirect(_back(request, _dashboard_url(request, session)))
 
 
 @staff_member_required
@@ -683,7 +718,7 @@ def admin_trade_settings(request):
     league.trades_same_roles = request.POST.get("trades_same_roles") == "1"
     league.save(update_fields=["trades_enabled", "trades_need_approval", "trades_same_roles", "updated_at"])
     messages.success(request, "Impostazioni scambi salvate.")
-    return redirect(_dashboard_url(request, league_id=league.id, tab="scambi"))
+    return redirect(_back(request, _dashboard_url(request, league_id=league.id, tab="scambi")))
 
 
 @staff_member_required
@@ -704,7 +739,7 @@ def admin_trade_decide(request, trade_id):
     if nxt and url_has_allowed_host_and_scheme(nxt, allowed_hosts={request.get_host()},
                                                require_https=request.is_secure()):
         return redirect(nxt)
-    return redirect(_dashboard_url(request, league_id=trade.league_id, tab="scambi"))
+    return redirect(_back(request, _dashboard_url(request, league_id=trade.league_id, tab="scambi")))
 
 
 @staff_member_required
@@ -716,7 +751,7 @@ def admin_market_rules(request, session_id):
         return denied
     if session.status == MarketSession.Status.RESOLVED:
         messages.error(request, "Lo spoglio è già stato eseguito: annullalo prima di cambiare le regole.")
-        return redirect(_dashboard_url(request, session))
+        return redirect(_back(request, _dashboard_url(request, session)))
     title = (request.POST.get("title") or "").strip()
     rules = _session_rules(request.POST)
     for field, value in rules.items():
@@ -731,7 +766,7 @@ def admin_market_rules(request, session_id):
         fields.append("closes_at")
     session.save(update_fields=fields)
     messages.success(request, f"Regole della sessione '{session.title}' aggiornate.")
-    return redirect(_dashboard_url(request, session))
+    return redirect(_back(request, _dashboard_url(request, session)))
 
 
 @staff_member_required
@@ -744,13 +779,13 @@ def admin_trade_window_add(request):
     closes_at = _parse_local_datetime(request.POST.get("closes_at"))
     if not opens_at or not closes_at or closes_at <= opens_at:
         messages.error(request, "Indica apertura e chiusura del periodo (la chiusura dopo l'apertura).")
-        return redirect(_dashboard_url(request, league_id=league.id, tab="scambi"))
+        return redirect(_back(request, _dashboard_url(request, league_id=league.id, tab="scambi")))
     TradeWindow.objects.create(
         league=league, opens_at=opens_at, closes_at=closes_at,
         name=(request.POST.get("name") or "Periodo scambi").strip()[:80],
     )
     messages.success(request, "Periodo scambi aggiunto: fuori dai periodi gli scambi sono chiusi.")
-    return redirect(_dashboard_url(request, league_id=league.id, tab="scambi"))
+    return redirect(_back(request, _dashboard_url(request, league_id=league.id, tab="scambi")))
 
 
 @staff_member_required
@@ -762,4 +797,4 @@ def admin_trade_window_delete(request, window_id):
     league_id = window.league_id
     window.delete()
     messages.info(request, "Periodo scambi eliminato.")
-    return redirect(_dashboard_url(request, league_id=league_id, tab="scambi"))
+    return redirect(_back(request, _dashboard_url(request, league_id=league_id, tab="scambi")))
