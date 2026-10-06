@@ -25,10 +25,9 @@ from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.db import connection, transaction
 from django.db.models import Count, Sum
-from django.http import FileResponse, Http404, HttpResponseForbidden, JsonResponse
+from django.http import FileResponse, Http404, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from django.views.decorators.http import require_POST
 from django.utils import timezone
 
 import django

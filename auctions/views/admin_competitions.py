@@ -1,13 +1,12 @@
 """Admin console view for managing Competitions, Tournaments, Calendars, and Standings."""
 import logging
-from collections import defaultdict
 from django.contrib import messages
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from ..models import Competition, Fixture, Giornata, League, Participant, Season
+from ..models import Competition, League
 from ..services.competitions import (
     compute_competition_standings,
     ensure_league_season_and_competitions,

@@ -1,11 +1,11 @@
 """Views for Matchday (Giornate) and Voti management, scoring, and Battle Royale."""
 import logging
 from django.contrib import messages
-from django.http import HttpResponseForbidden, JsonResponse
+from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
-from ..models import Giornata, GiornataScore, League, PlayerPerformance, Season
+from ..models import Giornata, League, Season
 from ..services.voti import compute_coppa_italia_battle_royale, import_voti_giornata, parse_voti_file
 from .common import (current_league, form_int, manageable_leagues, staff_member_required,
                      user_can_manage_league)

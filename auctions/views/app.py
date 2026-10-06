@@ -5,8 +5,6 @@ from decimal import Decimal
 from django.core.paginator import Paginator
 from django.db.models import Case, F, Q, Value, When
 from django.db.models.functions import Coalesce
-from django.shortcuts import redirect, render
-
 from django.contrib import messages
 from django.contrib.auth import authenticate, login as auth_login, logout as auth_logout
 from django.contrib.auth.models import User
@@ -20,14 +18,12 @@ from ..models import (
     Auction,
     Competition,
     Fixture,
-    Formation,
     Giornata,
     GiornataScore,
     MarketBid,
     MarketSession,
     Participant,
     Player,
-    PlayerPerformance,
     RosterLog,
     Season,
     Trade,

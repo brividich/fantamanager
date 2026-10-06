@@ -1,9 +1,7 @@
 """Home landing portal: Chooser & Login before Dashboard."""
-from decimal import Decimal
-import re
 from django.shortcuts import redirect, render
 from django.urls import reverse
-from ..models import Auction, Participant, Player
+from ..models import Auction
 from .. import remote
 from .common import _session_participant, manageable_leagues, safe_next, target_league, try_regia_pin, visible_leagues
 

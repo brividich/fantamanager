@@ -15,7 +15,7 @@ from bs4 import BeautifulSoup
 from django.db import transaction
 from django.utils import timezone
 
-from ..models import Giornata, GiornataScore, League, Player, PlayerPerformance, Season
+from ..models import Giornata, Player, PlayerPerformance, Season
 from ..providers.importers import _find_match
 from .scoring import compute_giornata
 

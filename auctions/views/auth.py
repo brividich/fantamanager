@@ -5,16 +5,13 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
-from django.db import IntegrityError
 from django.db.models import Q
-from django.http import HttpResponseForbidden
 from django.shortcuts import redirect, render
-from django.urls import reverse
 
 from .. import throttle
 
 from ..models import Auction, League, Participant
-from .common import SESSION_LEAGUE_KEY, _session_participant, manageable_leagues, safe_next, target_league
+from .common import SESSION_LEAGUE_KEY, _session_participant, manageable_leagues, safe_next
 
 logger = logging.getLogger(__name__)
 
