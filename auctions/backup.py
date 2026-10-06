@@ -238,3 +238,89 @@ def backup_database_async(*, keep=10, reason="", min_interval=BG_MIN_INTERVAL_SE
     threading.Thread(
         target=backup_database, kwargs={"keep": keep, "reason": reason}, daemon=True,
     ).start()
+
+
+def backups_folder():
+    """Where the snapshots of this installation live (None: nothing to list)."""
+    if _is_postgres():
+        return _backup_dir()
+    src = _db_path()
+    return None if src is None else src.parent / "backups"
+
+
+def backup_file(name):
+    """The backup called ``name`` in the backups folder, or None. Only a bare
+    file name of a snapshot or dump is accepted: nothing outside the folder."""
+    folder = backups_folder()
+    name = (name or "").strip()
+    if folder is None or not name or Path(name).name != name:
+        return None
+    if not (name.startswith("db-") and name.endswith(".sqlite3")) and \
+            not (name.startswith("pg-") and name.endswith(".sql.gz")):
+        return None
+    path = (folder / name).resolve()
+    try:
+        path.relative_to(folder.resolve())
+    except ValueError:
+        return None
+    return path if path.is_file() else None
+
+
+class RestoreError(Exception):
+    """Why a snapshot was not restored (the message is shown to the admin)."""
+
+
+def restore_sqlite(name):
+    """Put a SQLite snapshot back in place of the live database.
+
+    A snapshot of the current state is taken first ("prima del ripristino"),
+    so a restore can itself be undone. Then the migrations run, because the
+    snapshot may predate the code now running. Returns that safety copy.
+    Raises RestoreError with a message for the admin when refused.
+    """
+    import sqlite3
+    from django.core.management import call_command
+    from django.db import connections
+
+    src_path = _db_path()
+    if src_path is None:
+        raise RestoreError("Il ripristino da qui vale solo per il database SQLite.")
+    snapshot = backup_file(name)
+    if snapshot is None or not snapshot.name.startswith("db-"):
+        raise RestoreError("Copia non trovata.")
+    try:
+        con = sqlite3.connect(f"file:{snapshot}?mode=ro", uri=True)
+        try:
+            ok = con.execute("PRAGMA quick_check").fetchone()[0] == "ok"
+            has_schema = con.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='django_migrations'"
+            ).fetchone() is not None
+        finally:
+            con.close()
+    except sqlite3.DatabaseError:
+        ok = has_schema = False
+    if not ok or not has_schema:
+        raise RestoreError(f"{snapshot.name} non è un database FantaManager integro.")
+
+    safety = backup_database(reason="prima del ripristino")
+    if safety is None:
+        raise RestoreError("Non riesco a salvare lo stato attuale: ripristino annullato.")
+
+    connections.close_all()
+    try:
+        src = sqlite3.connect(str(snapshot))
+        try:
+            dst = sqlite3.connect(str(src_path), timeout=30)
+            try:
+                src.backup(dst)
+            finally:
+                dst.close()
+        finally:
+            src.close()
+    except sqlite3.Error as exc:
+        logger.exception("restore of %s failed", snapshot.name)
+        raise RestoreError(f"Ripristino non riuscito: {exc}. Lo stato attuale è in {safety.name}.")
+    connections.close_all()
+    call_command("migrate", interactive=False, verbosity=0)
+    logger.warning("Database ripristinato da %s (copia di sicurezza: %s)", snapshot.name, safety.name)
+    return safety

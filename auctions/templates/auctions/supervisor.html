@@ -459,6 +459,37 @@
 
 <!-- 1. TAB: SERVER HEALTH -->
 {% if tab == 'health' %}
+{% if stalled_auctions %}
+<div class="sup-card" style="border-color:rgba(234,179,8,0.45);margin-bottom:16px">
+    <h3 class="sup-card-title" style="color:#facc15"><span>⏸</span> Aste rimaste a metà</h3>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">
+        Nessun dispositivo è collegato a queste aste, quindi nessuno le fa avanzare (succede dopo un
+        riavvio o se cadono tutti i collegamenti). «Riprendi» fa ora quello che farebbe il ticker:
+        apre le buste scadute, chiude il lotto con l'offerta migliore arrivata in tempo, addebita il
+        vincitore e passa al giocatore dopo.
+    </div>
+    <table class="super-table">
+        <thead><tr><th>Asta</th><th>Lega</th><th>Situazione</th><th style="text-align:right"></th></tr></thead>
+        <tbody>
+        {% for a, label in stalled_auctions %}
+            <tr>
+                <td><b style="color:#fff">{{ a.title }}</b>{% if a.player %} · {{ a.player.name }}{% endif %}</td>
+                <td style="color:var(--muted)">{{ a.league.name|default:"—" }}</td>
+                <td style="color:#facc15">{{ label }}</td>
+                <td style="text-align:right">
+                    <form method="post" style="margin:0">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="recover_auction">
+                        <input type="hidden" name="auction_id" value="{{ a.id }}">
+                        <button type="submit" class="btn-super-action" style="background:#ca8a04;color:#fff;border:none;padding:4px 12px;font-size:12px;font-weight:700">▶ Riprendi</button>
+                    </form>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
 <div class="metric-grid">
     <div class="metric-card">
         <div class="metric-label">
@@ -1779,7 +1810,7 @@ function togglePasswordVisibility(inputId, btn) {
                 <th>Dimensione</th>
                 <th>Data & Ora Creazione</th>
                 <th>Stato</th>
-                <th style="text-align:right">Download</th>
+                <th style="text-align:right">Azioni</th>
             </tr>
         </thead>
         <tbody>
@@ -1801,11 +1832,30 @@ function togglePasswordVisibility(inputId, btn) {
                     <a href="{% url 'supervisor_backup_download' %}?file={{ b.name }}" class="btn-super-action" style="background:#2563eb;color:#fff;text-decoration:none;padding:4px 10px;font-size:12px;display:inline-flex;align-items:center;gap:4px">
                         📥 Scarica
                     </a>
+                    {% if is_sqlite %}
+                    <form method="post" style="display:inline;margin:0" onsubmit="return confirm('Ripristinare {{ b.name }}? Tutto quello che è successo dopo verrà sostituito. Lo stato attuale viene prima salvato in una copia «prima del ripristino».');">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="restore_backup">
+                        <input type="hidden" name="file" value="{{ b.name }}">
+                        <button type="submit" class="btn-super-action" style="background:#b45309;color:#fff;border:none;padding:4px 10px;font-size:12px">↩ Ripristina</button>
+                    </form>
+                    {% endif %}
                 </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
+    {% if is_sqlite %}
+    <div style="font-size:12px;color:var(--muted);margin-top:10px;line-height:1.5">
+        «Ripristina» rimette il database com'era in quella copia: si fa con le aste in pausa o chiuse,
+        e lo stato attuale viene prima salvato, così il ripristino si può annullare.
+    </div>
+    {% else %}
+    <div style="font-size:12px;color:var(--muted);margin-top:10px;line-height:1.6">
+        Su PostgreSQL il ripristino si fa dal NAS, con l'app ferma (sostituisce tutto il database):<br>
+        <code style="color:#93c5fd">docker stop fantamanager &amp;&amp; gunzip -c backups/NOME.sql.gz | docker exec -i fantamanager-db psql -U fantamanager -d fantamanager -v ON_ERROR_STOP=1 &amp;&amp; docker start fantamanager</code>
+    </div>
+    {% endif %}
     {% else %}
     <div style="padding:24px;text-align:center;color:var(--muted);background:rgba(255,255,255,0.02);border-radius:8px">
         Nessun backup presente in questa directory. Clicca su "Nuovo Backup Istantaneo" per generare il primo snapshot.

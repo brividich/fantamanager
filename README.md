@@ -280,6 +280,12 @@ Le copie stanno in `backups/` accanto al database, e ne restano tre gruppi:
 Così le copie automatiche di una serata lunga non cancellano quella di prima
 dell'asta.
 
+**Ripristino** da **Supervisor → Report → Snapshot di Backup**, tasto
+«Ripristina» sulla copia scelta. Si fa con le aste in pausa o chiuse; prima
+viene salvato lo stato attuale (copia «prima del ripristino»), quindi un
+ripristino sbagliato si annulla ripristinando quella. Dopo il ripristino girano
+le migrazioni, così anche una copia di una versione precedente funziona.
+
 ### Il ticker dell'asta
 
 Chiudere i lotti a tempo, aprire le buste e passare al giocatore dopo lo fa un
@@ -287,6 +293,9 @@ Chiudere i lotti a tempo, aprire le buste e passare al giocatore dopo lo fa un
 dispositivo (regia, maxischermo o squadra) è collegato. Se cadono tutti, l'asta
 si ferma lì: al primo che si ricollega il lotto scaduto si chiude con l'offerta
 migliore arrivata in tempo (le offerte dopo la scadenza sono sempre rifiutate).
+Dopo un riavvio, **Supervisor → Info Server & Health** elenca le **aste rimaste
+a metà** (lotto scaduto mai chiuso, buste scadute mai aperte, lotto chiuso mai
+avanzato) con un tasto «Riprendi» che fa subito il giro del ticker.
 Il server va tenuto a **un solo processo** Daphne: con più processi (per
 esempio dietro `REDIS_URL`) ognuno avvierebbe il suo ticker.
 
