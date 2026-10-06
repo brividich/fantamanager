@@ -742,6 +742,7 @@
                                 <div class="fm-player-right">
                                     <span class="fm-player-cost">{{ pl.cost|floatformat:0 }}<small>FM</small></span>
                                     <span class="fm-player-fvm" title="FVM / Quotazione Iniziale">FVM {{ pl.initial_price|floatformat:0 }}</span>
+                                    {% if current_league.contracts_enabled %}{% include "auctions/_contract_badge.html" %}{% endif %}
                                     <button type="button" class="fm-btn-svincola-mini"
                                         onclick="quickReleasePlayer({{ pl.id }}, '{{ pl.name|escapejs }}')"
                                         title="Svincola giocatore">
@@ -791,6 +792,7 @@
                                 <div class="fm-player-right">
                                     <span class="fm-player-cost">{{ pl.cost|floatformat:0 }}<small>FM</small></span>
                                     <span class="fm-player-fvm" title="FVM / Quotazione Iniziale">FVM {{ pl.initial_price|floatformat:0 }}</span>
+                                    {% if current_league.contracts_enabled %}{% include "auctions/_contract_badge.html" %}{% endif %}
                                     <button type="button" class="fm-btn-svincola-mini"
                                         onclick="quickReleasePlayer({{ pl.id }}, '{{ pl.name|escapejs }}')"
                                         title="Svincola giocatore">
@@ -840,6 +842,7 @@
                                 <div class="fm-player-right">
                                     <span class="fm-player-cost">{{ pl.cost|floatformat:0 }}<small>FM</small></span>
                                     <span class="fm-player-fvm" title="FVM / Quotazione Iniziale">FVM {{ pl.initial_price|floatformat:0 }}</span>
+                                    {% if current_league.contracts_enabled %}{% include "auctions/_contract_badge.html" %}{% endif %}
                                     <button type="button" class="fm-btn-svincola-mini"
                                         onclick="quickReleasePlayer({{ pl.id }}, '{{ pl.name|escapejs }}')"
                                         title="Svincola giocatore">
@@ -889,6 +892,7 @@
                                 <div class="fm-player-right">
                                     <span class="fm-player-cost">{{ pl.cost|floatformat:0 }}<small>FM</small></span>
                                     <span class="fm-player-fvm" title="FVM / Quotazione Iniziale">FVM {{ pl.initial_price|floatformat:0 }}</span>
+                                    {% if current_league.contracts_enabled %}{% include "auctions/_contract_badge.html" %}{% endif %}
                                     <button type="button" class="fm-btn-svincola-mini"
                                         onclick="quickReleasePlayer({{ pl.id }}, '{{ pl.name|escapejs }}')"
                                         title="Svincola giocatore">

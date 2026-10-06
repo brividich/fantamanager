@@ -192,16 +192,7 @@
                 <div class="pl-right">
                     <span class="pl-fm{% if not pl.fanta_avg %} none{% endif %}" title="Fantamedia">{% if pl.fanta_avg %}{{ pl.fanta_avg|floatformat:2 }}{% else %}—{% endif %}</span>
                     <span class="pl-cost">{{ pl.cost|floatformat:0 }}<small> FM</small></span>
-                    {% if contracts_on %}
-                    {% if pl.contract_years is None %}
-                    <span class="pl-ct" title="Durata contratto da assegnare">da tirare</span>
-                    {% else %}
-                    <span class="pl-ct{% if pl.contract_years == 1 %} last{% elif pl.contract_years == 0 %} exp{% endif %}"
-                          title="{% if pl.contract_is_u21 %}Scommessa Under 21 · {% endif %}{% if pl.contract_years == 0 %}Contratto scaduto{% elif pl.contract_years == 1 %}Ultimo anno di contratto{% else %}{{ pl.contract_years }} ann{{ pl.contract_years|pluralize:'o,i' }}{% endif %}">
-                        {% if pl.contract_is_u21 %}<small style="font-size:9px;opacity:0.85;font-weight:700">U21 </small>{% endif %}{% if pl.contract_years == 0 %}scad.{% else %}{{ pl.contract_years }}a{% endif %}
-                    </span>
-                    {% endif %}
-                    {% endif %}
+                    {% if contracts_on %}{% include "auctions/_contract_badge.html" %}{% endif %}
                     {% if is_mine %}
                     <form method="post" action="{% url 'participant_release_player' pl.id %}"
                           onsubmit="return confirm('Svincolare {{ pl.name|escapejs }}? Recuperi {{ pl.cost|floatformat:0 }} FM.');" style="margin:0">

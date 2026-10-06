@@ -1447,7 +1447,8 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 8px;
+        flex-wrap: wrap;
+        gap: 6px 8px;
         padding: 7px 10px;
         border-radius: var(--fm-radius-sm);
         background: rgba(7, 26, 51, .6);
@@ -1465,6 +1466,8 @@
         align-items: center;
         gap: 8px;
         min-width: 0;
+        /* Nelle colonne strette i numeri vanno a capo invece di schiacciare il nome. */
+        flex: 1 1 140px;
     }
 
     .fm-role-tag {
@@ -1522,6 +1525,7 @@
         align-items: center;
         gap: 8px;
         flex-shrink: 0;
+        margin-left: auto;
     }
 
     .fm-player-cost {
@@ -1541,6 +1545,21 @@
         font-size: 11px;
         color: var(--fm-text-muted);
     }
+
+    /* Durata contratto: stesso badge di app_rosa (auctions/_contract_badge.html) */
+    .pl-ct {
+        font-size: 11px;
+        font-weight: 800;
+        padding: 2px 6px;
+        border-radius: 5px;
+        white-space: nowrap;
+        background: rgba(255, 255, 255, .05);
+        color: var(--fm-text-muted);
+        border: 1px solid var(--fm-border);
+    }
+
+    .pl-ct.last { background: rgba(234, 179, 8, .15); color: #eab308; border-color: rgba(234, 179, 8, .3); }
+    .pl-ct.exp { background: rgba(239, 68, 68, .15); color: #f87171; border-color: rgba(239, 68, 68, .3); }
 
     .fm-btn-svincola-mini {
         background: rgba(239, 68, 68, .12);
