@@ -1,0 +1,13 @@
+{% extends "auctions/app_base.html" %}
+{% comment %}
+Anagrafica dei calciatori nell'app. Il contenuto è lo stesso partial della
+console (_footballers.html): qui c'è solo la cornice.
+{% endcomment %}
+{% block title %}Calciatori — FantaManager{% endblock %}
+{% block app %}
+<div class="tab-head">
+    <h1>Calciatori</h1>
+    <p>Anagrafica dei calciatori di Serie A da API-Football{% if app_league %} · accanto, la lega {{ app_league.name }}{% endif %}</p>
+</div>
+{% include "auctions/_footballers.html" %}
+{% endblock %}

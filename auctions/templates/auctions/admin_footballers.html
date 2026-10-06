@@ -1,0 +1,24 @@
+{% extends "auctions/base.html" %}
+{% comment %}
+Anagrafica dei calciatori nella console. Il contenuto è lo stesso partial
+dell'app (_footballers.html): qui c'è solo la cornice.
+{% endcomment %}
+{% block title %}Calciatori — FantaManager{% endblock %}
+{% block bodyclass %}role-admin{% endblock %}
+{% block wrapclass %}wrap-wide{% endblock %}
+
+{% block content %}
+{% include "auctions/_console_head.html" %}
+<div style="margin:6px 0 14px">
+    <h1 style="margin:0;font-size:26px">Calciatori</h1>
+    <div style="font-size:12.5px;color:var(--fm-text-secondary)">Anagrafica dei calciatori di Serie A da API-Football{% if current_league %} · accanto, la lega {{ current_league.name }}{% endif %}</div>
+</div>
+<style>
+    .fb-msg { padding:10px 14px; border-radius:var(--fm-radius-sm); font-size:13px; margin-bottom:10px;
+        border:1px solid var(--fm-border-active); background:rgba(8,124,240,.10); }
+    .fb-msg.error { border-color:rgba(255,61,80,.45); background:rgba(255,61,80,.10); color:#ff8a95; }
+    .fb-msg.success { border-color:rgba(22,217,104,.35); background:rgba(22,217,104,.10); color:#8df0b6; }
+</style>
+{% for m in messages %}<div class="fb-msg {{ m.tags }}" role="status">{{ m }}</div>{% endfor %}
+{% include "auctions/_footballers.html" %}
+{% endblock %}

@@ -1,0 +1,162 @@
+{% comment %}
+Anagrafica dei calciatori (API-Football): unica per tutto FantaManager.
+
+UNICA per console web (admin_footballers.html) e app (app_footballers.html):
+filtri, righe e testi si cambiano qui, valgono per entrambe.
+
+Dati da views/footballers.py:footballers_context (fb_*); i link restano
+relativi alla pagina che include il partial, la lega in ?league= compresa.
+{% endcomment %}
+<!-- footballers:start -->
+<style>
+    .fb-stats { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+    .fb-stat { flex:1 1 150px; padding:11px 14px; background:var(--fm-card); border:1px solid var(--fm-border);
+        border-radius:var(--fm-radius-md); }
+    .fb-stat .n { font-family:var(--fm-display); font-weight:800; font-size:22px; line-height:1.1; }
+    .fb-stat .k { font-size:11.5px; color:var(--fm-text-muted); }
+    .fb-sync { display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:11px 14px; margin-bottom:14px;
+        border-radius:var(--fm-radius-md); border:1px solid var(--fm-border); background:rgba(255,255,255,.03);
+        font-size:12.5px; color:var(--fm-text-secondary); }
+    .fb-sync .grow { flex:1 1 240px; }
+    .fb-sync.is-error { border-color:rgba(255,61,80,.40); }
+    .fb-filters { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px; }
+    .fb-filters input[type=search] { flex:1 1 220px; width:auto; min-width:0; }
+    .fb-filters select { flex:0 1 auto; width:auto; max-width:100%; }
+    .fb-filters .fb-check { display:inline-flex; gap:6px; align-items:center; margin:0; font-size:12.5px;
+        font-weight:600; text-transform:none; letter-spacing:normal; color:var(--fm-text-secondary); }
+    .fb-filters .fb-check input { width:auto; }
+    .fb-list { display:flex; flex-direction:column; gap:6px; }
+    .fb-row { display:flex; align-items:center; gap:12px; padding:9px 12px; border-radius:var(--fm-radius-sm);
+        background:rgba(255,255,255,.03); border:1px solid var(--fm-border); min-width:0; }
+    .fb-photo { width:40px; height:40px; border-radius:50%; object-fit:cover; flex:0 0 40px;
+        background:rgba(255,255,255,.06); }
+    .fb-main { flex:1 1 auto; min-width:0; }
+    .fb-name { font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .fb-sub { font-size:12px; color:var(--fm-text-muted); display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+    .fb-sub img { width:14px; height:14px; object-fit:contain; }
+    .fb-league { flex:0 0 auto; text-align:right; font-size:12px; max-width:45%; }
+    .fb-league .owner { font-weight:700; color:var(--fm-text); }
+    .fb-league .free { font-weight:700; color:var(--fm-success); }
+    .fb-league .out { color:var(--fm-text-muted); }
+    .fb-league .as { display:block; color:var(--fm-text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .fb-pager { display:flex; align-items:center; gap:8px; margin-top:12px; font-size:12.5px; color:var(--fm-text-muted); }
+    .fb-pager .grow { flex:1 1 auto; }
+    .fb-empty { padding:26px 10px; text-align:center; color:var(--fm-text-muted); font-size:13px; }
+</style>
+
+<div class="fb-stats">
+    <div class="fb-stat"><div class="n">{{ fb_total }}</div><div class="k">Calciatori in Serie A</div></div>
+    <div class="fb-stat"><div class="n">{{ fb_clubs|length }}</div><div class="k">Club</div></div>
+    {% if fb_has_league %}
+    <div class="fb-stat"><div class="n">{{ fb_linked }}<small style="font-size:13px;color:var(--fm-text-muted)"> / {{ fb_listone }}</small></div>
+        <div class="k">Giocatori del listone collegati</div></div>
+    {% endif %}
+</div>
+
+<div class="fb-sync{% if fb_sync.error %} is-error{% endif %}">
+    <div class="grow">
+        {% if fb_sync.status == "running" %}
+            <b>Aggiornamento in corso</b>{% if fb_sync.total %}: club {{ fb_sync.done }} di {{ fb_sync.total }}{% endif %}. Ricarica la pagina tra qualche minuto.
+        {% elif fb_sync.status == "interrupted" %}
+            <b>L'ultimo aggiornamento si è interrotto.</b> Si può avviarne un altro.
+        {% elif fb_sync.status == "done" %}
+            <b>Ultimo aggiornamento</b> {{ fb_sync.finished_at|date:"d/m/Y H:i" }}: {{ fb_sync.summary }}
+        {% elif fb_last_seen %}
+            <b>Aggiornata</b> il {{ fb_last_seen|date:"d/m/Y H:i" }} dalle rose dei club su API-Football.
+        {% elif not fb_total %}
+            <b>Anagrafica vuota.</b> Si riempie dalle rose dei club di Serie A su API-Football.
+        {% else %}
+            Calciatori dalle rose dei club di Serie A su API-Football.
+        {% endif %}
+        L'anagrafica è la stessa per tutte le leghe.
+    </div>
+    {% if fb_can_sync %}
+        {% if fb_api_ready %}
+        <form method="post" action="{% url 'admin_footballers_sync' %}">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button type="submit" class="fm-btn fm-btn-secondary" {% if fb_sync.status == "running" %}disabled{% endif %}>
+                <svg class="ic"><use href="#i-refresh"/></svg> Aggiorna da API-Football</button>
+        </form>
+        {% else %}
+        <span>Per aggiornarla imposta <code>APIFOOTBALL_KEY</code> sul server.</span>
+        {% endif %}
+    {% endif %}
+</div>
+
+<div class="fm-card">
+    <form method="get" class="fb-filters">
+        {% if request.GET.league %}<input type="hidden" name="league" value="{{ request.GET.league }}">{% endif %}
+        <input name="q" type="search" value="{{ fb_filters.q }}" placeholder="Cerca calciatore o club…" aria-label="Cerca calciatore o club">
+        <select name="role" aria-label="Filtra per ruolo" onchange="this.form.submit()">
+            <option value="">Tutti i ruoli</option>
+            <option value="P" {% if fb_filters.role == "P" %}selected{% endif %}>Portieri</option>
+            <option value="D" {% if fb_filters.role == "D" %}selected{% endif %}>Difensori</option>
+            <option value="C" {% if fb_filters.role == "C" %}selected{% endif %}>Centrocampisti</option>
+            <option value="A" {% if fb_filters.role == "A" %}selected{% endif %}>Attaccanti</option>
+        </select>
+        <select name="club" aria-label="Filtra per club" onchange="this.form.submit()">
+            <option value="">Tutti i club</option>
+            {% for cid, cname in fb_clubs %}
+            <option value="{{ cid }}" {% if fb_filters.club == cid|stringformat:"d" %}selected{% endif %}>{{ cname }}</option>
+            {% endfor %}
+        </select>
+        {% if fb_has_league %}
+        <select name="lega" aria-label="Filtra per stato nella lega" onchange="this.form.submit()">
+            <option value="">Tutti</option>
+            <option value="free" {% if fb_filters.lega == "free" %}selected{% endif %}>Svincolati nella lega</option>
+            <option value="owned" {% if fb_filters.lega == "owned" %}selected{% endif %}>In una rosa</option>
+            <option value="out" {% if fb_filters.lega == "out" %}selected{% endif %}>Non nel listone</option>
+        </select>
+        {% endif %}
+        <label class="fb-check">
+            <input type="checkbox" name="usciti" value="1" {% if fb_filters.usciti %}checked{% endif %} onchange="this.form.submit()">
+            Usciti dalla Serie A
+        </label>
+        <button type="submit" class="fm-btn fm-btn-secondary"><svg class="ic"><use href="#i-search"/></svg> Cerca</button>
+        {% if fb_filters.q or fb_filters.role or fb_filters.club or fb_filters.lega or fb_filters.usciti %}
+        <a class="fm-btn fm-btn-ghost" href="?{% if request.GET.league %}league={{ request.GET.league }}{% endif %}">Azzera</a>
+        {% endif %}
+    </form>
+
+    <div class="fb-list">
+    {% for f in fb_rows %}
+        <div class="fb-row">
+            {% if f.photo_url %}<img class="fb-photo" src="{{ f.photo_url }}" alt="" loading="lazy" referrerpolicy="no-referrer">
+            {% else %}<span class="fb-photo"></span>{% endif %}
+            <div class="fb-main">
+                <div class="fb-name">{% if f.position %}<span class="role-badge role-{{ f.position }}">{{ f.position }}</span> {% endif %}{{ f.name }}</div>
+                <div class="fb-sub">
+                    {% if f.club_logo %}<img src="{{ f.club_logo }}" alt="" loading="lazy" referrerpolicy="no-referrer">{% endif %}
+                    <span>{{ f.club_name|default:"—" }}</span>
+                    {% if f.number %}<span>· n. {{ f.number }}</span>{% endif %}
+                    {% if f.age %}<span>· {{ f.age }} anni</span>{% endif %}
+                </div>
+            </div>
+            {% if fb_has_league %}
+            <div class="fb-league">
+                {% with lp=f.league_player %}
+                {% if lp is None %}<span class="out">Non nel listone</span>
+                {% elif lp.owner_id %}<span class="owner">{{ lp.owner.display_name }}</span><span class="as">{{ lp.name }} · {{ lp.cost|floatformat:0 }} FM</span>
+                {% else %}<span class="free">Svincolato</span><span class="as">{{ lp.name }} · {{ lp.initial_price|floatformat:0 }} FM</span>{% endif %}
+                {% endwith %}
+            </div>
+            {% endif %}
+        </div>
+    {% empty %}
+        <div class="fb-empty">
+            {% if fb_filters.q or fb_filters.role or fb_filters.club or fb_filters.lega or fb_filters.usciti %}Nessun calciatore per questi filtri.
+            {% else %}Nessun calciatore in anagrafica: va aggiornata da API-Football.{% endif %}
+        </div>
+    {% endfor %}
+    </div>
+
+    <nav class="fb-pager" aria-label="Pagine anagrafica">
+        <span>{% if fb_page.paginator.count %}{{ fb_page.start_index }}–{{ fb_page.end_index }} di {{ fb_page.paginator.count }}{% else %}0 risultati{% endif %}</span>
+        <span class="grow"></span>
+        {% if fb_page.has_previous %}<a class="fm-btn fm-btn-secondary fm-btn-sm" href="?{{ fb_filter_qs }}{% if fb_filter_qs %}&{% endif %}page={{ fb_page.previous_page_number }}">‹ Prec.</a>{% endif %}
+        {% if fb_page.paginator.num_pages > 1 %}<span>{{ fb_page.number }} / {{ fb_page.paginator.num_pages }}</span>{% endif %}
+        {% if fb_page.has_next %}<a class="fm-btn fm-btn-secondary fm-btn-sm" href="?{{ fb_filter_qs }}{% if fb_filter_qs %}&{% endif %}page={{ fb_page.next_page_number }}">Succ. ›</a>{% endif %}
+    </nav>
+</div>
+<!-- footballers:end -->

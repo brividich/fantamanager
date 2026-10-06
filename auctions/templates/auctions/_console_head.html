@@ -3,7 +3,7 @@ Shared console chrome — topbar + section nav, on every regia page.
 
 Context it reads (all optional, so any admin view can include it):
   console_section  short label under "REGIA D'ASTA" (e.g. "Giocatori")
-  console_active   which nav entry is current: players|teams|import|export|remote
+  console_active   which nav entry is current: players|footballers|teams|import|export|remote
   leagues / current_league / auctions / selected   for the two pickers
 Keeping this in one file is what makes the pages look like one product.
 
@@ -112,6 +112,8 @@ button) and everything else opens as a full-screen menu: ``.fm-chrome`` is
         <svg class="ic"><use href="#i-gavel"/></svg> Asta Live</a>
     <a class="fm-nav-link {% if console_active == 'players' %}is-active{% endif %}" href="{% url 'admin_players' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
         <svg class="ic"><use href="#i-users"/></svg> Giocatori</a>
+    <a class="fm-nav-link {% if console_active == 'footballers' %}is-active{% endif %}" href="{% url 'admin_footballers' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
+        <svg class="ic"><use href="#i-ball"/></svg> Calciatori</a>
     <a class="fm-nav-link {% if console_active == 'teams' %}is-active{% endif %}" href="{% url 'admin_participants' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
         <svg class="ic"><use href="#i-shield"/></svg> Squadre</a>
     <a class="fm-nav-link {% if console_active == 'market' %}is-active{% endif %}" href="{% url 'admin_market_dashboard' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">

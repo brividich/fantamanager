@@ -122,6 +122,8 @@ urlpatterns = [
     path("dashboard/players/<int:player_id>/release/", views.admin_release_player, name="admin_release_player"),
     path("dashboard/players/<int:player_id>/assign/", views.admin_assign_player, name="admin_assign_player"),
     path("dashboard/players/clear/", views.admin_clear_players, name="admin_clear_players"),
+    path("dashboard/calciatori/", views.admin_footballers, name="admin_footballers"),
+    path("dashboard/calciatori/aggiorna/", views.admin_footballers_sync, name="admin_footballers_sync"),
     path("dashboard/participants/", views.admin_participants, name="admin_participants"),
     path("dashboard/participants/create/", views.admin_create_participant, name="admin_create_participant"),
     path("dashboard/participants/<int:participant_id>/edit/", views.admin_edit_participant, name="admin_edit_participant"),
@@ -297,6 +299,7 @@ urlpatterns = [
     path("app/scambi/<int:trade_id>/rispondi/", views.app_trade_respond, name="app_trade_respond"),
     path("app/scambi/<int:trade_id>/ritira/", views.app_trade_cancel, name="app_trade_cancel"),
     path("app/altro/", views.app_altro, name="app_altro"),
+    path("app/calciatori/", views.app_footballers, name="app_footballers"),
     # The league admin's Regia inside the app (+ "Vedi come" a team).
     path("app/regia/", views.app_regia, name="app_regia"),
     path("app/regia/mercato/<int:session_id>/", views.app_regia_market_session, name="app_regia_market_session"),
