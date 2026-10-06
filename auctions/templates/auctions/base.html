@@ -359,6 +359,20 @@
             }
         }
         </script>
+        <script>
+        // A form drawn before a login or logout in another tab, or brought back
+        // by the back button or by the app returning from the background, still
+        // carries the old CSRF token: "Entra" would answer "La pagina è scaduta".
+        // The csrftoken cookie always holds the current one, so the form sends that.
+        document.addEventListener('submit', function (e) {
+            var form = e.target;
+            if (!form || !form.querySelectorAll || (form.getAttribute('method') || '').toLowerCase() !== 'post') return;
+            var m = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+            if (!m) return;
+            var fields = form.querySelectorAll('input[name="csrfmiddlewaretoken"]');
+            for (var i = 0; i < fields.length; i++) fields[i].value = decodeURIComponent(m[1]);
+        }, true);
+        </script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

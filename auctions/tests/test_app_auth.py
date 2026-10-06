@@ -237,3 +237,98 @@ class AppAuthTests(TestCase):
         self.assertIsNone(self.client.session.get("participant_id"))
         self.assertIsNone(self.client.session.get("_auth_user_id"))
 
+
+
+class AppLoginTeamLinkTests(TestCase):
+    """Opening a team by code while signed in links it to the account only when
+    it is the manager's own first team in that league, never for an admin."""
+
+    def setUp(self):
+        self.admin = User.objects.create_user("presidente", password="pwd12345")
+        self.league = League.objects.create(name="Lega", owner=self.admin)
+        self.own = Participant.objects.create(league=self.league, display_name="Mia", user=self.admin)
+        self.other = Participant.objects.create(league=self.league, display_name="Altra", access_code="DRAGO23")
+        self.manager = User.objects.create_user("mario", password="pwd12345")
+
+    def _code(self, code="DRAGO23"):
+        return self.client.post(reverse("app_login"), {"login_mode": "code", "access_code": code})
+
+    def test_admin_opens_a_team_by_code_without_taking_it(self):
+        self.client.force_login(self.admin)
+        self.assertRedirects(self._code(), reverse("app_home"), fetch_redirect_response=False)
+        self.assertEqual(self.client.session["participant_id"], self.other.id)
+        self.other.refresh_from_db()
+        self.assertIsNone(self.other.user_id)
+        # Next login still opens the admin's own team.
+        self.client.logout()
+        self.client.post(reverse("app_login"), {"login_mode": "account", "identifier": "presidente", "password": "pwd12345"})
+        self.assertEqual(self.client.session["participant_id"], self.own.id)
+
+    def test_admin_opens_a_team_from_the_list_without_taking_it(self):
+        self.client.force_login(self.admin)
+        free = Participant.objects.create(league=self.league, display_name="Senza Codice")
+        resp = self.client.post(reverse("app_login"), {"login_mode": "select", "participant_id": free.id})
+        self.assertEqual(resp.status_code, 302)
+        free.refresh_from_db()
+        self.assertIsNone(free.user_id)
+
+    def test_manager_claims_first_team_by_code(self):
+        self.client.force_login(self.manager)
+        self._code()
+        self.other.refresh_from_db()
+        self.assertEqual(self.other.user_id, self.manager.id)
+
+    def test_manager_with_a_team_does_not_take_a_second_one(self):
+        Participant.objects.create(league=self.league, display_name="Di Mario", user=self.manager)
+        self.client.force_login(self.manager)
+        self._code()
+        self.other.refresh_from_db()
+        self.assertIsNone(self.other.user_id)
+
+
+class StaleCsrfTokenTests(TestCase):
+    def test_pages_send_the_current_csrf_token(self):
+        """A form drawn before a login elsewhere sends the cookie's token (base.html),
+        on the app login as on the console login."""
+        for url in (reverse("app_login"), reverse("login")):
+            with self.subTest(url):
+                body = self.client.get(url).content.decode()
+                self.assertIn("csrftoken=", body)
+                self.assertIn('input[name="csrfmiddlewaretoken"]', body)
+
+
+class LoginIdentifierTests(TestCase):
+    """The phone capitalises the first letter and autocomplete may add a space:
+    the account still has to be found, on the app login as on the console's."""
+
+    def setUp(self):
+        self.user = User.objects.create_user("lazze85", email="Lazze@Example.it", password="segreta1")
+        self.league = League.objects.create(name="Lega", owner=self.user)
+        self.team = Participant.objects.create(league=self.league, display_name="Gelsi", user=self.user)
+
+    def _app(self, identifier, password="segreta1"):
+        self.client.logout()
+        self.client.post(reverse("app_login"), {"login_mode": "account", "identifier": identifier, "password": password})
+        return self.client.session.get("_auth_user_id")
+
+    def _console(self, identifier, password="segreta1"):
+        self.client.logout()
+        self.client.post(reverse("login"), {"identifier": identifier, "password": password})
+        return self.client.session.get("_auth_user_id")
+
+    def test_variants_are_recognised(self):
+        for login in (self._app, self._console):
+            for identifier, password in (("Lazze85", "segreta1"), ("LAZZE85 ", "segreta1"),
+                                         ("lazze@example.it", "segreta1"), ("lazze85", "segreta1 ")):
+                with self.subTest(login=login.__name__, identifier=identifier, password=password):
+                    self.assertEqual(login(identifier, password), str(self.user.id))
+
+    def test_wrong_password_is_still_refused(self):
+        for login in (self._app, self._console):
+            with self.subTest(login.__name__):
+                self.assertIsNone(login("Lazze85", "Segreta1"))
+
+    def test_exact_username_wins_over_a_case_twin(self):
+        twin = User.objects.create_user("Lazze85", password="altra")
+        self.assertEqual(self._app("Lazze85", "altra"), str(twin.id))
+        self.assertEqual(self._app("lazze85", "segreta1"), str(self.user.id))

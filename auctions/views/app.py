@@ -6,8 +6,7 @@ from django.core.paginator import Paginator
 from django.db.models import Case, F, Q, Value, When
 from django.db.models.functions import Coalesce
 from django.contrib import messages
-from django.contrib.auth import authenticate, login as auth_login, logout as auth_logout
-from django.contrib.auth.models import User
+from django.contrib.auth import login as auth_login, logout as auth_logout
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
@@ -30,6 +29,7 @@ from ..models import (
 )
 from .. import scoring, services, throttle
 from ..services import mail
+from .auth import authenticate_identifier
 from .common import (
     SESSION_LEAGUE_KEY,
     _ROLE_LABELS,
@@ -1117,6 +1117,20 @@ def app_formazione(request):
     return render(request, "auctions/app_formazione.html", ctx)
 
 
+def _claims_team(user, team):
+    """Whether opening ``team`` from the login links it to ``user``'s account.
+
+    Only a manager's first team in that league: an admin checking teams by code
+    (or a manager who already has a team there) is visiting, not claiming. A
+    stray link kept the team on the wrong account for good: the admin's next
+    login opened it instead of their own, and its manager could no longer pick
+    it from the list.
+    """
+    if user_can_manage_scope(user, team.league):
+        return False
+    return not Participant.objects.filter(user=user, league_id=team.league_id).exists()
+
+
 def app_login(request):
     """Dedicated login for the managerial area (FantaManager).
 
@@ -1160,13 +1174,13 @@ def app_login(request):
     if request.method == "POST":
         login_mode = request.POST.get("login_mode", "")
         identifier = (request.POST.get("identifier") or request.POST.get("username") or "").strip()
-        password = (request.POST.get("password") or "").strip()
+        password = request.POST.get("password") or ""
         access_code = (request.POST.get("access_code") or "").strip()
         participant_id = (request.POST.get("participant_id") or "").strip()
 
         # Deduce mode if not explicitly tagged
         if not login_mode:
-            if identifier or password:
+            if identifier or password.strip():
                 login_mode = "account"
             elif participant_id:
                 login_mode = "select"
@@ -1177,17 +1191,12 @@ def app_login(request):
         participant = None
 
         if login_mode == "account":
-            if not identifier or not password:
+            if not identifier or not password.strip():
                 error = "Inserisci nome utente / email e password."
             elif throttle.blocked(request, "login"):
                 error = throttle.MESSAGE
             else:
-                username = identifier
-                if "@" in identifier:
-                    user_obj = User.objects.filter(email__iexact=identifier).first()
-                    if user_obj:
-                        username = user_obj.username
-                user = authenticate(request, username=username, password=password)
+                user = authenticate_identifier(request, identifier, password)
                 if user is None:
                     throttle.failure(request, "login")
                     error = "Credenziali non valide. Verifica username/email e password."
@@ -1223,7 +1232,7 @@ def app_login(request):
                     error = "Codice squadra non valido o non riconosciuto."
                 elif participant.user_id is not None and request.user.is_authenticated and request.user.id != participant.user_id:
                     error = "Questa squadra è già associata a un altro account utente."
-                elif request.user.is_authenticated and participant.user is None:
+                elif request.user.is_authenticated and participant.user is None and _claims_team(request.user, participant):
                     # Link unassigned team to the currently logged-in user
                     participant.user = request.user
                     participant.save(update_fields=["user"])
@@ -1248,7 +1257,7 @@ def app_login(request):
                                  "chiedi a chi organizza la lega di collegarla al tuo account.")
                     else:
                         participant = candidate
-                        if request.user.is_authenticated and participant.user is None:
+                        if request.user.is_authenticated and participant.user is None and _claims_team(request.user, participant):
                             participant.user = request.user
                             participant.save(update_fields=["user"])
                 else:
