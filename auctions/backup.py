@@ -32,6 +32,7 @@ PG_REQUEST_FILE = ".richiesta"  # watched by the backup service in docker-compos
 
 _bg_lock = threading.Lock()
 _last_bg_backup = 0.0
+_last_periodic_backup = 0.0
 BG_MIN_INTERVAL_SECONDS = 60  # never more than once a minute, however often triggered
 
 
@@ -95,11 +96,78 @@ def latest_backup():
     }
 
 
+# What is kept of the SQLite snapshots. The live ticker writes one every few
+# minutes: with a single "newest 10" rule those pushed the snapshot from before
+# the auction out within the hour, so an assignment gone wrong and noticed late
+# was in every copy left. Three tiers instead:
+#   - automatic (periodic) snapshots: the newest ``keep``;
+#   - snapshots of an event (startup, an auction ending, a manual one): the
+#     newest KEEP_EVENTS;
+#   - whatever the tier, the newest snapshot of each of the last KEEP_DAYS days.
+AUTO_TAG = "-auto"
+KEEP_EVENTS = 20
+KEEP_DAYS = 7
+
+
+def _is_auto(path):
+    return path.stem.endswith(AUTO_TAG)
+
+
+def _prune(backups_dir, *, keep, keep_events=KEEP_EVENTS, keep_days=KEEP_DAYS):
+    try:
+        files = sorted(backups_dir.glob("db-*.sqlite3"),
+                       key=lambda p: p.stat().st_mtime, reverse=True)
+    except OSError:
+        return
+    protected = set()
+    days = []
+    for f in files:                       # newest first: first seen = newest of its day
+        try:
+            day = datetime.fromtimestamp(f.stat().st_mtime).date()
+        except OSError:
+            continue
+        if day not in days:
+            days.append(day)
+            if len(days) <= keep_days:
+                protected.add(f)
+    auto = [f for f in files if _is_auto(f)]
+    events = [f for f in files if not _is_auto(f)]
+    for old in auto[keep:] + events[keep_events:]:
+        if old in protected:
+            continue
+        try:
+            old.unlink()
+        except OSError:
+            pass
+
+
+def _unchanged_since_last_backup(src_path, backups_dir):
+    """True when nothing was written to the database since the newest
+    snapshot: a screen left open overnight keeps the ticker alive, and copies
+    identical to the last one only rotate the useful ones away."""
+    try:
+        newest = max((p.stat().st_mtime for p in backups_dir.glob("db-*.sqlite3")), default=None)
+    except OSError:
+        return False
+    if newest is None:
+        return False
+    written = 0.0
+    for candidate in (src_path, src_path.with_name(src_path.name + "-wal")):
+        try:
+            written = max(written, candidate.stat().st_mtime)
+        except OSError:
+            pass
+    return written <= newest
+
+
 def backup_database(*, keep=10, reason=""):
     """Blocking snapshot — call this from a background thread (see
     :func:`backup_database_async`), never inline on a request or websocket
     path: sqlite3's backup API does real disk IO and must not add latency to
     a bid, a lot closing, or anything else someone is waiting on.
+
+    ``keep`` is how many automatic (``PERIODIC``) snapshots stay; event
+    snapshots and one per day are kept apart (see ``_prune``).
 
     Returns the path written, or None if there was nothing to back up / it
     failed (logged, never raised — a failed backup must not take the
@@ -115,12 +183,16 @@ def backup_database(*, keep=10, reason=""):
 
     backups_dir = src_path.parent / "backups"
     backups_dir.mkdir(parents=True, exist_ok=True)
+    periodic = reason == PERIODIC
+    if periodic and _unchanged_since_last_backup(src_path, backups_dir):
+        return None
     stamp = time.strftime("%Y%m%d-%H%M%S")
-    dst_path = backups_dir / f"db-{stamp}.sqlite3"
+    tag = AUTO_TAG if periodic else ""
+    dst_path = backups_dir / f"db-{stamp}{tag}.sqlite3"
     n = 1
     while dst_path.exists():  # two backups within the same second
         n += 1
-        dst_path = backups_dir / f"db-{stamp}-{n}.sqlite3"
+        dst_path = backups_dir / f"db-{stamp}-{n}{tag}.sqlite3"
 
     try:
         import sqlite3
@@ -137,14 +209,7 @@ def backup_database(*, keep=10, reason=""):
         logger.exception("database backup failed (%s)", reason or "no reason given")
         return None
 
-    backups = sorted(
-        backups_dir.glob("db-*.sqlite3"), key=lambda p: p.stat().st_mtime, reverse=True
-    )
-    for old in backups[keep:]:
-        try:
-            old.unlink()
-        except OSError:
-            pass
+    _prune(backups_dir, keep=keep)
     return dst_path
 
 
@@ -156,12 +221,20 @@ def backup_database_async(*, keep=10, reason="", min_interval=BG_MIN_INTERVAL_SE
     to back, and every connected client's ticker polls independently — so
     this can be called liberally without spawning a thread per event.
     """
-    global _last_bg_backup
+    global _last_bg_backup, _last_periodic_backup
     now = time.monotonic()
+    # Periodic and event snapshots are throttled apart: the ticker's routine
+    # copy taken a few seconds earlier must not swallow the one of an auction
+    # starting or ending.
     with _bg_lock:
-        if now - _last_bg_backup < min_interval:
-            return
-        _last_bg_backup = now
+        if reason == PERIODIC:
+            if now - _last_periodic_backup < min_interval:
+                return
+            _last_periodic_backup = now
+        else:
+            if now - _last_bg_backup < min_interval:
+                return
+            _last_bg_backup = now
     threading.Thread(
         target=backup_database, kwargs={"keep": keep, "reason": reason}, daemon=True,
     ).start()

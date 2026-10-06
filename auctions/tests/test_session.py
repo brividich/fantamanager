@@ -150,7 +150,9 @@ class BackupTests(TestCase):
         # backup_database_async's throttle is module-global — never let one
         # test's timestamp bleed into the next.
         self.addCleanup(setattr, backup, "_last_bg_backup", 0.0)
+        self.addCleanup(setattr, backup, "_last_periodic_backup", 0.0)
         backup._last_bg_backup = 0.0
+        backup._last_periodic_backup = 0.0
 
     def _patch_db_path(self, path):
         patcher = mock.patch.object(self.backup, "_db_path", return_value=path)
@@ -165,23 +167,68 @@ class BackupTests(TestCase):
         self.assertEqual(con.execute("select * from t").fetchall(), [(1,)])
         con.close()
 
-    def test_backup_rotates_to_keep_only_the_newest(self):
-        backups_dir = self.data_dir / "backups"
-        backups_dir.mkdir()
-        # Pre-seed 12 fake backups with distinct mtimes, oldest first.
+    def _fake_backups(self, names_and_ages):
         import os
-        import time as time_mod
-        for i in range(12):
-            f = backups_dir / f"db-fake{i:02d}.sqlite3"
+        backups_dir = self.data_dir / "backups"
+        backups_dir.mkdir(exist_ok=True)
+        now = time.time()
+        for name, age in names_and_ages:
+            f = backups_dir / name
             f.write_text("x")
-            t = time_mod.time() - (12 - i)
-            os.utime(f, (t, t))
-        self.backup.backup_database(keep=10)
-        remaining = sorted((backups_dir).glob("db-*.sqlite3"))
+            os.utime(f, (now - age, now - age))
+        return backups_dir
+
+    def test_automatic_snapshots_rotate_to_keep_only_the_newest(self):
+        backups_dir = self._fake_backups(
+            [(f"db-fake{i:02d}-auto.sqlite3", 12 - i) for i in range(12)])
+        self.backup.backup_database(keep=10, reason=self.backup.PERIODIC)
+        remaining = sorted(backups_dir.glob("db-*-auto.sqlite3"))
         self.assertEqual(len(remaining), 10)
         # The freshest of the fakes (fake11) must have survived the prune.
-        self.assertTrue((backups_dir / "db-fake11.sqlite3").exists())
-        self.assertFalse((backups_dir / "db-fake00.sqlite3").exists())
+        self.assertTrue((backups_dir / "db-fake11-auto.sqlite3").exists())
+        self.assertFalse((backups_dir / "db-fake00-auto.sqlite3").exists())
+
+    def test_automatic_snapshots_never_push_out_an_event_one(self):
+        """Hours of a live auction must not rotate away the copy taken before
+        it started (or when the last one ended)."""
+        backups_dir = self._fake_backups(
+            [("db-before-auction.sqlite3", 3600)]
+            + [(f"db-fake{i:02d}-auto.sqlite3", 60 * (30 - i)) for i in range(30)])
+        self.backup.backup_database(keep=10, reason=self.backup.PERIODIC)
+        self.assertTrue((backups_dir / "db-before-auction.sqlite3").exists())
+        self.assertEqual(len(list(backups_dir.glob("db-*-auto.sqlite3"))), 10)
+
+    def test_event_snapshots_keep_their_own_quota(self):
+        quota = self.backup.KEEP_EVENTS
+        backups_dir = self._fake_backups(
+            [(f"db-ev{i:02d}.sqlite3", quota + 5 - i) for i in range(quota + 5)])
+        self.backup.backup_database(reason="asta terminata")
+        events = [f for f in backups_dir.glob("db-*.sqlite3") if not f.stem.endswith("-auto")]
+        self.assertEqual(len(events), quota)
+
+    def test_the_newest_snapshot_of_each_recent_day_is_kept(self):
+        day = 24 * 3600
+        backups_dir = self._fake_backups(
+            [(f"db-day{d}-auto.sqlite3", d * day + 60) for d in range(1, 4)]
+            + [(f"db-new{i:02d}-auto.sqlite3", 30 - i) for i in range(12)])
+        self.backup.backup_database(keep=5, reason=self.backup.PERIODIC)
+        for d in range(1, 4):
+            self.assertTrue((backups_dir / f"db-day{d}-auto.sqlite3").exists())
+
+    def test_periodic_snapshot_skipped_when_nothing_changed(self):
+        first = self.backup.backup_database(reason=self.backup.PERIODIC)
+        self.assertIsNotNone(first)
+        import os
+        # The database was last written before the snapshot.
+        past = first.stat().st_mtime - 10
+        os.utime(self.db_path, (past, past))
+        self.assertIsNone(self.backup.backup_database(reason=self.backup.PERIODIC))
+        # An event snapshot is taken regardless.
+        self.assertIsNotNone(self.backup.backup_database(reason="asta terminata"))
+        # A write after the snapshot makes the next periodic one happen.
+        future = time.time() + 10
+        os.utime(self.db_path, (future, future))
+        self.assertIsNotNone(self.backup.backup_database(reason=self.backup.PERIODIC))
 
     def test_backup_is_a_noop_when_the_db_file_is_missing(self):
         self._patch_db_path(self.data_dir / "does-not-exist.sqlite3")
@@ -214,6 +261,13 @@ class BackupTests(TestCase):
             self.backup.backup_database_async(min_interval=60)  # too soon — coalesced
         self.assertEqual(len(started), 1)
         started[0].join(timeout=2)
+
+    def test_a_periodic_copy_does_not_swallow_an_event_one(self):
+        with mock.patch("auctions.backup.threading.Thread") as MockThread:
+            self.backup.backup_database_async(reason=self.backup.PERIODIC, min_interval=60)
+            self.backup.backup_database_async(reason="asta terminata", min_interval=60)
+            self.backup.backup_database_async(reason=self.backup.PERIODIC, min_interval=60)
+        self.assertEqual(MockThread.call_count, 2)
 
     def test_async_runs_again_once_the_interval_has_passed(self):
         with mock.patch("auctions.backup.threading.Thread") as MockThread:
