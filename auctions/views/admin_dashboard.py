@@ -16,6 +16,7 @@ from ..models import Auction, AuctionCycleResult, Bid, League, MarketSession, Pa
 from .admin_participants import SESSION_ACCOUNT_SECRET_KEY, can_manage_accounts
 from .common import (
     SESSION_AUCTION_KEY,
+    form_int,
     SESSION_LEAGUE_KEY,
     _call_order,
     _flow_mode,
@@ -430,8 +431,10 @@ def admin_create_auction(request):
         current_price=sp,
         min_increment=dec("min_increment", "1"),
         quick_increments=request.POST.get("quick_increments", "10,50,100,500"),
-        duration_seconds=int(request.POST.get("duration_seconds") or 60),
-        antisnipe_seconds=int(request.POST.get("antisnipe_seconds") or 0),
+        duration_seconds=form_int(request.POST.get("duration_seconds"), 60,
+                                  min_value=MIN_LOT_SECONDS, max_value=MAX_TIMER_SECONDS),
+        antisnipe_seconds=form_int(request.POST.get("antisnipe_seconds"), 0,
+                                   min_value=0, max_value=MAX_TIMER_SECONDS),
         release_refund_mode=_refund_mode(request),
         opening_price_mode=_opening_price_mode(request),
         flow_mode=_flow_mode(request),
@@ -459,6 +462,12 @@ def _pool_player_or_error(request, auction, player_id):
     if player.league_id != auction.league_id:
         return None, league_mismatch_json()
     return player, None
+
+
+# Bounds for the lot timers typed in the console: a 0 or negative duration
+# would close every lot the moment it opens.
+MIN_LOT_SECONDS = 3
+MAX_TIMER_SECONDS = 3600
 
 
 def _pint(raw, fallback):
@@ -499,8 +508,10 @@ def admin_edit_auction(request, auction_id):
     auction.description      = request.POST.get("description", auction.description).strip()
     auction.min_increment    = dec("min_increment", str(auction.min_increment))
     auction.quick_increments = request.POST.get("quick_increments", auction.quick_increments).strip()
-    auction.duration_seconds = int(request.POST.get("duration_seconds") or auction.duration_seconds)
-    auction.antisnipe_seconds = int(request.POST.get("antisnipe_seconds") or 0)
+    auction.duration_seconds = form_int(request.POST.get("duration_seconds"), auction.duration_seconds,
+                                        min_value=MIN_LOT_SECONDS, max_value=MAX_TIMER_SECONDS)
+    auction.antisnipe_seconds = form_int(request.POST.get("antisnipe_seconds"), 0,
+                                         min_value=0, max_value=MAX_TIMER_SECONDS)
     auction.cycle_break_seconds = _break_seconds(
         request.POST.get("cycle_break_seconds"), auction.cycle_break_seconds)
     auction.starting_price   = dec("starting_price", str(auction.starting_price))
@@ -602,7 +613,7 @@ def admin_queue_preview(request, auction_id):
     auction, denied = managed_or_403(request, Auction, auction_id)
     if denied:
         return denied
-    limit = int(request.GET.get("limit") or 20)
+    limit = form_int(request.GET.get("limit"), 20, min_value=1, max_value=500)
     items = services.get_queue_preview(auction, limit=limit)
     pending = auction.queue_items.filter(done=False).count()
     return JsonResponse({"ok": True, "pending": pending, "items": items})

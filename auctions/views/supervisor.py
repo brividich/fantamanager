@@ -37,6 +37,7 @@ from ..models import Auction, Bid, League, MailSettings, Participant, Player
 from ..consumers import _ROOM_TICKERS
 from ..services import mail
 from ..services.voti_live import LiveSyncManager
+from .common import form_int
 
 logger = logging.getLogger(__name__)
 
@@ -546,9 +547,9 @@ def supervisor_dashboard(request):
             return redirect(f"{reverse('supervisor_dashboard')}?tab=reports")
 
         elif action == "start_live_sync":
-            interval = int(request.POST.get("interval_seconds") or 60)
+            interval = form_int(request.POST.get("interval_seconds"), 60, min_value=15, max_value=3600)
             provider = request.POST.get("provider") or "fantacalcio_web"
-            target_g = int(request.POST.get("target_giornata") or 0) or None
+            target_g = form_int(request.POST.get("target_giornata"), 0, min_value=0) or None
             mgr = LiveSyncManager.get_instance()
             mgr.active_giornata_num = target_g
             mgr.start_background(interval=interval, provider=provider)
@@ -561,7 +562,7 @@ def supervisor_dashboard(request):
             return redirect(f"{reverse('supervisor_dashboard')}?tab=live_sync")
 
         elif action == "trigger_live_sync":
-            target_g = int(request.POST.get("target_giornata") or 0) or None
+            target_g = form_int(request.POST.get("target_giornata"), 0, min_value=0) or None
             provider = request.POST.get("provider") or "fantacalcio_web"
             mgr = LiveSyncManager.get_instance()
             mgr.provider = provider
@@ -573,7 +574,7 @@ def supervisor_dashboard(request):
             return redirect(f"{reverse('supervisor_dashboard')}?tab=live_sync")
 
         elif action == "consolidate_live_sync":
-            target_g = int(request.POST.get("target_giornata") or 0) or 1
+            target_g = form_int(request.POST.get("target_giornata"), 0, min_value=0) or 1
             res = LiveSyncManager.get_instance().consolidate_official(target_g)
             messages.success(request, f"Giornata {target_g} consolidata ufficialmente ({res.get('giornate_count')} leghe chiuse su voti definitivi).")
             return redirect(f"{reverse('supervisor_dashboard')}?tab=live_sync")
