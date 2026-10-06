@@ -25,10 +25,9 @@ from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.db import connection, transaction
 from django.db.models import Count, Sum
-from django.http import FileResponse, Http404, HttpResponseForbidden, JsonResponse
+from django.http import FileResponse, Http404, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from django.views.decorators.http import require_POST
 from django.utils import timezone
 
 import django
@@ -37,6 +36,7 @@ from ..models import Auction, Bid, League, MailSettings, Participant, Player
 from ..consumers import _ROOM_TICKERS
 from ..services import mail
 from ..services.voti_live import LiveSyncManager
+from .common import form_int
 
 logger = logging.getLogger(__name__)
 
@@ -546,9 +546,9 @@ def supervisor_dashboard(request):
             return redirect(f"{reverse('supervisor_dashboard')}?tab=reports")
 
         elif action == "start_live_sync":
-            interval = int(request.POST.get("interval_seconds") or 60)
+            interval = form_int(request.POST.get("interval_seconds"), 60, min_value=15, max_value=3600)
             provider = request.POST.get("provider") or "fantacalcio_web"
-            target_g = int(request.POST.get("target_giornata") or 0) or None
+            target_g = form_int(request.POST.get("target_giornata"), 0, min_value=0) or None
             mgr = LiveSyncManager.get_instance()
             mgr.active_giornata_num = target_g
             mgr.start_background(interval=interval, provider=provider)
@@ -561,7 +561,7 @@ def supervisor_dashboard(request):
             return redirect(f"{reverse('supervisor_dashboard')}?tab=live_sync")
 
         elif action == "trigger_live_sync":
-            target_g = int(request.POST.get("target_giornata") or 0) or None
+            target_g = form_int(request.POST.get("target_giornata"), 0, min_value=0) or None
             provider = request.POST.get("provider") or "fantacalcio_web"
             mgr = LiveSyncManager.get_instance()
             mgr.provider = provider
@@ -573,7 +573,7 @@ def supervisor_dashboard(request):
             return redirect(f"{reverse('supervisor_dashboard')}?tab=live_sync")
 
         elif action == "consolidate_live_sync":
-            target_g = int(request.POST.get("target_giornata") or 0) or 1
+            target_g = form_int(request.POST.get("target_giornata"), 0, min_value=0) or 1
             res = LiveSyncManager.get_instance().consolidate_official(target_g)
             messages.success(request, f"Giornata {target_g} consolidata ufficialmente ({res.get('giornate_count')} leghe chiuse su voti definitivi).")
             return redirect(f"{reverse('supervisor_dashboard')}?tab=live_sync")
@@ -675,6 +675,30 @@ def supervisor_dashboard(request):
                 messages.error(request, f"Errore durante il backup: {e}")
             return redirect(f"{reverse('supervisor_dashboard')}?tab=reports")
 
+        elif action == "restore_backup":
+            name = request.POST.get("file", "")
+            live = Auction.objects.filter(status=Auction.Status.LIVE).count()
+            if live:
+                messages.error(request, f"Ci sono {live} aste in corso: mettile in pausa o chiudile prima di ripristinare una copia.")
+            else:
+                try:
+                    safety = backup.restore_sqlite(name)
+                except backup.RestoreError as exc:
+                    messages.error(request, str(exc))
+                else:
+                    logger.warning("Supervisor %s ha ripristinato il database da %s", request.user.username, name)
+                    messages.success(request, f"Database ripristinato da {name}. Lo stato di prima è salvato in {safety.name}: se serve, si ripristina quello.")
+            return redirect(f"{reverse('supervisor_dashboard')}?tab=reports")
+
+        elif action == "recover_auction":
+            from ..services.recovery import recover_auction
+            from .common import broadcast_state
+            auction = get_object_or_404(Auction, pk=request.POST.get("auction_id"))
+            auction = recover_auction(auction.id)
+            broadcast_state(auction)
+            messages.success(request, f"Asta «{auction.title}» ripresa.")
+            return redirect(f"{reverse('supervisor_dashboard')}?tab=health")
+
         elif action == "clear_cache":
             try:
                 cache.clear()
@@ -757,6 +781,9 @@ def supervisor_dashboard(request):
 
     # Backup & System settings for maintenance tab
     recent_backups, backups_folder = _get_recent_backups()
+    from ..services.recovery import pending_recovery
+    watched = [aid for aid, t in _ROOM_TICKERS.items() if t.task and not t.task.done()]
+    stalled_auctions = pending_recovery(exclude_ids=watched)
     system_settings = _get_system_settings_info()
 
     return render(
@@ -791,6 +818,8 @@ def supervisor_dashboard(request):
             "mail_providers": MailSettings.Provider.choices,
             "mail_securities": MailSettings.Security.choices,
             "recent_backups": recent_backups,
+            "stalled_auctions": stalled_auctions,
+            "is_sqlite": backup._db_path() is not None,
             "backups_folder": backups_folder,
             "system_settings": system_settings,
         },
@@ -823,13 +852,10 @@ def supervisor_backup_download(request):
         folder = src.parent / "backups"
 
     if filename:
-        safe_path = (folder / filename).resolve()
-        # Security check: must remain inside backup folder
-        if not str(safe_path).startswith(str(folder.resolve())):
-            return HttpResponseForbidden("Accesso al file non consentito.")
-        if not safe_path.exists() or not safe_path.is_file():
+        # Only a snapshot or dump inside the backups folder, by bare name.
+        target_file = backup.backup_file(filename)
+        if target_file is None:
             raise Http404("File di backup non trovato.")
-        target_file = safe_path
     elif backup._is_postgres():
         # On PostgreSQL the dump is written by the backup service: ask for a
         # fresh one and hand over the newest dump already on disk (never the

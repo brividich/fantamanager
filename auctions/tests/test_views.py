@@ -1652,3 +1652,54 @@ class ConsoleLandingTests(TestCase):
         self.assertIsNone(r.context["selected"])          # the dashboard, not the regia
         self.assertContains(r, "Console Gestionale")
 
+
+
+class AdminFormIntTests(TestCase):
+    """Numbers typed in the console: junk never 500s, timers stay sane."""
+
+    def setUp(self):
+        self.user = User.objects.create_superuser("admin_int", "a@b.c", "pass12345")
+        self.client.force_login(self.user)
+        self.auction = make_live_auction()
+
+    def test_edit_clamps_a_zero_or_negative_duration(self):
+        for raw in ("0", "-20"):
+            with self.subTest(raw=raw):
+                self.client.post(f"/admin-auction/{self.auction.id}/edit/", {"duration_seconds": raw})
+                self.auction.refresh_from_db()
+                self.assertGreaterEqual(self.auction.duration_seconds, 3)
+
+    def test_edit_ignores_junk(self):
+        r = self.client.post(f"/admin-auction/{self.auction.id}/edit/", {
+            "duration_seconds": "boh", "antisnipe_seconds": "1.5"})
+        self.assertNotEqual(r.status_code, 500)
+        self.auction.refresh_from_db()
+        self.assertEqual(self.auction.duration_seconds, 60)
+        self.assertEqual(self.auction.antisnipe_seconds, 0)
+
+    def test_queue_preview_with_junk_limit(self):
+        r = self.client.get(f"/admin-auction/{self.auction.id}/queue/?limit=tanti")
+        self.assertEqual(r.status_code, 200)
+
+    def test_form_int_helper(self):
+        from ..views.common import form_int
+        self.assertEqual(form_int(None, 7), 7)
+        self.assertEqual(form_int("", 7), 7)
+        self.assertEqual(form_int(" 12 ", 7), 12)
+        self.assertEqual(form_int("x", 7), 7)
+        self.assertEqual(form_int("-4", 7, min_value=0), 0)
+        self.assertEqual(form_int("9999", 7, max_value=100), 100)
+
+
+class HealthzTests(TestCase):
+    def test_healthz_answers_without_login(self):
+        r = self.client.get("/healthz/")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()["db"], "ok")
+
+    def test_healthz_reports_a_database_down(self):
+        from django.db import connection
+        with mock.patch.object(connection, "cursor", side_effect=Exception("down")):
+            r = self.client.get("/healthz/")
+        self.assertEqual(r.status_code, 503)
+        self.assertFalse(r.json()["ok"])

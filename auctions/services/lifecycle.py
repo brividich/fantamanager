@@ -79,6 +79,9 @@ def start_auction(auction_id):
     auction.current_price = auction.starting_price
     auction.save()
     logger.info("Asta #%s AVVIATA (Stato: LIVE, Ciclo: %s)", auction.id, auction.current_cycle)
+    # The state before the first lot is sold: the copy to go back to if the
+    # night goes wrong (on PostgreSQL, a request to the backup service).
+    transaction.on_commit(lambda: _backup_async(reason="asta avviata"))
     return auction
 
 

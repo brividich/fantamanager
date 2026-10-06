@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 
 from ..models import (
-    Auction, Bid, League, Participant, Player,
+    Bid, Player,
 )
 
 

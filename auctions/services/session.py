@@ -194,6 +194,7 @@ def save_session(auction_id, *, name="", created_by="", notes=""):
             "sealed_threshold_c": auction.sealed_threshold_c,
             "sealed_threshold_a": auction.sealed_threshold_a,
             "sealed_seconds": auction.sealed_seconds,
+            "sealed_enforce_rules": auction.sealed_enforce_rules,
         },
         "participants": [_snapshot_participant(p) for p in participants],
         "pool": _snapshot_pool(league),
@@ -365,6 +366,7 @@ def resume_session(session_id, *, created_by="", owner=None):
         sealed_threshold_c=int(ac.get("sealed_threshold_c", 100)),
         sealed_threshold_a=int(ac.get("sealed_threshold_a", 150)),
         sealed_seconds=int(ac.get("sealed_seconds", 45)),
+        sealed_enforce_rules=bool(ac.get("sealed_enforce_rules", True)),
         current_cycle=session.current_cycle,
         status=Auction.Status.READY,
     )

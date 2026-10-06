@@ -1332,3 +1332,84 @@ class RegolamentoBusteTests(TestCase):
         self.assertContains(resp, "pari ruolo")
         self.assertContains(resp, 'data-same-role="1"')
         self.assertNotContains(resp, "Priorità di scelta")
+
+
+class MarketManageParityTests(TestCase):
+    """Managing a session and the trades: the same screen in console and app."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user("owner_mg", password="pw")
+        self.other = User.objects.create_user("other_mg", password="pw")
+        self.league = League.objects.create(name="Lega Gestione", owner=self.owner, trades_enabled=True)
+        League.objects.create(name="Lega Altrui", owner=self.other)
+        self.team = Participant.objects.create(display_name="Owner FC", league=self.league,
+                                               credits=Decimal("300"), user=self.owner)
+        Participant.objects.create(display_name="Rivali", league=self.league, credits=Decimal("300"))
+        self.session = MarketSession.objects.create(league=self.league, title="Buste Ottobre",
+                                                    status=MarketSession.Status.OPEN)
+        self.client.force_login(self.owner)
+
+    @staticmethod
+    def _part(resp, tag):
+        html = resp.content.decode()
+        part = html[html.index(f"<!-- {tag}:start -->"):html.index(f"<!-- {tag}:end -->")]
+        return re.sub(r'name="(next|csrfmiddlewaretoken)" value="[^"]*"', "", part)
+
+    def test_session_screen_is_the_same_in_console_and_app(self):
+        console = self.client.get(reverse("admin_market_session", args=[self.session.id]))
+        app = self.client.get(reverse("app_regia_market_session", args=[self.session.id]))
+        self.assertEqual(console.status_code, 200)
+        self.assertEqual(app.status_code, 200)
+        self.assertContains(app, "Chiudi finestra")
+        self.assertContains(app, "Scrutina buste")
+        self.assertEqual(self._part(console, "session-manage"), self._part(app, "session-manage"))
+
+    def test_trades_screen_is_the_same_in_console_and_app(self):
+        q = f"?league={self.league.id}"
+        console = self.client.get(reverse("admin_market_trades") + q)
+        app = self.client.get(reverse("app_regia_trades") + q)
+        self.assertEqual(app.status_code, 200)
+        self.assertContains(app, "Regole degli scambi")
+        self.assertContains(app, "Periodi scambi")
+        self.assertEqual(self._part(console, "trades-manage"), self._part(app, "trades-manage"))
+
+    def test_actions_from_the_app_land_back_in_the_app(self):
+        back = reverse("app_regia_market_session", args=[self.session.id])
+        resp = self.client.post(reverse("admin_market_status", args=[self.session.id]),
+                                {"status": "closed", "next": back})
+        self.assertRedirects(resp, back, fetch_redirect_response=False)
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.status, MarketSession.Status.CLOSED)
+
+        trades_back = reverse("app_regia_trades") + f"?league={self.league.id}"
+        resp = self.client.post(reverse("admin_trade_settings"), {
+            "league_id": self.league.id, "trades_need_approval": "1", "next": trades_back})
+        self.assertRedirects(resp, trades_back, fetch_redirect_response=False)
+        self.league.refresh_from_db()
+        self.assertFalse(self.league.trades_enabled)
+        self.assertTrue(self.league.trades_need_approval)
+
+    def test_delete_from_the_app_lands_on_the_regia(self):
+        regia = reverse("app_regia") + f"?league={self.league.id}"
+        resp = self.client.post(reverse("admin_market_delete", args=[self.session.id]), {"next": regia})
+        self.assertRedirects(resp, regia, fetch_redirect_response=False)
+        self.assertFalse(MarketSession.objects.filter(pk=self.session.id).exists())
+
+    def test_next_to_another_site_is_ignored(self):
+        resp = self.client.post(reverse("admin_market_status", args=[self.session.id]),
+                                {"status": "closed", "next": "https://evil.example/x"})
+        self.assertRedirects(resp, reverse("admin_market_session", args=[self.session.id]),
+                             fetch_redirect_response=False)
+        resp = self.client.post(reverse("admin_market_create"), {
+            "league_id": self.league.id, "market_kind": "buste", "title": "X", "next": "https://evil.example/x"})
+        self.assertNotIn("evil.example", resp["Location"])
+
+    def test_other_admin_cannot_open_the_app_screen(self):
+        self.client.force_login(self.other)
+        resp = self.client.get(reverse("app_regia_market_session", args=[self.session.id]))
+        self.assertEqual(resp.status_code, 403)
+
+    def test_regia_links_to_the_app_screens(self):
+        resp = self.client.get(reverse("app_regia") + f"?league={self.league.id}")
+        self.assertContains(resp, reverse("app_regia_market_session", args=[self.session.id]))
+        self.assertContains(resp, reverse("app_regia_trades"))

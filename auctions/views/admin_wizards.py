@@ -43,6 +43,8 @@ def _sealed_settings(request):
         "sealed_threshold_c": _pint(request.POST.get("sealed_threshold_c"), 100),
         "sealed_threshold_a": _pint(request.POST.get("sealed_threshold_a"), 150),
         "sealed_seconds": max(5, _pint(request.POST.get("sealed_seconds"), 45)),
+        # Spunta con gemello nascosto a 0: assente (vecchio form) = regole attive.
+        "sealed_enforce_rules": request.POST.get("sealed_enforce_rules", "1") == "1",
     }
 
 

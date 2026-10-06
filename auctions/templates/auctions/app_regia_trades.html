@@ -1,0 +1,22 @@
+{% extends "auctions/app_base.html" %}
+{% comment %}
+Gli scambi della lega gestiti dall'app (Regia). Il contenuto è lo stesso
+partial della console (market/_trades_manage.html): qui c'è solo la cornice.
+{% endcomment %}
+{% block title %}Scambi — Regia{% endblock %}
+{% block mainclass %}wide{% endblock %}
+{% block app %}
+{% include "auctions/market/_styles.html" %}
+<div class="mk c-blue">
+    <div class="mk-head">
+        <div>
+            <span class="kicker">{{ current_league.name }}</span>
+            <h1><svg class="ic"><use href="#i-swap"/></svg> Scambi tra squadre</h1>
+        </div>
+        <span class="spacer"></span>
+        {% if current_league.trades_enabled %}<span class="tag t-live">Scambi attivi</span>{% else %}<span class="tag">Scambi disattivati</span>{% endif %}
+        <a class="fm-btn fm-btn-ghost" href="{% url 'app_regia' %}?league={{ current_league.id }}"><svg class="ic"><use href="#i-arrow-left"/></svg> Regia</a>
+    </div>
+    {% include "auctions/market/_trades_manage.html" %}
+</div>
+{% endblock %}

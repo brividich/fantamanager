@@ -70,6 +70,23 @@ def sealed_can_take_part(auction, participant):
     return not contenders or participant.id in contenders
 
 
+def _sealed_rule_reject(auction, participant, value):
+    """Le regole del rilancio che valgono anche alle buste, se la lega lo
+    vuole (``sealed_enforce_rules``): senza, con una busta si vincerebbe un
+    giocatore che a rilancio non si potrebbe comprare."""
+    if not auction.sealed_enforce_rules:
+        return None
+    from .bidding import gk_clubs_problem, rescinded_rebuy_blocked
+    from .salary import check_purchase
+    if rescinded_rebuy_blocked(auction, participant):
+        return Reject.RESCINDED_REBUY
+    if auction.player_id and gk_clubs_problem(participant, auction.player):
+        return Reject.GK_CLUBS
+    if check_purchase(participant, value, auction=auction):
+        return Reject.SALARY_CAP
+    return None
+
+
 @transaction.atomic
 def place_sealed_bid(auction_id, participant_id, amount):
     """Consegna (o riscrivi) la busta di una squadra per il giro in corso.
@@ -113,6 +130,9 @@ def place_sealed_bid(auction_id, participant_id, amount):
     roster_reject = _check_roster_limits(auction, participant, value)
     if roster_reject is not None:
         return SealedResult(False, roster_reject, amount=value)
+    rule_reject = _sealed_rule_reject(auction, participant, value)
+    if rule_reject is not None:
+        return SealedResult(False, rule_reject, amount=value)
 
     SealedBid.objects.update_or_create(
         auction=auction, cycle=auction.current_cycle,

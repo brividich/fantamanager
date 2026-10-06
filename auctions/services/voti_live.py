@@ -15,7 +15,7 @@ from bs4 import BeautifulSoup
 from django.db import transaction
 from django.utils import timezone
 
-from ..models import Giornata, GiornataScore, League, Player, PlayerPerformance, Season
+from ..models import Giornata, Player, PlayerPerformance, Season
 from ..providers.importers import _find_match
 from .scoring import compute_giornata
 
@@ -291,8 +291,12 @@ class LiveSyncManager:
                 finally:
                     connection.close()
 
-    def sync_now(self, giornata_num: Optional[int] = None, is_provisional: bool = True) -> Dict[str, Any]:
-        """Execute one live synchronization pass across all relevant active seasons."""
+    def sync_now(self, giornata_num: Optional[int] = None, is_provisional: bool = True,
+                 leagues=None) -> Dict[str, Any]:
+        """Execute one live synchronization pass across all relevant active seasons.
+
+        ``leagues`` limits it to those leagues (a league admin's button); None
+        is every league (the Supervisor and the background worker)."""
         self.last_status = "SYNCING"
         now = timezone.now()
 
@@ -325,7 +329,9 @@ class LiveSyncManager:
         # Distribute updates across all current seasons
         total_updated = 0
         seasons = Season.objects.filter(is_current=True)
-        if not seasons.exists():
+        if leagues is not None:
+            seasons = seasons.filter(league__in=leagues)
+        elif not seasons.exists():
             seasons = Season.objects.all()[:1]
 
         with transaction.atomic():
@@ -391,9 +397,15 @@ class LiveSyncManager:
             "timestamp": now.isoformat(),
         }
 
-    def consolidate_official(self, giornata_num: int) -> Dict[str, Any]:
-        """Convert provisional live performances into official finalized scores."""
+    def consolidate_official(self, giornata_num: int, leagues=None) -> Dict[str, Any]:
+        """Convert provisional live performances into official finalized scores.
+
+        ``leagues`` limits it to those leagues: a matchday number is not the
+        same weekend everywhere, so one league closing its giornata 5 must not
+        close everybody else's. None = every league (Supervisor)."""
         giornate = Giornata.objects.filter(number=giornata_num)
+        if leagues is not None:
+            giornate = giornate.filter(season__league__in=leagues)
         count = 0
         with transaction.atomic():
             for g in giornate:

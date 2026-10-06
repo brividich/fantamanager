@@ -130,6 +130,8 @@ class RateLimitTests(TestCase):
         self.assertTrue(r1.accepted)
         self.assertFalse(r2.accepted)
         self.assertEqual(r2.reason, services.Reject.RATE_LIMITED)
+        # Not written to the bid log: a burst of taps adds no rows.
+        self.assertFalse(Bid.objects.filter(rejection_reason=services.Reject.RATE_LIMITED).exists())
 
 
 @override_settings(BID_MIN_INTERVAL_MS=0)

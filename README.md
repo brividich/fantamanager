@@ -237,7 +237,7 @@ SQLite resta per l'app desktop e lo sviluppo in locale.
 
 I backup li fa il servizio **`backup`** dello stesso compose: `pg_dump` della
 stessa versione del server, all'avvio, ogni `BACKUP_EVERY_HOURS` ore (6) e
-entro un minuto dalla fine di ogni asta. Finiscono in `./backups` come
+entro un minuto dall'avvio e dalla fine di ogni asta. Finiscono in `./backups` come
 `pg-AAAAMMGG-HHMMSS.sql.gz` (ora UTC); restano i `BACKUP_KEEP` più recenti
 (30). L'ultimo backup si vede in **Supervisor → Info Server & Health**.
 Copia ogni tanto `./backups` fuori dal NAS: un backup sullo stesso disco non
@@ -255,6 +255,49 @@ docker start fantamanager
 
 (con utente o database diversi nel `.env`, usa i tuoi `POSTGRES_USER` /
 `POSTGRES_DB`).
+
+La password d'esempio di Postgres (`fantamanager_secret_pass`) è nel
+repository pubblico: il database non ha porte aperte fuori da Docker, ma
+conviene metterne una tua nel `.env` (`POSTGRES_PASSWORD`). Su un'installazione
+già avviata va cambiata anche dentro Postgres
+(`docker exec -it fantamanager-db psql -U fantamanager -c "ALTER USER fantamanager PASSWORD '...'"`),
+perché il valore del `.env` conta solo alla prima creazione del database.
+
+**Healthcheck.** `GET /healthz/` risponde `200` se il processo e il database
+rispondono, `503` se il database no. Lo usano Docker e può usarlo il reverse
+proxy.
+
+### App desktop (SQLite): copie automatiche
+
+Le copie stanno in `backups/` accanto al database, e ne restano tre gruppi:
+
+- **automatiche** (`db-…-auto.sqlite3`): durante un'asta, ogni 5 minuti e solo
+  se nel frattempo qualcosa è cambiato; restano le ultime 10;
+- **di evento** (avvio e chiusura dell'app, avvio e fine di un'asta, copia
+  manuale dal Supervisor): restano le ultime 20;
+- in più la più recente di ciascuno degli ultimi 7 giorni.
+
+Così le copie automatiche di una serata lunga non cancellano quella di prima
+dell'asta.
+
+**Ripristino** da **Supervisor → Report → Snapshot di Backup**, tasto
+«Ripristina» sulla copia scelta. Si fa con le aste in pausa o chiuse; prima
+viene salvato lo stato attuale (copia «prima del ripristino»), quindi un
+ripristino sbagliato si annulla ripristinando quella. Dopo il ripristino girano
+le migrazioni, così anche una copia di una versione precedente funziona.
+
+### Il ticker dell'asta
+
+Chiudere i lotti a tempo, aprire le buste e passare al giocatore dopo lo fa un
+"ticker" dentro il processo del server, uno per asta, finché almeno un
+dispositivo (regia, maxischermo o squadra) è collegato. Se cadono tutti, l'asta
+si ferma lì: al primo che si ricollega il lotto scaduto si chiude con l'offerta
+migliore arrivata in tempo (le offerte dopo la scadenza sono sempre rifiutate).
+Dopo un riavvio, **Supervisor → Info Server & Health** elenca le **aste rimaste
+a metà** (lotto scaduto mai chiuso, buste scadute mai aperte, lotto chiuso mai
+avanzato) con un tasto «Riprendi» che fa subito il giro del ticker.
+Il server va tenuto a **un solo processo** Daphne: con più processi (per
+esempio dietro `REDIS_URL`) ognuno avvierebbe il suo ticker.
 
 ---
 

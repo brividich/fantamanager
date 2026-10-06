@@ -7,13 +7,12 @@
 - Supercoppa di Lega (Gara secca)
 """
 import math
-import random
 from collections import defaultdict
 from decimal import Decimal
 
 from django.db import transaction
 
-from ..models import Competition, Fixture, Giornata, GiornataScore, Participant, Player, PlayerPerformance, Season
+from ..models import Competition, Fixture, Giornata, GiornataScore, Player, PlayerPerformance, Season
 from .. import scoring
 from .scoring import lineup_io, giornata_perf_map
 from .voti import compute_coppa_italia_battle_royale

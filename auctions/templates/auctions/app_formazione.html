@@ -101,7 +101,9 @@
     .fm-save .ic { width: 18px; height: 18px; }
 
     .bench-badge { min-width: 20px; text-align: center; }
-    .fz-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+    /* minmax(0, …): the module chips must scroll, not stretch the page past the phone. */
+    .fz-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+    .fz-grid > * { min-width: 0; }
     .fz-bench { display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
     .fz-bench .a-row { padding: 9px 12px; border-bottom: 1px solid var(--line); }
     .fz-bench .a-row:last-child { border-bottom: none; }

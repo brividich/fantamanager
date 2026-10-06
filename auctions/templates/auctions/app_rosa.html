@@ -25,7 +25,9 @@
     .rosa-kpi.cta .ic { width: 18px; height: 18px; }
 
     @media (max-width: 600px) {
-        .rosa-kpis { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+        /* three numbers in a row, the last box (Formazione) across the whole width */
+        .rosa-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+        .rosa-kpis > :nth-child(4) { grid-column: 1 / -1; }
         .rosa-kpi { padding: 10px; }
         .rosa-kpi b { font-size: 18px; }
     }
@@ -78,9 +80,9 @@
     .renew-row:last-child { border-bottom: none; }
 
     @media (max-width: 640px) {
-        .rosa-kpis { display: grid; grid-template-columns: repeat(2, 1fr); width: 100%; gap: 8px; margin-top: 6px; }
+        .rosa-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; gap: 8px; margin-top: 6px; }
         .rosa-kpi { align-items: center; text-align: center; padding: 10px 8px; }
-        .rosa-kpi.cta { grid-column: span 2; padding: 12px; font-size: 13px; }
+        .rosa-kpi.cta { grid-column: 1 / -1; padding: 12px; font-size: 13px; }
     }
     @media (min-width: 880px) {
         .rosa-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -101,7 +103,7 @@
                 <select class="rosa-team-select" onchange="location.href='?team=' + this.value" aria-label="Seleziona squadra">
                     {% for t in league_teams %}
                     <option value="{{ t.id }}" {% if t.id == viewed_participant.id %}selected{% endif %}>
-                        {{ t.display_name }}{% if t.id == participant.id %} ★ (La mia rosa){% endif %}
+                        {{ t.display_name }}{% if t.id == participant.id %} (tu){% endif %}
                     </option>
                     {% endfor %}
                 </select>

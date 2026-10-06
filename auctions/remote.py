@@ -401,7 +401,6 @@ def start(port):
     Non-blocking beyond the binary download: the public URL arrives a couple of
     seconds later, so the console polls :func:`status`.
     """
-    global _PROC
     with _LOCK:
         if _STATE["status"] in ("on", "starting", "preparing"):
             return status()

@@ -544,6 +544,12 @@ admin_setup_create has always read.
                     <div class="grid2" style="margin-top:10px">
                         <div class="field"><label for="st-s">Tempo per la busta (secondi)</label><input id="st-s" name="sealed_seconds" value="45" inputmode="numeric"></div>
                     </div>
+                    <input type="hidden" name="sealed_enforce_rules" value="0">
+                    <label class="toggle-row" style="margin-top:10px">
+                        <input type="checkbox" name="sealed_enforce_rules" value="1" checked>
+                        <div><b>Alle buste valgono le regole dei rilanci</b>
+                            <span>Tetto salariale, limite di squadre per i portieri e divieto di ricomprare chi hai perso al rinnovo valgono anche per le buste. Spento, alle buste contano solo crediti e slot.</span></div>
+                    </label>
                     <p class="hint">0 in un ruolo = quel reparto non va mai alle buste.</p>
                 </div>
             </div>

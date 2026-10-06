@@ -57,6 +57,9 @@ services:
       - APIFOOTBALL_KEY=${APIFOOTBALL_KEY:-}
       - DJANGO_CSRF_TRUSTED_ORIGINS=${DJANGO_CSRF_TRUSTED_ORIGINS:-https://fantamngr.nasbovabracci.synology.me,https://*.synology.me,http://*.synology.me,http://localhost:8088,http://127.0.0.1:8088}
     volumes:
+      # Il codice della cartella (lo stesso da cui si costruisce l'immagine):
+      # un `git pull` + riavvio basta ad aggiornare. Per girare solo col codice
+      # dell'immagine usare docker-compose.ghcr.yml.
       - .:/app
       - ./data:/app/data
       - ./media:/app/media
@@ -64,7 +67,8 @@ services:
       - ./backups:/app/backups
       - /app/staticfiles
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      # /healthz/ risponde 503 se il database non risponde.
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/healthz/"]
       interval: 30s
       timeout: 10s
       retries: 3

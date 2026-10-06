@@ -314,6 +314,20 @@ def managed_or_403(request, model, pk):
     return obj, None
 
 
+def form_int(raw, default, *, min_value=None, max_value=None):
+    """An integer from a form or query field: blank or junk gives ``default``
+    (never a 500), and the result is clamped to [min_value, max_value]."""
+    try:
+        value = int(str(raw).strip()) if raw is not None and str(raw).strip() != "" else int(default)
+    except (TypeError, ValueError):
+        value = int(default)
+    if min_value is not None:
+        value = max(min_value, value)
+    if max_value is not None:
+        value = min(max_value, value)
+    return value
+
+
 def manageable_leagues(user):
     """Leagues listed in the console pickers for ``user``."""
     qs = League.objects.all()

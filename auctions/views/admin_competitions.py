@@ -1,13 +1,12 @@
 """Admin console view for managing Competitions, Tournaments, Calendars, and Standings."""
 import logging
-from collections import defaultdict
 from django.contrib import messages
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from ..models import Competition, Fixture, Giornata, League, Participant, Season
+from ..models import Competition, League
 from ..services.competitions import (
     compute_competition_standings,
     ensure_league_season_and_competitions,
@@ -16,7 +15,8 @@ from ..services.competitions import (
     setup_round_robin_competition,
     setup_supercoppa,
 )
-from .common import current_league, manageable_leagues, staff_member_required, user_can_manage_league
+from .common import (current_league, form_int, manageable_leagues, staff_member_required,
+                     user_can_manage_league)
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +94,7 @@ def admin_competition_create(request):
     season, _ = ensure_league_season_and_competitions(league)
     name = (request.POST.get("name") or "").strip()
     kind = request.POST.get("kind") or Competition.Type.ROUND_ROBIN
-    start_giornata = int(request.POST.get("start_giornata") or 1)
+    start_giornata = form_int(request.POST.get("start_giornata"), 1, min_value=1)
     end_giornata = request.POST.get("end_giornata")
     end_giornata = int(end_giornata) if end_giornata and end_giornata.isdigit() else None
     two_legged = request.POST.get("two_legged") == "1"
@@ -173,7 +173,7 @@ def admin_competition_regenerate(request, comp_id):
     if league and not user_can_manage_league(request.user, league):
         return HttpResponseForbidden("Non hai i permessi per gestire questa lega.")
 
-    start_giornata = int(request.POST.get("start_giornata") or comp.settings.get("start_giornata", 1))
+    start_giornata = form_int(request.POST.get("start_giornata"), comp.settings.get("start_giornata", 1), min_value=1)
     end_giornata = request.POST.get("end_giornata") or comp.settings.get("end_giornata")
     end_giornata = int(end_giornata) if end_giornata and str(end_giornata).isdigit() else None
     two_legged = request.POST.get("two_legged") == "1" if "two_legged" in request.POST else comp.settings.get("two_legged", False)
