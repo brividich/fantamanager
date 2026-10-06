@@ -830,8 +830,17 @@ def supervisor_backup_download(request):
         if not safe_path.exists() or not safe_path.is_file():
             raise Http404("File di backup non trovato.")
         target_file = safe_path
+    elif backup._is_postgres():
+        # On PostgreSQL the dump is written by the backup service: ask for a
+        # fresh one and hand over the newest dump already on disk (never the
+        # request file request_pg_dump() leaves behind).
+        backup.request_pg_dump("Download da Supervisor Cockpit")
+        latest = backup.latest_backup()
+        if not latest or not (folder / latest["name"]).exists():
+            raise Http404("Nessun dump PostgreSQL ancora disponibile: riprova tra qualche minuto.")
+        target_file = folder / latest["name"]
     else:
-        # Generate fresh snapshot or download latest
+        # SQLite: a fresh snapshot, or the latest one if it can't be taken.
         target_file = backup.backup_database(reason="Download da Supervisor Cockpit")
         if not target_file or not Path(target_file).exists():
             latest = backup.latest_backup()

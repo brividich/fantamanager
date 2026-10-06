@@ -16,8 +16,8 @@ of a market's content is on this page: every item opens its own screen.
 <a class="fm-btn fm-btn-secondary" href="{% url 'app_regia' %}?league={{ current_league.id }}" title="La stessa lega nell'app, come la vedono le squadre">
     <svg class="ic"><use href="#i-shirt"/></svg> Apri nell'app</a>
 {# Always at hand: trades open all season would otherwise hide the only way to open a market. #}
-<a class="fm-btn fm-btn-primary" href="{% url 'admin_market_buste' %}?league={{ current_league.id }}&new=1" title="Una nuova sessione a buste, solo per {{ current_league.name }}">
-    <svg class="ic"><use href="#i-plus"/></svg> Nuovo mercato a buste</a>
+<button type="button" class="fm-btn fm-btn-primary" onclick="openMarketWizard()" title="Un nuovo mercato, solo per {{ current_league.name }}">
+    <svg class="ic"><use href="#i-plus"/></svg> Nuovo Mercato</button>
 {% endif %}
 {% endblock %}
 
@@ -76,7 +76,7 @@ of a market's content is on this page: every item opens its own screen.
     <svg class="ic"><use href="#i-info"/></svg>
     <span><b>Nessun mercato aperto.</b> Le squadre non possono fare offerte né scambi in questo momento{% if current_league.trades_enabled and trade_windows %} (gli scambi riaprono {% if window_next %}il {{ window_next.opens_at|date:"d/m" }}{% else %}con il prossimo periodo{% endif %}){% endif %}.</span>
     <span class="spacer"></span>
-    <a class="fm-btn fm-btn-primary fm-btn-sm" href="{% url 'admin_market_buste' %}?league={{ current_league.id }}&new=1"><svg class="ic"><use href="#i-plus"/></svg> Apri una sessione a buste</a>
+    <button type="button" class="fm-btn fm-btn-primary fm-btn-sm" onclick="openMarketWizard()"><svg class="ic"><use href="#i-plus"/></svg> Nuovo Mercato</button>
 </div>
 {% endif %}
 
@@ -165,4 +165,11 @@ of a market's content is on this page: every item opens its own screen.
     <a class="mk-link" href="{% url 'admin_export' %}?league={{ current_league.id }}"><svg class="ic"><use href="#i-export"/></svg> Export rose</a>
     <a class="mk-link" href="{% url 'admin_config' %}#lg-{{ current_league.id }}"><svg class="ic"><use href="#i-gear"/></svg> Regole della lega</a>
 </nav>
+{% endblock %}
+
+{% block mk_after %}
+{% if current_league %}
+{# Lo stesso wizard «Nuovo Mercato» dell'app mobile: un solo file per web e app. #}
+{% include "auctions/_market_wizard.html" with wz_league=current_league wz_from="console" wz_mail_ready=mail_ready wz_autoopen=open_wizard %}
+{% endif %}
 {% endblock %}
