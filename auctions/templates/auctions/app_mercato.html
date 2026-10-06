@@ -111,7 +111,7 @@
         background: var(--accent); color: #0a1108; transition: opacity .15s ease;
         touch-action: manipulation; box-shadow: 0 4px 14px -2px var(--accent-glow, rgba(0,229,153,.3));
     }
-    .mc-btn-primary:hover { opacity: .92; }
+    .mc-btn-primary:hover { opacity: .92; color: #0a1108; }
     .mc-btn-secondary {
         width: 100%; padding: 10px 14px; border-radius: 10px; font-weight: 800; font-size: 13px;
         border: 1px solid var(--line); cursor: pointer; text-align: center; text-decoration: none;
@@ -119,7 +119,7 @@
         background: rgba(255,255,255,.06); color: var(--ink); transition: all .15s ease;
         touch-action: manipulation;
     }
-    .mc-btn-secondary:hover { background: rgba(255,255,255,.12); }
+    .mc-btn-secondary:hover { background: rgba(255,255,255,.12); color: var(--ink); }
 
     .mc-btn-wizard {
         display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 9px;
@@ -307,7 +307,7 @@
 
     <!-- Sezione: Sessioni di Mercato a Buste -->
     <div class="hub-section-title">
-        <span>Sessioni di Mercato a Buste</span>
+        <span>Sessioni di mercato</span>
         <div style="display:flex;align-items:center;gap:10px">
             <small>{{ active_sessions|length }} aperta{% if active_sessions|length != 1 %}e{% endif %}</small>
             {% if manages_app_league or is_app_admin %}
@@ -333,15 +333,15 @@
                     </div>
                     {% if s.is_open %}
                         {% if s.session_type == "free_agency" %}
-                        <span class="status-pill status-open">⚡ Acquisti Aperti</span>
+                        <span class="status-pill status-open">Acquisti aperti</span>
                         {% elif s.session_type == "buyout_clause" %}
-                        <span class="status-pill status-open">💰 Clausole Attive</span>
+                        <span class="status-pill status-open">Clausole attive</span>
                         {% elif s.session_type == "waiver_wire" %}
-                        <span class="status-pill status-open">📋 Reclami Aperti</span>
+                        <span class="status-pill status-open">Reclami aperti</span>
                         {% elif s.session_type == "live_auction" %}
-                        <span class="status-pill status-open">🔨 Sala Asta Aperta</span>
+                        <span class="status-pill status-open">Sala asta aperta</span>
                         {% else %}
-                        <span class="status-pill status-open">✉️ Buste Aperte</span>
+                        <span class="status-pill status-open">Buste aperte</span>
                         {% endif %}
                     {% elif s.status == "resolved" %}
                     <span class="status-pill status-resolved">Spoglio eseguito</span>
@@ -372,17 +372,17 @@
 
                 <div class="hc-chips">
                     {% if s.session_type == "free_agency" %}
-                        <span class="hc-chip">⚡ Cambi settimanali: {% if s.config.fa_max_moves %}{{ s.config.fa_max_moves }}{% else %}Illimitati{% endif %}</span>
+                        <span class="hc-chip">Cambi settimanali: {% if s.config.fa_max_moves %}{{ s.config.fa_max_moves }}{% else %}Illimitati{% endif %}</span>
                         <span class="hc-chip">Prezzo: {% if s.config.fa_cost_type == "base" %}1 FM base{% else %}Quotazione listone{% endif %}</span>
                     {% elif s.session_type == "buyout_clause" %}
-                        <span class="hc-chip">💰 Clausola: {{ s.config.buyout_multiplier|default:1.5 }}x costo originale</span>
+                        <span class="hc-chip">Clausola: {{ s.config.buyout_multiplier|default:1.5 }}x costo originale</span>
                         <span class="hc-chip">Protezione: {{ s.config.buyout_min_hold_days|default:7 }} giorni</span>
                     {% elif s.session_type == "waiver_wire" %}
-                        <span class="hc-chip">📋 Ordine: {% if s.config.waiver_order_type == "rolling" %}Rotazione continua{% else %}Inverso classifica{% endif %}</span>
+                        <span class="hc-chip">Ordine: {% if s.config.waiver_order_type == "rolling" %}Rotazione continua{% else %}Inverso classifica{% endif %}</span>
                         {% if s.bids_count > 0 %}<span class="hc-chip active-bids">{{ s.bids_count }} tuoi reclami</span>{% endif %}
                     {% else %}
                         {% if s.bids_count > 0 %}
-                        <span class="hc-chip active-bids">✉ {{ s.bids_count }}{% if s.max_bids %}/{{ s.max_bids }}{% endif %} tue buste ({{ s.bids_total }} FM)</span>
+                        <span class="hc-chip active-bids">{{ s.bids_count }}{% if s.max_bids %}/{{ s.max_bids }}{% endif %} tue buste ({{ s.bids_total }} FM)</span>
                         {% else %}
                         <span class="hc-chip">{% if s.max_bids %}0/{{ s.max_bids }} buste{% else %}Nessuna busta consegnata{% endif %}</span>
                         {% endif %}
@@ -404,17 +404,17 @@
                 {% if s.is_open %}
                 <a href="?session_id={{ s.id }}" class="mc-btn-primary">
                     <span>
-                        {% if s.session_type == "free_agency" %}Entra e Acquista
-                        {% elif s.session_type == "buyout_clause" %}Esplora Rose & Clausole
-                        {% elif s.session_type == "waiver_wire" %}Inserisci Scelte Waiver
-                        {% elif s.session_type == "live_auction" %}Entra in Sala Asta
-                        {% else %}Entra nella Sessione & Offri{% endif %}
+                        {% if s.session_type == "free_agency" %}Entra e acquista
+                        {% elif s.session_type == "buyout_clause" %}Esplora rose e clausole
+                        {% elif s.session_type == "waiver_wire" %}Inserisci le scelte
+                        {% elif s.session_type == "live_auction" %}Entra in sala asta
+                        {% else %}Entra e fai le offerte{% endif %}
                     </span>
                     <span>→</span>
                 </a>
                 {% else %}
                 <a href="?session_id={{ s.id }}" class="mc-btn-secondary">
-                    <span>Vedi Dettagli & Esiti</span>
+                    <span>Vedi dettagli ed esiti</span>
                     <span>→</span>
                 </a>
                 {% endif %}
@@ -423,13 +423,13 @@
         {% empty %}
         <div class="a-card" style="padding: 24px; text-align: center">
             <svg class="ic" style="width:36px;height:36px;margin:0 auto 10px;color:var(--muted)"><use href="#i-shield"/></svg>
-            <div style="font-weight:900;font-size:16px;color:var(--ink);margin-bottom:4px">Nessuna sessione a buste attiva</div>
+            <div style="font-weight:900;font-size:16px;color:var(--ink);margin-bottom:4px">Nessuna sessione di mercato attiva</div>
             <div style="font-size:13px;color:var(--muted)">L'amministratore programmerà le prossime finestre di mercato. Puoi comunque consultare il Listone Svincolati e le quotazioni.</div>
             {% if manages_app_league or is_app_admin %}
             <div style="margin-top:14px">
                 <button type="button" class="mc-btn-primary" style="display:inline-flex;width:auto;padding:10px 18px" onclick="openMarketWizard()">
                     <svg class="ic" style="width:14px;height:14px"><use href="#i-plus"/></svg>
-                    <span>Apri Nuovo Mercato (Wizard)</span>
+                    <span>Nuovo Mercato</span>
                 </button>
             </div>
             {% endif %}
@@ -536,16 +536,16 @@
             <div class="sub">
                 {% if market_open %}
                 <span class="status-pill status-open" style="font-size:10px;padding:2px 7px">
-                    {% if is_free_agency %}Acquisti Aperti (24/7)
-                    {% elif is_buyout_clause %}Clausole Attive
-                    {% elif is_waiver_wire %}Finestra Reclami Aperta
-                    {% else %}Buste Aperte{% endif %}
+                    {% if is_free_agency %}Acquisti aperti (24/7)
+                    {% elif is_buyout_clause %}Clausole attive
+                    {% elif is_waiver_wire %}Reclami aperti
+                    {% else %}Buste aperte{% endif %}
                 </span>
                 {% if market_session.closes_at %}<span>Chiusura: <b>{{ market_session.closes_at|date:"d/m H:i" }}</b></span>{% endif %}
                 {% elif market_session.status == "resolved" %}
                 <span class="status-pill status-resolved" style="font-size:10px;padding:2px 7px">Spoglio eseguito</span>
                 {% else %}
-                <span class="status-pill status-closed" style="font-size:10px;padding:2px 7px">Sessione Chiusa</span>
+                <span class="status-pill status-closed" style="font-size:10px;padding:2px 7px">Sessione chiusa</span>
                 {% endif %}
             </div>
             {% else %}
@@ -554,11 +554,11 @@
         </div>
 
         {% if sessions_list|length > 1 and not is_listone_view %}
-        <div style="flex-shrink:0">
-            <select onchange="location.href='?session_id='+this.value" style="background:var(--panel-3, rgba(255,255,255,.08));border:1px solid var(--line);color:var(--ink);padding:6px 10px;border-radius:10px;font-size:12px;font-weight:700" aria-label="Cambia sessione di mercato">
+        <div style="flex:1 1 200px;min-width:0;max-width:100%">
+            <select onchange="location.href='?session_id='+this.value" style="width:100%;max-width:100%;text-overflow:ellipsis;background:var(--panel-3, rgba(255,255,255,.08));border:1px solid var(--line);color:var(--ink);padding:6px 10px;border-radius:10px;font-size:12px;font-weight:700" aria-label="Cambia sessione di mercato">
                 {% for s in sessions_list %}
                 <option value="{{ s.id }}" {% if market_session and s.id == market_session.id %}selected{% endif %}>
-                    {{ s.title }} ({{ s.status_display }})
+                    {{ s.title }} · {% if s.status == "open" %}aperta{% elif s.status == "closed" %}chiusa{% elif s.status == "resolved" %}conclusa{% else %}programmata{% endif %}
                 </option>
                 {% endfor %}
             </select>

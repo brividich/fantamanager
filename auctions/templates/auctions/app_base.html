@@ -30,6 +30,15 @@ app through one of their teams — a banner with the way back.
         --radius: 16px;
         --radius-sm: 10px;
     }
+    /* The console's buttons and partials (fm-btn-primary, market screens) take
+       the app's green instead of the console's blue. */
+    body.app-mode {
+        --fm-gradient: linear-gradient(135deg, var(--accent), #059669);
+        --fm-primary: var(--accent);
+        --fm-primary-light: var(--accent);
+        --fm-border-active: var(--accent-line);
+    }
+    body.app-mode .fm-btn-primary { color: #04130d; box-shadow: 0 6px 16px -8px var(--accent-glow); }
 
     html.light-theme body.role-player, html.light-theme {
         --bg-deep: #f0fdf4;
