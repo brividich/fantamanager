@@ -26,15 +26,27 @@ relativi alla pagina che include il partial, la lega in ?league= compresa.
         font-weight:600; text-transform:none; letter-spacing:normal; color:var(--fm-text-secondary); }
     .fb-filters .fb-check input { width:auto; }
     .fb-list { display:flex; flex-direction:column; gap:6px; }
-    .fb-row { display:flex; align-items:center; gap:12px; padding:9px 12px; border-radius:var(--fm-radius-sm);
-        background:rgba(255,255,255,.03); border:1px solid var(--fm-border); min-width:0; }
+    .fb-row { display:grid; grid-template-columns:40px minmax(0,1fr) auto; gap:4px 12px; align-items:center;
+        padding:9px 12px; border-radius:var(--fm-radius-sm); background:rgba(255,255,255,.03); border:1px solid var(--fm-border); }
+    .fb-mroles { font-size:11px; font-weight:800; color:var(--fm-primary-light); }
+    .fb-edited { font-size:11px; color:var(--fm-text-muted); }
+    .fb-edit { font-size:12px; margin-top:2px; }
+    .fb-edit > summary { cursor:pointer; color:var(--fm-primary-light); list-style:none; }
+    .fb-edit > summary::-webkit-details-marker { display:none; }
+    .fb-edit form { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:8px; }
+    .fb-edit select, .fb-edit input { width:auto; min-width:0; }
+    .fb-edit input[name=mantra_roles] { flex:1 1 160px; }
+    .fb-source { display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:11px 14px; margin-bottom:14px;
+        border-radius:var(--fm-radius-md); border:1px solid var(--fm-border); font-size:12.5px; color:var(--fm-text-secondary); }
+    .fb-source .grow { flex:1 1 240px; }
     .fb-photo { width:40px; height:40px; border-radius:50%; object-fit:cover; flex:0 0 40px;
         background:rgba(255,255,255,.06); }
-    .fb-main { flex:1 1 auto; min-width:0; }
+    .fb-main { min-width:0; }
     .fb-name { font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .fb-sub { font-size:12px; color:var(--fm-text-muted); display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
     .fb-sub img { width:14px; height:14px; object-fit:contain; }
-    .fb-league { flex:0 0 auto; text-align:right; font-size:12px; max-width:45%; }
+    .fb-league { text-align:right; font-size:12px; min-width:0; max-width:280px; }
+    @media (max-width:600px) { .fb-league { grid-column:2 / -1; text-align:left; max-width:none; } }
     .fb-league .owner { font-weight:700; color:var(--fm-text); }
     .fb-league .free { font-weight:700; color:var(--fm-success); }
     .fb-league .out { color:var(--fm-text-muted); }
@@ -84,6 +96,28 @@ relativi alla pagina che include il partial, la lega in ?league= compresa.
     {% endif %}
 </div>
 
+{% if fb_league %}
+<div class="fb-source">
+    <div class="grow">
+        {% if fb_league.own_listone %}
+        <b>Listone di {{ fb_league.name }}: lista propria</b>, caricata dalla lega. Ruoli e quotazioni sono i suoi;
+        la lista generale serve a riconoscere i calciatori.
+        {% else %}
+        <b>Listone di {{ fb_league.name }}: lista generale.</b> Si aggiorna da sola con questa anagrafica.
+        Per usare una lista propria basta caricare il file del listone.
+        {% endif %}
+    </div>
+    {% if fb_league.own_listone and fb_can_manage_league %}
+    <form method="post" action="{% url 'admin_league_default_listone' fb_league.id %}"
+          onsubmit="return confirm('Usare la lista generale come listone della lega? Nomi, ruoli e club dei calciatori collegati prendono quelli della lista generale; chi è in rosa resta dov\'è.');">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <button type="submit" class="fm-btn fm-btn-secondary">Usa la lista generale</button>
+    </form>
+    {% endif %}
+</div>
+{% endif %}
+
 <div class="fm-card">
     <form method="get" class="fb-filters">
         {% if request.GET.league %}<input type="hidden" name="league" value="{{ request.GET.league }}">{% endif %}
@@ -125,20 +159,35 @@ relativi alla pagina che include il partial, la lega in ?league= compresa.
             {% if f.photo_url %}<img class="fb-photo" src="{{ f.photo_url }}" alt="" loading="lazy" referrerpolicy="no-referrer">
             {% else %}<span class="fb-photo"></span>{% endif %}
             <div class="fb-main">
-                <div class="fb-name">{% if f.position %}<span class="role-badge role-{{ f.position }}">{{ f.position }}</span> {% endif %}{{ f.name }}</div>
+                <div class="fb-name">{% if f.role %}<span class="role-badge role-{{ f.role }}">{{ f.role }}</span> {% endif %}{{ f.name }}{% if f.roles_display %} <span class="fb-mroles">{{ f.roles_display }}</span>{% endif %}{% if f.role_edited %} <span class="fb-edited" title="Ruolo corretto a mano: gli aggiornamenti da API-Football non lo cambiano">✎</span>{% endif %}</div>
                 <div class="fb-sub">
                     {% if f.club_logo %}<img src="{{ f.club_logo }}" alt="" loading="lazy" referrerpolicy="no-referrer">{% endif %}
                     <span>{{ f.club_name|default:"—" }}</span>
                     {% if f.number %}<span>· n. {{ f.number }}</span>{% endif %}
                     {% if f.age %}<span>· {{ f.age }} anni</span>{% endif %}
                 </div>
+                {% if fb_can_edit %}
+                <details class="fb-edit">
+                    <summary>Ruoli</summary>
+                    <form method="post" action="{% url 'admin_footballer_edit' f.id %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                        <select name="role" aria-label="Ruolo">
+                            {% for code, label in fb_roles %}<option value="{{ code }}" {% if f.role == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                        </select>
+                        <input name="mantra_roles" value="{{ f.mantra_roles }}" placeholder="Ruoli Mantra (es. Dd;E)" aria-label="Ruoli Mantra">
+                        <button type="submit" class="fm-btn fm-btn-secondary fm-btn-sm">Salva</button>
+                        {% if f.position and f.position != f.role %}<span class="fb-edited">API-Football: {{ f.get_position_display }}</span>{% endif %}
+                    </form>
+                </details>
+                {% endif %}
             </div>
             {% if fb_has_league %}
             <div class="fb-league">
                 {% with lp=f.league_player %}
                 {% if lp is None %}<span class="out">Non nel listone</span>
-                {% elif lp.owner_id %}<span class="owner">{{ lp.owner.display_name }}</span><span class="as">{{ lp.name }} · {{ lp.cost|floatformat:0 }} FM</span>
-                {% else %}<span class="free">Svincolato</span><span class="as">{{ lp.name }} · {{ lp.initial_price|floatformat:0 }} FM</span>{% endif %}
+                {% elif lp.owner_id %}<span class="owner">{{ lp.owner.display_name }}</span><span class="as">{{ lp.role }} · {{ lp.name }} · {{ lp.cost|floatformat:0 }} FM</span>
+                {% else %}<span class="free">Svincolato</span><span class="as">{{ lp.role }} · {{ lp.name }} · {{ lp.initial_price|floatformat:0 }} FM</span>{% endif %}
                 {% endwith %}
             </div>
             {% endif %}

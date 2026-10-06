@@ -39,6 +39,10 @@ stessi testi**.
 ## Ogni lega è separata
 
 Mercati, sessioni, scambi e regole valgono solo per la lega in cui sono creati.
+L'unica cosa comune è l'anagrafica dei calciatori (`Footballer`, da
+API-Football, ruoli corretti solo dal superuser): è il listone di default delle
+leghe senza una lista propria (`League.own_listone`), ma i giocatori di ogni
+lega (`Player`, con rosa, costo e contratto) restano della lega.
 L'admin di una lega (proprietario o co-admin in `league.admins`) gestisce solo
 le sue leghe: usare `user_can_manage_league` / `manageable_leagues`
 (`views/common.py`), mai il solo `league.owner`.

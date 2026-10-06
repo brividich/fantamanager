@@ -18,7 +18,14 @@ class Footballer(models.Model):
 
     api_id = models.PositiveIntegerField(unique=True)
     name = models.CharField(max_length=120, db_index=True)
+    # Il reparto secondo API-Football (Goalkeeper/Defender/…): solo informativo.
     position = models.CharField(max_length=1, choices=Position.choices, blank=True)
+    # Il ruolo della lista generale, quello che ricevono le leghe senza una
+    # lista propria. Parte dal reparto API; se il superuser lo corregge
+    # (``role_edited``) gli aggiornamenti successivi non lo toccano più.
+    role = models.CharField(max_length=1, choices=Position.choices, blank=True)
+    mantra_roles = models.CharField(max_length=40, blank=True)
+    role_edited = models.BooleanField(default=False)
     age = models.PositiveSmallIntegerField(null=True, blank=True)
     number = models.PositiveSmallIntegerField(null=True, blank=True)
     photo_url = models.URLField(blank=True)
@@ -35,6 +42,11 @@ class Footballer(models.Model):
 
     class Meta:
         ordering = ["name"]
+
+    @property
+    def roles_display(self):
+        from .. import mantra
+        return "/".join(mantra.parse_roles(self.mantra_roles))
 
     def __str__(self):
         return f"{self.name} ({self.club_name})" if self.club_name else self.name

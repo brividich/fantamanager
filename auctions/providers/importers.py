@@ -253,6 +253,12 @@ def sync_players(rows, *, league=None, replace=False, prune=False):
         from ..services.abroad import flag_missing
         flagged_left = flag_missing(league, owned_not_in_listone)
 
+    # Un listone caricato è la lista propria della lega: da qui in poi la
+    # lista generale non le arriva più (finché non ci torna lei).
+    if league is not None and (created or updated) and not league.own_listone:
+        league.own_listone = True
+        league.save(update_fields=["own_listone"])
+
     # I giocatori nuovi del listone si collegano subito all'anagrafica comune.
     from ..services.footballers import link_players
     link_players(Player.objects.filter(league=league) if league else Player.objects.filter(league__isnull=True))
