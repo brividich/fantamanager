@@ -2,9 +2,10 @@
 from django.urls import path
 from django.views.generic import RedirectView
 
-from . import views
+from . import health, views
 
 urlpatterns = [
+    path("healthz/", health.healthz, name="healthz"),
     path("", views.portal_view, name="home"),
     path("login/", views.login_view, name="login"),
     path("register/", views.register_view, name="register"),

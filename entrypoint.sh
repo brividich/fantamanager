@@ -32,6 +32,11 @@ if [ -n "$POSTGRES_DB" ]; then
         pip install --no-cache-dir "psycopg[binary]>=3.1,<4.0"
     fi
 
+    if [ "$POSTGRES_PASSWORD" = "fantamanager_secret_pass" ]; then
+        echo "[Entrypoint] ATTENZIONE: POSTGRES_PASSWORD e' quella d'esempio del repository pubblico."
+        echo "[Entrypoint] Il database non e' esposto fuori da Docker, ma conviene cambiarla (vedi README)."
+    fi
+
     echo "[Entrypoint] Waiting for PostgreSQL database ($POSTGRES_HOST:${POSTGRES_PORT:-5432})..."
     python - <<END
 import os, sys, time, socket

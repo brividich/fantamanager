@@ -44,7 +44,11 @@ if not DEBUG and SECRET_KEY in _PUBLIC_PLACEHOLDER_KEYS:
 DESKTOP_APP = os.getenv("FANTAMANAGER_DESKTOP", "").lower() in ("1", "true", "yes")
 
 # For LAN use we accept any host by default. Lock this down in production.
-ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "*").split(",")
+ALLOWED_HOSTS = [h.strip() for h in os.getenv("DJANGO_ALLOWED_HOSTS", "*").split(",") if h.strip()]
+# The container healthcheck asks http://localhost:8000/healthz/ from inside:
+# a host list locked to the public domain must still let it in.
+if "*" not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS += [h for h in ("localhost", "127.0.0.1") if h not in ALLOWED_HOSTS]
 
 # Trust the local network origins and DDNS domains for CSRF over WebSocket/forms if needed.
 _csrf = os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "").strip()

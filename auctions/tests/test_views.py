@@ -1689,3 +1689,17 @@ class AdminFormIntTests(TestCase):
         self.assertEqual(form_int("x", 7), 7)
         self.assertEqual(form_int("-4", 7, min_value=0), 0)
         self.assertEqual(form_int("9999", 7, max_value=100), 100)
+
+
+class HealthzTests(TestCase):
+    def test_healthz_answers_without_login(self):
+        r = self.client.get("/healthz/")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()["db"], "ok")
+
+    def test_healthz_reports_a_database_down(self):
+        from django.db import connection
+        with mock.patch.object(connection, "cursor", side_effect=Exception("down")):
+            r = self.client.get("/healthz/")
+        self.assertEqual(r.status_code, 503)
+        self.assertFalse(r.json()["ok"])
