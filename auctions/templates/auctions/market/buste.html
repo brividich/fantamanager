@@ -16,8 +16,8 @@ deliveries, preview, count and envelopes open in its own screen
 </div>
 <span class="spacer"></span>
 {% if current_league %}
-<button type="button" class="fm-btn fm-btn-primary" onclick="document.getElementById('modal-new-session').showModal()">
-    <svg class="ic"><use href="#i-plus"/></svg> Nuova sessione</button>
+<button type="button" class="fm-btn fm-btn-primary" onclick="openMarketWizard()">
+    <svg class="ic"><use href="#i-plus"/></svg> Nuovo Mercato</button>
 {% endif %}
 {% endblock %}
 
@@ -45,7 +45,7 @@ deliveries, preview, count and envelopes open in its own screen
     <svg class="ic"><use href="#i-info"/></svg>
     <span><b>Nessuna sessione aperta.</b> Le squadre non possono consegnare buste finché non ne apri una.</span>
     <span class="spacer"></span>
-    <button type="button" class="fm-btn fm-btn-primary fm-btn-sm" onclick="document.getElementById('modal-new-session').showModal()"><svg class="ic"><use href="#i-plus"/></svg> Nuova sessione</button>
+    <button type="button" class="fm-btn fm-btn-primary fm-btn-sm" onclick="openMarketWizard()"><svg class="ic"><use href="#i-plus"/></svg> Nuovo Mercato</button>
 </div>
 {% endif %}
 
@@ -60,7 +60,7 @@ deliveries, preview, count and envelopes open in its own screen
     <div class="ic-big"><svg class="ic"><use href="#i-mail"/></svg></div>
     <b>Nessuna sessione a buste</b>
     <p>Apri una finestra di riparazione: le squadre fanno le loro offerte segrete sugli svincolati ({{ free_total }} disponibili) e tu scruti tutte le buste insieme.</p>
-    <button type="button" class="fm-btn fm-btn-primary" onclick="document.getElementById('modal-new-session').showModal()">
+    <button type="button" class="fm-btn fm-btn-primary" onclick="openMarketWizard()">
         <svg class="ic"><use href="#i-plus"/></svg> Crea la prima sessione</button>
 </div>
 {% endif %}
@@ -68,46 +68,7 @@ deliveries, preview, count and envelopes open in its own screen
 
 {% block mk_after %}
 {% if current_league %}
-<dialog id="modal-new-session" class="mk-dlg">
-    <form method="post" action="{% url 'admin_market_create' %}">
-        {% csrf_token %}
-        <input type="hidden" name="league_id" value="{{ current_league.id }}">
-        <h3><svg class="ic"><use href="#i-mail"/></svg> Nuova sessione a buste</h3>
-        <div class="mr-stack">
-            <label class="mr-field"><span class="mr-lbl">Tipo di Sessione</span>
-                <select name="session_type" class="mr-input" onchange="if(this.value==='renewals'){document.querySelector('input[name=title]').value='Mercato Rinnovi Contratti';}else{document.querySelector('input[name=title]').value='Mercato di Riparazione';}">
-                    <option value="repair" selected>Mercato di Riparazione (Buste)</option>
-                    <option value="renewals">Mercato Rinnovi Contratti (Dadi e rinnovi)</option>
-                </select>
-                <span class="mr-hint">La modalità Rinnovi abilita le squadre a confermare rinnovi e tirare i dadi contrattuali.</span>
-            </label>
-            <label class="mr-field"><span class="mr-lbl">Titolo sessione</span>
-                <input type="text" name="title" value="Mercato di Riparazione" required class="mr-input"></label>
-            <div class="mr-grid">
-                <label class="mr-field"><span class="mr-lbl">Apertura (opzionale)</span>
-                    <input type="datetime-local" name="opens_at" class="mr-input">
-                    <span class="mr-hint">Vuoto = apre subito. Se nel futuro, la sessione resta programmata e si apre da sola.</span></label>
-                <label class="mr-field"><span class="mr-lbl">Chiusura (opzionale)</span>
-                    <input type="datetime-local" name="closes_at" class="mr-input">
-                    <span class="mr-hint">Oltre questo orario la consegna si chiude da sola; lo spoglio resta a te.</span></label>
-            </div>
-            {% include "auctions/_market_rules_fields.html" with s=None %}
-            <div class="mr-checks">
-                {% if mail_ready %}
-                <label><input type="checkbox" name="notify" value="1" checked> Avvisa le squadre via email</label>
-                {% else %}
-                <span class="mr-hint">Per avvisare le squadre via email configura la posta{% if request.user.is_superuser %} in <a href="{% url 'admin_mail_settings' %}">Impostazioni → Posta</a>{% endif %}.</span>
-                {% endif %}
-            </div>
-        </div>
-        <div class="foot">
-            <button type="button" class="fm-btn fm-btn-ghost" onclick="document.getElementById('modal-new-session').close()">Annulla</button>
-            <button type="submit" class="fm-btn fm-btn-primary">Crea sessione</button>
-        </div>
-    </form>
-</dialog>
-{% if request.GET.new == "1" %}
-<script>document.getElementById("modal-new-session").showModal();</script>
-{% endif %}
+{# Lo stesso wizard «Nuovo Mercato» dell'app mobile: un solo file per web e app. #}
+{% include "auctions/_market_wizard.html" with wz_league=current_league wz_from="console" wz_mail_ready=mail_ready wz_autoopen=open_wizard %}
 {% endif %}
 {% endblock %}

@@ -1,5 +1,6 @@
 """Tests for Market Sessions (Buste di mercato chiuse/asincrone)."""
 import json
+import re
 from datetime import timedelta
 from decimal import Decimal
 
@@ -803,13 +804,14 @@ class MarketPerLeagueTests(TestCase):
         # Trades open all season count as a running market: the button stays.
         self.league_a.trades_enabled = True
         self.league_a.save()
-        new_url = reverse("admin_market_buste") + f"?league={self.league_a.id}&new=1"
         self.client.force_login(self.owner)
         hub = self.client.get(reverse("admin_market_dashboard") + f"?league={self.league_a.id}")
         self.assertGreater(hub.context["n_live"], 0)
-        self.assertContains(hub, new_url)
+        self.assertContains(hub, 'onclick="openMarketWizard()"')
+        self.assertContains(hub, 'id="market-wizard-modal"')
         regia = self.client.get(reverse("app_regia") + f"?league={self.league_a.id}")
-        self.assertContains(regia, new_url)
+        self.assertContains(regia, 'onclick="openMarketWizard()"')
+        self.assertContains(regia, 'id="market-wizard-modal"')
 
     def test_coadmin_lands_on_the_console_from_the_portal(self):
         self.client.force_login(self.coadmin)
@@ -824,6 +826,86 @@ class MarketPerLeagueTests(TestCase):
         resp = self.client.get(reverse("app_regia"))
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.context["app_league"], self.league_a)
+
+
+class MarketWizardParityTests(TestCase):
+    """Web console and mobile app offer the very same «Nuovo Mercato» wizard."""
+
+    KINDS = ("buste", "free_agency", "waiver_wire", "buyout_clause", "renewals", "live")
+
+    def setUp(self):
+        self.owner = User.objects.create_user("owner_wz", password="pw")
+        self.league = League.objects.create(name="Lega Wizard", owner=self.owner)
+        self.team = Participant.objects.create(
+            display_name="Squadra Owner", league=self.league, credits=Decimal("300"), user=self.owner)
+        self.client.force_login(self.owner)
+        s = self.client.session
+        s["participant_id"] = self.team.id
+        s.save()
+
+    def _pages(self):
+        q = f"?league={self.league.id}"
+        return {
+            "console hub": self.client.get(reverse("admin_market_dashboard") + q),
+            "console buste": self.client.get(reverse("admin_market_buste") + q),
+            "app mercato": self.client.get(reverse("app_mercato")),
+            "app regia": self.client.get(reverse("app_regia") + q),
+        }
+
+    @staticmethod
+    def _wizard(resp):
+        html = resp.content.decode()
+        start = html.index('id="market-wizard-modal"')
+        return html[start:html.index("</form>", start)]
+
+    def test_every_page_offers_the_same_market_kinds_and_rules(self):
+        wizards = {}
+        for name, resp in self._pages().items():
+            self.assertEqual(resp.status_code, 200, name)
+            wizard = self._wizard(resp)
+            for kind in self.KINDS:
+                self.assertIn(f'name="market_kind" value="{kind}"', wizard, f"{name}: {kind}")
+            for field in ("budget_rule", "tie_break", "max_bids", "max_acquisitions_p", "fa_max_moves",
+                          "waiver_order_type", "buyout_multiplier", "refund_mode", "closes_at"):
+                self.assertIn(f'name="{field}"', wizard, f"{name}: {field}")
+            # Each page posts into its own league; only the return address differs.
+            self.assertIn(f'name="league_id" value="{self.league.id}"', wizard, name)
+            wizards[name] = re.sub(r'name="(from|csrfmiddlewaretoken)" value="[^"]*"', "", wizard)
+        self.assertEqual(len(set(wizards.values())), 1, "il wizard differisce tra web e app")
+
+    def test_wizard_creates_each_kind_in_the_league_only(self):
+        other = League.objects.create(name="Altra")
+        for kind, stype in (("buste", MarketSession.SessionType.SEALED_BIDS),
+                            ("free_agency", MarketSession.SessionType.FREE_AGENCY),
+                            ("waiver_wire", MarketSession.SessionType.WAIVER_WIRE),
+                            ("buyout_clause", MarketSession.SessionType.BUYOUT_CLAUSE),
+                            ("renewals", MarketSession.SessionType.RENEWALS)):
+            self.client.post(reverse("admin_market_create"), {
+                "league_id": self.league.id, "market_kind": kind, "title": f"T {kind}",
+                "open_timing": "now", "opens_at": "2099-01-01T10:00", "from": "console",
+            })
+            session = MarketSession.objects.get(title=f"T {kind}")
+            self.assertEqual(session.session_type, stype)
+            self.assertEqual(session.league, self.league)
+            # «Apri subito» ignores a date left in the hidden field.
+            self.assertEqual(session.status, MarketSession.Status.OPEN, kind)
+        self.assertFalse(MarketSession.objects.filter(league=other).exists())
+
+    def test_free_agency_page_opens_in_the_app(self):
+        MarketSession.objects.create(league=self.league, title="FA", status=MarketSession.Status.OPEN,
+                                     session_type=MarketSession.SessionType.FREE_AGENCY, config={"fa_max_moves": 3})
+        MarketSession.objects.create(league=self.league, title="Clausole", status=MarketSession.Status.OPEN,
+                                     session_type=MarketSession.SessionType.BUYOUT_CLAUSE)
+        for title in ("FA", "Clausole"):
+            sid = MarketSession.objects.get(title=title).id
+            resp = self.client.get(reverse("app_mercato") + f"?session_id={sid}")
+            self.assertEqual(resp.status_code, 200, title)
+
+    def test_new_and_open_wizard_links_open_it(self):
+        resp = self.client.get(reverse("admin_market_buste") + f"?league={self.league.id}&new=1")
+        self.assertTrue(resp.context["open_wizard"])
+        resp = self.client.get(reverse("app_mercato") + "?open_wizard=1")
+        self.assertTrue(resp.context["open_wizard"])
 
 
 class MarketAfterResolutionTests(TestCase):

@@ -16,6 +16,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from .. import services
+from ..services import mail
 from ..models import Auction, MarketBid, MarketSession, Participant, Player, Trade
 from .admin_dashboard import _classifica_standings
 from .app import _redirect_login
@@ -212,6 +213,9 @@ def app_regia(request):
         "competitions": competitions,
         "team_elsewhere": participant is not None and participant.league_id != league.id,
         "league_q": f"?league={league.id}",
+        # The «Nuovo Mercato» wizard, shared with the console (_market_wizard.html).
+        "mail_ready": mail.is_ready(),
+        "open_wizard": request.GET.get("open_wizard") == "1",
     })
     return render(request, "auctions/app_regia.html", ctx)
 

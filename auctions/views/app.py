@@ -9,9 +9,11 @@ from django.shortcuts import redirect, render
 
 from django.contrib import messages
 from django.contrib.auth import authenticate, login as auth_login, logout as auth_logout
+from django.contrib.auth.models import User
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from ..models import (
@@ -31,6 +33,7 @@ from ..models import (
     Trade,
 )
 from .. import scoring, services, throttle
+from ..services import mail
 from .common import (
     SESSION_LEAGUE_KEY,
     _ROLE_LABELS,
@@ -693,6 +696,9 @@ def app_mercato(request):
         "refund_mode": refund_mode,
         "is_mantra": is_mantra,
         "market_session_types": MarketSession.SessionType.choices,
+        # The «Nuovo Mercato» wizard, shared with the console (_market_wizard.html).
+        "mail_ready": mail.is_ready(),
+        "open_wizard": request.GET.get("open_wizard") == "1",
     })
     return render(request, "auctions/app_mercato.html", ctx)
 
