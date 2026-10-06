@@ -516,6 +516,8 @@ def admin_edit_auction(request, auction_id):
         setattr(auction, field, _pint(request.POST.get(field), getattr(auction, field)))
     auction.sealed_seconds = max(5, _pint(
         request.POST.get("sealed_seconds"), auction.sealed_seconds))
+    auction.sealed_enforce_rules = request.POST.get(
+        "sealed_enforce_rules", "1" if auction.sealed_enforce_rules else "0") == "1"
     ts = request.POST.get("screen_timer_size")
     if ts in Auction.ScreenSize.values:
         auction.screen_timer_size = ts

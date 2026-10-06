@@ -232,6 +232,12 @@
                     Quanto dura ogni giro di scrutinio, spareggi compresi. Dalla regia si può
                     comunque aprire le buste prima che scada.
                 </p>
+                <input type="hidden" name="sealed_enforce_rules" value="0">
+                <label class="ea-switch" style="margin-top:12px">
+                    <input type="checkbox" name="sealed_enforce_rules" value="1" {% if selected.sealed_enforce_rules %}checked{% endif %}>
+                    <span><b>Alle buste valgono le regole dei rilanci</b>
+                        <small>Tetto salariale, limite di squadre per i portieri e divieto di ricomprare chi hai perso al rinnovo valgono anche per le buste. Spento, alle buste contano solo crediti e slot.</small></span>
+                </label>
             </div>
 
             <label style="margin-top:18px">Regole delle offerte</label>

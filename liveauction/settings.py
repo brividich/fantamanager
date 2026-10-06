@@ -219,7 +219,10 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # --- Internationalization ---------------------------------------------------
 LANGUAGE_CODE = "it-it"
-TIME_ZONE = "UTC"  # Store everything in UTC; clients render local time.
+# The database stores UTC (USE_TZ); this is the zone the admins live in: the
+# one a typed "20:00" means and the one pages show times in. With UTC here a
+# market session set for 20:00 opened at 22:00 Italian (summer) time.
+TIME_ZONE = os.getenv("DJANGO_TIME_ZONE", "Europe/Rome")
 USE_I18N = True
 USE_TZ = True
 
