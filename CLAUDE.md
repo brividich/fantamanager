@@ -11,12 +11,17 @@ stessi testi**.
 - Chi aggiunge o cambia una funzione in una delle due, la porta anche
   nell'altra **nello stesso commit**.
 - Dove si può, un solo partial condiviso incluso da entrambe invece di due
-  copie. Esempio: il wizard «Nuovo Mercato» è solo in
-  `auctions/templates/auctions/_market_wizard.html`, incluso da
-  `app_mercato.html`, `app_regia.html`, `market/hub.html` e `market/buste.html`.
-  Un nuovo tipo di mercato o una nuova regola si aggiunge lì.
-- Un test verifica che le pagine web e app mostrino le stesse opzioni
-  (vedi `MarketWizardParityTests` in `auctions/tests/test_market.py`).
+  copie. I wizard di creazione sono già così:
+  - «Nuovo Mercato»: `auctions/templates/auctions/_market_wizard.html`, incluso
+    da `app_mercato.html`, `app_regia.html`, `market/hub.html`, `market/buste.html`;
+  - «Nuova Competizione»: `auctions/templates/auctions/_competition_wizard.html`,
+    incluso da `app_lega.html` e `admin_competitions.html`.
+  Un nuovo tipo, formato o regola si aggiunge nel partial, non nella pagina.
+- Dove l'app non ha una sua schermata (gestione di una sessione di mercato,
+  ratifica, contratti lato admin) apre quella della console: una sola versione.
+- I test di parità confrontano il wizard sulle pagine web e app
+  (`MarketWizardParityTests` in `auctions/tests/test_market.py`,
+  `CompetitionWizardParityTests` in `auctions/tests/test_competitions.py`).
 
 ## Ogni lega è separata
 
