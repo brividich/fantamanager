@@ -303,3 +303,56 @@ class CompetitionsEngineTests(TestCase):
         self.assertTrue(json_data["success"])
         self.assertEqual(json_data["fixture"]["fixture_id"], fx.id)
         self.assertEqual(json_data["fixture"]["home"]["name"], fx.home.display_name)
+
+
+class CompetitionWizardParityTests(TestCase):
+    """Web console and mobile app offer the very same «Nuova Competizione» wizard."""
+
+    def setUp(self):
+        import re
+        from django.contrib.auth.models import User
+        self.re = re
+        self.owner = User.objects.create_user("owner_cwz", password="pw")
+        self.league = League.objects.create(name="Lega Coppe", owner=self.owner)
+        self.season = Season.objects.create(league=self.league, name="2026/27", matchdays=38, is_current=True)
+        for n in range(1, 5):
+            Giornata.objects.create(season=self.season, number=n)
+        self.team = Participant.objects.create(display_name="Owner FC", league=self.league, credits=500, user=self.owner)
+        for i in range(3):
+            Participant.objects.create(display_name=f"Squadra {i}", league=self.league, credits=500)
+        self.client.force_login(self.owner)
+        s = self.client.session
+        s["participant_id"] = self.team.id
+        s.save()
+
+    def _wizard(self, resp):
+        html = resp.content.decode()
+        start = html.index('id="comp-wizard-modal"')
+        wizard = html[start:html.index("</form>", start)]
+        return self.re.sub(r'name="(from|csrfmiddlewaretoken)" value="[^"]*"', "", wizard)
+
+    def test_console_and_app_offer_the_same_wizard(self):
+        from django.urls import reverse
+        console = self.client.get(reverse("admin_competitions") + f"?league={self.league.id}")
+        app = self.client.get(reverse("app_lega") + f"?league={self.league.id}")
+        self.assertEqual(console.status_code, 200)
+        self.assertEqual(app.status_code, 200)
+        web_wz, app_wz = self._wizard(console), self._wizard(app)
+        for kind, _ in Competition.Type.choices:
+            self.assertIn(f"selectCompKind('{kind}'", web_wz, kind)
+        for field in ("name", "description", "start_giornata", "end_giornata", "two_legged",
+                      "home_id", "away_id", "win_points", "goal_threshold", "home_bonus", "notify_teams"):
+            self.assertIn(f'name="{field}"', web_wz, field)
+        self.assertEqual(web_wz, app_wz, "il wizard competizioni differisce tra web e app")
+
+    def test_console_wizard_creates_in_the_league_with_its_rules(self):
+        from django.urls import reverse
+        resp = self.client.post(reverse("admin_competition_create"), {
+            "league_id": self.league.id, "from": "console", "kind": Competition.Type.ROUND_ROBIN,
+            "name": "Campionato Web", "start_giornata": 1, "win_points": 2, "home_bonus": "1.0",
+        })
+        self.assertEqual(resp.status_code, 302)
+        comp = Competition.objects.get(name="Campionato Web")
+        self.assertEqual(comp.season.league, self.league)
+        self.assertEqual(comp.settings["win_points"], 2)
+        self.assertEqual(comp.settings["home_bonus"], 1.0)

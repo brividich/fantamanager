@@ -186,6 +186,8 @@ def _market_page(request, template, active, league, extra):
         "console_section": "Mercato",
         "console_active": "market",
         "mail_ready": mail.is_ready(),
+        # ?new=1 opens the «Nuovo Mercato» wizard (the one shared with the app).
+        "open_wizard": request.GET.get("new") == "1" or request.GET.get("open_wizard") == "1",
         # Choices of the session rules form (_market_rules_fields.html).
         "refund_modes": Auction.RefundMode.choices,
         "budget_rules": MarketSession.BudgetRule.choices,
@@ -489,7 +491,8 @@ def admin_market_create(request):
     default_title = default_title_map.get(session_type, "Mercato di Riparazione a Buste")
     title = (request.POST.get("title") or default_title).strip()
 
-    opens_at = _parse_local_datetime(request.POST.get("opens_at"))
+    # «Apri subito» in the wizard wins over a date left in the hidden field.
+    opens_at = None if request.POST.get("open_timing") == "now" else _parse_local_datetime(request.POST.get("opens_at"))
     closes_at = _parse_local_datetime(request.POST.get("closes_at"))
     if opens_at and closes_at and closes_at <= opens_at:
         messages.error(request, "La chiusura deve essere successiva all'apertura.")
@@ -526,6 +529,8 @@ def admin_market_create(request):
         messages.success(request, f"Sessione '{session.title}' creata con successo e aperta alle offerte.")
     if request.POST.get("from") == "app" or request.POST.get("next") == "app":
         return redirect(f"{reverse('app_mercato')}?session_id={session.id}")
+    if request.POST.get("from") == "regia":
+        return redirect(f"{reverse('app_regia')}?league={league.id}")
     next_url = request.POST.get("next")
     if next_url:
         return redirect(next_url)

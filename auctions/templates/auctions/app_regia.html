@@ -551,8 +551,8 @@ the same league.
         <p class="muted" style="font-size:13px;padding:4px 0">Nessuna sessione di buste.</p>
         {% endfor %}
         <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
-            <a class="fm-btn fm-btn-primary fm-btn-sm" href="{% url 'app_mercato' %}?open_wizard=1"><svg class="ic"><use href="#i-plus"/></svg> Nuovo mercato (Wizard)</a>
-            <a class="fm-btn fm-btn-outline fm-btn-sm" href="{% url 'admin_market_buste' %}{{ league_q }}&new=1"><svg class="ic"><use href="#i-mail"/></svg> Console Buste</a>
+            <button type="button" class="fm-btn fm-btn-primary fm-btn-sm" onclick="openMarketWizard()"><svg class="ic"><use href="#i-plus"/></svg> Nuovo Mercato</button>
+            <a class="fm-btn fm-btn-outline fm-btn-sm" href="{% url 'admin_market_buste' %}{{ league_q }}"><svg class="ic"><use href="#i-mail"/></svg> Console Buste</a>
         </div>
     </section>
 
@@ -605,4 +605,6 @@ the same league.
         }
     }
 </script>
+{# Lo stesso wizard «Nuovo Mercato» della console web e dell'app Mercato. #}
+{% include "auctions/_market_wizard.html" with wz_league=app_league wz_from="regia" wz_mail_ready=mail_ready wz_autoopen=open_wizard %}
 {% endblock %}
