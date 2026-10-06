@@ -55,7 +55,7 @@ def sync_registry(*, get=None, sleep=time.sleep, progress=None):
     from ..providers import apifootball as af
 
     get = get or requests.get
-    report = {"clubs": 0, "players": 0, "created": 0, "updated": 0, "left": 0, "linked": 0,
+    report = {"clubs": 0, "players": 0, "created": 0, "updated": 0, "left": 0, "linked": 0, "leagues": 0,
               "unmatched_clubs": [], "error": ""}
     if not af.is_configured():
         report["error"] = "API-Football non configurata: imposta APIFOOTBALL_KEY sul server e riavvia"
@@ -89,14 +89,17 @@ def sync_registry(*, get=None, sleep=time.sleep, progress=None):
                 }
                 f = existing.get(p["id"])
                 if f is None:
-                    new.append(Footballer(api_id=p["id"], **values))
+                    new.append(Footballer(api_id=p["id"], role=p["position"], **values))
                     continue
                 for field, value in values.items():
                     setattr(f, field, value)
+                # Il ruolo corretto a mano dal superuser non si tocca più.
+                if not f.role_edited and p["position"]:
+                    f.role = p["position"]
                 changed.append(f)
             # Salvato club per club: se il giro si ferma a metà, quel che ha preso resta.
             Footballer.objects.bulk_create(new)
-            Footballer.objects.bulk_update(changed, ["name", "position", "age", "number", "photo_url",
+            Footballer.objects.bulk_update(changed, ["name", "position", "role", "age", "number", "photo_url",
                                                      "club_api_id", "club_name", "club_logo",
                                                      "in_serie_a", "seen_at"])
             for f in new:
@@ -113,9 +116,10 @@ def sync_registry(*, get=None, sleep=time.sleep, progress=None):
                           .update(in_serie_a=False))
     if report["players"]:
         report["linked"] = link_players()
-    logger.info("Anagrafica calciatori: %s club, %s giocatori (%s nuovi), %s usciti, %s collegati (%s)",
-                report["clubs"], report["players"], report["created"], report["left"], report["linked"],
-                report["error"])
+        report["leagues"] = apply_default_listoni()
+    logger.info("Anagrafica calciatori: %s club, %s giocatori (%s nuovi), %s usciti, %s collegati, "
+                "%s leghe sulla lista generale (%s)", report["clubs"], report["players"], report["created"],
+                report["left"], report["linked"], report["leagues"], report["error"])
     return report
 
 
@@ -128,6 +132,8 @@ def sync_summary(report):
         if report["left"]:
             parts.append(f"{report['left']} non sono più in Serie A")
         parts.append(f"{report['linked']} giocatori dei listoni collegati")
+        if report["leagues"]:
+            parts.append(f"lista generale aggiornata in {report['leagues']} leghe")
     if report["unmatched_clubs"]:
         parts.append("club non riconosciuti su API-Football: " + ", ".join(report["unmatched_clubs"]))
     if report["error"]:
@@ -215,6 +221,98 @@ def link_players(players=None):
         Player.objects.filter(pk=player.pk).update(**fields)
         linked += 1
     return linked
+
+
+# --- La lista generale come listone di default ----------------------------------------
+
+def default_role(footballer):
+    return footballer.role or footballer.position or "A"
+
+
+def apply_default_listone(league):
+    """Porta la lista generale nel listone di ``league``, se la lega non ne ha
+    caricato uno suo (``own_listone``). Chi è già in rosa resta di chi è.
+
+    Ogni calciatore della lista generale diventa (o resta) un giocatore della
+    lega con nome, ruolo, ruoli Mantra e club della lista. Chi è uscito dalla
+    Serie A lascia il listone se è svincolato; se è in una rosa viene segnalato
+    come per un listone caricato (5.05). Ritorna None se non c'è niente da
+    fare, altrimenti ``{"created", "updated", "removed"}``.
+    """
+    from ..models import Auction
+    from .abroad import flag_missing
+
+    if league is None or league.own_listone:
+        return None
+    registry = list(Footballer.objects.filter(in_serie_a=True))
+    if not registry:
+        return None
+    pool = Player.objects.filter(league=league)
+    link_players(pool)
+    by_footballer = {p.footballer_id: p for p in pool.filter(footballer__isnull=False)}
+    new, changed = [], []
+    for f in registry:
+        values = {"name": f.name, "role": default_role(f), "mantra_roles": f.mantra_roles,
+                  "team": f.club_name}
+        p = by_footballer.get(f.id)
+        if p is None:
+            new.append(Player(league=league, footballer=f, photo_url=f.photo_url, **values))
+        elif any(getattr(p, k) != v for k, v in values.items()):
+            for k, v in values.items():
+                setattr(p, k, v)
+            changed.append(p)
+    Player.objects.bulk_create(new)
+    Player.objects.bulk_update(changed, ["name", "role", "mantra_roles", "team"])
+
+    gone = pool.filter(footballer__in_serie_a=False)
+    on_block = Auction.objects.exclude(player__isnull=True).values("player_id")
+    removed, _ = gone.filter(owner__isnull=True).exclude(id__in=on_block).delete()
+    flag_missing(league, list(gone.filter(owner__isnull=False).values_list("name", flat=True)))
+    return {"created": len(new), "updated": len(changed), "removed": removed}
+
+
+def apply_default_listoni():
+    """La lista generale in tutte le leghe che la usano. Ritorna quante."""
+    from ..models import League
+
+    done = 0
+    for league in League.objects.filter(own_listone=False):
+        if apply_default_listone(league) is not None:
+            done += 1
+    return done
+
+
+def edit_roles(footballer, role, mantra_roles):
+    """Il superuser corregge i ruoli della lista generale: valgono subito in
+    tutte le leghe che la usano, e gli aggiornamenti da API-Football non li
+    toccano più. Ritorna ``(ok, messaggio)``."""
+    from .. import mantra
+
+    roles = mantra.parse_roles(mantra_roles)
+    role = (role or "").strip().upper()[:1] or mantra.classic_role(roles)
+    if role not in Footballer.Position.values:
+        return False, "Ruolo non valido: scegli P, D, C o A."
+    footballer.role = role
+    footballer.mantra_roles = ";".join(roles)
+    footballer.role_edited = True
+    footballer.save(update_fields=["role", "mantra_roles", "role_edited", "updated_at"])
+    Player.objects.filter(footballer=footballer, league__own_listone=False).update(
+        role=role, mantra_roles=footballer.mantra_roles)
+    shown = f"{role}" + (f" ({footballer.roles_display})" if roles else "")
+    return True, f"{footballer.name}: ruolo {shown} nella lista generale."
+
+
+def use_default_listone(league):
+    """La lega lascia la sua lista e torna a quella generale."""
+    league.own_listone = False
+    league.save(update_fields=["own_listone"])
+    return apply_default_listone(league)
+
+
+def on_league_created(sender, instance, created, raw=False, **kwargs):
+    """Una lega nuova parte con la lista generale, senza caricare file."""
+    if created and not raw:
+        apply_default_listone(instance)
 
 
 # --- Aggiornamento in background --------------------------------------------------------

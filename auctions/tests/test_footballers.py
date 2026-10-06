@@ -82,8 +82,9 @@ class ApiTestCase(TestCase):
 class RegistrySyncTests(ApiTestCase):
     def setUp(self):
         super().setUp()
-        self.league = League.objects.create(name="L")
-        self.other = League.objects.create(name="Altra")
+        # Leghe con un listone proprio: qui conta il collegamento, non la lista generale.
+        self.league = League.objects.create(name="L", own_listone=True)
+        self.other = League.objects.create(name="Altra", own_listone=True)
         mk = lambda name, role, team, league=self.league: Player.objects.create(
             name=name, role=role, team=team, league=league)
         self.vlahovic = mk("Vlahovic", "A", "Juventus")
@@ -145,6 +146,88 @@ class RegistrySyncTests(ApiTestCase):
             report = self.sync()
         self.assertIn("APIFOOTBALL_KEY", report["error"])
         self.assertEqual(self.calls, [])
+
+
+class DefaultListoneTests(ApiTestCase):
+    """La lista generale è il listone di chi non ne carica uno suo."""
+
+    def test_roles_come_from_api_until_the_superuser_edits_them(self):
+        self.sync()
+        josep = Footballer.objects.get(api_id=5)
+        self.assertEqual((josep.position, josep.role, josep.role_edited), ("P", "P", False))
+        barella = Footballer.objects.get(api_id=6)
+        ok, _ = footballers.edit_roles(barella, "c", "M;C;x")
+        self.assertTrue(ok)
+        barella.refresh_from_db()
+        self.assertEqual((barella.role, barella.mantra_roles, barella.role_edited), ("C", "M;C", True))
+        moved = {496: SQUADS[496], 505: SQUADS[505][:2] + [squad_player(6, "N. Barella", "Defender", 29, 23)]}
+        self.sync(squads=moved)
+        barella.refresh_from_db()
+        self.assertEqual((barella.position, barella.role), ("D", "C"))
+
+    def test_mantra_roles_alone_give_the_classic_role(self):
+        f = Footballer.objects.create(api_id=9, name="F. Dimarco", position="D", role="D", club_name="Inter")
+        footballers.edit_roles(f, "", "E;Ds")
+        f.refresh_from_db()
+        self.assertEqual((f.role, f.mantra_roles), ("D", "E;Ds"))
+        ok, msg = footballers.edit_roles(f, "X", "")
+        self.assertFalse(ok)
+
+    def test_a_new_league_starts_with_the_general_list(self):
+        self.sync()
+        league = League.objects.create(name="Nuova")
+        players = {p.name: p for p in Player.objects.filter(league=league)}
+        self.assertEqual(len(players), 6)
+        lautaro = players["Lautaro Martínez"]
+        self.assertEqual((lautaro.role, lautaro.team, lautaro.footballer.api_id), ("A", "Inter", 4))
+        self.assertEqual(lautaro.photo_url, "https://media.api-sports.io/football/players/4.png")
+
+    def test_sync_fills_leagues_without_their_own_listone_only(self):
+        default = League.objects.create(name="Generale")
+        own = League.objects.create(name="Propria", own_listone=True)
+        Player.objects.create(name="Martinez L.", role="A", team="Inter", league=own, initial_price=Decimal("40"))
+        report = self.sync()
+        self.assertEqual(report["leagues"], 1)
+        self.assertEqual(Player.objects.filter(league=default).count(), 6)
+        self.assertEqual(list(Player.objects.filter(league=own).values_list("name", flat=True)), ["Martinez L."])
+
+    def test_edits_reach_the_leagues_on_the_general_list(self):
+        self.sync()
+        default = League.objects.create(name="Generale")
+        own = League.objects.create(name="Propria", own_listone=True)
+        own_barella = Player.objects.create(name="Barella", role="C", team="Inter", league=own)
+        footballers.link_players()
+        footballers.edit_roles(Footballer.objects.get(api_id=6), "A", "T")
+        self.assertEqual(Player.objects.get(league=default, footballer__api_id=6).role, "A")
+        own_barella.refresh_from_db()
+        self.assertEqual((own_barella.role, own_barella.mantra_roles), ("C", ""))
+
+    def test_an_owned_player_keeps_his_team_and_who_left_goes(self):
+        self.sync()
+        league = League.objects.create(name="Generale")
+        team = Participant.objects.create(display_name="Alfa", league=league)
+        Player.objects.filter(league=league, footballer__api_id=4).update(owner=team, cost=Decimal("50"))
+        moved = {496: SQUADS[496][:2], 505: SQUADS[505][1:]}  # escono Locatelli (libero) e Lautaro (in rosa)
+        self.sync(squads=moved)
+        names = set(Player.objects.filter(league=league).values_list("name", flat=True))
+        self.assertNotIn("M. Locatelli", names)
+        lautaro = Player.objects.get(league=league, footballer__api_id=4)
+        self.assertEqual((lautaro.owner, lautaro.cost), (team, Decimal("50")))
+        self.assertIsNotNone(lautaro.left_serie_a_at)
+
+    def test_uploading_a_listone_makes_it_the_league_own(self):
+        self.sync()
+        league = League.objects.create(name="Generale")
+        sync_players([{"name": "Martinez L.", "role": "A", "team": "Inter", "price": "40"}], league=league,
+                     prune=True)
+        league.refresh_from_db()
+        self.assertTrue(league.own_listone)
+        self.assertEqual(list(Player.objects.filter(league=league).values_list("name", "initial_price")),
+                         [("Martinez L.", Decimal("40"))])
+        footballers.use_default_listone(league)
+        league.refresh_from_db()
+        self.assertFalse(league.own_listone)
+        self.assertEqual(Player.objects.filter(league=league).count(), 6)
 
 
 class LinkingTests(TestCase):
@@ -259,13 +342,47 @@ class FootballersPageTests(TestCase):
         self.assertContains(self.client.get(url + "?q=martinez l"), "Lautaro Martínez")  # nome del listone
         self.assertContains(self.client.get(url + "?usciti=1"), "A. Gone")
 
+    def test_only_a_superuser_edits_the_roles(self):
+        url = reverse("admin_footballer_edit", args=[self.barella.id])
+        self.client.force_login(self.owner)
+        self.client.post(url, {"role": "A"})
+        self.barella.refresh_from_db()
+        self.assertEqual(self.barella.role, "")
+        self.assertNotContains(self.client.get(reverse("app_footballers")), "Ruoli Mantra")
+
+        root = User.objects.create_superuser("root_fb", password="pw")
+        self.client.force_login(root)
+        self.assertContains(self.client.get(reverse("admin_footballers")), "Ruoli Mantra")
+        back = reverse("admin_footballers")
+        resp = self.client.post(url, {"role": "C", "mantra_roles": "M;C", "next": back})
+        self.assertRedirects(resp, back, fetch_redirect_response=False)
+        self.barella.refresh_from_db()
+        self.assertEqual((self.barella.role, self.barella.mantra_roles), ("C", "M;C"))
+
+    def test_league_admin_goes_back_to_the_general_list(self):
+        League.objects.filter(pk=self.league.pk).update(own_listone=True)
+        url = reverse("admin_league_default_listone", args=[self.league.id])
+        self.client.force_login(self.stranger)
+        self.client.post(url)
+        self.league.refresh_from_db()
+        self.assertTrue(self.league.own_listone)
+
+        self.client.force_login(self.owner)
+        self.assertContains(self.client.get(reverse("app_footballers")), "Usa la lista generale")
+        self.client.post(url, {"next": reverse("app_footballers")})
+        self.league.refresh_from_db()
+        self.assertFalse(self.league.own_listone)
+        # Lautaro resta in rosa, Barella entra nel listone dalla lista generale.
+        self.assertEqual(Player.objects.get(league=self.league, footballer=self.lautaro).owner, self.team)
+        self.assertTrue(Player.objects.filter(league=self.league, footballer=self.barella, owner=None).exists())
+
     def test_only_a_superuser_starts_the_sync(self):
         self.client.force_login(self.owner)
         with mock.patch.object(footballers, "start_sync") as start:
             self.client.post(reverse("admin_footballers_sync"))
         start.assert_not_called()
 
-        root = User.objects.create_superuser("root_fb", password="pw")
+        root = User.objects.create_superuser("root_sync", password="pw")
         self.client.force_login(root)
         back = reverse("app_footballers")
         with mock.patch.dict(os.environ, {"APIFOOTBALL_KEY": "test"}), \
