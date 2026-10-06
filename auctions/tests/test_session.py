@@ -262,15 +262,23 @@ class BackupTests(TestCase):
         self.assertEqual(len(started), 1)
         started[0].join(timeout=2)
 
+    def _own_clock(self):
+        # Same reason as above: a ticker left running by an earlier test can
+        # call in between and swallow these calls. A clock an hour past any
+        # real call keeps the test about its own calls.
+        return mock.Mock(wraps=time, monotonic=mock.Mock(return_value=time.monotonic() + 3600))
+
     def test_a_periodic_copy_does_not_swallow_an_event_one(self):
-        with mock.patch("auctions.backup.threading.Thread") as MockThread:
+        with mock.patch.object(self.backup, "time", self._own_clock()), \
+                mock.patch("auctions.backup.threading.Thread") as MockThread:
             self.backup.backup_database_async(reason=self.backup.PERIODIC, min_interval=60)
             self.backup.backup_database_async(reason="asta terminata", min_interval=60)
             self.backup.backup_database_async(reason=self.backup.PERIODIC, min_interval=60)
         self.assertEqual(MockThread.call_count, 2)
 
     def test_async_runs_again_once_the_interval_has_passed(self):
-        with mock.patch("auctions.backup.threading.Thread") as MockThread:
+        with mock.patch.object(self.backup, "time", self._own_clock()), \
+                mock.patch("auctions.backup.threading.Thread") as MockThread:
             self.backup.backup_database_async(min_interval=0)
             self.backup.backup_database_async(min_interval=0)
         self.assertEqual(MockThread.call_count, 2)
