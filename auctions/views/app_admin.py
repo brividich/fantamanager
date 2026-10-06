@@ -85,9 +85,10 @@ def league_admin_digest(league):
                      .values("participant_id").distinct().count())
         teams_n = Participant.objects.filter(league=league, is_active=True).count()
         when = f" · chiude il {opened.closes_at:%d/%m %H:%M}" if opened.closes_at else ""
+        is_buste = opened.session_type in (MarketSession.SessionType.SEALED_BIDS, MarketSession.SessionType.REPAIR)
         items.append(_todo(
-            "info", "mail", f"Buste aperte: {opened.title}",
-            f"{delivered}/{teams_n} squadre hanno consegnato{when}.",
+            "info", "mail", f"{'Buste aperte' if is_buste else 'Mercato aperto'}: {opened.title}",
+            f"{delivered}/{teams_n} squadre {'hanno consegnato' if is_buste else 'hanno già agito'}{when}.",
             reverse("app_regia_market_session", args=[opened.id]), "Segui"))
     draft = sessions.filter(status=MarketSession.Status.DRAFT).first()
     if draft is not None:
