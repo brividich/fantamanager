@@ -5,18 +5,21 @@ from django.db import models
 
 
 class Formation(models.Model):
-    """A manager's saved lineup: a module + chosen starters (by slot order).
+    """A manager's last saved lineup: a module + chosen starters (by slot order).
 
-    One per participant for now (no Giornata model yet). ``starter_ids`` is an
-    ordered list of Player ids laid out P → D… → C… → A… to match ``module``'s
-    role counts; empty slots are simply absent, so a partial roster still saves.
-    Bench = owned players not present in ``starter_ids``.
+    The template for the next giornata: each giornata keeps its own copy in
+    ``MatchdayFormation``, frozen when the giornata starts. ``starter_ids`` is
+    an ordered list of Player ids laid out P → D… → C… → A… to match
+    ``module``'s slots (None for an empty slot). ``bench_ids`` is the bench
+    order the manager chose (the substitution priority); owned players missing
+    from both lists go to the end of the bench.
     """
     participant = models.OneToOneField(
         "Participant", on_delete=models.CASCADE, related_name="formation"
     )
     module      = models.CharField(max_length=10, default="4-3-3")
     starter_ids = models.JSONField(default=list, blank=True)
+    bench_ids   = models.JSONField(default=list, blank=True)
     updated_at  = models.DateTimeField(auto_now=True)
 
     def __str__(self):

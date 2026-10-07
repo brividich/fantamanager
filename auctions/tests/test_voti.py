@@ -390,3 +390,64 @@ class ApiFootballLiveTests(TestCase):
         source = Path(voti_live.__file__).read_text(encoding="utf-8")
         self.assertNotIn("fantacalcio.it", source)
         self.assertNotIn("BeautifulSoup", source)
+
+
+class GiornatePageTests(TestCase):
+    """Giornate & Voti: lo stesso contenuto in console e app, le azioni tornano
+    alla pagina da cui partono, e le formazioni si bloccano anche a mano."""
+
+    def setUp(self):
+        import re as _re
+        from django.contrib.auth.models import User
+        from ..models import Participant
+        self._re = _re
+        self.owner = User.objects.create_user("owner_gv", password="pw")
+        self.league = League.objects.create(name="Lega Giornate", owner=self.owner)
+        self.team = Participant.objects.create(display_name="Owner FC", league=self.league, user=self.owner)
+        Participant.objects.create(display_name="Rivali", league=self.league)
+        self.client.force_login(self.owner)
+
+    def _part(self, resp):
+        html = resp.content.decode()
+        part = html[html.index("<!-- giornate-manage:start -->"):html.index("<!-- giornate-manage:end -->")]
+        part = part.replace("/app/giornate/", "/dashboard/giornate/")
+        return self._re.sub(r'name="(next|csrfmiddlewaretoken)" value="[^"]*"', "", part)
+
+    def test_same_screen_in_console_and_app(self):
+        from django.urls import reverse
+        q = f"?league={self.league.id}"
+        console = self.client.get(reverse("admin_giornate") + q)
+        app = self.client.get(reverse("app_giornate") + q)
+        self.assertEqual(console.status_code, 200)
+        self.assertEqual(app.status_code, 200)
+        self.assertTemplateUsed(console, "auctions/admin_giornate.html")
+        self.assertTemplateUsed(app, "auctions/app_giornate.html")
+        self.assertContains(console, "Blocca formazioni")
+        self.assertEqual(self._part(console), self._part(app))
+
+    def test_season_is_named_after_the_football_year(self):
+        import datetime
+        from ..views.admin_voti import _season_name
+        self.assertEqual(_season_name(datetime.date(2026, 10, 7)), "Stagione 2026/27")
+        self.assertEqual(_season_name(datetime.date(2027, 3, 1)), "Stagione 2026/27")
+        self.assertEqual(_season_name(datetime.date(2099, 7, 1)), "Stagione 2099/00")
+
+    def test_lock_freezes_lineups_and_returns_to_the_console(self):
+        from django.urls import reverse
+        from ..models import MatchdayFormation, Season
+        self.client.get(reverse("admin_giornate") + f"?league={self.league.id}")   # creates the season
+        season = Season.objects.get(league=self.league, is_current=True)
+        back = reverse("admin_giornate") + f"?league={self.league.id}&giornata=1"
+        resp = self.client.post(reverse("app_giornata_lock"), {
+            "league_id": self.league.id, "giornata_number": 1, "next": back})
+        self.assertRedirects(resp, back, fetch_redirect_response=False)
+        g1 = season.giornate.get(number=1)
+        self.assertEqual(g1.status, "LOCKED")
+        self.assertEqual(MatchdayFormation.objects.filter(giornata=g1).count(), 2)
+
+    def test_lock_refused_for_another_league(self):
+        from django.contrib.auth.models import User
+        from django.urls import reverse
+        other = League.objects.create(name="Altra", owner=User.objects.create_user("x_gv", password="pw"))
+        resp = self.client.post(reverse("admin_giornata_lock"), {"league_id": other.id, "giornata_number": 1})
+        self.assertEqual(resp.status_code, 403)
