@@ -134,7 +134,7 @@ button) and everything else opens as a full-screen menu: ``.fm-chrome`` is
     <span class="fm-nav-spacer"></span>
 
     {% if request.user.is_authenticated %}
-    <a class="fm-nav-link" href="{% url 'logout' %}" style="color:#ef4444" title="Disconnetti account">
+    <a class="fm-nav-link" data-nav-keep href="{% url 'logout' %}" style="color:#ef4444" title="Disconnetti account">
         Esci
     </a>
     {% endif %}
@@ -143,6 +143,7 @@ button) and everything else opens as a full-screen menu: ``.fm-chrome`` is
         <summary class="fm-nav-link"><svg class="ic"><use href="#i-dots"/></svg> Altro
             <svg class="ic" style="width:13px;height:13px"><use href="#i-chev-down"/></svg></summary>
         <div class="fm-nav-more-body">
+            <div class="fm-nav-spill" hidden></div>
             <a class="fm-nav-link" href="{% url 'admin_setup' %}"><svg class="ic"><use href="#i-trophy"/></svg> Nuova lega</a>
             <form method="post" action="{% url 'admin_resume_latest' %}" style="display:contents">
                 {% csrf_token %}
@@ -181,6 +182,38 @@ function fmToggleMenu(force) {
         chrome.querySelectorAll(".fm-nav-more").forEach(function (d) { d.open = open; });
     }
 }
+// One row, always: the section links that do not fit move, from the end,
+// into «Altro» (the page you are on never does) and come back when there
+// is room. The phone sheet (<= 760px) shows them all again.
+(function () {
+    var nav = document.querySelector(".fm-nav");
+    if (!nav) return;
+    var spill = nav.querySelector(".fm-nav-spill"), more = nav.querySelector(".fm-nav-more"),
+        spacer = nav.querySelector(".fm-nav-spacer"), phone = window.matchMedia("(max-width: 760px)");
+    if (!spill || !more || !spacer) return;
+    var links = Array.prototype.filter.call(nav.children, function (el) {
+        return el.matches("a.fm-nav-link") && !el.hasAttribute("data-nav-keep");
+    });
+    function overflows() {
+        var r = nav.getBoundingClientRect(), pad = parseFloat(getComputedStyle(nav).paddingRight) || 0;
+        return more.getBoundingClientRect().right > r.right - pad + 0.5;
+    }
+    function fit() {
+        links.forEach(function (a) { nav.insertBefore(a, spacer); });
+        spill.hidden = true;
+        if (phone.matches || !nav.offsetWidth) return;
+        for (var i = links.length - 1; i >= 0 && overflows(); i--) {
+            if (links[i].classList.contains("is-active")) continue;
+            spill.insertBefore(links[i], spill.firstChild);
+            spill.hidden = false;
+        }
+    }
+    window.fmNavFit = fit;
+    fit();
+    window.addEventListener("resize", fit, {passive: true});
+    window.addEventListener("load", fit);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+})();
 document.addEventListener("keydown", function (e) {
     if (e.key === "Escape" && document.documentElement.classList.contains("fm-menu-open")) fmToggleMenu(false);
 });

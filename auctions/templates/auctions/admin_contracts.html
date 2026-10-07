@@ -549,6 +549,7 @@
         font-size: 12.5px;
         flex-wrap: wrap;
     }
+    .ct-teams-actions { gap: 8px; }
     .ct-teams-bar .ct-teams-label {
         font-weight: 800;
         font-size: 15px;
@@ -1138,7 +1139,7 @@
         </div>
     </div>
     {% if current_league and current_league.contracts_enabled %}
-    <div class="ct-bar">
+    <div class="ct-bar fm-onerow">
         <span class="ct-season-pill">
             <svg class="ic" style="width:14px;height:14px"><use href="#i-calendar"/></svg>
             <span>Stagione <b>{{ current_league.season_number }}</b></span>
@@ -1149,6 +1150,14 @@
             <span>Rinnovi aperti</span>
         </span>
         {% endif %}
+        <form method="post" action="{% url 'admin_contracts_action' %}" onsubmit="return confirm('Iniziare una nuova stagione? Tutti i contratti scalano di un anno e si aprono i rinnovi per quelli scaduti.');">
+            {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}">
+            <input type="hidden" name="action" value="new_season">
+            <button type="submit" class="ct-btn go">
+                <svg class="ic" style="width:14px;height:14px"><use href="#i-plus"/></svg>
+                <span>Nuova stagione</span>
+            </button>
+        </form>
         <a class="ct-btn" target="_blank" rel="noopener"
            href="{% url 'admin_print_renewals' %}?league={{ current_league.id }}"
            title="Il foglio «Rinnovo contratti» con i contratti scaduti e gli esiti già decisi">
@@ -1159,14 +1168,6 @@
             <svg class="ic" style="width:14px;height:14px"><use href="#i-download"/></svg>
             <span>Excel</span>
         </a>
-        <form method="post" action="{% url 'admin_contracts_action' %}" onsubmit="return confirm('Iniziare una nuova stagione? Tutti i contratti scalano di un anno e si aprono i rinnovi per quelli scaduti.');">
-            {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}">
-            <input type="hidden" name="action" value="new_season">
-            <button type="submit" class="ct-btn go">
-                <svg class="ic" style="width:14px;height:14px"><use href="#i-plus"/></svg>
-                <span>Nuova stagione</span>
-            </button>
-        </form>
         {% if current_league.renewals_open %}
         <form method="post" action="{% url 'admin_contracts_action' %}">
             {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}">
@@ -1334,8 +1335,10 @@
         <svg class="ic" style="width:18px;height:18px;color:var(--accent)"><use href="#i-users"/></svg>
         <span>Squadre della Lega</span>
     </span>
-    <button type="button" class="ct-btn" data-teams="open">Espandi tutte</button>
-    <button type="button" class="ct-btn" data-teams="close">Comprimi tutte</button>
+    <div class="ct-teams-actions fm-onerow">
+        <button type="button" class="ct-btn" data-teams="open">Espandi tutte</button>
+        <button type="button" class="ct-btn" data-teams="close">Comprimi tutte</button>
+    </div>
 </div>
 
 <div class="ct-grid">
@@ -1346,7 +1349,7 @@
                 <span class="ct-team-chevron">▶</span>
                 <span>{{ t.team.display_name }}</span>
             </div>
-            <div class="ct-team-badges">
+            <div class="ct-team-badges fm-onerow">
                 <span class="ct-pill">{{ t.players|length }} giocator{{ t.players|length|pluralize:"e,i" }}</span>
                 {% if t.pending %}<span class="ct-pill info">{{ t.pending }} da tirare</span>{% endif %}
                 {% if t.expired %}<span class="ct-pill bad">{{ t.expired }} scadut{{ t.expired|pluralize:"o,i" }}</span>{% endif %}

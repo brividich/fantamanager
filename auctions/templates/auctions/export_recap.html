@@ -14,10 +14,10 @@
         background:var(--panel,#15171c); cursor:pointer;
     }
     .exp-actions a.primary { background:var(--accent); color:#ffffff; border-color:var(--accent); }
-    .exp-sheets { flex-basis:100%; align-items:center; margin-top:2px; }
+    .exp-sheets { flex-basis:100%; min-width:0; display:flex; flex-wrap:wrap; align-items:center; gap:10px 24px; margin-top:2px; }
+    .exp-sheets .exp-actions { align-items:center; }
     .exp-label { font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); }
     .exp-sheets .exp-label + a { margin-left:-2px; }
-    .exp-sheets .exp-label:not(:first-child) { margin-left:10px; }
     .team-sheet-link { font-size:12px; font-weight:700; margin-left:10px; color:var(--accent); text-decoration:none; }
 
     table.recap { width:100%; border-collapse:collapse; font-size:14px; }
@@ -46,20 +46,24 @@
         <h1 style="margin:0">Riepilogo rose</h1>
         <div class="muted">{% if league %}{{ league.name }}{% else %}Pool globale{% endif %}</div>
     </div>
-    <div class="exp-actions">
+    <div class="exp-actions fm-onerow">
         <a class="primary" href="{% url 'admin_export_xlsx' %}{% if league %}?league={{ league.id }}{% endif %}"><svg class="ic"><use href="#i-import"/></svg> Excel (.xlsx)</a>
         <a href="{% url 'admin_export_csv' %}{% if league %}?league={{ league.id }}{% endif %}"><svg class="ic"><use href="#i-import"/></svg> CSV</a>
         <a href="{% url 'admin_export_leghe' %}{% if league %}?league={{ league.id }}{% endif %}" title="CSV con Id ufficiale, da caricare in Rose → Importa rose"><svg class="ic"><use href="#i-import"/></svg> Per Leghe Fantacalcio</a>
         <button onclick="window.print()"><svg class="ic"><use href="#i-print"/></svg> Stampa / PDF</button>
     </div>
     {% if league %}
-    <div class="exp-actions exp-sheets">
-        <span class="exp-label">Schede squadra</span>
-        <a class="primary" href="{% url 'admin_export_team_sheets' %}?league={{ league.id }}" title="Una scheda per squadra, un foglio per scheda: si modifica e si reimporta da Giocatori → Importa schede squadra"><svg class="ic"><use href="#i-import"/></svg> Excel</a>
-        <a href="{% url 'admin_print_team_sheets' %}?league={{ league.id }}" target="_blank" rel="noopener"><svg class="ic"><use href="#i-print"/></svg> Stampa / PDF</a>
-        <span class="exp-label">Rinnovo contratti</span>
-        <a href="{% url 'admin_export_renewals' %}?league={{ league.id }}"><svg class="ic"><use href="#i-import"/></svg> Excel</a>
-        <a href="{% url 'admin_print_renewals' %}?league={{ league.id }}" target="_blank" rel="noopener"><svg class="ic"><use href="#i-print"/></svg> Stampa / PDF</a>
+    <div class="exp-sheets">
+        <div class="exp-actions fm-onerow">
+            <span class="exp-label">Schede squadra</span>
+            <a class="primary" href="{% url 'admin_export_team_sheets' %}?league={{ league.id }}" title="Una scheda per squadra, un foglio per scheda: si modifica e si reimporta da Giocatori → Importa schede squadra"><svg class="ic"><use href="#i-import"/></svg> Excel</a>
+            <a href="{% url 'admin_print_team_sheets' %}?league={{ league.id }}" target="_blank" rel="noopener"><svg class="ic"><use href="#i-print"/></svg> Stampa / PDF</a>
+        </div>
+        <div class="exp-actions fm-onerow">
+            <span class="exp-label">Rinnovo contratti</span>
+            <a href="{% url 'admin_export_renewals' %}?league={{ league.id }}"><svg class="ic"><use href="#i-import"/></svg> Excel</a>
+            <a href="{% url 'admin_print_renewals' %}?league={{ league.id }}" target="_blank" rel="noopener"><svg class="ic"><use href="#i-print"/></svg> Stampa / PDF</a>
+        </div>
     </div>
     {% endif %}
     <p class="exp-note" style="margin:10px 0 0;font-size:12px;color:#64748b;line-height:1.5">

@@ -36,6 +36,19 @@ stessi testi**.
   `CompetitionWizardParityTests` in `auctions/tests/test_competitions.py`,
   `FootballersPageTests` in `auctions/tests/test_footballers.py`.
 
+## Barre di pulsanti: sempre su una riga
+
+Nessuna barra di pulsanti, link o chip (azioni di pagina, sotto-navigazione,
+filtri a chip) va a capo su due righe, a nessuna larghezza.
+
+- Alla riga si mette la classe `fm-onerow` (`static/css/console.css`): resta
+  su una riga e, se non ci sta, scorre di lato con una sfumatura sul lato dove
+  c'è altro. Il titolo della pagina sta fuori dalla riga.
+- Se la riga è dentro un contenitore flex in colonna, quel contenitore vuole
+  `min-width: 0`, altrimenti si allarga quanto la riga ed esce dallo schermo.
+- La barra principale della console (`_console_head.html`) non scorre: le
+  voci che non ci stanno passano in «Altro» (mai la pagina attiva).
+
 ## Ogni lega è separata
 
 Mercati, sessioni, scambi e regole valgono solo per la lega in cui sono creati.

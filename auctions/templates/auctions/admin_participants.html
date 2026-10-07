@@ -9,6 +9,7 @@
     .pg-head h1 { margin:0; font-size:26px; letter-spacing:.02em; }
     .pg-head .sub { font-size:12.5px; color:var(--fm-text-secondary); }
     .pg-head .spacer { flex:1 1 auto; }
+    .pg-head-actions { gap:8px; }
 
     .team-name { font-weight:700; }
     .num { text-align:right; }
@@ -176,21 +177,23 @@
         <div class="sub">{{ rows|length }} squadre{% if current_league %} · {{ current_league.name }}{% endif %}</div>
     </div>
     <span class="spacer"></span>
-    <a class="fm-btn fm-btn-secondary" href="{% url 'admin_players' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
-        <svg class="ic"><use href="#i-import"/></svg> Importa rose</a>
-    <a class="fm-btn fm-btn-primary" href="{% url 'admin_dashboard' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
-        <svg class="ic"><use href="#i-plus"/></svg> Aggiungi squadra</a>
-    {% if current_league and rows %}
-    <form method="post" action="{% url 'admin_invite_teams' %}" style="margin:0"
-          {% if mail_ready and reachable %}onsubmit="return confirm('Inviare a {{ reachable }} squadr{{ reachable|pluralize:"a,e" }} il link personale e il codice?');"{% endif %}>
-        {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}">
-        <button type="submit" class="fm-btn fm-btn-secondary"{% if not mail_ready or not reachable %} disabled{% endif %}
-                title="{% if not mail_ready %}Posta non configurata{% if request.user.is_superuser %}: Altro → Posta{% endif %}{% elif not reachable %}Aggiungi l'email delle squadre qui sotto{% else %}Email con link personale e codice a {{ reachable }} squadre{% endif %}">
-            <svg class="ic"><use href="#i-mail"/></svg> Invia inviti{% if reachable %} ({{ reachable }}){% endif %}</button>
-    </form>
-    {% endif %}
-    <button type="button" class="fm-btn fm-btn-ghost noprint" onclick="window.print()">
-        <svg class="ic"><use href="#i-print"/></svg> Stampa</button>
+    <div class="pg-head-actions fm-onerow">
+        <a class="fm-btn fm-btn-secondary" href="{% url 'admin_players' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
+            <svg class="ic"><use href="#i-import"/></svg> Importa rose</a>
+        <a class="fm-btn fm-btn-primary" href="{% url 'admin_dashboard' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
+            <svg class="ic"><use href="#i-plus"/></svg> Aggiungi squadra</a>
+        {% if current_league and rows %}
+        <form method="post" action="{% url 'admin_invite_teams' %}" style="margin:0"
+              {% if mail_ready and reachable %}onsubmit="return confirm('Inviare a {{ reachable }} squadr{{ reachable|pluralize:"a,e" }} il link personale e il codice?');"{% endif %}>
+            {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}">
+            <button type="submit" class="fm-btn fm-btn-secondary"{% if not mail_ready or not reachable %} disabled{% endif %}
+                    title="{% if not mail_ready %}Posta non configurata{% if request.user.is_superuser %}: Altro → Posta{% endif %}{% elif not reachable %}Aggiungi l'email delle squadre qui sotto{% else %}Email con link personale e codice a {{ reachable }} squadre{% endif %}">
+                <svg class="ic"><use href="#i-mail"/></svg> Invia inviti{% if reachable %} ({{ reachable }}){% endif %}</button>
+        </form>
+        {% endif %}
+        <button type="button" class="fm-btn fm-btn-ghost noprint" onclick="window.print()">
+            <svg class="ic"><use href="#i-print"/></svg> Stampa</button>
+    </div>
 </div>
 
 {% if messages %}
