@@ -18,9 +18,17 @@ nome, così chi salva sa che c'erano anche quando sono spente.
 <div class="mr-grid">
     {% if s.session_type == "free_agency" %}
     <label class="mr-field">
-        <span class="mr-lbl">Acquisti a settimana per squadra</span>
+        <span class="mr-lbl">Acquisti massimi per squadra</span>
         <input type="number" name="fa_max_moves" min="0" value="{{ s.config.fa_max_moves|default:0 }}" class="mr-input">
         <span class="mr-hint">0 = illimitati.</span>
+    </label>
+    <label class="mr-field">
+        <span class="mr-lbl">Il limite si azzera</span>
+        <select name="fa_period" class="mr-input">
+            <option value="rolling"{% if s.fa_period == "rolling" %} selected{% endif %}>Ogni 7 giorni, a scorrimento</option>
+            <option value="week"{% if s.fa_period == "week" %} selected{% endif %}>Ogni lunedì (settimana di calendario)</option>
+            <option value="matchday"{% if s.fa_period == "matchday" %} selected{% endif %}>A ogni giornata (quando si bloccano le formazioni)</option>
+        </select>
     </label>
     <label class="mr-field">
         <span class="mr-lbl">Costo di acquisto</span>

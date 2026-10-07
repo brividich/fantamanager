@@ -190,6 +190,8 @@ def admin_config_action(request):
             else:
                 league.game_mode = new_mode
         league.slots_out = pint("slots_out", league.slots_out)
+        if "gk_max_clubs" in request.POST:
+            league.gk_max_clubs = pint("gk_max_clubs", league.gk_max_clubs)
         # The rule switches only move when the form actually carried them (an
         # unchecked box is simply absent from a POST).
         if request.POST.get("rules_present") == "1":

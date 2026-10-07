@@ -389,7 +389,7 @@
 
                 <div class="hc-chips fm-onerow">
                     {% if s.session_type == "free_agency" %}
-                        <span class="hc-chip">Cambi settimanali: {% if s.config.fa_max_moves %}{{ s.config.fa_max_moves }}{% else %}Illimitati{% endif %}</span>
+                        <span class="hc-chip">Cambi: {% if s.config.fa_max_moves %}{{ s.config.fa_max_moves }} {{ s.session.fa_per }}{% else %}Illimitati{% endif %}</span>
                         <span class="hc-chip">Prezzo: {% if s.config.fa_cost_type == "base" %}1 FM base{% else %}Quotazione listone{% endif %}</span>
                     {% elif s.session_type == "buyout_clause" %}
                         <span class="hc-chip">Clausola: {{ s.config.buyout_multiplier|default:1.5 }}x costo originale</span>
@@ -620,7 +620,7 @@
             {% if is_free_agency %}
             <div class="shc-stat">
                 <div class="v">{% if market_session.config.fa_max_moves %}{{ moves_this_week }}/{{ market_session.config.fa_max_moves }} <small style="font-size:10px">({{ moves_left }} rimasti)</small>{% else %}{{ moves_this_week }} <small style="font-size:10px">(Illimitati)</small>{% endif %}</div>
-                <div class="k">Cambi Settimanali</div>
+                <div class="k">Cambi {{ market_session.fa_per }}</div>
             </div>
             <div class="shc-stat">
                 <div class="v">{% if market_session.config.fa_cost_type == "base" %}1 FM <small style="font-size:10px">Fisso</small>{% else %}Quotazione <small style="font-size:10px">Listone</small>{% endif %}</div>
@@ -804,7 +804,7 @@
                     {% if market_open %}
                     {% if is_free_agency %}
                     <button type="button" class="fa-offer-btn"
-                            {% if moves_left == 0 %}disabled title="Hai raggiunto il limite di cambi per questa settimana"{% endif %}
+                            {% if moves_left == 0 %}disabled title="Hai raggiunto il limite di cambi {{ market_session.fa_within }}"{% endif %}
                             onclick="openFreeAgencyModal({{ pl.id }}, '{{ pl.name|escapejs }}', '{{ pl.role }}', '{{ pl.team|escapejs }}', {% if market_session.config.fa_cost_type == 'base' %}1{% else %}{{ pl.quota|floatformat:0 }}{% endif %})">
                         ⚡ Acquista ({% if market_session.config.fa_cost_type == 'base' %}1{% else %}{{ pl.quota|floatformat:0 }}{% endif %} FM)
                     </button>
@@ -1403,8 +1403,8 @@
                 </div>
                 {% if is_free_agency %}
                 <div style="background:var(--panel-2);padding:10px 12px;border-radius:10px;border:1px solid var(--line);">
-                    <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Limite Cambi Settimanali</span>
-                    <b style="font-size:13.5px">{% if market_session.config.fa_max_moves %}{{ market_session.config.fa_max_moves }} a settimana{% else %}Illimitati{% endif %}</b>
+                    <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Limite Cambi</span>
+                    <b style="font-size:13.5px">{% if market_session.config.fa_max_moves %}{{ market_session.config.fa_max_moves }} {{ market_session.fa_per }}{% else %}Illimitati{% endif %}</b>
                 </div>
                 <div style="background:var(--panel-2);padding:10px 12px;border-radius:10px;border:1px solid var(--line);">
                     <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Costo Tesseramento</span>

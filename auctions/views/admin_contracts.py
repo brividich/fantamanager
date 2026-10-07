@@ -126,11 +126,7 @@ def admin_contracts_action(request):
         if caps:
             rules["rescind_proceeds_cap"] = {**services.contract_rules(league)["rescind_proceeds_cap"], **caps}
         league.contract_rules = rules
-        try:
-            league.gk_max_clubs = max(0, int(request.POST.get("gk_max_clubs") or 0))
-        except ValueError:
-            pass
-        league.save(update_fields=["contracts_enabled", "contract_rules", "gk_max_clubs", "updated_at"])
+        league.save(update_fields=["contracts_enabled", "contract_rules", "updated_at"])
         messages.success(request, "Impostazioni contratti salvate.")
         return redirect(_url(league))
 

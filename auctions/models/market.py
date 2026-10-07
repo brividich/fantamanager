@@ -96,6 +96,28 @@ class MarketSession(models.Model):
             return False
         return True
 
+    # Free agency: ogni quanto si azzera il limite di acquisti (config "fa_period").
+    FA_PERIODS = {
+        "rolling":  ("ogni 7 giorni", "negli ultimi 7 giorni"),
+        "week":     ("a settimana", "in questa settimana"),
+        "matchday": ("a giornata", "in questa giornata"),
+    }
+
+    @property
+    def fa_period(self):
+        value = (self.config or {}).get("fa_period")
+        return value if value in self.FA_PERIODS else "rolling"
+
+    @property
+    def fa_per(self):
+        """«3 acquisti *a settimana*»."""
+        return self.FA_PERIODS[self.fa_period][0]
+
+    @property
+    def fa_within(self):
+        """«limite raggiunto *in questa giornata*»."""
+        return self.FA_PERIODS[self.fa_period][1]
+
     def max_for_role(self, role):
         field = f"max_acquisitions_{role.lower()}" if role else ""
         return getattr(self, field, 0)

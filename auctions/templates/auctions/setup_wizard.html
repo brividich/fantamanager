@@ -364,6 +364,11 @@ admin_setup_create has always read.
                     <span class="hint" id="slots-total" style="margin:0;align-self:center"></span>
                 </div>
             </div>
+            <div class="field" style="margin-top:12px">
+                <label for="s-gkclubs">Portieri: squadre di Serie A al massimo</label>
+                <input id="s-gkclubs" name="gk_max_clubs" value="{{ cfg.gk_max_clubs|default:0 }}" inputmode="numeric">
+                <div class="hint">0 = nessun limite. Con 2, chi ha già portieri di due squadre di Serie A può prendere solo portieri di quelle squadre (regolamento 2.02). Vale in asta e in ogni mercato.</div>
+            </div>
         </div>
 
         <div class="blk">

@@ -1243,18 +1243,13 @@
                 <div class="ct-card-desc">Anni assegnati da ogni faccia del dado (es. <code>1,1,2,2,3,3</code>)</div>
             </div>
 
-            <!-- GK Max Clubs Field Card -->
+            <!-- Il limite dei portieri è una regola della rosa: si imposta con la lega. -->
             <div class="ct-config-card">
                 <div class="ct-config-card-header">
-                    <label for="ct-gk-clubs" class="ct-card-label">
-                        <span class="ct-label-icon">🧤</span> Max Squadre Serie A Portieri
-                    </label>
+                    <span class="ct-card-label"><span class="ct-label-icon">🧤</span> Max Squadre Serie A Portieri</span>
                     <span class="ct-badge-info">Portieri</span>
                 </div>
-                <div class="ct-input-wrap">
-                    <input id="ct-gk-clubs" class="ct-in" type="number" min="0" name="gk_max_clubs" value="{{ current_league.gk_max_clubs }}" placeholder="0" style="width:100%">
-                </div>
-                <div class="ct-card-desc">Tetto squadre Serie A nel pacchetto portieri (0 = nessun blocco)</div>
+                <div class="ct-card-desc">{% if current_league.gk_max_clubs %}Al massimo {{ current_league.gk_max_clubs }} squadre{% else %}Nessun limite{% endif %}. Si imposta nelle <a href="{% url 'admin_config' %}?league={{ current_league.id }}">impostazioni della lega</a> (Rosa).</div>
             </div>
         </div>
 

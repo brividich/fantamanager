@@ -3,6 +3,7 @@ import json
 from datetime import timedelta
 
 from django.contrib.auth.models import User
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -575,6 +576,111 @@ class MarketModeRulesTests(TestCase):
         s["participant_id"] = self.a.id
         s.save()
         page = self.client.get(reverse("app_mercato") + f"?session_id={fa.id}")
-        self.assertContains(page, "Limite Cambi Settimanali")
+        self.assertContains(page, "Limite Cambi")
         self.assertNotContains(page, "Spareggio Pari Merito")
         self.assertNotContains(page, "Regola Budget")
+
+
+class LeagueRulesAcrossMarketsTests(TestCase):
+    """League rules that hold in every market: goalkeepers' clubs (2.02) and
+    no buying back a player lost at the renewal dice (4.02); and the free
+    agency limit, reset on the period the session chose."""
+
+    def setUp(self):
+        self.owner = User.objects.create_superuser("owner_rules", "o@x.local", "pw")
+        self.league = League.objects.create(name="Lega Regole", budget=Decimal("500"), owner=self.owner,
+                                            gk_max_clubs=2)
+        self.a = Participant.objects.create(league=self.league, display_name="Alfa", credits=Decimal("500"))
+        self.b = Participant.objects.create(league=self.league, display_name="Beta", credits=Decimal("500"))
+        for team in ("Inter", "Milan"):
+            Player.objects.create(league=self.league, owner=self.a, name=f"Portiere {team}", role="P",
+                                  team=team, cost=Decimal("5"))
+        self.gk_roma = Player.objects.create(league=self.league, name="Portiere Roma", role="P", team="Roma",
+                                             initial_price=Decimal("5"))
+        self.lost = Player.objects.create(league=self.league, name="Perso", role="C", team="Lecce",
+                                          initial_price=Decimal("5"), rescinded_from=self.a)
+
+    def _session(self, kind, **kw):
+        return MarketSession.objects.create(league=self.league, title=kind, session_type=kind,
+                                            status=MarketSession.Status.OPEN, **kw)
+
+    def test_goalkeeper_clubs_hold_in_waiver_and_clauses(self):
+        ww = self._session("waiver_wire")
+        self.assertEqual(place_waiver_claim(ww.id, self.a.id, self.gk_roma.id)["error"], "gk_clubs")
+        bo = self._session("buyout_clause", config={"buyout_min_hold_days": 0})
+        Player.objects.filter(pk=self.gk_roma.pk).update(owner=self.b, cost=Decimal("5"))
+        self.assertEqual(execute_buyout(bo.id, self.a.id, self.gk_roma.id)["error"], "gk_clubs")
+
+    def test_waiver_draft_counts_goalkeepers_picked_in_the_draft(self):
+        Player.objects.filter(owner=self.a, team="Milan").delete()  # Alfa: portieri di una sola squadra
+        other = Player.objects.create(league=self.league, name="Portiere Lazio", role="P", team="Lazio",
+                                      initial_price=Decimal("5"))
+        ww = self._session("waiver_wire")
+        place_waiver_claim(ww.id, self.a.id, self.gk_roma.id, priority=1)
+        place_waiver_claim(ww.id, self.a.id, other.id, priority=2)
+        summary = resolve_waiver_session(ww.id)
+        self.assertEqual([w["player_name"] for w in summary["won"]], ["Portiere Roma"])
+        self.assertIn("2 squadre", summary["lost"][0]["note"])
+
+    def test_lost_at_renewal_cannot_be_bought_back(self):
+        fa = self._session("free_agency")
+        self.assertEqual(acquire_free_agent(fa.id, self.a.id, self.lost.id)["error"], "rescinded_rebuy")
+        self.assertTrue(acquire_free_agent(fa.id, self.b.id, self.lost.id)["ok"])
+        ww = self._session("waiver_wire")
+        other = Player.objects.create(league=self.league, name="Perso 2", role="C", team="Lecce",
+                                      initial_price=Decimal("5"), rescinded_from=self.a)
+        self.assertEqual(place_waiver_claim(ww.id, self.a.id, other.id)["error"], "rescinded_rebuy")
+        # A claim filed before the rule (or by hand) still loses at the draft.
+        MarketBid.objects.create(session=ww, participant=self.a, player=other, amount=Decimal("5"))
+        summary = resolve_waiver_session(ww.id)
+        self.assertEqual(summary["won"], [])
+
+    def test_goalkeeper_limit_is_a_league_setting(self):
+        self.client.force_login(self.owner)
+        self.client.post(reverse("admin_config_action"), {
+            "action": "update_league", "league_id": self.league.id, "gk_max_clubs": "3"})
+        self.league.refresh_from_db()
+        self.assertEqual(self.league.gk_max_clubs, 3)
+        self.client.post(reverse("admin_setup_create"), {
+            "name": "Lega Nuova", "create_auction": "0", "import_choice": "none", "gk_max_clubs": "2",
+            "listone_file": SimpleUploadedFile("Q.csv", b"Nome,R,Squadra,Qt.A\nVlahovic,A,Juventus,30\n"),
+        })
+        self.assertEqual(League.objects.get(name="Lega Nuova").gk_max_clubs, 2)
+        page = self.client.get(reverse("admin_setup"))
+        self.assertContains(page, 'name="gk_max_clubs"')
+
+    def _buy_then_age(self, fa, player, days):
+        self.assertTrue(acquire_free_agent(fa.id, self.b.id, player.id)["ok"])
+        RosterLog.objects.filter(player_name=player.name).update(created_at=timezone.now() - timedelta(days=days))
+
+    def test_free_agency_limit_resets_on_the_chosen_period(self):
+        from ..models import Giornata, Season
+        from ..services.market import fa_period_start
+        free = [Player.objects.create(league=self.league, name=f"Libero {i}", role="A", team="Pisa",
+                                      initial_price=Decimal("1")) for i in range(3)]
+        fa = self._session("free_agency", config={"fa_max_moves": 1, "fa_period": "matchday"})
+        MarketSession.objects.filter(pk=fa.pk).update(created_at=timezone.now() - timedelta(days=30))
+        fa.refresh_from_db()
+        self._buy_then_age(fa, free[0], days=3)
+        # No matchday started yet: everything since the window opened counts.
+        self.assertEqual(acquire_free_agent(fa.id, self.b.id, free[1].id)["error"], "move_limit_reached")
+        season = Season.objects.create(league=self.league)
+        Giornata.objects.create(season=season, number=1, locked_at=timezone.now() - timedelta(days=1))
+        self.assertTrue(acquire_free_agent(fa.id, self.b.id, free[1].id)["ok"])
+        res = acquire_free_agent(fa.id, self.b.id, free[2].id)
+        self.assertIn("in questa giornata", res["message"])
+        fa.config["fa_period"] = "week"
+        start = fa_period_start(fa)
+        self.assertEqual((timezone.localtime(start).weekday(), timezone.localtime(start).hour), (0, 0))
+
+    def test_period_is_saved_from_the_wizard(self):
+        self.client.force_login(self.owner)
+        self.client.post(reverse("admin_market_create"), {
+            "league_id": self.league.id, "market_kind": "free_agency", "title": "FA", "fa_period": "week"})
+        self.client.post(reverse("admin_market_create"), {
+            "league_id": self.league.id, "market_kind": "free_agency", "title": "FA2", "fa_period": "boh"})
+        self.assertEqual(MarketSession.objects.get(title="FA").fa_period, "week")
+        self.assertEqual(MarketSession.objects.get(title="FA2").fa_period, "rolling")
+        page = self.client.get(reverse("admin_market_session", args=[MarketSession.objects.get(title="FA").id]))
+        self.assertContains(page, 'name="fa_period"')
+        self.assertContains(page, "a settimana")

@@ -26,7 +26,7 @@ from ..models import (
 )
 from .. import scoring, services, throttle
 from ..services import mail
-from ..services.market import buyout_price, session_moves, waiver_order
+from ..services.market import buyout_price, fa_period_start, session_moves, waiver_order
 from .auth import authenticate_identifier
 from .common import (
     SESSION_LEAGUE_KEY,
@@ -527,9 +527,8 @@ def app_mercato(request):
     is_buste = bool(market_session and session_type_val in (MarketSession.SessionType.SEALED_BIDS, MarketSession.SessionType.REPAIR))
 
     if market_session and is_free_agency:
-        week_ago = timezone.now() - timezone.timedelta(days=7)
         moves_this_week = session_moves(market_session).filter(
-            participant=participant, created_at__gte=week_ago).count()
+            participant=participant, created_at__gte=fa_period_start(market_session)).count()
         max_m = int((market_session.config or {}).get("fa_max_moves") or 0)
         if max_m > 0:
             moves_left = max(0, max_m - moves_this_week)
