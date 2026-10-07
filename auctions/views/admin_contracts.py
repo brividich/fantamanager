@@ -1,6 +1,6 @@
 """Admin page for player contracts (regolamento 4): settings, dice, renewals, new season."""
 from django.contrib import messages
-from django.http import HttpResponseForbidden
+from django.http import HttpResponseForbidden, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils.text import capfirst
@@ -222,7 +222,9 @@ def admin_contracts_action(request):
     elif action == "roll":
         manual = request.POST.get("manual_face") or None
         res = services.roll_contract(player_id, by_admin=True, manual_face=manual)
-        ok = (f"🎲 {res.get('player_name')}: dado {res.get('face')} → {res.get('years')} anni"
+        ok = (f"🧤 {res.get('player_name')}: blocco portieri, stesso contratto di {res.get('block')} "
+              f"({res.get('years')} anni)" if res.get("block") else
+              f"🎲 {res.get('player_name')}: dado {res.get('face')} → {res.get('years')} anni"
               + (" (inserito a mano)" if manual else ""))
     elif action == "renew":
         outcome = request.POST.get("manual_outcome") or ""
@@ -240,4 +242,8 @@ def admin_contracts_action(request):
         messages.success(request, ok)
     else:
         messages.error(request, res.get("message") or "Operazione non riuscita.")
+    if action in ("roll", "renew") and request.headers.get("x-requested-with") == "XMLHttpRequest":
+        # Il dado animato della pagina: l'esito arriva qui, il messaggio resta
+        # anche dopo il ricaricamento.
+        return JsonResponse({**res, "feedback_message": ok if res.get("ok") else res.get("message")})
     return redirect(_url(league))

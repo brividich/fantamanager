@@ -117,7 +117,7 @@ def roll_contract(player_id, *, participant_id=None, by_admin=False, manual_face
         _log(league, player, ContractEvent.Kind.SET, participant=player.owner, years=ref.contract_years,
              by_admin=by_admin, note=f"Blocco portieri {player.team}: contratto di {ref.name}")
         return {"ok": True, "face": None, "years": ref.contract_years, "floor": ref.contract_years,
-                "player_name": player.name, "block": ref.name}
+                "player_name": player.name, "block": ref.name, "faces": list(faces)}
     if manual_face is not None:
         if not by_admin:
             return _err("Solo l'admin può inserire il risultato di un dado vero.")
@@ -137,7 +137,8 @@ def roll_contract(player_id, *, participant_id=None, by_admin=False, manual_face
     note = f"minimo {floor} anni per la clausola ({player.cost:.0f} FM)" if floor > face else ""
     _log(league, player, ContractEvent.Kind.CONTRACT, participant=player.owner, roll=face, years=years,
          manual=manual_face is not None, by_admin=by_admin, note=note)
-    return {"ok": True, "face": face, "years": years, "floor": floor, "player_name": player.name}
+    return {"ok": True, "face": face, "years": years, "floor": floor, "player_name": player.name,
+            "faces": list(faces)}
 
 
 @transaction.atomic
@@ -314,7 +315,7 @@ def roll_renewal(player_id, *, participant_id=None, by_admin=False, manual_green
         _release(player, "Rescissione (dado rinnovo rosso)")
         player.rescinded_from = owner
         player.save(update_fields=["owner", "cost", "contract_years", "renewal_declared", "rescinded_from"])
-        return {"ok": True, "green": False, "player_name": name}
+        return {"ok": True, "green": False, "player_name": name, "faces": list(contract_faces(league))}
 
     if manual_face is not None:
         if not by_admin:
@@ -332,7 +333,8 @@ def roll_renewal(player_id, *, participant_id=None, by_admin=False, manual_green
     player.save(update_fields=["contract_years", "renewal_declared", "renewed_at"])
     _log(league, player, ContractEvent.Kind.RENEWED, participant=owner, roll=face, years=face,
          manual=manual or manual_face is not None, by_admin=by_admin)
-    return {"ok": True, "green": True, "face": face, "years": face, "player_name": player.name}
+    return {"ok": True, "green": True, "face": face, "years": face, "player_name": player.name,
+            "faces": list(contract_faces(league))}
 
 
 @transaction.atomic

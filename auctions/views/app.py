@@ -1018,6 +1018,8 @@ def app_contract_roll(request, player_id):
         return _redirect_login(request, ctx)
     res = services.roll_contract(player_id, participant_id=participant.id)
     return _contract_feedback(request, res, lambda r: (
+        f"🧤 {r['player_name']}: blocco portieri, stesso contratto di {r['block']} "
+        f"({r['years']} ann{'o' if r['years'] == 1 else 'i'})" if r.get("block") else
         f"🎲 Dado contratti per {r['player_name']}: {r['face']} "
         + (f"→ {r['years']} anni (minimo {r['floor']} per la clausola)" if r["years"] != r["face"] else
            f"ann{'o' if r['years'] == 1 else 'i'} di contratto")))
