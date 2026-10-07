@@ -427,3 +427,103 @@ def squad(team_id, *, get=requests.get):
                 "photo": p.get("photo") or "",
             })
     return players
+
+
+# --- Voti live: le partite di una giornata di Serie A ---------------------------
+# Una giornata costa 1 richiesta per il calendario più 2 per ogni partita già
+# iniziata (statistiche dei giocatori ed eventi, per le autoreti): fino a 21
+# richieste a ogni giro. Il piano gratuito non copre la stagione in corso né
+# regge un aggiornamento al minuto: per i voti live serve un piano a pagamento.
+# Il "voto" è il rating di API-Football (scala 0-10, continuo), non il voto di
+# un quotidiano: durante la diretta viene arrotondato al mezzo punto.
+
+# Partite non ancora giocate o annullate: niente statistiche da chiedere.
+NOT_PLAYED = {"TBD", "NS", "PST", "CANC", "ABD", "AWD", "WO"}
+# Reparto delle statistiche di partita → ruolo del listone.
+GAME_POSITIONS = {"G": "P", "D": "D", "M": "C", "F": "A"}
+
+
+def _num(value):
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def matchday_fixtures(round_number, *, season=None, get=requests.get):
+    """[(fixture_id, status)] delle partite della giornata ``round_number``."""
+    season = season or _season()
+    fixtures = _get("/fixtures", {"league": SERIE_A, "season": season,
+                                  "round": f"Regular Season - {int(round_number)}"}, get=get)
+    out = []
+    for f in fixtures:
+        fx = f.get("fixture") or {}
+        if fx.get("id"):
+            out.append((fx["id"], ((fx.get("status") or {}).get("short") or "").upper()))
+    return out
+
+
+def _own_goals(fixture_id, get):
+    """{api_id del giocatore: autoreti} dagli eventi della partita."""
+    counts = {}
+    for ev in _get("/fixtures/events", {"fixture": fixture_id}, get=get):
+        if (ev.get("type") or "").lower() == "goal" and "own" in (ev.get("detail") or "").lower():
+            pid = (ev.get("player") or {}).get("id")
+            if pid:
+                counts[pid] = counts.get(pid, 0) + 1
+    return counts
+
+
+def fixture_player_rows(fixture_id, *, get=requests.get):
+    """Le righe voto/bonus/malus di una partita, nel formato di ``voti_live``."""
+    own = _own_goals(fixture_id, get)
+    rows = []
+    for team_block in _get("/fixtures/players", {"fixture": fixture_id}, get=get):
+        team = ((team_block.get("team") or {}).get("name") or "").strip()
+        for entry in team_block.get("players") or []:
+            player = entry.get("player") or {}
+            stats = (entry.get("statistics") or [{}])[0] or {}
+            games = stats.get("games") or {}
+            goals = stats.get("goals") or {}
+            cards = stats.get("cards") or {}
+            pen = stats.get("penalty") or {}
+            minutes = _num(games.get("minutes"))
+            rating = games.get("rating")
+            # Senza minuti giocati è un senza voto, anche se l'API manda un rating.
+            vote = rating if (minutes > 0 and rating not in (None, "", "-")) else None
+            rows.append({
+                "api_id": player.get("id"),
+                "name": (player.get("name") or "").strip(),
+                "team": team,
+                "role": GAME_POSITIONS.get((games.get("position") or "").upper(), ""),
+                "vote": vote,
+                "goals": _num(goals.get("total")),
+                "goals_conceded": _num(goals.get("conceded")),
+                "own_goals": own.get(player.get("id"), 0),
+                "pen_scored": _num(pen.get("scored")),
+                "pen_missed": _num(pen.get("missed")),
+                "pen_saved": _num(pen.get("saved")),
+                "assists": _num(goals.get("assists")),
+                "yellow": _num(cards.get("yellow")) > 0,
+                "red": _num(cards.get("red")) > 0,
+            })
+    return rows
+
+
+def matchday_live_rows(round_number, *, season=None, get=requests.get):
+    """Tutte le righe delle partite già iniziate della giornata ``round_number``.
+
+    Solleva :class:`ApiFootballError` se la chiave manca, è rifiutata o il
+    limite è finito: chi chiama lo mostra all'admin invece di tacere.
+    """
+    try:
+        rows = []
+        for fixture_id, status in matchday_fixtures(round_number, season=season, get=get):
+            if status in NOT_PLAYED:
+                continue
+            rows.extend(paced(fixture_player_rows, fixture_id, get=get))
+        return rows
+    except _SeasonRefused as exc:
+        raise ApiFootballError(
+            "il piano API-Football non copre la stagione in corso: per i voti live serve un piano a pagamento"
+        ) from exc

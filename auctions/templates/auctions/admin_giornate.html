@@ -98,7 +98,7 @@
         <form method="post" action="{% url 'app_live_voti_sync' %}" style="display:inline">
             {% csrf_token %}
             <input type="hidden" name="giornata_number" value="{{ current_giornata.number }}">
-            <input type="hidden" name="provider" value="fantacalcio_web">
+            <input type="hidden" name="provider" value="apifootball">
             <button type="submit" class="fm-btn fm-btn-secondary fm-btn-sm" style="color:#60a5fa;border-color:rgba(59,130,246,0.3)" title="Aggiorna voti e bonus/malus in tempo reale">
                 ⚡ Sincronizza Live
             </button>
@@ -203,7 +203,7 @@
 <div id="upload-section" class="upload-card" style="margin-top:20px;">
     <h3 style="margin:0 0 4px;font-size:18px;">Caricamento Voti Ufficiali Giornata {{ current_giornata.number }}</h3>
     <div class="muted" style="font-size:13px;">
-        Supporta i file ufficiali di Fantacalcio.it in formato <b>.xlsx</b> (Voti_Fantacalcio_Stagione_*.xlsx) e file <b>.csv</b>.
+        Supporta i file dei voti in formato <b>.xlsx</b> (per esempio l'export «Voti» del tuo sito di fantacalcio) e file <b>.csv</b>.
         Il sistema mappa automaticamente voti, gol segnati/subiti, assist, rigori, ammonizioni ed espulsioni.
     </div>
 
