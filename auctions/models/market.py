@@ -23,9 +23,9 @@ class MarketSession(models.Model):
         REPAIR        = "repair",        "Mercato di Riparazione (Buste)"
         RENEWALS      = "renewals",      "Mercato Rinnovi Contratti"
         SEALED_BIDS   = "sealed_bids",   "Mercato a Buste Segrete"
-        FREE_AGENCY   = "free_agency",   "Mercato Libero Continuo (Svincolati Immediati)"
-        WAIVER_WIRE   = "waiver_wire",   "Draft di Riparazione (Waiver a Turni)"
-        BUYOUT_CLAUSE = "buyout_clause", "Mercato con Clausole Rescisorie"
+        FREE_AGENCY   = "free_agency",   "Mercato Libero Continuo (Free Agency)"
+        WAIVER_WIRE   = "waiver_wire",   "Draft di Riparazione (Waiver Wire a Turni)"
+        BUYOUT_CLAUSE = "buyout_clause", "Mercato con Clausole Rescissorie"
         LIVE_AUCTION  = "live_auction",  "Asta Live di Riparazione"
 
     league = models.ForeignKey(
@@ -61,8 +61,8 @@ class MarketSession(models.Model):
     # esistenti non cambiano comportamento; il form di creazione propone
     # invece le regole del regolamento di lega.
     class BudgetRule(models.TextChoices):
-        PRIORITY = "priority", "Ogni offerta entro il budget, poi conta la priorità"
-        TOTAL    = "total",    "Totale offerte entro il budget (si annullano dalla più alta)"
+        PRIORITY = "priority", "Ordine di preferenza: ogni offerta entro il budget, allo spoglio conta la priorità"
+        TOTAL    = "total",    "Totale cumulativo: la somma delle offerte entro il budget, quelle più alte in eccesso si annullano"
 
     class TieBreak(models.TextChoices):
         MANUAL = "manual", "Decide l'admin (scelta o sorteggio)"

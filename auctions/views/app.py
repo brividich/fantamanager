@@ -27,6 +27,7 @@ from ..models import (
 from .. import scoring, services, throttle
 from ..services import mail
 from ..services.market import buyout_price, fa_period_start, session_moves, waiver_order
+from .admin_market import rule_choices, session_labels
 from .auth import authenticate_identifier
 from .common import (
     SESSION_LEAGUE_KEY,
@@ -472,6 +473,7 @@ def app_mercato(request):
             "title": s.title,
             "status": s.status,
             "status_display": s.get_status_display(),
+            "mk_labels": session_labels(s),
             "is_open": s.is_open,
             "closes_at": s.closes_at,
             "opens_at": s.opens_at,
@@ -664,6 +666,9 @@ def app_mercato(request):
         "contract_rules_info": contract_rules_info,
         "contract_faces_list": contract_faces_list,
         "buste_results": buste_results,
+        "mk_labels": session_labels(market_session) if market_session else None,
+        # Choices of the «Nuovo Mercato» wizard (_market_wizard.html).
+        **rule_choices(),
         "trades_enabled": bool(league and league.trades_enabled),
         "incoming_trades": Trade.objects.filter(receiver=participant, status=Trade.Status.PENDING).count(),
         "role": role,

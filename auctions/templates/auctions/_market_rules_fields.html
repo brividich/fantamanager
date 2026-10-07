@@ -48,6 +48,7 @@ nome, così chi salva sa che c'erano anche quando sono spente.
     <label class="mr-field">
         <span class="mr-lbl">Durata della finestra reclami (ore)</span>
         <input type="number" name="waiver_claim_hours" min="1" value="{{ s.config.waiver_claim_hours|default:24 }}" class="mr-input">
+        <span class="mr-hint">Conta solo alla creazione: la chiusura della sessione si sposta nel campo «Chiusura».</span>
     </label>
     {% else %}
     <label class="mr-field">
@@ -74,7 +75,7 @@ nome, così chi salva sa che c'erano anche quando sono spente.
     <label><input type="checkbox" name="require_same_role_release" value="1"{% if s.require_same_role_release %} checked{% endif %}>
         Ogni acquisto sostituisce un giocatore di pari ruolo (taglio obbligatorio)</label>
     <label><input type="checkbox" name="allow_conditional_release" value="1"{% if s.allow_conditional_release %} checked{% endif %}>
-        Consenti tagli facoltativi insieme all'acquisto</label>
+        Consenti tagli condizionati facoltativi (anche se non obbligatori)</label>
 </div>
 {% else %}
 <div class="mr-grid">
@@ -84,7 +85,7 @@ nome, così chi salva sa che c'erano anche quando sono spente.
         <span class="mr-hint">0 = nessun limite. Più offerte sullo stesso giocatore contano tutte.</span>
     </label>
     <label class="mr-field">
-        <span class="mr-lbl">Budget</span>
+        <span class="mr-lbl">Regola del budget</span>
         <select name="budget_rule" class="mr-input">
             {% for value, label in budget_rules %}<option value="{{ value }}"{% if s.budget_rule == value %} selected{% endif %}>{{ label }}</option>{% endfor %}
         </select>
@@ -108,7 +109,7 @@ nome, così chi salva sa che c'erano anche quando sono spente.
     <label><input type="checkbox" name="require_same_role_release" value="1"{% if s.require_same_role_release %} checked{% endif %}>
         Ogni acquisto sostituisce un giocatore di pari ruolo (taglio obbligatorio)</label>
     <label><input type="checkbox" name="allow_conditional_release" value="1"{% if s.allow_conditional_release %} checked{% endif %}>
-        Consenti il taglio condizionato (anche se non obbligatorio)</label>
+        Consenti tagli condizionati facoltativi (anche se non obbligatori)</label>
 </div>
 <div class="mr-field">
     <span class="mr-lbl">Acquisti massimi per ruolo (0 = illimitati)</span>

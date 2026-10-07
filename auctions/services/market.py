@@ -1,7 +1,7 @@
 """Sealed-bid market session (mercato di riparazione) business logic."""
 from collections import defaultdict
 from datetime import timedelta
-from decimal import ROUND_CEILING, Decimal, InvalidOperation
+from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal, InvalidOperation
 import logging
 
 from django.db import transaction
@@ -32,11 +32,41 @@ def _calc_release_refund(session, player):
     mode = session.release_refund_mode
     if mode == Auction.RefundMode.NONE:
         return Decimal("0")
+    cost = player.cost if player.cost is not None else Decimal("1")
+    current = player.price_for(session.league)
     if mode == Auction.RefundMode.CURRENT:
-        p = player.price_for(session.league)
-        return p if p is not None else Decimal("1")
+        return current if current is not None else Decimal("1")
+    # Riparazione «Lugnano», come lo svincolo (services/lifecycle.py): chi è
+    # finito all'estero o svincolato rende il costo (settembre) o il più alto
+    # tra metà costo e quotazione (gennaio); gli altri la quotazione.
+    if mode in (Auction.RefundMode.LUGNANO_SEPT, Auction.RefundMode.LUGNANO_JAN):
+        gone = player.team in ("Svincolato", "Estero", "")
+        if mode == Auction.RefundMode.LUGNANO_SEPT and (gone or not current):
+            return cost
+        if mode == Auction.RefundMode.LUGNANO_JAN and gone:
+            half = (cost / Decimal("2")).quantize(Decimal("1"), rounding=ROUND_FLOOR)
+            return max(half, current or Decimal("0"))
+        return current or Decimal("0")
     # Default: PURCHASE (cost paid)
-    return player.cost if player.cost is not None else Decimal("1")
+    return cost
+
+
+def _cut_problem(player):
+    """Perché ``player`` non si può tagliare in un mercato, o ''. Valgono le
+    regole dello svincolo (prestito, comprato o rinnovato in questa sessione)
+    e chi è nella lista ceduti esce solo da lì (5.09), con il suo indennizzo."""
+    if player.abroad_list:
+        return f"{player.name} è nella lista ceduti: si toglie da lì, non con un taglio di mercato."
+    from .contracts import release_problem
+    return release_problem(player)
+
+
+def _floored_refund(participant_id, amount, refund):
+    """Il rimborso del taglio non porta mai la spesa sotto zero (creerebbe
+    crediti dal nulla), come nello svincolo."""
+    spent = Participant.objects.filter(pk=participant_id).values_list("spent_credits", flat=True).first()
+    spent = spent if spent is not None else Decimal("0")
+    return min(refund, spent + amount)
 
 
 def session_moves(session):
@@ -169,6 +199,9 @@ def place_market_bid(
 
         if release_player.owner_id != participant.id:
             return {"ok": False, "error": "release_player_not_owned", "message": "Il calciatore da svincolare non appartiene alla tua rosa."}
+        problem = _cut_problem(release_player)
+        if problem:
+            return {"ok": False, "error": "release_locked", "message": problem}
 
         if session.require_same_role_release and release_player.role != player.role:
             return {
@@ -345,6 +378,14 @@ class _Plan:
             owner_id__in=list(self.participants), abroad_list=False
         ).values_list("owner_id", "role"):
             self.owned[owner_id][role] += 1
+        # Portieri (2.02): i club dei portieri di ogni squadra, aggiornati a
+        # ogni aggiudicazione (la busta si controlla sulla rosa di quel momento).
+        self.gk_limit = self.league.gk_max_clubs
+        self.gk_clubs = defaultdict(lambda: defaultdict(int))
+        for owner_id, team in Player.objects.filter(
+            owner_id__in=list(self.participants), role="P", abroad_list=False,
+        ).exclude(team="").values_list("owner_id", "team"):
+            self.gk_clubs[owner_id][team] += 1
         self.role_acquisitions = defaultdict(lambda: defaultdict(int))
         for pid, role in session.bids.filter(status=MarketBid.Status.WON).values_list(
             "participant_id", "player__role"
@@ -385,7 +426,8 @@ class _Plan:
         refund = Decimal("0")
         release_note = ""
         if bid.release_player_id:
-            if self.owner.get(bid.release_player_id) == participant.id:
+            if (self.owner.get(bid.release_player_id) == participant.id
+                    and not _cut_problem(self.players[bid.release_player_id])):
                 release = self.players[bid.release_player_id]
                 refund = _calc_release_refund(self.session, release)
             else:
@@ -397,6 +439,13 @@ class _Plan:
                 None,
                 Decimal("0"),
             )
+
+        player = bid.player
+        if self.gk_limit and role == "P" and player.team:
+            clubs = {t for t, n in self.gk_clubs[participant.id].items()
+                     if n - (1 if release is not None and release.role == "P" and release.team == t else 0) > 0}
+            if player.team not in clubs and len(clubs) >= self.gk_limit:
+                return False, f"Portieri già di {len(clubs)} squadre di Serie A", None, Decimal("0")
 
         available = self.remaining[participant.id] + refund
         if available < bid.amount:
@@ -427,9 +476,13 @@ class _Plan:
         player = bid.player
         self.owner[player.id] = pid
         self.owned[pid][player.role] += 1
+        if player.role == "P" and player.team:
+            self.gk_clubs[pid][player.team] += 1
         if release is not None:
             self.owner[release.id] = None
             self.owned[pid][release.role] -= 1
+            if release.role == "P" and release.team:
+                self.gk_clubs[pid][release.team] -= 1
         self.remaining[pid] -= bid.amount - refund
         if self.cap_room.get(pid) is not None:
             self.cap_room[pid] -= bid.amount
@@ -663,6 +716,7 @@ def _apply_award(session, participant, player, amount, release, refund):
     from .contracts import on_player_acquired
     on_player_acquired(player)
 
+    refund = _floored_refund(participant.id, amount, refund)
     if release is not None:
         release.owner = None
         release.cost = Decimal("0")
@@ -695,6 +749,7 @@ def _apply_award(session, participant, player, amount, release, refund):
         f"Market bid won: player='{player.name}' ({player.role}), winner='{participant.display_name}', "
         f"amount={amount:.0f} FM, release={release.name if release else None}"
     )
+    return refund
 
 
 @transaction.atomic
@@ -824,6 +879,12 @@ def resolve_market_session(session_id):
         session.save(update_fields=["status", "results_summary", "updated_at"])
         return summary
 
+    # Blocca i calciatori in gioco: un acquisto in free agency o un'assegnazione
+    # dell'admin nello stesso momento aspetta lo spoglio invece di essere sovrascritto.
+    bid_rows = session.bids.filter(status=MarketBid.Status.PENDING)
+    list(Player.objects.select_for_update().filter(pk__in=bid_rows.values("player_id")).values_list("pk", flat=True))
+    list(Player.objects.select_for_update().filter(pk__in=bid_rows.exclude(release_player=None)
+         .values("release_player_id")).values_list("pk", flat=True))
     plan = _Plan(session).run()
     logger.info(
         f"Resolving market session {session_id} ('{session.title}'). "
@@ -840,7 +901,8 @@ def resolve_market_session(session_id):
     for w in plan.won:
         bid = bids_by_id[w["bid_id"]]
         release, refund = plan.awards[bid.id]
-        _apply_award(session, plan.participants[w["winner_id"]], bid.player, bid.amount, release, refund)
+        refund = _apply_award(session, plan.participants[w["winner_id"]], bid.player, bid.amount, release, refund)
+        w["refund"], w["refund_exact"] = int(refund), str(refund)
 
     summary = _summary(plan)
     session.results_summary = summary
@@ -936,7 +998,7 @@ def settle_market_tie(session_id, player_id, winner_id=None, rng=None, rebids=No
 
     win_bid, release, refund = chosen
     participant = plan.participants[win_bid.participant_id]
-    _apply_award(session, participant, win_bid.player, win_bid.amount, release, refund)
+    refund = _apply_award(session, participant, win_bid.player, win_bid.amount, release, refund)
 
     how = {"draw": "sorteggio", "rebid": "secondo sfoglio"}.get(method, "scelta admin")
     for b in bids:
@@ -1087,14 +1149,37 @@ def sync_market_schedule(league=None):
     qs = MarketSession.objects.all()
     if league is not None:
         qs = qs.filter(league=league)
-    opened = qs.filter(
+    to_open = qs.filter(
         status=MarketSession.Status.DRAFT, opens_at__isnull=False, opens_at__lte=now
-    ).exclude(closes_at__lte=now).update(status=MarketSession.Status.OPEN, updated_at=now)
-    closed = qs.filter(
+    ).exclude(closes_at__lte=now)
+    to_close = qs.filter(
         status__in=[MarketSession.Status.OPEN, MarketSession.Status.DRAFT],
         closes_at__isnull=False, closes_at__lte=now,
-    ).update(status=MarketSession.Status.CLOSED, updated_at=now)
+    )
+    # La finestra rinnovi della lega segue le sue sessioni rinnovi: aperta
+    # quando una si apre, chiusa alla scadenza se non ne resta un'altra aperta.
+    renewals = MarketSession.SessionType.RENEWALS
+    renewal_leagues = set(to_open.filter(session_type=renewals).values_list("league_id", flat=True))
+    renewal_leagues |= set(to_close.filter(session_type=renewals).values_list("league_id", flat=True))
+    opened = to_open.update(status=MarketSession.Status.OPEN, updated_at=now)
+    closed = to_close.update(status=MarketSession.Status.CLOSED, updated_at=now)
+    if renewal_leagues:
+        sync_renewals_window(renewal_leagues)
     return opened, closed
+
+
+def sync_renewals_window(league_ids):
+    """``renewals_open`` di ogni lega = c'è una sua sessione rinnovi aperta."""
+    from ..models import League
+    open_ids = set(MarketSession.objects.filter(
+        league_id__in=league_ids, session_type=MarketSession.SessionType.RENEWALS,
+        status=MarketSession.Status.OPEN,
+    ).values_list("league_id", flat=True))
+    for league in League.objects.filter(pk__in=league_ids):
+        is_open = league.id in open_ids
+        if league.renewals_open != is_open:
+            league.renewals_open = is_open
+            league.save(update_fields=["renewals_open"])
 
 
 # =============================================================================
@@ -1170,6 +1255,9 @@ def acquire_free_agent(session_id, participant_id, player_id, release_player_id=
 
         if release_player.owner_id != participant.id:
             return {"ok": False, "error": "release_player_not_owned", "message": "Il calciatore da svincolare non appartiene alla tua rosa."}
+        problem = _cut_problem(release_player)
+        if problem:
+            return {"ok": False, "error": "release_locked", "message": problem}
 
         if session.require_same_role_release and release_player.role != player.role:
             return {"ok": False, "error": "release_wrong_role", "message": f"Devi tagliare un calciatore dello stesso ruolo ({player.role})."}
@@ -1212,6 +1300,7 @@ def acquire_free_agent(session_id, participant_id, player_id, release_player_id=
     from .contracts import on_player_acquired
     on_player_acquired(player)
 
+    refund = _floored_refund(participant.id, cost, refund)
     if release_player is not None:
         release_player.owner = None
         release_player.cost = Decimal("0")
@@ -1291,6 +1380,9 @@ def execute_buyout(session_id, buyer_id, player_id, release_player_id=None):
 
     if player.owner_id == buyer.id:
         return {"ok": False, "error": "already_owned", "message": "Il calciatore appartiene già alla tua squadra!"}
+    if player.loan_from_id:
+        return {"ok": False, "error": "on_loan",
+                "message": "Il calciatore è in prestito: il cartellino è di un'altra squadra, la clausola non si paga."}
 
     seller = Participant.objects.select_for_update().get(pk=player.owner_id)
     from .bidding import gk_clubs_problem
@@ -1341,6 +1433,9 @@ def execute_buyout(session_id, buyer_id, player_id, release_player_id=None):
             return {"ok": False, "error": "release_player_not_found", "message": "Calciatore da svincolare non trovato."}
         if release_player.owner_id != buyer.id:
             return {"ok": False, "error": "release_player_not_owned", "message": "Il calciatore da svincolare non appartiene alla tua rosa."}
+        problem = _cut_problem(release_player)
+        if problem:
+            return {"ok": False, "error": "release_locked", "message": problem}
         if session.require_same_role_release and release_player.role != player.role:
             return {"ok": False, "error": "release_wrong_role", "message": f"Devi tagliare un calciatore dello stesso ruolo ({player.role})."}
         refund = _calc_release_refund(session, release_player)
@@ -1374,6 +1469,7 @@ def execute_buyout(session_id, buyer_id, player_id, release_player_id=None):
     if room is not None and buyout_amount > room:
         return {"ok": False, "error": "salary_cap", "message": f"Tetto salariale superato: puoi spendere al massimo {room:.0f} FM."}
 
+    refund = _floored_refund(buyer.id, buyout_amount, refund)
     if release_player is not None:
         release_player.owner = None
         release_player.cost = Decimal("0")
@@ -1501,6 +1597,9 @@ def place_waiver_claim(session_id, participant_id, player_id, priority=1, releas
             return {"ok": False, "error": "release_player_not_found", "message": "Calciatore da svincolare non trovato."}
         if release_player.owner_id != participant.id:
             return {"ok": False, "error": "release_player_not_owned", "message": "Il calciatore da svincolare non appartiene alla tua rosa."}
+        problem = _cut_problem(release_player)
+        if problem:
+            return {"ok": False, "error": "release_locked", "message": problem}
         if session.require_same_role_release and release_player.role != player.role:
             return {"ok": False, "error": "release_wrong_role", "message": f"Devi tagliare un calciatore dello stesso ruolo ({player.role})."}
 
@@ -1655,7 +1754,8 @@ def _run_waiver_draft(session, preview=False):
                 release = None
                 refund = Decimal("0")
                 if c.release_player_id and cuts_allowed:
-                    if c.release_player.owner_id == pid and c.release_player_id not in released_ids:
+                    if (c.release_player.owner_id == pid and c.release_player_id not in released_ids
+                            and not _cut_problem(c.release_player)):
                         release = c.release_player
                         refund = _calc_release_refund(session, release)
                     else:

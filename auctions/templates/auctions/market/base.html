@@ -17,7 +17,7 @@ go in ``mk_after``.
 
 <div class="mk {% block mk_color %}{% endblock %}">
 {% if current_league and market_active != "hub" %}
-<nav class="mk-crumbs" aria-label="Percorso">
+<nav class="mk-crumbs fm-onerow" aria-label="Percorso">
     <a href="{% url 'admin_market_dashboard' %}?league={{ current_league.id }}">Mercato</a>
     {% block mk_crumbs %}{% endblock %}
 </nav>
@@ -44,9 +44,9 @@ go in ``mk_after``.
 </div>
 {% else %}
 {% if market_active != "hub" %}
-<nav class="mk-switch" aria-label="Mercati">
+<nav class="mk-switch fm-onerow" aria-label="Mercati">
     <a class="c-amber" href="{% url 'admin_market_buste' %}?league={{ current_league.id }}"{% if market_active == "buste" %} aria-current="page"{% endif %}>
-        <svg class="ic"><use href="#i-mail"/></svg> Buste</a>
+        <svg class="ic"><use href="#i-mail"/></svg> Sessioni</a>
     <a class="c-blue" href="{% url 'admin_market_trades' %}?league={{ current_league.id }}"{% if market_active == "scambi" %} aria-current="page"{% endif %}>
         <svg class="ic"><use href="#i-swap"/></svg> Scambi</a>
     <a class="c-green" href="{% url 'admin_market_repair' %}?league={{ current_league.id }}"{% if market_active == "asta" %} aria-current="page"{% endif %}>
