@@ -63,26 +63,6 @@ fi
 echo "[Entrypoint] Applying database migrations..."
 python manage.py migrate --noinput
 
-# Demo data (leagues, teams, players; no accounts) only when asked for: a new
-# installation for other people starts empty.
-if [ "${FANTAMANAGER_LOAD_SEED:-0}" = "1" ] && [ -n "$POSTGRES_DB" ] && [ -f "/app/data/seed_data.json" ]; then
-    python - <<END
-import os, django
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "liveauction.settings")
-django.setup()
-from django.contrib.auth import get_user_model
-User = get_user_model()
-if not User.objects.exists():
-    print("[Entrypoint] Database PostgreSQL vuoto rilevato. Importazione dati dimostrativi (leghe, rose)...")
-    from django.core.management import call_command
-    try:
-        call_command("loaddata", "/app/data/seed_data.json")
-        print("[Entrypoint] ✓ Dati iniziali importati con successo in PostgreSQL!")
-    except Exception as e:
-        print(f"[Entrypoint] Warning: impossibile caricare seed_data.json: {e}")
-END
-fi
-
 # First superadmin. Never a default password: either the credentials come from
 # DJANGO_SUPERUSER_USERNAME / DJANGO_SUPERUSER_PASSWORD (/ DJANGO_SUPERUSER_EMAIL),
 # or a random password is generated and shown once, here in the container log.
