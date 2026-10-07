@@ -331,9 +331,9 @@ class RemoteAccessIsTheSuperadminsTests(TestCase):
         self.client.force_login(User.objects.create_superuser("root", "r@x.local", "pwd12345"))
         self.assertEqual(self.client.get(reverse("admin_remote_status")).status_code, 200)
 
-    def test_the_fantapazz_browser_login_is_desktop_only(self):
+    def test_there_is_no_fantapazz_browser_login(self):
         with mock.patch("subprocess.Popen") as popen:
-            resp = self.client.post(reverse("admin_fantapazz_browser_login"))
+            resp = self.client.post("/dashboard/fantapazz/browser-login/")
         self.assertEqual(resp.status_code, 404)
         popen.assert_not_called()
 

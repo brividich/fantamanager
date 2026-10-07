@@ -40,7 +40,7 @@ if not DEBUG and SECRET_KEY in _PUBLIC_PLACEHOLDER_KEYS:
 
 # Set by the desktop launcher (run_app.py): one user, on the machine that runs
 # the server. What acts on that machine exists only there: the "Esci" button,
-# the Fantapazz login in a visible browser, the first-login superadmin.
+# the first-login superadmin.
 DESKTOP_APP = os.getenv("FANTAMANAGER_DESKTOP", "").lower() in ("1", "true", "yes")
 
 # For LAN use we accept any host by default. Lock this down in production.
