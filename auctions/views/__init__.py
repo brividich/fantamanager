@@ -127,6 +127,13 @@ from .admin_players import (
     admin_players,
     admin_release_player,
 )
+from .footballers import (
+    admin_footballer_edit,
+    admin_footballers,
+    admin_footballers_sync,
+    admin_league_default_listone,
+    app_footballers,
+)
 from .admin_remote import (
     _current_port,
     admin_quit,
@@ -413,6 +420,11 @@ __all__ = [
     "app_trade_respond",
     "app_trade_cancel",
     "app_altro",
+    "admin_footballers",
+    "admin_footballers_sync",
+    "admin_footballer_edit",
+    "admin_league_default_listone",
+    "app_footballers",
     # app_admin (Regia inside the app)
     "app_regia",
     "app_regia_market_session",
