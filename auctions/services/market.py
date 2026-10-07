@@ -1,5 +1,6 @@
 """Sealed-bid market session (mercato di riparazione) business logic."""
 from collections import defaultdict
+from datetime import timedelta
 from decimal import ROUND_CEILING, Decimal, InvalidOperation
 import logging
 
@@ -56,6 +57,24 @@ def buyout_price(session, player):
     mult = Decimal(str((session.config or {}).get("buyout_multiplier") or "1.5"))
     base_cost = player.cost if (player.cost is not None and player.cost >= 1) else Decimal("1")
     return (base_cost * mult).to_integral_value(rounding=ROUND_CEILING)
+
+
+def fa_period_start(session, now=None):
+    """Da quando contano gli acquisti per il limite della free agency:
+    gli ultimi 7 giorni, dal lunedì di questa settimana, o dall'inizio della
+    giornata in corso (quando se ne sono bloccate le formazioni)."""
+    now = now or timezone.now()
+    period = session.fa_period
+    if period == "week":
+        local = timezone.localtime(now)
+        return local.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=local.weekday())
+    if period == "matchday":
+        from ..models import Giornata
+        last = (Giornata.objects.filter(season__league_id=session.league_id, locked_at__lte=now)
+                .order_by("-locked_at").first())
+        # Nessuna giornata iniziata: vale tutto da quando la finestra è aperta.
+        return last.locked_at if last else session.created_at
+    return now - timedelta(days=7)
 
 
 def _release_refused(session, release_player_id):
@@ -1107,13 +1126,13 @@ def acquire_free_agent(session_id, participant_id, player_id, release_player_id=
     cfg = session.config or {}
     max_moves = int(cfg.get("fa_max_moves") or 0)
     if max_moves > 0:
-        week_ago = timezone.now() - timezone.timedelta(days=7)
-        moves_count = session_moves(session).filter(participant=participant, created_at__gte=week_ago).count()
+        moves_count = session_moves(session).filter(
+            participant=participant, created_at__gte=fa_period_start(session)).count()
         if moves_count >= max_moves:
             return {
                 "ok": False,
                 "error": "move_limit_reached",
-                "message": f"Hai raggiunto il limite di {max_moves} cambi per questa settimana ({moves_count}/{max_moves} effettuati)."
+                "message": f"Hai raggiunto il limite di {max_moves} cambi {session.fa_within} ({moves_count}/{max_moves} effettuati)."
             }
 
     try:
@@ -1127,6 +1146,9 @@ def acquire_free_agent(session_id, participant_id, player_id, release_player_id=
     from .bidding import gk_clubs_problem
     if gk_clubs_problem(participant, player):
         return {"ok": False, "error": "gk_clubs", "message": "Hai già portieri di due squadre di Serie A: puoi prendere solo portieri di quelle squadre."}
+    if player.rescinded_from_id == participant.id:
+        return {"ok": False, "error": "rescinded_rebuy",
+                "message": "Hai perso questo giocatore al rinnovo: non puoi ricomprarlo in questo mercato."}
 
     cost_type = cfg.get("fa_cost_type", "quotation")
     if cost_type == "base":
@@ -1271,6 +1293,10 @@ def execute_buyout(session_id, buyer_id, player_id, release_player_id=None):
         return {"ok": False, "error": "already_owned", "message": "Il calciatore appartiene già alla tua squadra!"}
 
     seller = Participant.objects.select_for_update().get(pk=player.owner_id)
+    from .bidding import gk_clubs_problem
+    if gk_clubs_problem(buyer, player):
+        return {"ok": False, "error": "gk_clubs",
+                "message": "Hai già portieri di due squadre di Serie A: puoi prendere solo portieri di quelle squadre."}
 
     cfg = session.config or {}
     # 0 = nessuna protezione: solo una chiave assente vale i 7 giorni di default.
@@ -1445,6 +1471,13 @@ def place_waiver_claim(session_id, participant_id, player_id, priority=1, releas
 
     if player.owner_id is not None or player.league_id != session.league_id:
         return {"ok": False, "error": "player_unavailable", "message": "Calciatore non disponibile sul mercato svincolati."}
+    from .bidding import gk_clubs_problem
+    if gk_clubs_problem(participant, player):
+        return {"ok": False, "error": "gk_clubs",
+                "message": "Hai già portieri di due squadre di Serie A: puoi prendere solo portieri di quelle squadre."}
+    if player.rescinded_from_id == participant.id:
+        return {"ok": False, "error": "rescinded_rebuy",
+                "message": "Hai perso questo giocatore al rinnovo: non puoi ricomprarlo in questo mercato."}
 
     cfg = session.config or {}
     cost_type = cfg.get("fa_cost_type", "quotation")
@@ -1590,6 +1623,14 @@ def _run_waiver_draft(session, preview=False):
     cap_room = {pid: purchase_room(p, market_session=session) for pid, p in all_participants.items()}
     # Chi è già stato tagliato in questo draft non si taglia (e non rimborsa) due volte.
     released_ids = set()
+    # Portieri (2.02): i club di Serie A dei portieri di ogni squadra, tenuti
+    # aggiornati turno per turno (anche nell'anteprima, che non scrive nulla).
+    gk_limit = session.league.gk_max_clubs
+    gk_clubs = defaultdict(lambda: defaultdict(int))
+    for owner_id, team in Player.objects.filter(
+        owner_id__in=list(all_participants), role="P", abroad_list=False,
+    ).exclude(team="").values_list("owner_id", "team"):
+        gk_clubs[owner_id][team] += 1
     cuts_allowed = session.allow_conditional_release or session.require_same_role_release
 
     while True:
@@ -1607,6 +1648,9 @@ def _run_waiver_draft(session, preview=False):
                     # Preso nel frattempo altrove (free agency, assegnazione dell'admin).
                     outcome[c.id] = (MarketBid.Status.LOST, "Calciatore non più svincolato")
                     continue
+                if c.player.rescinded_from_id == pid:
+                    outcome[c.id] = (MarketBid.Status.LOST, "Perso al rinnovo: non si ricompra in questo mercato")
+                    continue
 
                 release = None
                 refund = Decimal("0")
@@ -1622,6 +1666,13 @@ def _run_waiver_draft(session, preview=False):
                 if session.require_same_role_release and (release is None or release.role != c.player.role):
                     outcome[c.id] = (MarketBid.Status.LOST, f"Richiesto taglio di pari ruolo ({c.player.role})")
                     continue
+
+                if gk_limit and c.player.role == "P" and c.player.team:
+                    clubs = {t for t, n in gk_clubs[pid].items()
+                             if n - (1 if release is not None and release.role == "P" and release.team == t else 0) > 0}
+                    if c.player.team not in clubs and len(clubs) >= gk_limit:
+                        outcome[c.id] = (MarketBid.Status.LOST, f"Portieri già di {len(clubs)} squadre di Serie A")
+                        continue
 
                 role = c.player.role
                 cap = session.league.slots_for(role)
@@ -1653,9 +1704,13 @@ def _run_waiver_draft(session, preview=False):
                 outcome[c.id] = (MarketBid.Status.WON, "Assegnato al turno waiver")
 
                 owned[pid][c.player.role] += 1
+                if c.player.role == "P" and c.player.team:
+                    gk_clubs[pid][c.player.team] += 1
                 if rel:
                     owned[pid][rel.role] -= 1
                     released_ids.add(rel.id)
+                    if rel.role == "P" and rel.team:
+                        gk_clubs[pid][rel.team] -= 1
                 remaining_credits[pid] -= (c.amount - ref)
                 if cap_room.get(pid) is not None:
                     cap_room[pid] -= c.amount

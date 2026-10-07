@@ -226,6 +226,7 @@ def admin_create_league(request):
         game_mode=_game_mode(request.POST.get("game_mode")),
         slots_gk=pint("slots_gk", 3),
         slots_out=pint("slots_out", 22),
+        gk_max_clubs=pint("gk_max_clubs", 0),
     )
 
     _remember_as_default(request.user, league)
@@ -376,6 +377,7 @@ def admin_setup_create(request):
         game_mode=_game_mode(request.POST.get("game_mode")),
         slots_gk=pint("slots_gk", 3),
         slots_out=pint("slots_out", 22),
+        gk_max_clubs=pint("gk_max_clubs", 0),
     )
 
     _remember_as_default(request.user, league)

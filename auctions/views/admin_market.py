@@ -594,6 +594,7 @@ def _session_rules(post):
     config = {
         "fa_max_moves": _parse_int(post.get("fa_max_moves") or 3),
         "fa_cost_type": post.get("fa_cost_type") or "quotation",
+        "fa_period": post.get("fa_period") if post.get("fa_period") in MarketSession.FA_PERIODS else "rolling",
         "waiver_order_type": post.get("waiver_order_type") or "inverse_standing",
         "waiver_claim_hours": _parse_int(post.get("waiver_claim_hours") or 24),
         "buyout_multiplier": float(post.get("buyout_multiplier") or 1.5),

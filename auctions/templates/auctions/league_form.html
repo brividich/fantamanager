@@ -122,6 +122,9 @@
             <div><label>Giocatori di movimento</label><input name="slots_out" value="{{ cfg.slots_out|default:22 }}" inputmode="numeric"></div>
         </div>
     </div>
+    <div class="sec-title">Portieri: squadre di Serie A al massimo</div>
+    <div><input name="gk_max_clubs" value="{{ cfg.gk_max_clubs|default:0 }}" inputmode="numeric" aria-label="Portieri: squadre di Serie A al massimo"></div>
+    <div class="hint">0 = nessun limite. Con 2, chi ha già portieri di due squadre di Serie A può prendere solo portieri di quelle squadre (regolamento 2.02). Vale in asta e in ogni mercato.</div>
 
     <div class="sec-title">Squadre</div>
     {% if free_teams %}

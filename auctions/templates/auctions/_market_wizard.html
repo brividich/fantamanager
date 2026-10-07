@@ -237,14 +237,23 @@ Apertura dalla pagina: openMarketWizard() / closeMarketWizard().
 
             <div data-for="free_agency" style="display:none">
                 <div class="mwz-box">
-                    <label class="mwz-lbl" for="mwz-fa-moves">Limite movimenti settimanali per squadra</label>
+                    <label class="mwz-lbl" for="mwz-fa-moves">Acquisti massimi per squadra</label>
                     <select name="fa_max_moves" id="mwz-fa-moves" class="mwz-input">
-                        <option value="1">Massimo 1 acquisto a settimana</option>
-                        <option value="2">Massimo 2 acquisti a settimana</option>
-                        <option value="3" selected>Massimo 3 acquisti a settimana (consigliato)</option>
-                        <option value="5">Massimo 5 acquisti a settimana</option>
+                        <option value="1">Massimo 1 acquisto</option>
+                        <option value="2">Massimo 2 acquisti</option>
+                        <option value="3" selected>Massimo 3 acquisti (consigliato)</option>
+                        <option value="5">Massimo 5 acquisti</option>
                         <option value="0">Illimitati</option>
                     </select>
+                </div>
+                <div class="mwz-box">
+                    <label class="mwz-lbl" for="mwz-fa-period">Il limite si azzera</label>
+                    <select name="fa_period" id="mwz-fa-period" class="mwz-input">
+                        <option value="rolling" selected>Ogni 7 giorni, a scorrimento</option>
+                        <option value="week">Ogni lunedì (settimana di calendario)</option>
+                        <option value="matchday">A ogni giornata (quando si bloccano le formazioni)</option>
+                    </select>
+                    <span class="mwz-hint">«A ogni giornata» segue il calendario della lega: senza giornate iniziate conta da quando si apre la finestra.</span>
                 </div>
                 <div class="mwz-box">
                     <label class="mwz-lbl" for="mwz-fa-cost">Costo di acquisto</label>
