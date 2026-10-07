@@ -253,30 +253,35 @@
 <!-- Statistiche giocatori -->
 <section class="fm-card"><div class="fm-section-title"><svg class="ic"><use href="#i-chart"/></svg> Statistiche giocatori <span class="sep"></span></div>
     <p class="muted" style="font-size:13px;margin:0 0 16px;line-height:1.6">
-        Presenze, media voto, fantamedia, gol e assist della stagione
-        <strong style="color:var(--ink)">{{ stats_season }}</strong> sono
-        <strong style="color:var(--ink)">già incluse nell'app</strong> e vengono applicate da sole
-        appena importi il listone: i numeri compaiono nella scheda del giocatore
-        <strong style="color:var(--ink)">sul maxischermo e nella pagina offerte</strong>, per decidere
-        quanto spendere durante l'asta. Non devi scaricare niente.
+        Presenze, media voto, fantamedia, gol e assist della stagione compaiono nella scheda del
+        giocatore <strong style="color:var(--ink)">sul maxischermo e nella pagina offerte</strong>,
+        per decidere quanto spendere durante l'asta.
+        {% if stats_server_file %}
+        Questo server ha già un file di statistiche{% if stats_season %} ({{ stats_season }}){% endif %}:
+        viene applicato da solo appena importi il listone.
+        {% else %}
+        Carica il file delle statistiche che hai scaricato (per esempio l'export «Statistiche» del tuo sito di fantacalcio).
+        {% endif %}
     </p>
     <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:14px 16px;border-radius:12px;
                 background:var(--fm-surface-2,rgba(255,255,255,.04));margin-bottom:18px">
         <svg class="ic" style="width:20px;height:20px;color:var(--ok,#22c55e)"><use href="#i-chart"/></svg>
         <div style="flex:1;min-width:200px;font-size:13px;line-height:1.5">
             <strong style="font-size:14px">{{ stats_covered }}</strong> di
-            <strong style="font-size:14px">{{ total_count }}</strong> giocatori hanno le statistiche {{ stats_season }}.
-            {% if stats_covered == 0 and total_count > 0 %}
+            <strong style="font-size:14px">{{ total_count }}</strong> giocatori hanno le statistiche{% if stats_season %} {{ stats_season }}{% endif %}.
+            {% if stats_server_file and stats_covered == 0 and total_count > 0 %}
             <span class="muted">Premi «Applica statistiche» per aggiungerle al listone già caricato.</span>
             {% endif %}
         </div>
-        <button onclick="importStats()" class="btn-ok" style="padding:11px 20px">Applica statistiche {{ stats_season }}</button>
+        {% if stats_server_file %}
+        <button onclick="importStats()" class="btn-ok" style="padding:11px 20px">Applica statistiche{% if stats_season %} {{ stats_season }}{% endif %}</button>
+        {% endif %}
     </div>
-    <details>
-        <summary class="muted" style="font-size:13px;cursor:pointer">Usa un file diverso (stagione nuova o listone personale)</summary>
+    <details{% if not stats_server_file %} open{% endif %}>
+        <summary class="muted" style="font-size:13px;cursor:pointer">{% if stats_server_file %}Usa un file diverso (stagione nuova o listone personale){% else %}Importa da file{% endif %}</summary>
         <div style="display:flex;gap:18px;align-items:flex-end;flex-wrap:wrap;margin-top:14px">
             <div style="flex:1;min-width:220px">
-                <label>File Statistiche di Fantacalcio.it (.xlsx / .xls / .csv)</label>
+                <label>File statistiche (.xlsx / .xls / .csv)</label>
                 <input type="file" id="stats-file" accept=".xlsx,.xls,.csv" style="padding:10px;font-size:14px">
             </div>
             <div style="display:flex;gap:10px">
@@ -653,7 +658,7 @@
 
     async function importStats() {
         const msg = document.getElementById("stats-msg");
-        // Nessun file = usa quello incluso nell'app: è il caso normale, non un errore.
+        // Nessun file = usa quello del server, se configurato (altrimenti il server lo chiede).
         const f = document.getElementById("stats-file").files[0];
         msg.style.display = "block"; msg.style.color = "var(--muted)";
         msg.textContent = "Applico le statistiche…";

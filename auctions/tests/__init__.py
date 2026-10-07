@@ -39,7 +39,7 @@ from .test_views import ConfigDeskTests
 from .test_views import ExportTests
 from .test_views import PhotoTests
 from .test_views import StatsTests
-from .test_views import BundledStatsTests
+from .test_views import ServerStatsTests
 from .test_views import AppShellTests
 from .test_views import ScanToJoinTests
 from .test_views import TeamBelongsToItsAuctionTests

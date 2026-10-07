@@ -102,10 +102,11 @@ def admin_players(request):
         "leagues": leagues, "current_league": league,
         "participants": participants.order_by("display_name"),
         "photo_template_default": importers.FANTACALCIO_PHOTO_TEMPLATE,
-        # The stats card reports coverage rather than offering a blind upload:
-        # the season file ships with the app and an import applies it by itself,
-        # so what a league actually needs to know is how many cards came out full.
-        "stats_season": importers.BUNDLED_STATS_SEASON,
+        # The stats card reports coverage. A server may provide its own stats
+        # file (FANTAMANAGER_STATS_FILE) that imports apply by themselves;
+        # otherwise the league uploads one.
+        "stats_season": importers.server_stats_season(),
+        "stats_server_file": importers.server_stats_path() is not None,
         "stats_covered": all_players.exclude(fanta_avg__isnull=True).count(),
         "console_section": "Giocatori",
         "console_active": "players",
@@ -154,9 +155,9 @@ def admin_import_stats(request):
     goals/assists) on players already imported, matching by official id then by
     name. The base card still works for pools without a stats file.
 
-    With no upload it re-applies the season file shipped inside the app — the
-    same one an import seeds automatically. That is the button a league presses
-    after fixing up the listone by hand; uploading a newer export overrides it.
+    With no upload it re-applies the server's stats file
+    (``FANTAMANAGER_STATS_FILE``), the same one an import seeds automatically;
+    without one configured, a file is required.
     """
     league, denied = league_scope_or_403(request, request.POST.get("league_id"))
     if denied:
@@ -166,11 +167,15 @@ def admin_import_stats(request):
         rows, errors = importers.parse_stats_file(f, f.name)
         source = f.name
     else:
+        if importers.server_stats_path() is None:
+            return JsonResponse(
+                {"ok": False, "error": "Scegli il file delle statistiche da importare."}, status=400)
         rows, errors = importers.bundled_stats_rows()
-        source = f"Statistiche {importers.BUNDLED_STATS_SEASON} incluse"
+        season = importers.server_stats_season()
+        source = f"Statistiche del server{' ' + season if season else ''}"
         if not rows:
             return JsonResponse(
-                {"ok": False, "error": "Statistiche incluse non disponibili."}, status=500)
+                {"ok": False, "error": "Statistiche del server non disponibili."}, status=500)
     report = importers.import_stats(rows, league=league)
     report["ok"] = True
     report["source"] = source

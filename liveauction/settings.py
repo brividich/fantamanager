@@ -277,6 +277,12 @@ TIMER_SYNC_INTERVAL_SECONDS = float(os.getenv("TIMER_SYNC_INTERVAL_SECONDS", "2"
 # internet-facing deployments. See auctions.views screen()/bid_page()/join().
 PUBLIC_TOKENS_REQUIRED = os.getenv("PUBLIC_TOKENS_REQUIRED", "False").lower() in ("1", "true", "yes")
 
+# --- Dati dei calciatori -----------------------------------------------------
+# Statistiche di stagione applicate da sole a ogni import del listone: un file
+# che l'admin del server possiede o ha in licenza (l'app non ne include uno).
+FANTAMANAGER_STATS_FILE = os.getenv("FANTAMANAGER_STATS_FILE", "").strip()
+FANTAMANAGER_STATS_SEASON = os.getenv("FANTAMANAGER_STATS_SEASON", "").strip()
+
 # --- Outgoing email -----------------------------------------------------------
 # The provider is normally set from the console (Impostazioni → Posta). These
 # env vars are the fallback used while that page is switched off.
