@@ -1,0 +1,17 @@
+{% extends "auctions/app_base.html" %}
+{% comment %}
+Formazione di una squadra per una giornata, modificata dall'admin (app, Regia).
+Il campo è lo stesso partial della pagina Formazione del manager
+(_formation_pitch.html); la testata è _formation_admin_head.html.
+{% endcomment %}
+{% block title %}Formazione {{ team.display_name }} — G{{ giornata.number }}{% endblock %}
+{% block mainclass %}fit{% endblock %}
+{% block app %}
+<div class="tab-head">
+    <a class="fm-back" href="{{ giornate_url }}"><svg class="ic"><use href="#i-arrow-left"/></svg> Giornata {{ giornata.number }}</a>
+    <h1>Formazione · {{ team.display_name }}</h1>
+</div>
+{% for m in messages %}<div class="msg {% if m.tags %}{{ m.tags }}{% endif %}">{{ m }}</div>{% endfor %}
+{% include "auctions/_formation_admin_head.html" %}
+{% include "auctions/_formation_pitch.html" %}
+{% endblock %}

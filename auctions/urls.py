@@ -280,11 +280,13 @@ urlpatterns = [
     path("dashboard/giornate/live-sync/", views.admin_live_voti_sync, name="admin_live_voti_sync"),
     path("dashboard/giornate/live-consolidate/", views.admin_live_voti_consolidate, name="admin_live_voti_consolidate"),
     path("dashboard/giornate/blocca/", views.admin_giornata_lock, name="admin_giornata_lock"),
+    path("dashboard/giornate/formazione/<int:participant_id>/", views.admin_formation_edit, name="admin_formation_edit"),
     path("app/giornate/", views.admin_giornate, name="app_giornate"),
     path("app/giornate/import/", views.admin_voti_import, name="app_voti_import"),
     path("app/giornate/live-sync/", views.admin_live_voti_sync, name="app_live_voti_sync"),
     path("app/giornate/live-consolidate/", views.admin_live_voti_consolidate, name="app_live_voti_consolidate"),
     path("app/giornate/blocca/", views.admin_giornata_lock, name="app_giornata_lock"),
+    path("app/giornate/formazione/<int:participant_id>/", views.admin_formation_edit, name="app_formation_edit"),
     path("dashboard/contracts/action/", views.admin_contracts_action, name="admin_contracts_action"),
 
     path("admin-auction/contracts/", views.admin_contracts),

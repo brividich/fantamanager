@@ -6,9 +6,10 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from ..models import Giornata, League, Participant, Season
+from ..models import Formation, Giornata, League, Participant, Season
 from ..services.competitions import season_name
-from ..services.formation import is_editable, lock_formations, target_giornata
+from ..services.formation import (admin_save_matchday_formation, formation_state, is_editable,
+                                  lock_formations, target_giornata)
 from ..services.voti import compute_coppa_italia_battle_royale, import_voti_giornata, parse_voti_file
 from .admin_market import _back
 from .common import (current_league, form_int, manageable_leagues, staff_member_required,
@@ -80,6 +81,7 @@ def admin_giornate(request):
     live_count = 0
     official_count = 0
     lineups_saved = 0
+    lineup_rows = []
     teams_count = Participant.objects.filter(league=league, is_active=True).count()
     if current_giornata:
         scores = list(current_giornata.scores.select_related("participant").order_by("-total"))
@@ -89,6 +91,7 @@ def admin_giornate(request):
         official_count = current_giornata.performances.filter(is_live=False).count()
         is_live = (current_giornata.status == Giornata.Status.LIVE) or (live_count > 0 and current_giornata.status != Giornata.Status.SCORED)
         lineups_saved = current_giornata.matchday_formations.count()
+        lineup_rows = _lineup_rows(request, league, current_giornata)
 
     from ..services.voti_live import LiveSyncManager
 
@@ -113,6 +116,7 @@ def admin_giornate(request):
         "official_count": official_count,
         "lineups_editable": bool(current_giornata and is_editable(current_giornata)),
         "lineups_saved": lineups_saved,
+        "lineup_rows": lineup_rows,
         "teams_count": teams_count,
         "live_sync_status": LiveSyncManager.get_instance().get_status(),
         "gv_base": base,
@@ -122,6 +126,84 @@ def admin_giornate(request):
         "console_active": "giornate",
     })
     return render(request, "auctions/app_giornate.html" if in_app else "auctions/admin_giornate.html", ctx)
+
+
+def _formation_url(request, participant_id, giornata):
+    name = "app_formation_edit" if request.path.startswith("/app/") else "admin_formation_edit"
+    return f"{reverse(name, args=[participant_id])}?giornata={giornata.id}"
+
+
+def _lineup_rows(request, league, giornata):
+    """Every team's lineup for ``giornata``, for the list on the giornate page:
+    its own copy if it has one, else the last saved lineup it would get."""
+    copies = {mf.participant_id: mf for mf in giornata.matchday_formations.all()}
+    templates = {f.participant_id: f for f in Formation.objects.filter(participant__league=league)}
+    editable = is_editable(giornata)
+    rows = []
+    for team in Participant.objects.filter(league=league, is_active=True).order_by("display_name"):
+        mf = copies.get(team.id)
+        f = mf or templates.get(team.id)
+        if mf is not None:
+            state = "Salvata per la giornata" if editable else "Bloccata"
+        elif f is not None:
+            state = "Userà l'ultima salvata" if editable else "Mancante"
+        else:
+            state = "Nessuna formazione"
+        rows.append({
+            "team": team,
+            "module": f.module if f else "",
+            "starters": sum(1 for pid in (f.starter_ids or []) if pid) if f else 0,
+            "state": state,
+            "own": mf is not None,
+            "edit_url": _formation_url(request, team.id, giornata),
+        })
+    return rows
+
+
+@staff_member_required
+def admin_formation_edit(request, participant_id):
+    """The league admin edits one team's lineup for any giornata — also a
+    locked or scored one (a correction; scores are recomputed). The pitch is the
+    manager's own partial, _formation_pitch.html, in a console or app frame."""
+    in_app = request.path.startswith("/app/")
+    team = get_object_or_404(Participant.objects.select_related("league"), pk=participant_id)
+    if team.league is None or not user_can_manage_league(request.user, team.league):
+        return HttpResponseForbidden("Non hai i permessi per gestire questa lega.")
+    league = team.league
+    gid = request.POST.get("giornata") or request.GET.get("giornata")
+    giornata = get_object_or_404(Giornata, pk=form_int(gid, 0), season__league=league)
+
+    if request.method == "POST":
+        _mf, recomputed = admin_save_matchday_formation(
+            team, giornata, request.POST.get("module", ""),
+            request.POST.getlist("starter"), request.POST.getlist("bench"))
+        if request.POST.get("save"):
+            messages.success(request, f"Formazione di {team.display_name} per la Giornata {giornata.number} salvata"
+                             + (": punteggi ricalcolati." if recomputed else "."))
+        return redirect(_back(request, _formation_url(request, team.id, giornata)))
+
+    ctx = {}
+    if in_app:
+        from .common import _app_ctx
+        _participant, app_ctx = _app_ctx(request, "regia")
+        ctx.update(app_ctx or {})
+        ctx.update({"app_league": league, "manages_app_league": True})
+    ctx.update(formation_state(team, giornata=giornata))
+    teams = list(Participant.objects.filter(league=league, is_active=True).order_by("display_name"))
+    ctx.update({
+        "team": team,
+        "giornata": giornata,
+        "current_league": league,
+        "leagues": manageable_leagues(request.user),
+        "lineups_editable": is_editable(giornata),
+        "has_scores": giornata.status in (Giornata.Status.LIVE, Giornata.Status.SCORED),
+        "team_links": [(t, _formation_url(request, t.id, giornata)) for t in teams],
+        "giornate_url": f"{_giornate_url(request)}?league={league.id}&giornata={giornata.number}",
+        "fz_next": _formation_url(request, team.id, giornata),
+        "console_section": "Giornate & Voti",
+        "console_active": "giornate",
+    })
+    return render(request, "auctions/app_regia_formazione.html" if in_app else "auctions/admin_formazione.html", ctx)
 
 
 @staff_member_required

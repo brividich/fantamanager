@@ -28,6 +28,10 @@ stessi testi**.
 - Giornate, voti e calcolo: `_giornate_manage.html`, in `admin_giornate.html`
   (console) e `app_giornate.html` (app); una sola view, `admin_giornate`
   (`views/admin_voti.py`), che sceglie la cornice dall'indirizzo.
+- Il campo della formazione: `_formation_pitch.html`, in `app_formazione.html`
+  (il manager, prossima giornata) e nell'editor dell'admin per una giornata
+  qualsiasi (`admin_formazione.html` console, `app_regia_formazione.html` app,
+  testata `_formation_admin_head.html`; view `admin_formation_edit`).
 - L'anagrafica dei calciatori (API-Football, unica per tutte le leghe):
   `_footballers.html`, in `admin_footballers.html` (console) e
   `app_footballers.html` (app); dati da `footballers_context`
@@ -38,7 +42,7 @@ stessi testi**.
   `MarketManageParityTests` in `auctions/tests/test_market.py`,
   `CompetitionWizardParityTests` in `auctions/tests/test_competitions.py`,
   `FootballersPageTests` in `auctions/tests/test_footballers.py`,
-  `GiornatePageTests` in `auctions/tests/test_voti.py`.
+  `GiornatePageTests` e `AdminFormationEditorTests` in `auctions/tests/test_voti.py`.
 
 ## Formazioni: una per giornata
 
@@ -49,6 +53,9 @@ Si schiera per la prossima giornata ancora da giocare (`target_giornata`,
 o import dei voti: `lock_formations`) ogni squadra ha la sua copia e da lì non
 cambia più: i ricalcoli usano quella, anche se la rosa poi cambia. L'ordine
 della panchina lo sceglie il manager ed è la priorità dei cambi.
+L'admin della lega modifica la formazione di ogni squadra per qualsiasi
+giornata dalla pagina Giornate (`admin_save_matchday_formation`): tocca solo
+la copia di quella giornata e, se la giornata ha già punteggi, li ricalcola.
 
 ## Barre di pulsanti: sempre su una riga
 
