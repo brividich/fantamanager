@@ -112,10 +112,11 @@
         border: 1px solid var(--line); border-radius: 12px; padding: 4px; margin-bottom: 14px;
     }
     .view-btn {
-        flex: 1; padding: 10px 14px; font-size: 13.5px; font-weight: 800; border-radius: 8px;
+        flex: 1 1 0; min-width: 0; padding: 10px 14px; font-size: 13.5px; font-weight: 800; border-radius: 8px;
         border: none; background: transparent; color: var(--muted); cursor: pointer;
         display: flex; align-items: center; justify-content: center; gap: 6px; transition: all .15s;
     }
+    .view-btn .vb-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .view-btn.active {
         background: var(--panel-2); color: var(--ink); box-shadow: 0 2px 8px rgba(0,0,0,0.25);
     }
@@ -197,7 +198,7 @@
 
 {% if giornate %}
 <!-- Matchday Navigation Strip -->
-<div class="giornate-strip" role="navigation" aria-label="Seleziona giornata">
+<div class="giornate-strip fm-onerow" role="navigation" aria-label="Seleziona giornata">
     {% for g in giornate %}
     <a href="?giornata={{ g.number }}" class="g-chip {% if g.number == giornata.number %}active{% endif %} {% if g.status == 'LIVE' %}is-live{% endif %}">
         {% if g.status == 'LIVE' %}<span class="match-dot" style="display:inline-block;width:5px;height:5px;margin-right:4px"></span>{% endif %}
@@ -252,10 +253,10 @@
 <!-- Mobile Tab Switcher (My Team vs Opponent) -->
 <div class="view-switch">
     <button type="button" class="view-btn active is-me" id="btn-tab-me" onclick="switchLiveTeamTab('me')">
-        🛡️ {{ participant.display_name }}
+        🛡️ <span class="vb-name">{{ participant.display_name }}</span>
     </button>
     <button type="button" class="view-btn" id="btn-tab-opp" onclick="switchLiveTeamTab('opp')">
-        ⚔️ {{ opponent.display_name }}
+        ⚔️ <span class="vb-name">{{ opponent.display_name }}</span>
     </button>
 </div>
 
