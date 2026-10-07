@@ -621,6 +621,14 @@ def _compute_bracket_standings(competition):
     return {"kind": "bracket", "fixtures": fixtures}
 
 
+def season_name(today=None):
+    """«Stagione 2026/27»: the football season running on ``today`` (it turns in July)."""
+    from django.utils import timezone
+    today = today or timezone.localdate()
+    start = today.year if today.month >= 7 else today.year - 1
+    return f"Stagione {start}/{(start + 1) % 100:02d}"
+
+
 @transaction.atomic
 def ensure_league_season_and_competitions(league):
     """Ensure active Season, matchdays (1..38), and standard competitions exist for a league."""
@@ -629,7 +637,7 @@ def ensure_league_season_and_competitions(league):
     season, _ = Season.objects.get_or_create(
         league=league,
         is_current=True,
-        defaults={"name": f"Stagione 2026/27 · {league.name}", "matchdays": 38}
+        defaults={"name": season_name(), "matchdays": 38}
     )
     if season.giornate.count() == 0:
         for num in range(1, (season.matchdays or 38) + 1):

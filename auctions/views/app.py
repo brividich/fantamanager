@@ -86,9 +86,11 @@ def app_home(request):
             return redirect("app_regia")
         return _redirect_login(request, ctx)
     plan = services.roster_plan(participant)
-    fstate = services.formation_state(participant)
+    next_giornata = services.target_giornata(participant.league)
+    fstate = services.formation_state(participant, giornata=next_giornata)
     ctx.update({
         "plan": plan,
+        "next_giornata": next_giornata,
         "roster_count": plan["owned"],
         "slots_total": plan["total_slots"],
         "watch_count": participant.watches.count(),
@@ -203,7 +205,7 @@ def app_live(request):
             rules = (season.rules or {}) if season else {}
 
             def _get_team_live(part):
-                starters, bench = services.lineup_io(part)
+                starters, bench = services.lineup_io(part, giornata=current_giornata)
                 res = scoring.score_lineup(starters, bench, perf_map, rules)
 
                 player_ids = set()
@@ -308,7 +310,7 @@ def app_live(request):
             # Matchday leaderboard
             active_teams = list(participant.league.participants.filter(is_active=True)) if participant.league else [participant]
             for t in active_teams:
-                s, b = services.lineup_io(t)
+                s, b = services.lineup_io(t, giornata=current_giornata)
                 r = scoring.score_lineup(s, b, perf_map, rules)
                 leaderboard.append({
                     "participant": t,
@@ -617,6 +619,11 @@ def app_mercato(request):
         initial_view = "workspace" if market_session else "listone"
     else:
         initial_view = "hub"
+    if initial_view == "listone":
+        # The listone is a plain list to browse: no session's tabs (an open
+        # buyout window used to open it on «Rose & Clausole») and no buttons.
+        is_free_agency = is_buyout_clause = is_waiver_wire = is_live_auction = False
+        is_renewals = is_buste = market_open = False
 
     ctx.update({
         "free_agents": page.object_list,
@@ -1080,16 +1087,28 @@ def app_update_pin(request):
 
 
 def app_formazione(request):
-    """Lineup builder (inside Rosa): pick a module, assign starters per role,
-    save. Reuses the roster; no Giornata yet, so it's a single current lineup."""
+    """Lineup builder (inside Rosa): pick a module, assign starters per slot,
+    order the bench, save — for the next giornata still to be played (see
+    ``target_giornata``); once it starts its lineup is frozen."""
     participant, ctx = _app_ctx(request, "rosa")
     if participant is None:
         return _redirect_login(request, ctx)
+    giornata = services.target_giornata(participant.league)
     if request.method == "POST":
-        module = request.POST.get("module", "")
-        services.save_formation(participant, module, request.POST.getlist("starter"))
+        posted = request.POST.get("giornata") or ""
+        if posted and posted != str(giornata.id if giornata else ""):
+            # The page was for a giornata that has started since it was opened.
+            messages.error(request, "Quella giornata è iniziata e la sua formazione è bloccata. "
+                                    + (f"Ora schieri per la Giornata {giornata.number}." if giornata else ""))
+            return redirect("app_formazione")
+        services.save_formation(participant, request.POST.get("module", ""), request.POST.getlist("starter"),
+                                request.POST.getlist("bench"), giornata=giornata)
+        if request.POST.get("save"):
+            messages.success(request, f"Formazione salvata per la Giornata {giornata.number}." if giornata
+                             else "Formazione salvata.")
         return redirect("app_formazione")
-    ctx.update(services.formation_state(participant))
+    ctx.update(services.formation_state(participant, giornata=giornata))
+    ctx["giornata"] = giornata
     return render(request, "auctions/app_formazione.html", ctx)
 
 

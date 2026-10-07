@@ -1,0 +1,20 @@
+{% extends "auctions/app_base.html" %}
+{% comment %}
+Giornate, voti e calcolo nell'app (Regia). Il contenuto è lo stesso partial
+della console (_giornate_manage.html): qui c'è solo la cornice.
+{% endcomment %}
+{% block title %}Giornate & Voti — FantaManager{% endblock %}
+{% block mainclass %}wide{% endblock %}
+
+{% block app %}
+<div class="tab-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+    <div>
+        <h1>Giornate, voti e calcolo partite</h1>
+        <p><b>{{ current_league.name }}</b> · {{ season.name }}</p>
+    </div>
+    <a class="fm-btn fm-btn-secondary" href="{% url 'app_regia' %}?league={{ current_league.id }}">
+        <svg class="ic"><use href="#i-gavel"/></svg> Torna alla regia</a>
+</div>
+{% for m in messages %}<div class="msg {% if m.tags %}{{ m.tags }}{% endif %}">{{ m }}</div>{% endfor %}
+{% include "auctions/_giornate_manage.html" %}
+{% endblock %}

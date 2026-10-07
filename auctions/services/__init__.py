@@ -37,6 +37,8 @@ from .formation import (
     _slot_accepts,
     _slot_role_class,
     formation_state,
+    lock_formations,
+    target_giornata,
     save_formation,
 )
 from .lifecycle import (
@@ -310,6 +312,8 @@ __all__ = [
     "_slot_role_class",
     "_formation_saved",
     "formation_state",
+    "lock_formations",
+    "target_giornata",
     "save_formation",
     # scoring
     "lineup_io",

@@ -717,16 +717,16 @@
         </button>
         {% else %}
         <button type="button" data-asec-go="svincolati" class="on">
-            {% if is_free_agency %}Svincolati & Acquisti{% else %}Svincolati & Offerte{% endif %}
+            {% if is_listone_view %}Listone Svincolati{% elif is_free_agency %}Svincolati & Acquisti{% else %}Svincolati & Offerte{% endif %}
         </button>
-        {% if is_buste or not market_session or not is_free_agency %}
+        {% if not is_listone_view and is_buste or not is_listone_view and not market_session or not is_listone_view and not is_free_agency %}
         <button type="button" data-asec-go="buste">
             Le mie Buste {% if my_bids %}<span class="n">{{ my_bids|length }}</span>{% endif %}
         </button>
         {% endif %}
         {% endif %}
 
-        {% if market_session %}
+        {% if market_session and not is_listone_view %}
         <button type="button" data-asec-go="regole">
             {% if is_renewals %}Regolamento Comma 4{% else %}Regolamento{% endif %}
         </button>

@@ -16,7 +16,7 @@ from channels.testing import WebsocketCommunicator
 from django.contrib.auth.models import User
 from django.conf import settings
 from django.urls import reverse
-from django.test import (RequestFactory, TestCase, TransactionTestCase,
+from django.test import (RequestFactory, SimpleTestCase, TestCase, TransactionTestCase,
                          override_settings)
 from django.utils import timezone
 
@@ -1768,3 +1768,21 @@ class HealthzTests(TestCase):
             r = self.client.get("/healthz/")
         self.assertEqual(r.status_code, 503)
         self.assertFalse(r.json()["ok"])
+
+
+class TemplateCommentTests(SimpleTestCase):
+    """A ``{# … #}`` comment ends on its own line: across lines Django prints it
+    on the page (the dice notes showed up under the Mercato). Longer notes use
+    ``{% comment %}``."""
+
+    def test_no_multiline_hash_comments(self):
+        import re
+        from pathlib import Path
+        root = Path(__file__).resolve().parent.parent / "templates"
+        bad = []
+        for path in root.rglob("*.html"):
+            for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                for chunk in re.findall(r"\{#.*", line):
+                    if "#}" not in chunk:
+                        bad.append(f"{path.relative_to(root)}:{n}")
+        self.assertEqual(bad, [])
