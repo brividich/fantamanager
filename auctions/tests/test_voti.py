@@ -557,3 +557,68 @@ class CoAdminFormationTests(AdminFormationEditorTests):
         co = User.objects.create_user("coadmin_fe", password="pw")
         self.league.admins.add(co)
         self.client.force_login(co)
+
+
+class VotiFileLayoutTests(TestCase):
+    """File dei voti a blocchi per squadra: nome del club su una riga, intestazione
+    ripetuta per ogni blocco, autoreti nella colonna «Au»."""
+
+    HEAD = ["Cod.", "Ruolo", "Nome", "Voto", "Gf", "Gs", "Rp", "Rs", "Rf", "Au", "Amm", "Esp", "Ass"]
+
+    def _xlsx(self, rows):
+        import openpyxl
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        for r in rows:
+            ws.append(r)
+        buf = io.BytesIO()
+        wb.save(buf)
+        return buf.getvalue()
+
+    def _per_club(self):
+        return self._xlsx([
+            ["Voti Giornata 5"], [],
+            ["INTER"], self.HEAD,
+            [1, "A", "Martinez L.", 7, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+            [2, "D", "Bastoni", 5.5, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+            ["GENOA"], self.HEAD,
+            [3, "A", "Martinez L.", 5, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        ])
+
+    def test_per_club_blocks(self):
+        rows = parse_voti_file(self._per_club(), "voti.xlsx")
+        self.assertEqual([r["name"] for r in rows], ["Martinez L.", "Bastoni", "Martinez L."])
+        self.assertEqual([r["team"] for r in rows], ["INTER", "INTER", "GENOA"])
+        bastoni = rows[1]
+        self.assertEqual(bastoni["own_goals"], 1)
+        self.assertTrue(bastoni["yellow"])
+        self.assertEqual(rows[0]["goals"], 1)
+
+    def test_semicolon_csv(self):
+        text = "Nome;Squadra;Voto;Gf;Au\nBastoni;Inter;6,5;0;1\n"
+        rows = parse_voti_file(text.encode("utf-8"), "voti.csv")
+        self.assertEqual(rows[0]["vote"], Decimal("6.5"))
+        self.assertEqual(rows[0]["own_goals"], 1)
+        self.assertEqual(rows[0]["team"], "Inter")
+
+    def test_same_name_goes_to_the_right_club(self):
+        from ..models import Giornata, PlayerPerformance, Season
+        league = League.objects.create(name="Omonimi")
+        inter = Player.objects.create(league=league, name="Martinez L.", role="A", team="Inter")
+        genoa = Player.objects.create(league=league, name="Martinez L.", role="A", team="Genoa")
+        g = Giornata.objects.create(season=Season.objects.create(league=league, name="S"), number=5)
+        import_voti_giornata(parse_voti_file(self._per_club(), "voti.xlsx"), g, league=league, recompute=False)
+        self.assertEqual(PlayerPerformance.objects.get(giornata=g, player=inter).vote, Decimal("7"))
+        self.assertEqual(PlayerPerformance.objects.get(giornata=g, player=genoa).vote, Decimal("5"))
+
+    def test_old_excel_xls_is_read(self):
+        from unittest import mock
+        sheet = mock.Mock(nrows=3)
+        sheet.row_values.side_effect = [["NAPOLI"], ["Ruolo", "Nome", "Voto", "Au"], ["D", "Rrahmani", 6.0, 1.0]][:].__getitem__
+        book = mock.Mock(**{"sheet_by_index.return_value": sheet})
+        with mock.patch("xlrd.open_workbook", return_value=book) as opened:
+            rows = parse_voti_file(b"xls-bytes", "Voti.XLS")
+        opened.assert_called_once_with(file_contents=b"xls-bytes")
+        self.assertEqual(rows[0]["name"], "Rrahmani")
+        self.assertEqual(rows[0]["team"], "NAPOLI")
+        self.assertEqual(rows[0]["own_goals"], 1)

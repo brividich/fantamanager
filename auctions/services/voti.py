@@ -48,48 +48,75 @@ def _parse_bool(val: Any) -> bool:
     return s in ("1", "true", "si", "sì", "x", "amm", "esp")
 
 
+def _sheet_rows(file_bytes: bytes, fname: str) -> List[tuple]:
+    """Every row of the first sheet (Excel .xlsx/.xls) or of the CSV, as tuples."""
+    if fname.endswith((".xlsx", ".xlsm")):
+        import openpyxl
+        wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True, read_only=True)
+        return [tuple(r) for r in wb.worksheets[0].iter_rows(values_only=True)]
+    if fname.endswith(".xls"):
+        import xlrd
+        sheet = xlrd.open_workbook(file_contents=file_bytes).sheet_by_index(0)
+        return [tuple(sheet.row_values(i)) for i in range(sheet.nrows)]
+    if fname.endswith(".csv"):
+        text = file_bytes.decode("utf-8-sig", errors="replace")
+        try:
+            dialect = csv.Sniffer().sniff(text[:4096], delimiters=";,\t")
+        except csv.Error:
+            dialect = csv.excel
+        return [tuple(r) for r in csv.reader(io.StringIO(text), dialect)]
+    return []
+
+
+_NAME_HEADERS = ("nome", "calciatore", "giocatore", "player")
+
+
+def _is_header(cells: List[str]) -> bool:
+    """A header row names the player column and at least one other known column."""
+    if not any(c in _NAME_HEADERS for c in cells):
+        return False
+    return any(c in ("voto", "ruolo", "r", "gf", "squadra") or c.startswith("voto") for c in cells)
+
+
+def _club_row(row) -> str:
+    """The club name of a per-club block («ATALANTA» on a row of its own), or ''."""
+    filled = [c for c in row if c is not None and str(c).strip() != ""]
+    if len(filled) != 1 or not isinstance(filled[0], str):
+        return ""
+    text = filled[0].strip()
+    if any(ch.isdigit() for ch in text) or len(text) > 30:
+        return ""                                    # a title like «Voti Giornata 5»
+    return text
+
+
 def parse_voti_file(file_bytes: bytes, filename: str) -> List[Dict[str, Any]]:
+    """Rows of a votes file: one sheet with a header row (Nome, Voto, Gf, Gs, Ass…)
+    or the per-club layout, where each club's block starts with a row holding
+    only its name and repeats the header. The club of the block fills the team
+    of its players, so two players with the same name don't get mixed up."""
     if hasattr(file_bytes, "read"):
         file_bytes = file_bytes.read()
 
     rows: List[Dict[str, Any]] = []
-    fname = filename.lower()
-
-    if fname.endswith((".xlsx", ".xlsm")):
-        import openpyxl
-        wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
-        sheet = wb.active
-        raw_rows = list(sheet.iter_rows(values_only=True))
-        if not raw_rows:
-            return []
-
-        # Find header row
-        header_idx = 0
-        for i, row in enumerate(raw_rows[:15]):
-            row_str = " ".join(_clean_str(c).lower() for c in row if c is not None)
-            if "voto" in row_str or "nome" in row_str or "calciatore" in row_str:
-                header_idx = i
-                break
-
-        headers = [_clean_str(c).lower() for c in raw_rows[header_idx]]
-        for row in raw_rows[header_idx + 1:]:
-            if not row or all(c is None for c in row):
-                continue
-            entry = dict(zip(headers, row))
-            parsed = _normalize_vote_row(entry)
-            if parsed and parsed.get("name"):
-                rows.append(parsed)
-
-    elif fname.endswith(".csv"):
-        text = file_bytes.decode("utf-8", errors="replace")
-        dialect = csv.Sniffer().sniff(text[:2048]) if ";" in text or "," in text else None
-        reader = csv.DictReader(io.StringIO(text), dialect=dialect or "excel")
-        for row in reader:
-            cleaned_row = {_clean_str(k).lower(): v for k, v in row.items()}
-            parsed = _normalize_vote_row(cleaned_row)
-            if parsed and parsed.get("name"):
-                rows.append(parsed)
-
+    headers: List[str] = []
+    club = ""
+    for raw in _sheet_rows(file_bytes, filename.lower()):
+        if not raw or all(c is None or str(c).strip() == "" for c in raw):
+            continue
+        cells = [_clean_str(c).lower() for c in raw]
+        if _is_header(cells):
+            headers = cells
+            continue
+        if _club_row(raw):
+            club = _club_row(raw)
+            continue
+        if not headers:
+            continue
+        parsed = _normalize_vote_row(dict(zip(headers, raw)))
+        if parsed and parsed.get("name"):
+            if not parsed["team"] and club:
+                parsed["team"] = club
+            rows.append(parsed)
     return rows
 
 
@@ -124,8 +151,8 @@ def _normalize_vote_row(d: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         "vote": vote,
         "goals": _parse_int(get_first("gol", "gol fatti", "gol segnati", "gf", "goals", "reti")),
         "assists": _parse_int(get_first("assist", "ass", "as")),
-        "own_goals": _parse_int(get_first("autogol", "autorete", "ag")),
-        "pen_scored": _parse_int(get_first("rigori segnati", "rigore segnato", "r")),
+        "own_goals": _parse_int(get_first("autogol", "autoreti", "autorete", "au", "ag")),
+        "pen_scored": _parse_int(get_first("rigori segnati", "rigore segnato", "rf")),
         "pen_missed": _parse_int(get_first("rigori sbagliati", "rigore sbagliato", "rs")),
         "pen_saved": _parse_int(get_first("rigori parati", "rigore parato", "rp")),
         "goals_conceded": _parse_int(get_first("gol subiti", "gs", "goals_conceded")),

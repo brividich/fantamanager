@@ -239,8 +239,8 @@ partono, così l'azione torna lì; ``gv_base``/``gv_back`` arrivano dalla view.
 <div id="upload-section" class="upload-card" style="margin-top:20px;">
     <h3 style="margin:0 0 4px;font-size:18px;">Caricamento Voti Ufficiali Giornata {{ current_giornata.number }}</h3>
     <div class="muted" style="font-size:13px;">
-        Supporta i file dei voti in formato <b>.xlsx</b> (per esempio l'export «Voti» del tuo sito di fantacalcio) e file <b>.csv</b>.
-        Il sistema mappa automaticamente voti, gol segnati/subiti, assist, rigori, ammonizioni ed espulsioni.
+        Supporta i file dei voti in formato <b>.xlsx</b>, <b>.xls</b> e <b>.csv</b> (per esempio l'export «Voti» del tuo sito di fantacalcio), anche a blocchi per squadra.
+        Il sistema mappa automaticamente voti, gol segnati/subiti, assist, rigori, autoreti, ammonizioni ed espulsioni.
     </div>
 
     <form method="post" action="{% url 'app_voti_import' %}" enctype="multipart/form-data" style="margin-top:16px;">
@@ -251,7 +251,7 @@ partono, così l'azione torna lì; ``gv_base``/``gv_back`` arrivano dalla view.
 
         <div class="drop-zone" onclick="document.getElementById('voti-input').click()">
             <div style="font-size:32px;margin-bottom:8px;">📊</div>
-            <div style="font-size:15px;font-weight:700;color:#fff;">Clicca per selezionare il file voti (.xlsx o .csv)</div>
+            <div style="font-size:15px;font-weight:700;color:#fff;">Clicca per selezionare il file voti (.xlsx, .xls o .csv)</div>
             <div class="muted" style="font-size:12px;margin-top:4px;" id="file-name-display">Nessun file selezionato</div>
             <input type="file" id="voti-input" name="voti_file" accept=".xlsx,.xls,.csv" style="display:none;"
                    onchange="if(this.files[0]) document.getElementById('file-name-display').textContent = this.files[0].name + ' (' + (this.files[0].size/1024).toFixed(1) + ' KB)'">
