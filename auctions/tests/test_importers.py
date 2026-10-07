@@ -27,29 +27,7 @@ from ..models import (Auction, AuctionCycleResult, AuctionQueueItem, Bid, Format
 from .common import make_live_auction
 
 class ProviderTests(TestCase):
-    """Fantapazz provider parsing + DB importers on mock/local data (no network)."""
-
-    MOCK_ROSA = (
-        '<div class="nome-squadra">GELSI UNITED</div>'
-        '<span class="credito-residuo">2168</span>'
-        '<div class="card-calciatore" id="1" ID_Ruolo="1" quotazione="7">'
-        '<div class="nomeCalciatore">Falcone</div><div class="nomeClub">Lecce</div><div class="costo">9</div></div>'
-        '<div class="card-calciatore" id="2" ID_Ruolo="4" quotazione="30">'
-        '<div class="nomeCalciatore">Lautaro</div><div class="nomeClub">Inter</div><div class="costo">120</div></div>'
-    )
-
-    def test_parse_rosters_mock(self):
-        from ..providers import get_provider
-        provider = get_provider("fantapazz")
-        parsed = provider.parse_rosters(self.MOCK_ROSA)
-        self.assertEqual(parsed["fantapazz_team"], "GELSI UNITED")
-        self.assertEqual(parsed["remaining_credits"], "2168")
-        self.assertEqual(len(parsed["players"]), 2)
-        self.assertEqual(parsed["players"][0]["name"], "Falcone")
-        # Fase D fix: ID_Ruolo is read case-insensitively, so roles are no
-        # longer all collapsed to "A" by html.parser lowercasing the attribute.
-        self.assertEqual(parsed["players"][0]["role"], "P")  # ID_Ruolo="1"
-        self.assertEqual(parsed["players"][1]["role"], "A")  # ID_Ruolo="4"
+    """Provider registry + DB importers on mock/local data (no network)."""
 
     def test_get_provider_unknown_raises(self):
         from ..providers import ProviderError, get_provider

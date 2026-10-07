@@ -71,9 +71,9 @@ def register(provider_cls):
 
 def get_provider(name):
     """Return a provider instance by name, or raise ProviderError if unknown."""
-    # Import built-ins lazily to avoid import cycles.
-    from . import fantapazz  # noqa: F401  (registers FantapazzProvider)
-
+    # Nessun provider online incluso: le rose arrivano da file
+    # (``importers.parse_rose_file``). Il registro resta per eventuali fonti
+    # con licenza.
     cls = _REGISTRY.get((name or "").strip().lower())
     if cls is None:
         raise ProviderError(f"Provider sconosciuto: {name!r}")

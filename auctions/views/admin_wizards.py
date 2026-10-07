@@ -1,10 +1,8 @@
 """Setup and creation wizards for leagues and auctions."""
 import json
-import os
 import secrets as _sec
 from decimal import Decimal, InvalidOperation
 
-from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.http import HttpResponseForbidden, JsonResponse
@@ -267,14 +265,6 @@ def _create_manual_teams(request, league, budget):
         )
 
 
-def _fp_rose_ready(request):
-    token = request.session.get("fp_sync_token", "")
-    if not token:
-        return False
-    path = os.path.join(str(settings.MEDIA_ROOT), f"fp_rose_{token}.xls")
-    return os.path.exists(path)
-
-
 def _setup_wizard_context(request, error=""):
     user = request.user
     mine = League.objects.all() if user.is_superuser else League.objects.filter(owner=user)
@@ -289,23 +279,14 @@ def _setup_wizard_context(request, error=""):
         "call_orders": Auction.CallOrder.choices,
         "within_roles": Auction.WithinRole.choices,
         "opening_price_modes": Auction.OpeningPriceMode.choices,
-        "has_fp_rose": _fp_rose_ready(request),
         "mail_ready": mail.is_ready(),
         "error": error,
     }
 
 
 def _import_rose_into_league(request, league, *, source):
-    raw = None
     upload = request.FILES.get("rose_file")
-    if upload:
-        raw = upload.read()
-    elif source == "fantapazz":
-        token = request.session.get("fp_sync_token", "")
-        path = os.path.join(str(settings.MEDIA_ROOT), f"fp_rose_{token}.xls") if token else ""
-        if path and os.path.exists(path):
-            with open(path, "rb") as fh:
-                raw = fh.read()
+    raw = upload.read() if upload else None
     if not raw:
         return None
     teams = importers.parse_rose_xls(raw)
