@@ -364,9 +364,12 @@ app through one of their teams — a banner with the way back.
     .a-seg button.on .n { background: rgba(10,17,8,.22); color: #0a1108; font-weight: 800; }
     .a-seg button:not(.on):hover { color: var(--ink); background: rgba(255,255,255,.05); }
 
+    /* On a phone the bar takes the whole width and shares it out; when the
+       labels don't fit it scrolls (fading on the side with more, like
+       .fm-onerow) instead of squeezing them on top of each other. */
     @media (max-width: 640px) {
         .a-seg {
-            display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); width: 100%; box-sizing: border-box;
+            display: grid; grid-auto-flow: column; grid-auto-columns: minmax(max-content, 1fr); width: 100%; box-sizing: border-box;
         }
         .a-seg button {
             padding: 0 4px; font-size: 12px;

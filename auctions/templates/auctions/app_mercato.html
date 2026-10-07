@@ -143,11 +143,23 @@
         text-decoration: none; cursor: pointer; transition: background .12s ease;
     }
     .ws-back-btn:hover { background: rgba(255,255,255,.15); }
+    .ws-back-btn { flex-shrink: 0; white-space: nowrap; }
+    /* Title next to the back button while it fits (wraps under it when it
+       doesn't); the switch between sessions always on its own row. */
+    .ws-title-wrap { flex: 1 1 170px; min-width: 0; }
     .ws-title-wrap h2 {
         font-family: var(--display); font-weight: 900; font-size: 17px; color: var(--ink); margin: 0; line-height: 1.1;
+        overflow-wrap: anywhere;
     }
     .ws-title-wrap .sub {
-        font-size: 11.5px; color: var(--muted); font-weight: 600; margin-top: 3px; display: flex; align-items: center; gap: 6px;
+        font-size: 11.5px; color: var(--muted); font-weight: 600; margin-top: 3px; display: flex; align-items: center;
+        gap: 4px 6px; flex-wrap: wrap;
+    }
+    .ws-title-wrap .sub .status-pill { white-space: nowrap; }
+    .ws-switch { flex: 1 1 100%; min-width: 0; }
+    .ws-switch select {
+        width: 100%; max-width: 100%; text-overflow: ellipsis; background: var(--panel); border: 1px solid var(--line);
+        color: var(--ink); padding: 8px 10px; border-radius: 10px; font-size: 12.5px; font-weight: 700;
     }
 
     /* Active Session Hero Card */
@@ -161,8 +173,9 @@
     }
     .shc-stat {
         text-align: center; background: rgba(0,0,0,0.25); border: 1px solid var(--line);
-        padding: 8px 6px; border-radius: 10px;
+        padding: 8px 6px; border-radius: 10px; min-width: 0;
     }
+    html.light-theme .shc-stat { background: rgba(255,255,255,.72); }
     .shc-stat .v {
         font-family: var(--display); font-weight: 900; font-size: 16px; color: var(--ink); line-height: 1.1;
     }
@@ -309,7 +322,7 @@
     <div class="hub-section-title">
         <span>Sessioni di mercato</span>
         <div style="display:flex;align-items:center;gap:10px">
-            <small>{{ active_sessions|length }} aperta{% if active_sessions|length != 1 %}e{% endif %}</small>
+            <small>{{ active_sessions|length }} {% if active_sessions|length == 1 %}aperta{% else %}aperte{% endif %}</small>
             {% if manages_app_league or is_app_admin %}
             <button type="button" class="mc-btn-wizard" onclick="openMarketWizard()" title="Avvia il wizard per creare una nuova sessione per {{ app_league.name }}">
                 <svg class="ic" style="width:13px;height:13px"><use href="#i-plus"/></svg>
@@ -340,11 +353,13 @@
                         <span class="status-pill status-open">Reclami aperti</span>
                         {% elif s.session_type == "live_auction" %}
                         <span class="status-pill status-open">Sala asta aperta</span>
+                        {% elif s.session_type == "renewals" %}
+                        <span class="status-pill status-open">Rinnovi aperti</span>
                         {% else %}
                         <span class="status-pill status-open">Buste aperte</span>
                         {% endif %}
                     {% elif s.status == "resolved" %}
-                    <span class="status-pill status-resolved">Spoglio eseguito</span>
+                    <span class="status-pill status-resolved">{% if s.session_type == "renewals" %}Rinnovi chiusi{% else %}Spoglio eseguito{% endif %}</span>
                     {% else %}
                     <span class="status-pill status-closed">Chiusa</span>
                     {% endif %}
@@ -358,6 +373,8 @@
                             Esercita clausole rescissorie per strappare calciatori dalle rose avversarie.
                         {% elif s.session_type == "waiver_wire" %}
                             Invia le tue scelte prioritarie. Assegnazione per classifica o turni.
+                        {% elif s.session_type == "renewals" %}
+                            Dichiara i contratti scaduti da rinnovare e tira i dadi{% if s.closes_at %} entro il <b>{{ s.closes_at|date:"d/m/Y H:i" }}</b>{% endif %}.
                         {% elif s.closes_at %}
                             Chiusura offerte: <b>{{ s.closes_at|date:"d/m/Y H:i" }}</b>
                         {% else %}
@@ -376,10 +393,13 @@
                         <span class="hc-chip">Prezzo: {% if s.config.fa_cost_type == "base" %}1 FM base{% else %}Quotazione listone{% endif %}</span>
                     {% elif s.session_type == "buyout_clause" %}
                         <span class="hc-chip">Clausola: {{ s.config.buyout_multiplier|default:1.5 }}x costo originale</span>
-                        <span class="hc-chip">Protezione: {{ s.config.buyout_min_hold_days|default:7 }} giorni</span>
+                        <span class="hc-chip">Protezione: {% if s.config.buyout_min_hold_days == 0 %}0{% else %}{{ s.config.buyout_min_hold_days|default:7 }}{% endif %} giorni</span>
                     {% elif s.session_type == "waiver_wire" %}
                         <span class="hc-chip">Ordine: {% if s.config.waiver_order_type == "rolling" %}Rotazione continua{% else %}Inverso classifica{% endif %}</span>
                         {% if s.bids_count > 0 %}<span class="hc-chip active-bids">{{ s.bids_count }} tuoi reclami</span>{% endif %}
+                    {% elif s.session_type == "renewals" %}
+                        <span class="hc-chip{% if my_expiring %} active-bids{% endif %}">Contratti scaduti: {{ my_expiring|length }}</span>
+                        <span class="hc-chip">Dadi contratti da tirare: {{ my_to_roll|length }}</span>
                     {% else %}
                         {% if s.bids_count > 0 %}
                         <span class="hc-chip active-bids">{{ s.bids_count }}{% if s.max_bids %}/{{ s.max_bids }}{% endif %} tue buste ({{ s.bids_total }} FM)</span>
@@ -408,6 +428,7 @@
                         {% elif s.session_type == "buyout_clause" %}Esplora rose e clausole
                         {% elif s.session_type == "waiver_wire" %}Inserisci le scelte
                         {% elif s.session_type == "live_auction" %}Entra in sala asta
+                        {% elif s.session_type == "renewals" %}Rinnovi e dadi
                         {% else %}Entra e fai le offerte{% endif %}
                     </span>
                     <span>→</span>
@@ -527,7 +548,7 @@
             <span>Tutti i Mercati</span>
         </a>
 
-        <div class="ws-title-wrap" style="flex:1;min-width:0">
+        <div class="ws-title-wrap">
             {% if is_listone_view and not requested_session_id %}
             <h2>Listone Svincolati</h2>
             <div class="sub">Tutti i calciatori liberi e quotazioni di lega</div>
@@ -539,13 +560,14 @@
                     {% if is_free_agency %}Acquisti aperti (24/7)
                     {% elif is_buyout_clause %}Clausole attive
                     {% elif is_waiver_wire %}Reclami aperti
+                    {% elif is_renewals %}Rinnovi aperti
                     {% else %}Buste aperte{% endif %}
                 </span>
                 {% if market_session.closes_at %}<span>Chiusura: <b>{{ market_session.closes_at|date:"d/m H:i" }}</b></span>{% endif %}
                 {% elif market_session.status == "resolved" %}
-                <span class="status-pill status-resolved" style="font-size:10px;padding:2px 7px">Spoglio eseguito</span>
+                <span class="status-pill status-resolved" style="font-size:10px;padding:2px 7px">{% if is_renewals %}Rinnovi chiusi{% else %}Spoglio eseguito{% endif %}</span>
                 {% else %}
-                <span class="status-pill status-closed" style="font-size:10px;padding:2px 7px">Sessione chiusa</span>
+                <span class="status-pill status-closed" style="font-size:10px;padding:2px 7px">{% if is_renewals %}Rinnovi sospesi{% else %}Sessione chiusa{% endif %}</span>
                 {% endif %}
             </div>
             {% else %}
@@ -554,8 +576,8 @@
         </div>
 
         {% if sessions_list|length > 1 and not is_listone_view %}
-        <div style="flex:1 1 200px;min-width:0;max-width:100%">
-            <select onchange="location.href='?session_id='+this.value" style="width:100%;max-width:100%;text-overflow:ellipsis;background:var(--panel-3, rgba(255,255,255,.08));border:1px solid var(--line);color:var(--ink);padding:6px 10px;border-radius:10px;font-size:12px;font-weight:700" aria-label="Cambia sessione di mercato">
+        <div class="ws-switch">
+            <select onchange="location.href='?session_id='+this.value" aria-label="Cambia sessione di mercato">
                 {% for s in sessions_list %}
                 <option value="{{ s.id }}" {% if market_session and s.id == market_session.id %}selected{% endif %}>
                     {{ s.title }} · {% if s.status == "open" %}aperta{% elif s.status == "closed" %}chiusa{% elif s.status == "resolved" %}conclusa{% else %}programmata{% endif %}
@@ -581,7 +603,7 @@
                 <div><b>Draft Waiver Wire a Turni:</b> Inserisci i tuoi reclami in ordine di preferenza. Alla chiusura della finestra, il sistema assegna i giocatori un turno alla volta partendo da chi ha la precedenza.</div>
             {% elif is_renewals %}
                 <span style="font-size:17px">📜</span>
-                <div><b>Mercato Rinnovi Contratti (Regolamento Fantalugnano, Comma 4):</b> Dichiara chi intendi confermare tra i contratti scaduti, tira il Dado Rinnovo (3 Verdi / 3 Rosse) e assegna la durata ai nuovi arrivati col Dado Contratti.</div>
+                <div><b>Mercato Rinnovi Contratti (regolamento, comma 4):</b> Dichiara chi intendi confermare tra i contratti scaduti, tira il Dado Rinnovo (3 Verdi / 3 Rosse) e assegna la durata ai nuovi arrivati col Dado Contratti.</div>
             {% elif is_buste and market_session.status == "resolved" %}
                 <span style="font-size:17px">🏆</span>
                 <div><b>Verbale Ufficiale di Spoglio Buste:</b> Lo spoglio è completato! Consulta qui sotto l'esito di tutte le buste della lega e delle tue offerte.</div>
@@ -610,7 +632,7 @@
                 <div class="k">Moltiplicatore Clausola</div>
             </div>
             <div class="shc-stat">
-                <div class="v">{{ market_session.config.buyout_min_hold_days|default:7 }} <small style="font-size:10px">giorni</small></div>
+                <div class="v">{% if market_session.config.buyout_min_hold_days == 0 %}0{% else %}{{ market_session.config.buyout_min_hold_days|default:7 }}{% endif %} <small style="font-size:10px">giorni</small></div>
                 <div class="k">Protezione Acquisti</div>
             </div>
             {% elif is_waiver_wire %}
@@ -731,7 +753,7 @@
                 <a href="?{% if market_session %}session_id={{ market_session.id }}{% elif is_listone_view %}view=listone{% endif %}" class="role-chip" style="cursor:pointer;text-decoration:none;padding:0 12px;font-size:12px;background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.3);display:inline-flex;align-items:center;line-height:1;" title="Azzera ricerca">✕ Resetta</a>
                 {% endif %}
             </div>
-            <div class="role-chips" role="radiogroup" aria-label="Ruolo">
+            <div class="role-chips fm-onerow" role="radiogroup" aria-label="Ruolo">
                 {% for code, label in role_filters %}
                 <label class="role-chip r-{{ code }} {% if role == code %}on{% endif %}" style="cursor:pointer">
                     <input type="radio" name="role" value="{{ code }}" {% if role == code %}checked{% endif %} onchange="this.form.submit()" style="display:none">{{ label }}
@@ -1039,6 +1061,7 @@
             </div>
         </div>
     </div>
+    {% endif %}
 
     <!-- =====================================================================
          TAB: ESITO SPOGLIO BUSTE (Quando la sessione è scrutinata)
@@ -1158,7 +1181,7 @@
     {% endif %}
 
     <!-- =====================================================================
-         TAB: I MIEI RINNOVI & DADI (Comma 4 Fantalugnano)
+         TAB: I MIEI RINNOVI & DADI (comma 4)
          ===================================================================== -->
     <div data-asec="rinnovi">
         <!-- 1. Contratti Scaduti da Rinnovare -->
@@ -1333,20 +1356,20 @@
          ===================================================================== -->
     <div data-asec="regole">
         {% if is_renewals %}
-        <!-- REGOLAMENTO CONTRATTI FANTALUGNANO (COMMA 4) -->
+        <!-- REGOLAMENTO CONTRATTI (COMMA 4) -->
         <div class="a-card" style="padding:16px;margin-bottom:14px">
             <div class="a-label" style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;">
                 <span><svg class="ic"><use href="#i-gavel"/></svg> Regolamento Contratti & Rinnovi (Comma 4)</span>
-                <span class="status-pill" style="color:var(--accent)">Fantalugnano</span>
+                <span class="status-pill" style="color:var(--accent)">{{ app_league.name }}</span>
             </div>
             <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));gap:12px;font-size:13px">
                 <div style="background:var(--panel-2);padding:14px;border-radius:12px;border:1px solid var(--line)">
                     <b style="font-size:14px;color:var(--ink);display:block;margin-bottom:4px">🎲 1. Dado Contratti</b>
-                    <p style="color:var(--muted);margin:0;line-height:1.4">All'acquisto (asta, free agency, buste) il manager tira il dado contratti (facce: <b>1-1-2-2-3-3</b> anni). Determina la durata base della permanenza in rosa.</p>
+                    <p style="color:var(--muted);margin:0;line-height:1.4">All'acquisto (asta, free agency, buste) il manager tira il dado contratti (facce: <b>{{ contract_rules_info.faces|join:"-" }}</b> anni). Determina la durata base della permanenza in rosa.</p>
                 </div>
                 <div style="background:var(--panel-2);padding:14px;border-radius:12px;border:1px solid var(--line)">
                     <b style="font-size:14px;color:var(--ink);display:block;margin-bottom:4px">🛡️ 2. Clausola di Costo (4.03)</b>
-                    <p style="color:var(--muted);margin:0;line-height:1.4">Se il prezzo pagato supera le soglie di ruolo (<b>P/D: 100/150 FM</b>, <b>C: 300/500 FM</b>, <b>A: 600/1000 FM</b>), il contratto parte minimo da 2 o 3 anni. Se il dado dà di più, vale il dado!</p>
+                    <p style="color:var(--muted);margin:0;line-height:1.4">Se il prezzo pagato supera le soglie di ruolo ({% for r, t in contract_rules_info.thresholds.items %}<b>{{ r }}: {{ t|join:"/" }} FM</b>{% if not forloop.last %}, {% endif %}{% endfor %}), il contratto parte minimo da 2 o 3 anni. Se il dado dà di più, vale il dado!</p>
                 </div>
                 <div style="background:var(--panel-2);padding:14px;border-radius:12px;border:1px solid var(--line)">
                     <b style="font-size:14px;color:var(--ink);display:block;margin-bottom:4px">🧤 3. Blocco Portieri (2.02)</b>
@@ -1354,7 +1377,7 @@
                 </div>
                 <div style="background:var(--panel-2);padding:14px;border-radius:12px;border:1px solid var(--line)">
                     <b style="font-size:14px;color:var(--ink);display:block;margin-bottom:4px">🌟 4. Scommessa Under 21 (5.10)</b>
-                    <p style="color:var(--muted);margin:0;line-height:1.4">Un giovane U21 acquistato all'asta estiva può essere dichiarato scommessa subito dopo l'acquisto, garantendosi <b>3 anni fissi</b> di contratto.</p>
+                    <p style="color:var(--muted);margin:0;line-height:1.4">Un giovane U21 acquistato all'asta estiva può essere dichiarato scommessa subito dopo l'acquisto, garantendosi <b>{{ contract_rules_info.u21_years }} anni fissi</b> di contratto.</p>
                 </div>
                 <div style="background:var(--panel-2);padding:14px;border-radius:12px;border:1px solid var(--line)">
                     <b style="font-size:14px;color:var(--ink);display:block;margin-bottom:4px">🟢 5. Rinnovo Verde (4.1)</b>
@@ -1362,7 +1385,7 @@
                 </div>
                 <div style="background:var(--panel-2);padding:14px;border-radius:12px;border:1px solid var(--line)">
                     <b style="font-size:14px;color:var(--ink);display:block;margin-bottom:4px">🔴 6. Rescissione Rossa (4.1)</b>
-                    <p style="color:var(--muted);margin:0;line-height:1.4">Faccia rossa = svincolo immediato. La squadra non può ricomprarlo alle buste/asta; all'asta successiva la squadra incassa i proventi fino al tetto indennizzo (<b>P:150, D:150, C:400, A:600 FM</b>).</p>
+                    <p style="color:var(--muted);margin:0;line-height:1.4">Faccia rossa = svincolo immediato. La squadra non può ricomprarlo alle buste/asta; all'asta successiva la squadra incassa i proventi fino al tetto indennizzo (<b>{% for r, v in contract_rules_info.rescind_proceeds_cap.items %}{{ r }}:{{ v }}{% if not forloop.last %}, {% endif %}{% endfor %} FM</b>).</p>
                 </div>
             </div>
         </div>
@@ -1403,17 +1426,19 @@
                 </div>
                 <div style="background:var(--panel-2);padding:10px 12px;border-radius:10px;border:1px solid var(--line);">
                     <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Protezione Post-Acquisto</span>
-                    <b style="font-size:13.5px">{{ market_session.config.buyout_min_hold_days|default:7 }} giorni</b>
+                    <b style="font-size:13.5px">{% if market_session.config.buyout_min_hold_days == 0 %}0{% else %}{{ market_session.config.buyout_min_hold_days|default:7 }}{% endif %} giorni</b>
                 </div>
                 {% endif %}
+                {% if is_buste %}
                 <div style="background:var(--panel-2);padding:10px 12px;border-radius:10px;border:1px solid var(--line);">
                     <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Regola Budget</span>
                     <b style="font-size:13.5px">{% if market_session.budget_rule == "total" %}Totale offerte ≤ budget{% else %}Ogni offerta ≤ budget, conta priorità{% endif %}</b>
                 </div>
                 <div style="background:var(--panel-2);padding:10px 12px;border-radius:10px;border:1px solid var(--line);">
                     <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Spareggio Pari Merito</span>
-                    <b style="font-size:13.5px">{% if market_session.tie_break == "first" %}Vince chi offre per primo{% else %}Decide l'amministratore / sorteggio{% endif %}</b>
+                    <b style="font-size:13.5px">{% if market_session.tie_break == "first" %}Vince chi offre per primo{% elif market_session.tie_break == "rebid" %}Secondo sfoglio tra le squadre in parità{% else %}Decide l'amministratore / sorteggio{% endif %}</b>
                 </div>
+                {% endif %}
                 <div style="background:var(--panel-2);padding:10px 12px;border-radius:10px;border:1px solid var(--line);">
                     <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Sostituzione Rosa</span>
                     <b style="font-size:13.5px">{% if market_session.require_same_role_release %}Obbligatoria con pari ruolo{% elif market_session.allow_conditional_release %}Taglio condizionato facoltativo{% else %}Nessun taglio consentito{% endif %}</b>
@@ -1422,7 +1447,7 @@
                     <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Rimborso Svincoli</span>
                     <b style="font-size:13.5px">{{ market_session.get_release_refund_mode_display }}</b>
                 </div>
-                {% if market_session.max_bids %}
+                {% if is_buste and market_session.max_bids %}
                 <div style="background:var(--panel-2);padding:10px 12px;border-radius:10px;border:1px solid var(--line);">
                     <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Offerte Massime</span>
                     <b style="font-size:13.5px">{{ market_session.max_bids }} buste per squadra</b>
@@ -1432,7 +1457,6 @@
         </div>
         {% endif %}
     </div>
-    {% endif %}
 
     <!-- =====================================================================
          TAB 4: EXTRA SALARY CAP (Se abilitato)
@@ -1575,10 +1599,11 @@
             <input type="hidden" id="fa-player-id" name="player_id">
             <input type="hidden" name="session_id" value="{{ market_session.id }}">
 
+            {% if market_session.allow_conditional_release or market_session.require_same_role_release %}
             <div class="form-group">
-                <label>Svincola un calciatore (opzionale o se hai la rosa piena)</label>
-                <select name="release_player_id" id="fa-release-player" onchange="updateFaCalc()">
-                    <option value="">-- Nessun taglio (mantieni tutti i giocatori) --</option>
+                <label>{% if market_session.require_same_role_release %}Giocatore da sostituire (stesso ruolo, obbligatorio){% else %}Svincola un calciatore (opzionale o se hai la rosa piena){% endif %}</label>
+                <select name="release_player_id" id="fa-release-player" onchange="updateFaCalc()"{% if market_session.require_same_role_release %} required data-same-role="1"{% endif %}>
+                    <option value="">{% if market_session.require_same_role_release %}-- Scegli chi tagliare --{% else %}-- Nessun taglio (mantieni tutti i giocatori) --{% endif %}</option>
                     {% for rp in my_roster %}
                     <option value="{{ rp.id }}" data-refund="{{ rp.market_refund }}" data-role="{{ rp.role }}">
                         Taglia {{ rp.name }} ({{ rp.role }} - {{ rp.team }}) [+{{ rp.market_refund }} FM]
@@ -1586,6 +1611,7 @@
                     {% endfor %}
                 </select>
             </div>
+            {% endif %}
 
             <div style="background:rgba(255,255,255,.04);padding:14px;border-radius:12px;margin-bottom:14px;font-size:12px">
                 <div style="display:flex;justify-content:space-between;margin-bottom:6px">
@@ -1633,10 +1659,11 @@
             <input type="hidden" id="bo-player-id" name="player_id">
             <input type="hidden" name="session_id" value="{{ market_session.id }}">
 
+            {% if market_session.allow_conditional_release or market_session.require_same_role_release %}
             <div class="form-group">
-                <label>Svincola un calciatore (opzionale o se hai la rosa piena)</label>
-                <select name="release_player_id" id="bo-release-player" onchange="updateBoCalc()">
-                    <option value="">-- Nessun taglio (mantieni tutti i giocatori) --</option>
+                <label>{% if market_session.require_same_role_release %}Giocatore da sostituire (stesso ruolo, obbligatorio){% else %}Svincola un calciatore (opzionale o se hai la rosa piena){% endif %}</label>
+                <select name="release_player_id" id="bo-release-player" onchange="updateBoCalc()"{% if market_session.require_same_role_release %} required data-same-role="1"{% endif %}>
+                    <option value="">{% if market_session.require_same_role_release %}-- Scegli chi tagliare --{% else %}-- Nessun taglio (mantieni tutti i giocatori) --{% endif %}</option>
                     {% for rp in my_roster %}
                     <option value="{{ rp.id }}" data-refund="{{ rp.market_refund }}" data-role="{{ rp.role }}">
                         Taglia {{ rp.name }} ({{ rp.role }} - {{ rp.team }}) [+{{ rp.market_refund }} FM]
@@ -1644,6 +1671,7 @@
                     {% endfor %}
                 </select>
             </div>
+            {% endif %}
 
             <div style="background:rgba(255,255,255,.04);padding:14px;border-radius:12px;margin-bottom:14px;font-size:12px">
                 <div style="display:flex;justify-content:space-between;margin-bottom:6px">
@@ -1702,17 +1730,19 @@
                 </small>
             </div>
 
+            {% if market_session.allow_conditional_release or market_session.require_same_role_release %}
             <div class="form-group">
-                <label>Taglio condizionato (svincola solo se ti aggiudichi questo giocatore)</label>
-                <select name="release_player_id" id="ww-release-player">
-                    <option value="">-- Nessun taglio (se hai slot liberi) --</option>
+                <label>{% if market_session.require_same_role_release %}Giocatore da sostituire (stesso ruolo, obbligatorio){% else %}Taglio condizionato (svincola solo se ti aggiudichi questo giocatore){% endif %}</label>
+                <select name="release_player_id" id="ww-release-player"{% if market_session.require_same_role_release %} required data-same-role="1"{% endif %}>
+                    <option value="">{% if market_session.require_same_role_release %}-- Scegli chi tagliare --{% else %}-- Nessun taglio (se hai slot liberi) --{% endif %}</option>
                     {% for rp in my_roster %}
-                    <option value="{{ rp.id }}">
+                    <option value="{{ rp.id }}" data-role="{{ rp.role }}">
                         Taglia {{ rp.name }} ({{ rp.role }} - {{ rp.team }})
                     </option>
                     {% endfor %}
                 </select>
             </div>
+            {% endif %}
 
             <div class="modal-btns">
                 <button type="button" class="btn-cancel" onclick="closeWaiverModal()">Annulla</button>
@@ -1744,17 +1774,22 @@
         rEl.textContent = role;
         rEl.className = "role-badge role-" + role;
         document.getElementById("bid-amount").value = Math.max(1, quota);
-        const rel = document.getElementById("bid-release-player");
-        if (rel) {
-            rel.value = "";
-            if (rel.dataset.sameRole) {
-                Array.from(rel.options).forEach(o => {
-                    if (o.value) o.hidden = o.disabled = o.dataset.role !== role;
-                });
-            }
-        }
+        prepRelease("bid-release-player", role);
         updateBudgetCalc();
         modal.classList.add("open");
+    }
+
+    // The cut select of a purchase dialog: empty, and with "same role" rules
+    // only the players of the role being bought.
+    function prepRelease(id, role) {
+        const rel = document.getElementById(id);
+        if (!rel) return;
+        rel.value = "";
+        if (rel.dataset.sameRole) {
+            Array.from(rel.options).forEach(o => {
+                if (o.value) o.hidden = o.disabled = o.dataset.role !== role;
+            });
+        }
     }
 
     function closeBidModal() {
@@ -1867,8 +1902,7 @@
         rEl.textContent = role;
         rEl.className = "role-badge role-" + role;
         faCurrentCost = parseInt(cost, 10) || 0;
-        const rel = document.getElementById("fa-release-player");
-        if (rel) rel.value = "";
+        prepRelease("fa-release-player", role);
         updateFaCalc();
         modal.classList.add("open");
     }
@@ -1943,8 +1977,7 @@
         rEl.textContent = role;
         rEl.className = "role-badge role-" + role;
         boCurrentCost = parseInt(cost, 10) || 0;
-        const rel = document.getElementById("bo-release-player");
-        if (rel) rel.value = "";
+        prepRelease("bo-release-player", role);
         updateBoCalc();
         modal.classList.add("open");
     }
@@ -2023,6 +2056,7 @@
         const rEl = document.getElementById("ww-modal-role");
         rEl.textContent = role;
         rEl.className = "role-badge role-" + role;
+        prepRelease("ww-release-player", role);
         modal.classList.add("open");
     }
 

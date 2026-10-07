@@ -1,7 +1,5 @@
 """Product shell (mobile-first FantaManager app; session-participant identity)."""
 import json
-import math
-from decimal import Decimal
 from django.core.paginator import Paginator
 from django.db.models import Case, F, Q, Value, When
 from django.db.models.functions import Coalesce
@@ -23,12 +21,12 @@ from ..models import (
     MarketSession,
     Participant,
     Player,
-    RosterLog,
     Season,
     Trade,
 )
 from .. import scoring, services, throttle
 from ..services import mail
+from ..services.market import buyout_price, session_moves, waiver_order
 from .auth import authenticate_identifier
 from .common import (
     SESSION_LEAGUE_KEY,
@@ -530,24 +528,19 @@ def app_mercato(request):
 
     if market_session and is_free_agency:
         week_ago = timezone.now() - timezone.timedelta(days=7)
-        moves_this_week = RosterLog.objects.filter(
-            participant=participant,
-            action=RosterLog.Action.ASSIGN,
-            created_at__gte=week_ago,
-            note__startswith=f"Acquisto Free Agency: {market_session.title}"
-        ).count()
+        moves_this_week = session_moves(market_session).filter(
+            participant=participant, created_at__gte=week_ago).count()
         max_m = int((market_session.config or {}).get("fa_max_moves") or 0)
         if max_m > 0:
             moves_left = max(0, max_m - moves_this_week)
 
     if market_session and is_buyout_clause:
         opp_qs = Player.objects.filter(league=league, owner__isnull=False).exclude(owner=participant).select_related("owner").order_by("owner__display_name", "role", "-cost", "name")
-        mult = float((market_session.config or {}).get("buyout_multiplier") or 1.5)
-        hold_days = int((market_session.config or {}).get("buyout_min_hold_days") or 7)
+        hold_cfg = (market_session.config or {}).get("buyout_min_hold_days")
+        hold_days = int(hold_cfg) if hold_cfg is not None else 7  # 0 = nessuna protezione
         now = timezone.now()
         for pl in opp_qs:
-            base_cost = pl.cost if (pl.cost is not None and pl.cost >= 1) else Decimal("1")
-            pl.buyout_price = int(math.ceil(float(base_cost) * mult))
+            pl.buyout_price = int(buyout_price(market_session, pl))
             if hold_days > 0 and pl.acquired_at:
                 days_held = (now - pl.acquired_at).total_seconds() / 86400.0
                 if days_held < hold_days:
@@ -563,27 +556,8 @@ def app_mercato(request):
 
     if market_session and is_waiver_wire:
         waiver_claims = services.get_participant_market_bids(market_session.id, participant.id)
-        order_type = (market_session.config or {}).get("waiver_order_type", "inverse_standing")
-        if order_type == "inverse_standing":
-            season = league.seasons.order_by("-created_at").first() if league else None
-            if season:
-                try:
-                    from ..services.calendar import standings
-                    std = standings(season)
-                    for r in reversed(std):
-                        p_obj = Participant.objects.filter(pk=r["participant_id"]).first()
-                        if p_obj:
-                            waiver_order_preview.append(p_obj.display_name)
-                except Exception:
-                    pass
-        elif order_type == "rolling":
-            saved = (market_session.config or {}).get("waiver_order") or []
-            for pid in saved:
-                p_obj = Participant.objects.filter(pk=pid).first()
-                if p_obj:
-                    waiver_order_preview.append(p_obj.display_name)
-        if not waiver_order_preview and league:
-            waiver_order_preview = list(Participant.objects.filter(league=league, is_active=True).values_list("display_name", flat=True))
+        teams = {t.id: t for t in Participant.objects.filter(league=league, is_active=True)}
+        waiver_order_preview = [teams[pid].display_name for pid in waiver_order(market_session, teams)]
 
     my_expiring = []
     my_to_roll = []

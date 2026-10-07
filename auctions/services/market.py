@@ -1,8 +1,7 @@
 """Sealed-bid market session (mercato di riparazione) business logic."""
 from collections import defaultdict
-from decimal import Decimal, InvalidOperation
+from decimal import ROUND_CEILING, Decimal, InvalidOperation
 import logging
-import math
 
 from django.db import transaction
 from django.db.models import F
@@ -39,6 +38,33 @@ def _calc_release_refund(session, player):
     return player.cost if player.cost is not None else Decimal("1")
 
 
+def session_moves(session):
+    """The purchases made on the spot in a free agency or clause session, from
+    the roster log. They belong to the session by date, not by title: a
+    renamed session keeps its moves (and its weekly limit)."""
+    prefix = ("Clausola rescissoria pagata a" if session.session_type == MarketSession.SessionType.BUYOUT_CLAUSE
+              else "Acquisto Free Agency: ")
+    return RosterLog.objects.filter(
+        participant__league_id=session.league_id, action=RosterLog.Action.ASSIGN,
+        note__startswith=prefix, created_at__gte=session.created_at,
+    )
+
+
+def buyout_price(session, player):
+    """The clause to pay for ``player``: cost paid times the session's
+    multiplier, rounded up to the credit (in decimals: 50 × 1.1 is 55, not 56)."""
+    mult = Decimal(str((session.config or {}).get("buyout_multiplier") or "1.5"))
+    base_cost = player.cost if (player.cost is not None and player.cost >= 1) else Decimal("1")
+    return (base_cost * mult).to_integral_value(rounding=ROUND_CEILING)
+
+
+def _release_refused(session, release_player_id):
+    """The error when the session doesn't allow the cut asked for, else None."""
+    if release_player_id and not session.allow_conditional_release and not session.require_same_role_release:
+        return {"ok": False, "error": "release_not_allowed", "message": "In questa sessione non si possono tagliare giocatori."}
+    return None
+
+
 @transaction.atomic
 def place_market_bid(
     session_id,
@@ -56,6 +82,10 @@ def place_market_bid(
 
     if not session.is_open:
         return {"ok": False, "error": "session_closed", "message": "La sessione di mercato è chiusa."}
+    # Le buste valgono solo nei mercati a buste: un reclamo waiver pagherebbe
+    # l'importo della busta, un rinnovo non ha offerte.
+    if session.session_type not in (MarketSession.SessionType.SEALED_BIDS, MarketSession.SessionType.REPAIR):
+        return {"ok": False, "error": "invalid_session_type", "message": "In questa sessione non si consegnano buste."}
 
     try:
         participant = Participant.objects.select_for_update().get(pk=participant_id)
@@ -664,10 +694,7 @@ def resolve_market_session(session_id):
         return resolve_waiver_session(session.id)
 
     if session.session_type == MarketSession.SessionType.FREE_AGENCY:
-        moves = list(RosterLog.objects.filter(
-            participant__league=session.league,
-            note__startswith=f"Acquisto Free Agency: {session.title}"
-        ).order_by("-created_at"))
+        moves = list(session_moves(session).order_by("-created_at"))
         summary = {
             "won": [
                 {
@@ -690,10 +717,7 @@ def resolve_market_session(session_id):
         return summary
 
     if session.session_type == MarketSession.SessionType.BUYOUT_CLAUSE:
-        moves = list(RosterLog.objects.filter(
-            participant__league=session.league,
-            note__startswith="Clausola rescissoria pagata a"
-        ).order_by("-created_at"))
+        moves = list(session_moves(session).order_by("-created_at"))
         summary = {
             "won": [
                 {
@@ -949,6 +973,13 @@ def undo_market_resolution(session_id):
     session = MarketSession.objects.select_for_update().get(pk=session_id)
     if session.status != MarketSession.Status.RESOLVED:
         return {"ok": False, "message": "La sessione non risulta scrutinata."}
+    if session.session_type == MarketSession.SessionType.RENEWALS:
+        # Dadi tirati e contratti svincolati non si riavvolgono in blocco.
+        return {"ok": False, "message": "La chiusura dei rinnovi non si annulla: correggi i singoli contratti dalla pagina Contratti."}
+    if session.session_type in (MarketSession.SessionType.FREE_AGENCY, MarketSession.SessionType.BUYOUT_CLAUSE):
+        # Gli acquisti sono avvenuti uno per uno, all'istante: il riepilogo
+        # finale non li ha fatti e non li può stornare.
+        return {"ok": False, "message": "Gli acquisti di questa finestra sono definitivi: correggi le rose dalla pagina Giocatori."}
 
     won = (session.results_summary or {}).get("won", [])
     ids = {w["player_id"] for w in won} | {w["released_player_id"] for w in won if w.get("released_player_id")}
@@ -1011,9 +1042,17 @@ def undo_market_resolution(session_id):
     session.bids.all().update(
         status=MarketBid.Status.PENDING, note="", updated_at=timezone.now()
     )
+    summary = session.results_summary or {}
+    if "waiver_order_before" in summary:
+        config = dict(session.config or {})
+        if summary["waiver_order_before"] is None:
+            config.pop("waiver_order", None)
+        else:
+            config["waiver_order"] = summary["waiver_order_before"]
+        session.config = config
     session.status = MarketSession.Status.CLOSED
     session.results_summary = {}
-    session.save(update_fields=["status", "results_summary", "updated_at"])
+    session.save(update_fields=["status", "results_summary", "config", "updated_at"])
     logger.info(f"Market resolution undone: session={session_id} ('{session.title}'), {len(won)} acquisitions reverted")
     return {"ok": True, "reverted": len(won)}
 
@@ -1069,12 +1108,7 @@ def acquire_free_agent(session_id, participant_id, player_id, release_player_id=
     max_moves = int(cfg.get("fa_max_moves") or 0)
     if max_moves > 0:
         week_ago = timezone.now() - timezone.timedelta(days=7)
-        moves_count = RosterLog.objects.filter(
-            participant=participant,
-            action=RosterLog.Action.ASSIGN,
-            created_at__gte=week_ago,
-            note__startswith=f"Acquisto Free Agency: {session.title}"
-        ).count()
+        moves_count = session_moves(session).filter(participant=participant, created_at__gte=week_ago).count()
         if moves_count >= max_moves:
             return {
                 "ok": False,
@@ -1101,6 +1135,9 @@ def acquire_free_agent(session_id, participant_id, player_id, release_player_id=
         p = player.price_for(session.league)
         cost = p if (p is not None and p >= 1) else Decimal("1")
 
+    refused = _release_refused(session, release_player_id)
+    if refused:
+        return refused
     release_player = None
     refund = Decimal("0")
     if release_player_id:
@@ -1236,7 +1273,8 @@ def execute_buyout(session_id, buyer_id, player_id, release_player_id=None):
     seller = Participant.objects.select_for_update().get(pk=player.owner_id)
 
     cfg = session.config or {}
-    hold_days = int(cfg.get("buyout_min_hold_days") or 7)
+    # 0 = nessuna protezione: solo una chiave assente vale i 7 giorni di default.
+    hold_days = int(cfg.get("buyout_min_hold_days") if cfg.get("buyout_min_hold_days") is not None else 7)
     if hold_days > 0:
         if player.acquired_at is not None:
             days_held = (timezone.now() - player.acquired_at).total_seconds() / 86400.0
@@ -1263,10 +1301,11 @@ def execute_buyout(session_id, buyer_id, player_id, release_player_id=None):
                         "message": f"{player.name} è protetto da clausola per altri {days_left} giorni.",
                     }
 
-    mult = float(cfg.get("buyout_multiplier") or 1.5)
-    base_cost = player.cost if (player.cost is not None and player.cost >= 1) else Decimal("1")
-    buyout_amount = Decimal(str(math.ceil(float(base_cost) * mult))).quantize(Decimal("1"))
+    buyout_amount = buyout_price(session, player)
 
+    refused = _release_refused(session, release_player_id)
+    if refused:
+        return refused
     release_player = None
     refund = Decimal("0")
     if release_player_id:
@@ -1388,6 +1427,8 @@ def place_waiver_claim(session_id, participant_id, player_id, priority=1, releas
 
     if not session.is_open:
         return {"ok": False, "error": "session_closed", "message": "La finestra waiver è chiusa."}
+    if session.session_type != MarketSession.SessionType.WAIVER_WIRE:
+        return {"ok": False, "error": "invalid_session_type", "message": "Questa sessione non è un draft waiver."}
 
     try:
         participant = Participant.objects.select_for_update().get(pk=participant_id)
@@ -1413,6 +1454,12 @@ def place_waiver_claim(session_id, participant_id, player_id, priority=1, releas
         p = player.price_for(session.league)
         cost = p if (p is not None and p >= 1) else Decimal("1")
 
+    refused = _release_refused(session, release_player_id)
+    if refused:
+        return refused
+    if session.require_same_role_release and not release_player_id:
+        return {"ok": False, "error": "release_required",
+                "message": f"Ogni acquisto deve sostituire un tuo giocatore di pari ruolo ({player.role}): scegli chi tagliare."}
     release_player = None
     if release_player_id:
         try:
@@ -1421,6 +1468,8 @@ def place_waiver_claim(session_id, participant_id, player_id, priority=1, releas
             return {"ok": False, "error": "release_player_not_found", "message": "Calciatore da svincolare non trovato."}
         if release_player.owner_id != participant.id:
             return {"ok": False, "error": "release_player_not_owned", "message": "Il calciatore da svincolare non appartiene alla tua rosa."}
+        if session.require_same_role_release and release_player.role != player.role:
+            return {"ok": False, "error": "release_wrong_role", "message": f"Devi tagliare un calciatore dello stesso ruolo ({player.role})."}
 
     try:
         prio = max(1, int(priority or 1))
@@ -1468,15 +1517,12 @@ def delete_waiver_claim(session_id, participant_id, claim_id):
     return delete_market_bid(session_id, participant_id, claim_id)
 
 
-def _run_waiver_draft(session, preview=False):
-    """Executes or previews waiver claims in round-robin order."""
+def waiver_order(session, participants):
+    """Chi sceglie prima nel draft waiver: id delle squadre di ``participants``
+    nell'ordine della sessione (inverso di classifica o rotazione continua)."""
     cfg = session.config or {}
     order_type = cfg.get("waiver_order_type", "inverse_standing")
-
-    all_participants = {
-        p.id: p for p in Participant.objects.filter(league=session.league, is_active=True)
-    }
-
+    all_participants = participants
     order_ids = []
     if order_type == "inverse_standing":
         season = session.league.seasons.order_by("-created_at").first()
@@ -1489,12 +1535,34 @@ def _run_waiver_draft(session, preview=False):
                 order_ids = []
     elif order_type == "rolling":
         saved_order = cfg.get("waiver_order")
+        if not isinstance(saved_order, list):
+            # La rotazione continua da dove l'ha lasciata l'ultimo draft della lega.
+            last = (
+                MarketSession.objects.filter(
+                    league=session.league, session_type=MarketSession.SessionType.WAIVER_WIRE,
+                    status=MarketSession.Status.RESOLVED,
+                ).exclude(pk=session.pk).order_by("-updated_at").first()
+            )
+            saved_order = (last.config or {}).get("waiver_order") if last else None
         if isinstance(saved_order, list):
             order_ids = [pid for pid in saved_order if pid in all_participants]
 
     for pid in all_participants:
         if pid not in order_ids:
             order_ids.append(pid)
+    return order_ids
+
+
+def _run_waiver_draft(session, preview=False):
+    """Executes or previews waiver claims in round-robin order."""
+    cfg = session.config or {}
+    order_type = cfg.get("waiver_order_type", "inverse_standing")
+
+    all_participants = {
+        p.id: p for p in Participant.objects.filter(league=session.league, is_active=True)
+    }
+
+    order_ids = waiver_order(session, all_participants)
 
     claims = list(
         MarketBid.objects.filter(session=session, status=MarketBid.Status.PENDING)
@@ -1520,6 +1588,9 @@ def _run_waiver_draft(session, preview=False):
     remaining_credits = {pid: p.remaining_credits for pid, p in all_participants.items()}
     from .salary import purchase_room
     cap_room = {pid: purchase_room(p, market_session=session) for pid, p in all_participants.items()}
+    # Chi è già stato tagliato in questo draft non si taglia (e non rimborsa) due volte.
+    released_ids = set()
+    cuts_allowed = session.allow_conditional_release or session.require_same_role_release
 
     while True:
         round_pick_made = False
@@ -1532,11 +1603,15 @@ def _run_waiver_draft(session, preview=False):
                 if c.player_id in awarded_player_ids:
                     outcome[c.id] = (MarketBid.Status.LOST, "Calciatore già assegnato a un'altra squadra con priorità più alta")
                     continue
+                if c.player.owner_id is not None:
+                    # Preso nel frattempo altrove (free agency, assegnazione dell'admin).
+                    outcome[c.id] = (MarketBid.Status.LOST, "Calciatore non più svincolato")
+                    continue
 
                 release = None
                 refund = Decimal("0")
-                if c.release_player_id:
-                    if c.release_player.owner_id == pid:
+                if c.release_player_id and cuts_allowed:
+                    if c.release_player.owner_id == pid and c.release_player_id not in released_ids:
                         release = c.release_player
                         refund = _calc_release_refund(session, release)
                     else:
@@ -1580,6 +1655,7 @@ def _run_waiver_draft(session, preview=False):
                 owned[pid][c.player.role] += 1
                 if rel:
                     owned[pid][rel.role] -= 1
+                    released_ids.add(rel.id)
                 remaining_credits[pid] -= (c.amount - ref)
                 if cap_room.get(pid) is not None:
                     cap_room[pid] -= c.amount
@@ -1624,6 +1700,7 @@ def _run_waiver_draft(session, preview=False):
             c.save(update_fields=["status", "note", "updated_at"])
 
         if order_type == "rolling":
+            order_before = (session.config or {}).get("waiver_order")
             session.config["waiver_order"] = rolling_order
             session.save(update_fields=["config", "updated_at"])
 
@@ -1653,6 +1730,9 @@ def _run_waiver_draft(session, preview=False):
         summary["preview"] = True
     else:
         summary["resolved_at"] = timezone.now().isoformat()
+        if order_type == "rolling":
+            # L'annullamento rimette l'ordine com'era prima del draft.
+            summary["waiver_order_before"] = order_before
         session.results_summary = summary
         session.status = MarketSession.Status.RESOLVED
         session.save(update_fields=["status", "results_summary", "updated_at"])

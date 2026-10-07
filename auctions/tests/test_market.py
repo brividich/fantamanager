@@ -1312,6 +1312,8 @@ class RegolamentoBusteTests(TestCase):
         self.client.force_login(root)
         self.client.post(reverse("admin_market_rules", args=[self.session.id]), {
             "max_bids": "3", "budget_rule": "priority", "tie_break": "manual", "refund_mode": "current",
+            # The dialog names its checkboxes, so an unticked one switches off.
+            "checks": ["require_same_role_release", "allow_conditional_release"],
         })
         self.session.refresh_from_db()
         self.assertEqual(self.session.max_bids, 3)
@@ -1413,3 +1415,91 @@ class MarketManageParityTests(TestCase):
         resp = self.client.get(reverse("app_regia") + f"?league={self.league.id}")
         self.assertContains(resp, reverse("app_regia_market_session", args=[self.session.id]))
         self.assertContains(resp, reverse("app_regia_trades"))
+
+
+class SessionManageByTypeTests(TestCase):
+    """Each kind of market shows and edits its own rules, not the buste ones."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user("owner_kind", password="pw")
+        self.league = League.objects.create(name="Lega Tipi", owner=self.owner, contracts_enabled=True)
+        self.a = Participant.objects.create(display_name="Alfa", league=self.league, credits=Decimal("300"))
+        self.b = Participant.objects.create(display_name="Beta", league=self.league, credits=Decimal("300"))
+        # Alfa: one expiring contract still to declare and one new buy with no
+        # contract yet; Beta: one renewal declared, waiting for the dice.
+        Player.objects.create(league=self.league, owner=self.a, name="Scaduto", role="C", contract_years=0)
+        Player.objects.create(league=self.league, owner=self.a, name="Nuovo", role="A", contract_years=None)
+        Player.objects.create(league=self.league, owner=self.b, name="Dichiarato", role="D",
+                              contract_years=0, renewal_declared=True)
+        Player.objects.create(league=self.league, owner=self.b, name="Coperto", role="P", contract_years=2)
+        self.renewals = MarketSession.objects.create(
+            league=self.league, title="Rinnovi", session_type=MarketSession.SessionType.RENEWALS,
+            status=MarketSession.Status.OPEN, config={"description": "x"})
+        self.client.force_login(self.owner)
+
+    def test_renewals_screen_shows_renewals_not_buste(self):
+        console = self.client.get(reverse("admin_market_session", args=[self.renewals.id]))
+        app = self.client.get(reverse("app_regia_market_session", args=[self.renewals.id]))
+        for resp in (console, app):
+            self.assertContains(resp, "Rinnovi aperti")
+            self.assertContains(resp, "Rinnovi delle squadre")
+            self.assertContains(resp, "Dado rinnovo:")
+            self.assertContains(resp, "1-1-2-2-3-3 anni")
+            for buste in ("Consegna delle buste", "Offerte:", "Pari merito:", "Anteprima spoglio",
+                          "Svincolati disponibili", "Offerte massime per squadra"):
+                self.assertNotContains(resp, buste)
+        board = {r["participant"].display_name: r for r in console.context["renewals"]["rows"]}
+        self.assertEqual((board["Alfa"]["to_declare"], board["Alfa"]["to_roll"], board["Alfa"]["new_contracts"]), (1, 0, 1))
+        self.assertEqual((board["Beta"]["to_declare"], board["Beta"]["to_roll"], board["Beta"]["new_contracts"]), (0, 1, 0))
+        self.assertEqual(console.context["delivered"], 0)
+        self.assertEqual(MarketManageParityTests._part(console, "session-manage"),
+                         MarketManageParityTests._part(app, "session-manage"))
+
+    def test_preview_is_not_offered_for_renewals(self):
+        resp = self.client.get(reverse("admin_market_session", args=[self.renewals.id]) + "?preview=1")
+        self.assertIsNone(resp.context["results"])
+
+    def test_saving_rules_keeps_the_renewals_type(self):
+        self.client.post(reverse("admin_market_rules", args=[self.renewals.id]), {"title": "Rinnovi 2026"})
+        self.renewals.refresh_from_db()
+        self.assertEqual(self.renewals.session_type, MarketSession.SessionType.RENEWALS)
+        self.assertEqual(self.renewals.title, "Rinnovi 2026")
+        self.assertEqual(self.renewals.config, {"description": "x"})
+
+    def test_free_agency_rules_edit_their_own_settings(self):
+        fa = MarketSession.objects.create(
+            league=self.league, title="FA", session_type=MarketSession.SessionType.FREE_AGENCY,
+            status=MarketSession.Status.OPEN, max_bids=4,
+            config={"fa_max_moves": 3, "fa_cost_type": "quotation", "buyout_multiplier": 2.0})
+        page = self.client.get(reverse("admin_market_session", args=[fa.id]))
+        self.assertContains(page, 'name="fa_max_moves"')
+        self.assertNotContains(page, 'name="max_bids"')
+        self.client.post(reverse("admin_market_rules", args=[fa.id]), {
+            "fa_max_moves": "1", "fa_cost_type": "base", "refund_mode": "none",
+            "checks": ["allow_conditional_release"]})
+        fa.refresh_from_db()
+        self.assertEqual(fa.session_type, MarketSession.SessionType.FREE_AGENCY)
+        self.assertEqual(fa.config, {"fa_max_moves": 1, "fa_cost_type": "base", "buyout_multiplier": 2.0})
+        self.assertEqual(fa.max_bids, 4)
+        self.assertFalse(fa.allow_conditional_release)
+        self.assertEqual(fa.release_refund_mode, "none")
+
+    def test_closed_renewals_cannot_be_undone(self):
+        resolve_market_session(self.renewals.id)
+        res = undo_market_resolution(self.renewals.id)
+        self.assertFalse(res["ok"])
+        page = self.client.get(reverse("admin_market_session", args=[self.renewals.id]))
+        self.assertContains(page, "Rinnovi chiusi")
+        self.assertContains(page, "Esito dei rinnovi")
+        self.assertNotContains(page, "Annulla spoglio")
+        self.assertNotContains(page, "Verbale (PDF)")
+
+    def test_team_page_speaks_renewals(self):
+        s = self.client.session
+        s["participant_id"] = self.a.id
+        s.save()
+        resp = self.client.get(reverse("app_mercato") + f"?session_id={self.renewals.id}")
+        self.assertContains(resp, "Rinnovi aperti")
+        self.assertNotContains(resp, "Buste aperte")
+        # A multi-line {# #} is not a comment for Django: it was printed on the page.
+        self.assertNotContains(resp, "Dado animato per i contratti")

@@ -1207,15 +1207,18 @@ tr.flash-in { animation: flashIn .5s ease; }
 .fm-onerow::-webkit-scrollbar { display: none; }
 .fm-onerow > * { flex-shrink: 0 !important; white-space: nowrap; }
 .fm-onerow > form { display: inline-flex; align-items: center; gap: inherit; margin: 0; }
-.fm-onerow[data-more="end"] {
+.fm-onerow[data-more="end"],
+.a-seg[data-more="end"] {
     -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
             mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
 }
-.fm-onerow[data-more="start"] {
+.fm-onerow[data-more="start"],
+.a-seg[data-more="start"] {
     -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 32px), transparent);
             mask-image: linear-gradient(to left, #000 calc(100% - 32px), transparent);
 }
-.fm-onerow[data-more="start end"] {
+.fm-onerow[data-more="start end"],
+.a-seg[data-more="start end"] {
     -webkit-mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent);
             mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent);
 }
