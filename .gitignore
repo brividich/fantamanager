@@ -62,3 +62,6 @@ staticfiles/
 auctions/data/*.xlsx
 auctions/data/*.xls
 auctions/data/*.csv
+data/*.xlsx
+data/*.xls
+data/*.csv

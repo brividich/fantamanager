@@ -229,6 +229,29 @@ svincolati e usciti dalla Serie A. Per i PDF serve `pdfplumber`.
 
 ---
 
+## Fonti dei dati
+
+FantaManager non legge le pagine dei siti di fantacalcio al posto
+dell'utente e non ridistribuisce i loro file. I dati arrivano da:
+
+- **file caricati dalla lega**: listone/quotazioni, rose (export «Rose Lega»
+  di Fantapazz, Excel, `.csv` di Leghe Fantacalcio), statistiche e voti di
+  giornata. Ognuno usa i file che ha scaricato dal proprio sito;
+- **API-Football** (`APIFOOTBALL_KEY`): anagrafica dei calciatori con foto,
+  club di chi esce dalla Serie A e **voti live** (il rating API-Football
+  arrotondato al mezzo punto; i voti ufficiali restano quelli del file di fine
+  giornata). Per i voti live della stagione in corso serve un piano a
+  pagamento: il gratuito non la copre e non regge un aggiornamento al minuto;
+- **statistiche del server** (facoltative): con `FANTAMANAGER_STATS_FILE`
+  l'admin indica un proprio file di statistiche (per Docker, in `./data`) e
+  ogni import del listone lo applica da solo. `FANTAMANAGER_STATS_SEASON` è
+  l'etichetta mostrata in console.
+
+Il `.gitignore` esclude `.xlsx`/`.xls`/`.csv` dalla radice, da `data/` e da
+`auctions/data/`: quei file restano sulla macchina di chi li usa.
+
+---
+
 ## Server con Docker (NAS): database e backup
 
 Con `docker-compose.yml` / `docker-compose.ghcr.yml` il database è
