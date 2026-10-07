@@ -546,3 +546,14 @@ class AdminFormationEditorTests(TestCase):
         resp = self.client.post(self._url("admin_formation_edit", self.g1),
                                 {"giornata": self.g1.id, "module": "4-3-3", "starter": []})
         self.assertEqual(resp.status_code, 403)
+
+
+class CoAdminFormationTests(AdminFormationEditorTests):
+    """Lo stesso, entrando come co-admin della lega (league.admins), non come proprietario."""
+
+    def setUp(self):
+        super().setUp()
+        from django.contrib.auth.models import User
+        co = User.objects.create_user("coadmin_fe", password="pw")
+        self.league.admins.add(co)
+        self.client.force_login(co)
