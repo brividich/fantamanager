@@ -1,5 +1,7 @@
 """Views for Matchday (Giornate) and Voti management, scoring, and Battle Royale."""
 import logging
+from decimal import Decimal, InvalidOperation
+
 from django.contrib import messages
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
@@ -8,6 +10,7 @@ from django.views.decorators.http import require_POST
 
 from ..models import Formation, Giornata, League, Participant, Season
 from ..services.competitions import season_name
+from ..services.scoring import set_manual_scores
 from ..services.formation import (admin_save_matchday_formation, formation_state, is_editable,
                                   lock_formations, target_giornata)
 from ..services.voti import compute_coppa_italia_battle_royale, import_voti_giornata, parse_voti_file
@@ -82,6 +85,8 @@ def admin_giornate(request):
     official_count = 0
     lineups_saved = 0
     lineup_rows = []
+    manual_rows = []
+    manual_scored = False
     teams_count = Participant.objects.filter(league=league, is_active=True).count()
     if current_giornata:
         scores = list(current_giornata.scores.select_related("participant").order_by("-total"))
@@ -92,6 +97,10 @@ def admin_giornate(request):
         is_live = (current_giornata.status == Giornata.Status.LIVE) or (live_count > 0 and current_giornata.status != Giornata.Status.SCORED)
         lineups_saved = current_giornata.matchday_formations.count()
         lineup_rows = _lineup_rows(request, league, current_giornata)
+        by_team = {gs.participant_id: gs for gs in scores}
+        manual_rows = [{"team": t, "value": _decimal_text(by_team[t.id].total) if t.id in by_team else ""}
+                       for t in Participant.objects.filter(league=league, is_active=True).order_by("display_name")]
+        manual_scored = any((gs.breakdown or {}).get("manual") for gs in scores)
 
     from ..services.voti_live import LiveSyncManager
 
@@ -117,6 +126,8 @@ def admin_giornate(request):
         "lineups_editable": bool(current_giornata and is_editable(current_giornata)),
         "lineups_saved": lineups_saved,
         "lineup_rows": lineup_rows,
+        "manual_rows": manual_rows,
+        "manual_scored": manual_scored,
         "teams_count": teams_count,
         "live_sync_status": LiveSyncManager.get_instance().get_status(),
         "gv_base": base,
@@ -204,6 +215,62 @@ def admin_formation_edit(request, participant_id):
         "console_active": "giornate",
     })
     return render(request, "auctions/app_regia_formazione.html" if in_app else "auctions/admin_formazione.html", ctx)
+
+
+def _decimal_text(value):
+    """85.50 → «85,5»; 70.00 → «70»: a total as one writes it."""
+    text = f"{value:.2f}".rstrip("0").rstrip(".")
+    return text.replace(".", ",")
+
+
+def _decimal_field(raw):
+    raw = (raw or "").strip().replace(",", ".")
+    if not raw:
+        return None
+    try:
+        value = Decimal(raw)
+    except InvalidOperation:
+        raise ValueError(raw)
+    if value < 0 or value > 500:
+        raise ValueError(raw)
+    return value.quantize(Decimal("0.01"))
+
+
+@staff_member_required
+@require_POST
+def admin_giornata_manual_scores(request):
+    """The giornata's result typed in by hand: each team's total fantapunti
+    (and, if wanted, its goals) as another site shows it."""
+    league_id = request.POST.get("league_id")
+    league = get_object_or_404(League, pk=league_id) if league_id else current_league(request)
+    if league is None or not user_can_manage_league(request.user, league):
+        return HttpResponseForbidden("Non hai i permessi per gestire questa lega.")
+    num = form_int(request.POST.get("giornata_number"), 1, min_value=1)
+    giornata = get_object_or_404(Giornata, season=_current_season(league), number=num)
+    back = _back(request, _giornate_url(request, num))
+
+    entries, bad = {}, []
+    for team in Participant.objects.filter(league=league, is_active=True):
+        try:
+            total = _decimal_field(request.POST.get(f"score_{team.id}"))
+            goals_raw = (request.POST.get(f"goals_{team.id}") or "").strip()
+            goals = int(goals_raw) if goals_raw else None
+            if goals is not None and not 0 <= goals <= 20:
+                raise ValueError(goals_raw)
+        except ValueError:
+            bad.append(team.display_name)
+            continue
+        if total is not None:
+            entries[team] = (total, goals)
+    if bad:
+        messages.error(request, "Valori non validi per: " + ", ".join(bad) + ". Scrivi i fantapunti come 85,5 e i gol come numero intero.")
+        return redirect(back)
+    if not entries:
+        messages.warning(request, "Nessun punteggio scritto: non è cambiato niente.")
+        return redirect(back)
+    set_manual_scores(giornata, entries)
+    messages.success(request, f"Giornata {num}: punteggi di {len(entries)} squadre salvati, risultati e classifica aggiornati.")
+    return redirect(back)
 
 
 @staff_member_required

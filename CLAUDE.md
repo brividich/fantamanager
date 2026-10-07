@@ -55,7 +55,18 @@ cambia più: i ricalcoli usano quella, anche se la rosa poi cambia. L'ordine
 della panchina lo sceglie il manager ed è la priorità dei cambi.
 L'admin della lega modifica la formazione di ogni squadra per qualsiasi
 giornata dalla pagina Giornate (`admin_save_matchday_formation`): tocca solo
-la copia di quella giornata e, se la giornata ha già punteggi, li ricalcola.
+la copia di quella giornata e, se la giornata ha già punteggi dai voti, li
+ricalcola.
+
+## Punteggi a mano
+
+Una lega che gioca su un altro sito (Fantapazz esporta solo un'immagine della
+partita) scrive per ogni giornata il totale di ogni squadra nella pagina
+Giornate (`admin_giornata_manual_scores` → `set_manual_scores`,
+`services/scoring.py`): i gol vengono dalle soglie della lega se non scritti,
+poi risultati e classifiche come da voti. Le righe hanno `breakdown.manual`;
+il Live mostra quei totali. Un import dei voti o un sync live li ricalcola dai
+voti; la correzione di una formazione no.
 
 ## Barre di pulsanti: sempre su una riga
 

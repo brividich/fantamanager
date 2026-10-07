@@ -186,6 +186,7 @@ def app_live(request):
     match_fixture = None
     opponent = None
     leaderboard = []
+    manual = {}
 
     if season:
         all_giornate = list(season.giornate.all().order_by("number"))
@@ -204,6 +205,10 @@ def app_live(request):
             my_score = GiornataScore.objects.filter(giornata=current_giornata, participant=participant).first()
             perf_map = services.giornata_perf_map(current_giornata)
             rules = (season.rules or {}) if season else {}
+            # Totals typed in by the admin (another site gives no votes): they win
+            # over the engine, which has nothing to count.
+            manual = {gs.participant_id: gs for gs in GiornataScore.objects.filter(giornata=current_giornata)
+                      if (gs.breakdown or {}).get("manual")}
 
             def _get_team_live(part):
                 starters, bench = services.lineup_io(part, giornata=current_giornata)
@@ -264,10 +269,11 @@ def app_live(request):
                         "red": b_perf.get("red", False),
                     })
 
+                typed = manual.get(part.id)
                 return {
                     "participant": part,
-                    "total": res["total"],
-                    "goals": res["goals"],
+                    "total": typed.total if typed else res["total"],
+                    "goals": typed.goals if typed else res["goals"],
                     "modificatore": res["modificatore"],
                     "subs": res["subs"],
                     "starters": detailed_starters,
@@ -313,10 +319,11 @@ def app_live(request):
             for t in active_teams:
                 s, b = services.lineup_io(t, giornata=current_giornata)
                 r = scoring.score_lineup(s, b, perf_map, rules)
+                typed = manual.get(t.id)
                 leaderboard.append({
                     "participant": t,
-                    "total": r["total"],
-                    "goals": r["goals"],
+                    "total": typed.total if typed else r["total"],
+                    "goals": typed.goals if typed else r["goals"],
                     "is_me": t.id == participant.id,
                 })
             leaderboard.sort(key=lambda x: x["total"], reverse=True)
@@ -333,6 +340,7 @@ def app_live(request):
         "active_team": team_me if match_fixture else participant,
         "leaderboard": leaderboard,
         "lineup_performances": lineup_performances,
+        "manual_scores": bool(current_giornata and manual),
     })
     return render(request, "auctions/app_live.html", ctx)
 

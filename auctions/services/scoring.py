@@ -92,6 +92,22 @@ def compute_giornata(giornata, mark_scored: bool = True):
     for p in teams:
         score_participant_giornata(p, giornata, persist=True)
 
+    _resolve_fixtures(giornata)
+
+    if mark_scored:
+        giornata.status = Giornata.Status.SCORED
+        giornata.scored_at = timezone.now()
+        giornata.save(update_fields=["status", "scored_at"])
+    elif giornata.status != Giornata.Status.SCORED:
+        giornata.status = Giornata.Status.LIVE
+        giornata.save(update_fields=["status"])
+
+    return list(GiornataScore.objects.filter(giornata=giornata)
+                .select_related("participant").order_by("-total"))
+
+
+def _resolve_fixtures(giornata):
+    """Head-to-head results of the giornata's fixtures from its GiornataScores."""
     goals_by_team = {gs.participant_id: gs.goals
                      for gs in GiornataScore.objects.filter(giornata=giornata)}
     for fx in giornata.fixtures.all():
@@ -105,13 +121,31 @@ def compute_giornata(giornata, mark_scored: bool = True):
         fx.home_goals, fx.away_goals, fx.home_points, fx.away_points, fx.computed = hg, ag, hp, ap, True
         fx.save(update_fields=["home_goals", "away_goals", "home_points", "away_points", "computed"])
 
-    if mark_scored:
-        giornata.status = Giornata.Status.SCORED
-        giornata.scored_at = timezone.now()
-        giornata.save(update_fields=["status", "scored_at"])
-    elif giornata.status != Giornata.Status.SCORED:
-        giornata.status = Giornata.Status.LIVE
-        giornata.save(update_fields=["status"])
 
+def set_manual_scores(giornata, entries):
+    """The giornata's result typed in by the league admin: each team's total
+    fantapunti as another site shows it (Fantapazz exports only a picture), and
+    optionally its goals — else from the league's thresholds (66 = 1 gol, then
+    one every 6 points). Teams not in ``entries`` keep what they had. Resolves
+    the fixtures and marks the giornata SCORED; a later votes import or live
+    sync computes it again from the votes and replaces these totals.
+
+    ``entries``: ``{participant: (total, goals_or_None)}``. Returns the rows."""
+    rules = {**scoring.DEFAULTS, **((giornata.season.rules or {}) if giornata.season_id else {})}
+    lock_formations(giornata)
+    for team, (total, goals) in entries.items():
+        GiornataScore.objects.update_or_create(
+            giornata=giornata, participant=team,
+            defaults={
+                "total": total,
+                "goals": goals if goals is not None else scoring.goals_from_total(total, rules),
+                "modificatore": 0,
+                "breakdown": {"manual": True, "lines": [], "subs": 0, "modificatore": 0},
+            },
+        )
+    _resolve_fixtures(giornata)
+    giornata.status = Giornata.Status.SCORED
+    giornata.scored_at = timezone.now()
+    giornata.save(update_fields=["status", "scored_at"])
     return list(GiornataScore.objects.filter(giornata=giornata)
                 .select_related("participant").order_by("-total"))
