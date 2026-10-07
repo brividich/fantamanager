@@ -53,3 +53,15 @@ staticfiles/
 
 # Real leagues' documents (schede, rinnovi): personal data, never in a public repo
 /*.pdf
+
+# Listoni, quotazioni e statistiche di terzi: ognuno usa i propri file, il
+# repository pubblico non li ridistribuisce.
+/*.xlsx
+/*.xls
+/*.csv
+auctions/data/*.xlsx
+auctions/data/*.xls
+auctions/data/*.csv
+data/*.xlsx
+data/*.xls
+data/*.csv

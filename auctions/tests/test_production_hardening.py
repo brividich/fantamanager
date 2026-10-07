@@ -1,6 +1,5 @@
 """Production hardening: the defaults and doors that matter once the app is
 reachable by people other than whoever runs it."""
-import json
 import os
 import subprocess
 import sys
@@ -45,14 +44,22 @@ class SettingsGuardTests(TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
 
 
-class SeedDataTests(TestCase):
-    def test_the_published_seed_carries_no_accounts_or_sessions(self):
-        """data/seed_data.json is in a public repository: no password hashes,
-        no session keys."""
-        seed = json.loads((BASE_DIR / "data" / "seed_data.json").read_text(encoding="utf-8"))
-        models = {o["model"] for o in seed}
-        self.assertNotIn("auth.user", models)
-        self.assertNotIn("sessions.session", models)
+class PublishedDataTests(TestCase):
+    """Il repository è pubblico: niente dati di leghe reali né file di terzi."""
+
+    def test_no_seed_with_a_real_league_is_published(self):
+        self.assertFalse((BASE_DIR / "data" / "seed_data.json").exists())
+        self.assertNotIn("seed_data", (BASE_DIR / "entrypoint.sh").read_text(encoding="utf-8"))
+
+    def test_no_spreadsheets_are_versioned(self):
+        import subprocess
+        try:
+            out = subprocess.run(["git", "ls-files"], cwd=BASE_DIR, capture_output=True,
+                                 text=True, check=True).stdout.splitlines()
+        except (OSError, subprocess.CalledProcessError):
+            self.skipTest("git non disponibile")
+        sheets = [f for f in out if f.lower().endswith((".xlsx", ".xls", ".csv"))]
+        self.assertEqual(sheets, [])
 
 
 class MediaServingTests(TestCase):
@@ -331,9 +338,9 @@ class RemoteAccessIsTheSuperadminsTests(TestCase):
         self.client.force_login(User.objects.create_superuser("root", "r@x.local", "pwd12345"))
         self.assertEqual(self.client.get(reverse("admin_remote_status")).status_code, 200)
 
-    def test_the_fantapazz_browser_login_is_desktop_only(self):
+    def test_there_is_no_fantapazz_browser_login(self):
         with mock.patch("subprocess.Popen") as popen:
-            resp = self.client.post(reverse("admin_fantapazz_browser_login"))
+            resp = self.client.post("/dashboard/fantapazz/browser-login/")
         self.assertEqual(resp.status_code, 404)
         popen.assert_not_called()
 

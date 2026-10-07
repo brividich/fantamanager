@@ -299,15 +299,6 @@ admin_setup_create has always read.
                 </div>
             </div>
 
-            {% if has_fp_rose %}
-            <label class="toggle-row" style="margin-top:8px">
-                <input type="checkbox" id="use-fp-cache">
-                <div><b>Usa le rose già scaricate da Fantapazz</b>
-                    <span>Le hai prese col login browser: non serve caricare nessun file.</span></div>
-            </label>
-            {% else %}
-            <p class="hint">Le rose sono su Fantapazz e non hai il file? <a href="{% url 'admin_fantapazz' %}" target="_blank" rel="noopener">Scaricale col login</a> e torna qui.</p>
-            {% endif %}
             <p class="hint">Niente rose? Va benissimo: si parte tutti da zero e le squadre le scrivi al passo 2.</p>
         </div>
     </section>

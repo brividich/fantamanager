@@ -274,10 +274,11 @@ def sync_players(rows, *, league=None, replace=False, prune=False):
     }
 
 
-# Verified working pattern (Fantacalcio.it "campioncini" card image). Any Referer
-# is accepted, so the browser can load it directly. ``{id}`` = the official
-# player id stored in ``Player.ext_id``; ``{name}``/``{team}`` are also available.
-FANTACALCIO_PHOTO_TEMPLATE = "https://content.fantacalcio.it/web/campioncini/20/card/{id}.png"
+# There is no default photo source: the images of a fantasy site's CDN are not
+# ours to hotlink. Photos come from the API-Football registry
+# (``Player.footballer``) or from a URL pattern the league admin provides for a
+# source they are entitled to use. ``{id}`` = ``Player.ext_id``; ``{name}`` and
+# ``{team}`` are also available.
 
 
 def backfill_ext_ids(rows, *, league=None):
@@ -308,7 +309,7 @@ def backfill_ext_ids(rows, *, league=None):
     return updated
 
 
-def apply_photos(*, league=None, template=FANTACALCIO_PHOTO_TEMPLATE, only_missing=True):
+def apply_photos(*, league=None, template, only_missing=True):
     """Fill ``Player.photo_url`` from ``template`` for players that have an ext_id.
 
     ``template`` may reference ``{id}`` (the ext_id), ``{name}`` and ``{team}``.
@@ -317,6 +318,8 @@ def apply_photos(*, league=None, template=FANTACALCIO_PHOTO_TEMPLATE, only_missi
     """
     from ..models import Player
 
+    if not (template or "").strip():
+        raise ValueError("apply_photos needs a URL template")
     qs = Player.objects.all()
     qs = qs.filter(league=league) if league is not None else qs
     total = qs.count()
@@ -406,32 +409,46 @@ def parse_stats_file(file_obj, filename):
     return parsed, errors
 
 
-# --- Statistiche incluse nell'app ------------------------------------------
-# The season-stats export shipped inside the build. A fresh install must already
-# know that Malen scored 9 goals last year: asking every league to go and find
-# the Fantacalcio.it file before the auction is a step most will skip, and a
-# player card with empty stat tiles is worse than one never designed to show
-# them. Uploading a file still wins — that path is unchanged and overwrites this.
-BUNDLED_STATS_PATH = Path(__file__).resolve().parent.parent / "data" / "statistiche_2025_26.xlsx"
-BUNDLED_STATS_SEASON = "2025/26"
+# --- Statistiche del server -------------------------------------------------
+# The app no longer ships a season-stats export: those numbers belong to whoever
+# published them, and a public repository cannot redistribute them. A server
+# admin who owns or licensed a stats file can point ``FANTAMANAGER_STATS_FILE``
+# at it (e.g. a file on the NAS) and every import seeds from it exactly as the
+# bundled file used to; without it, leagues upload their own file from the
+# Giocatori page. ``FANTAMANAGER_STATS_SEASON`` is just the label shown.
+
+
+def server_stats_path():
+    """Path of the server-provided stats file, or ``None`` when not configured."""
+    from django.conf import settings
+    raw = (getattr(settings, "FANTAMANAGER_STATS_FILE", "") or "").strip()
+    return Path(raw) if raw else None
+
+
+def server_stats_season():
+    from django.conf import settings
+    return (getattr(settings, "FANTAMANAGER_STATS_SEASON", "") or "").strip()
 
 
 def bundled_stats_rows():
-    """Parse the stats file shipped with the app → ``(rows, errors)``.
+    """Parse the server-provided stats file → ``(rows, errors)``.
 
-    A missing file is a packaging accident, never something the user did, so it
-    comes back as an empty result instead of an exception: an auction that opens
-    without stat tiles is a far better failure than one that will not open.
+    Not configured, or missing on disk, comes back as an empty result instead of
+    an exception: an auction that opens without stat tiles is a far better
+    failure than one that will not open.
     """
+    path = server_stats_path()
+    if path is None:
+        return [], ["Nessun file di statistiche configurato sul server."]
     try:
-        with open(BUNDLED_STATS_PATH, "rb") as fh:
-            return parse_stats_file(fh, BUNDLED_STATS_PATH.name)
+        with open(path, "rb") as fh:
+            return parse_stats_file(fh, path.name)
     except OSError as exc:
-        return [], [f"Statistiche incluse non disponibili: {exc}"]
+        return [], [f"Statistiche del server non disponibili: {exc}"]
 
 
 def apply_bundled_stats(*, league=None, only_missing=False):
-    """Merge the shipped stats onto a league's pool. Report, or ``None`` if absent."""
+    """Merge the server stats onto a league's pool. Report, or ``None`` if absent."""
     rows, _errors = bundled_stats_rows()
     if not rows:
         return None
@@ -441,8 +458,9 @@ def apply_bundled_stats(*, league=None, only_missing=False):
 def seed_stats(league=None):
     """Fill in stats for players that have none, straight after an import.
 
-    Every route that puts players into a pool ends here, so a league that never
-    opens the Statistiche page still gets full cards. Deliberately silent about
+    Every route that puts players into a pool ends here, so on a server with
+    ``FANTAMANAGER_STATS_FILE`` a league that never opens the Statistiche page
+    still gets full cards. Without it this is a no-op. Deliberately silent about
     failure: an import must not be reported as broken because the extra numbers
     could not be attached.
     """

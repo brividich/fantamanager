@@ -471,15 +471,27 @@ class FantapazzImportTests(AdminLeagueRbacBase):
             team = Participant.objects.get(display_name="Dinamo Losca")
             self.assertEqual(team.league_id, self.league.id)
 
-    def test_the_import_action_is_refused_before_contacting_fantapazz(self):
-        self._as(self.foreign_admin)
-        with mock.patch("auctions.views.admin_fantapazz._fp_provider") as provider:
+    def test_the_page_never_logs_in_to_fantapazz(self):
+        """Niente più import online: la pagina accetta solo GET, e gli endpoint
+        di login/cookie non esistono più."""
+        self._as(self.superadmin)
+        with mock.patch("requests.Session.get") as remote_get, mock.patch("requests.get") as get:
             resp = self.client.post("/admin-auction/fantapazz/", {
                 "action": "import", "target_league_id": self.league.id, "cookie": "x",
             })
-        self.assertEqual(resp.status_code, 403)
-        provider.assert_not_called()
+            self.assertEqual(resp.status_code, 405)
+            for url in ("cookie-sync", "browser-login", "auth-status"):
+                self.assertEqual(self.client.post(f"/admin-auction/fantapazz/{url}/").status_code, 404)
+        remote_get.assert_not_called()
+        get.assert_not_called()
         self.assertEqual(Player.objects.filter(league=self.league).count(), 1)
+
+    def test_import_needs_an_uploaded_file(self):
+        self._as(self.superadmin)
+        resp = self.client.post("/admin-auction/fantapazz/import-rose/",
+                                {"target_league_id": self.league.id})
+        self.assertFalse(resp.json()["ok"])
+        self.assertFalse(Participant.objects.filter(display_name="Dinamo Losca").exists())
 
     def test_the_page_only_lists_manageable_leagues(self):
         self._as(self.foreign_admin)

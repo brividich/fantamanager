@@ -13,10 +13,6 @@ qrcode[pil]>=7.4,<9.0
 # Icona vicino all'orologio: senza finestra nera e' il modo per chiudere l'app.
 pystray>=0.19,<1.0
 
-# Optional — abilita il "Browser automatico" per l'import Fantapazz (login Facebook).
-# Installa con:  pip install playwright  &&  playwright install chromium
-# playwright>=1.40,<2.0
-
 # Build-only — per creare gli installer .exe/.dmg (vedi packaging/BUILD.md).
 # Non serve a runtime. Installa con:  pip install pyinstaller
 # pyinstaller>=6.0,<7.0

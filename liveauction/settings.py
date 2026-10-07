@@ -40,7 +40,7 @@ if not DEBUG and SECRET_KEY in _PUBLIC_PLACEHOLDER_KEYS:
 
 # Set by the desktop launcher (run_app.py): one user, on the machine that runs
 # the server. What acts on that machine exists only there: the "Esci" button,
-# the Fantapazz login in a visible browser, the first-login superadmin.
+# the first-login superadmin.
 DESKTOP_APP = os.getenv("FANTAMANAGER_DESKTOP", "").lower() in ("1", "true", "yes")
 
 # For LAN use we accept any host by default. Lock this down in production.
@@ -276,6 +276,12 @@ TIMER_SYNC_INTERVAL_SECONDS = float(os.getenv("TIMER_SYNC_INTERVAL_SECONDS", "2"
 # matching unguessable token. Defaults to off for trusted LAN use; turn on for
 # internet-facing deployments. See auctions.views screen()/bid_page()/join().
 PUBLIC_TOKENS_REQUIRED = os.getenv("PUBLIC_TOKENS_REQUIRED", "False").lower() in ("1", "true", "yes")
+
+# --- Dati dei calciatori -----------------------------------------------------
+# Statistiche di stagione applicate da sole a ogni import del listone: un file
+# che l'admin del server possiede o ha in licenza (l'app non ne include uno).
+FANTAMANAGER_STATS_FILE = os.getenv("FANTAMANAGER_STATS_FILE", "").strip()
+FANTAMANAGER_STATS_SEASON = os.getenv("FANTAMANAGER_STATS_SEASON", "").strip()
 
 # --- Outgoing email -----------------------------------------------------------
 # The provider is normally set from the console (Impostazioni → Posta). These

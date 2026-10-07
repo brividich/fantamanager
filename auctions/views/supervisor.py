@@ -35,7 +35,7 @@ from .. import backup
 from ..models import Auction, Bid, League, MailSettings, Participant, Player
 from ..consumers import _ROOM_TICKERS
 from ..services import mail
-from ..services.voti_live import LiveSyncManager
+from ..services.voti_live import LiveSyncManager, normalize_provider
 from .common import form_int
 
 logger = logging.getLogger(__name__)
@@ -547,7 +547,7 @@ def supervisor_dashboard(request):
 
         elif action == "start_live_sync":
             interval = form_int(request.POST.get("interval_seconds"), 60, min_value=15, max_value=3600)
-            provider = request.POST.get("provider") or "fantacalcio_web"
+            provider = normalize_provider(request.POST.get("provider"))
             target_g = form_int(request.POST.get("target_giornata"), 0, min_value=0) or None
             mgr = LiveSyncManager.get_instance()
             mgr.active_giornata_num = target_g
@@ -562,12 +562,14 @@ def supervisor_dashboard(request):
 
         elif action == "trigger_live_sync":
             target_g = form_int(request.POST.get("target_giornata"), 0, min_value=0) or None
-            provider = request.POST.get("provider") or "fantacalcio_web"
+            provider = normalize_provider(request.POST.get("provider"))
             mgr = LiveSyncManager.get_instance()
             mgr.provider = provider
             res = mgr.sync_now(giornata_num=target_g, is_provisional=True)
             if res.get("status") == "SUCCESS":
                 messages.success(request, f"Sync Live completato: {res.get('total_updated')} calciatori aggiornati per G{res.get('giornata')} ({provider}).")
+            elif res.get("status") == "ERROR":
+                messages.error(request, f"Sync Live non riuscito: {res.get('message')}.")
             else:
                 messages.warning(request, f"Sync Live: {res.get('status')} - nessun dato disponibile per G{target_g}.")
             return redirect(f"{reverse('supervisor_dashboard')}?tab=live_sync")
