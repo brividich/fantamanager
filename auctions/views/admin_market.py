@@ -25,6 +25,7 @@ from ..services.market import (
     settle_market_tie,
     session_moves,
     sync_market_schedule,
+    sync_renewals_window,
     undo_market_resolution,
 )
 from .common import (
@@ -113,7 +114,7 @@ def _buste_summary(sessions):
                 "text": f"{s.title}" + (f" · chiude il {timezone.localtime(s.closes_at):%d/%m %H:%M}" if s.closes_at else "")}
     if S.CLOSED in by_status:
         s = by_status[S.CLOSED]
-        return {"tone": "warn", "label": "Da scrutinare", "text": s.title}
+        return {"tone": "warn", "label": session_labels(s)["todo"], "text": s.title}
     if S.DRAFT in by_status:
         s = by_status[S.DRAFT]
         return {"tone": "info", "label": "Programmata",
@@ -128,14 +129,23 @@ def _buste_summary(sessions):
 # the one-line state of each card.
 
 def _league_sessions(league):
-    """The league's buste sessions, newest first, with envelopes and teams
-    that delivered counted."""
+    """The league's market sessions, newest first, each with the words of its
+    kind (``mk_labels``) and what the teams handed in counted: envelopes or
+    claims, or, for free agency and clauses, the purchases in the roster log
+    (as in session_manage_context)."""
     sync_market_schedule(league)
-    return list(
+    sessions = list(
         MarketSession.objects.filter(league=league)
         .annotate(n_bids=Count("bids"), n_teams=Count("bids__participant", distinct=True))
         .order_by("-created_at")
     )
+    for s in sessions:
+        s.mk_labels = session_labels(s)
+        if s.session_type in (_ST.FREE_AGENCY, _ST.BUYOUT_CLAUSE):
+            moves = session_moves(s)
+            s.n_bids = moves.count()
+            s.n_teams = moves.values("participant_id").distinct().count()
+    return sessions
 
 
 def _trades_data(league, now, full=False):
@@ -207,12 +217,8 @@ def _market_page(request, template, active, league, extra):
         "mail_ready": mail.is_ready(),
         # ?new=1 opens the «Nuovo Mercato» wizard (the one shared with the app).
         "open_wizard": request.GET.get("new") == "1" or request.GET.get("open_wizard") == "1",
-        # Choices of the session rules form (_market_rules_fields.html).
-        "refund_modes": Auction.RefundMode.choices,
-        "budget_rules": MarketSession.BudgetRule.choices,
-        "tie_breaks": MarketSession.TieBreak.choices,
-        "role_caps": [("P", "max_acquisitions_p"), ("D", "max_acquisitions_d"),
-                      ("C", "max_acquisitions_c"), ("A", "max_acquisitions_a")],
+        # Choices of the session rules (wizard and _market_rules_fields.html).
+        **rule_choices(),
     }
     ctx.update(extra)
     return render(request, template, ctx)
@@ -308,50 +314,85 @@ def admin_market_buste(request):
 
 _ST = MarketSession.SessionType
 # What each kind of session calls its phases and what the teams hand in: the
-# management screen (market/_session_manage.html) speaks the session's language.
+# management screen (market/_session_manage.html), the session lists of the
+# console and the app's Mercato speak the session's language.
 _BUSTE_LABELS = {
-    "open": "Aperta alle offerte", "closed": "Consegna chiusa", "resolved": "Scrutinio completato",
+    "kind": "Buste", "icon": "i-mail",
+    "open": "Aperta alle offerte", "closed": "Consegna chiusa", "resolved": "Spoglio eseguito",
+    "todo": "Da scrutinare", "acted": "hanno consegnato",
     "step_open": "Consegna", "step_end": "Spoglio",
     "close_hint": "Chiudi la consegna delle buste", "open_hint": "Apri subito la consegna delle buste",
     "deliveries": "Consegna delle buste", "item": "offerta", "items": "offerte", "done": "Consegnate",
     "pending": "In attesa", "preview": "Anteprima spoglio", "resolve": "Scrutina buste",
     "lost": "Buste non aggiudicate",
+    "reveal": "Mostra le buste (solo admin)", "all_items": "Tutte le buste ricevute",
+    "amount": "Offerta", "awaiting": "In attesa spoglio", "won_tag": "Vinta", "lost_tag": "Superata",
 }
 SESSION_LABELS = {
     _ST.SEALED_BIDS: _BUSTE_LABELS,
     _ST.REPAIR: _BUSTE_LABELS,
-    _ST.LIVE_AUCTION: _BUSTE_LABELS,
+    _ST.LIVE_AUCTION: {**_BUSTE_LABELS, "kind": "Asta live", "icon": "i-gavel"},
     _ST.RENEWALS: {
+        "kind": "Rinnovi", "icon": "i-doc",
         "open": "Rinnovi aperti", "closed": "Rinnovi sospesi", "resolved": "Rinnovi chiusi",
+        "todo": "Rinnovi sospesi", "acted": "",
         "step_open": "Rinnovi", "step_end": "Chiusura",
         "close_hint": "Sospendi i rinnovi: le squadre non possono dichiarare né tirare i dadi",
         "open_hint": "Apri subito i rinnovi",
         "deliveries": "Rinnovi delle squadre", "item": "", "items": "", "done": "In regola",
         "pending": "", "preview": "", "resolve": "Chiudi & Risolvi Rinnovi", "lost": "",
+        "reveal": "", "all_items": "", "amount": "", "awaiting": "", "won_tag": "", "lost_tag": "",
     },
     _ST.FREE_AGENCY: {
+        "kind": "Mercato libero", "icon": "i-shirt",
         "open": "Acquisti aperti", "closed": "Acquisti sospesi", "resolved": "Finestra conclusa",
+        "todo": "Acquisti sospesi", "acted": "hanno acquistato",
         "step_open": "Acquisti", "step_end": "Conclusa",
         "close_hint": "Sospendi gli acquisti", "open_hint": "Apri subito gli acquisti",
         "deliveries": "Acquisti delle squadre", "item": "acquisto", "items": "acquisti", "done": "Attiva",
         "pending": "Nessun acquisto", "preview": "", "resolve": "Concludi la finestra", "lost": "",
+        "reveal": "", "all_items": "", "amount": "Costo", "awaiting": "", "won_tag": "", "lost_tag": "",
     },
     _ST.WAIVER_WIRE: {
+        "kind": "Waiver", "icon": "i-list",
         "open": "Reclami aperti", "closed": "Reclami chiusi", "resolved": "Draft eseguito",
+        "todo": "Draft da eseguire", "acted": "hanno inviato reclami",
         "step_open": "Reclami", "step_end": "Draft",
         "close_hint": "Chiudi la finestra dei reclami", "open_hint": "Apri subito i reclami",
         "deliveries": "Reclami delle squadre", "item": "reclamo", "items": "reclami", "done": "Inviati",
         "pending": "In attesa", "preview": "Anteprima draft", "resolve": "Esegui Draft Waiver",
         "lost": "Reclami non assegnati",
+        "reveal": "Mostra i reclami (solo admin)", "all_items": "Tutti i reclami ricevuti",
+        "amount": "Costo", "awaiting": "In attesa del draft", "won_tag": "Assegnato", "lost_tag": "Non assegnato",
     },
     _ST.BUYOUT_CLAUSE: {
+        "kind": "Clausole", "icon": "i-coin",
         "open": "Clausole attive", "closed": "Clausole sospese", "resolved": "Finestra conclusa",
+        "todo": "Clausole sospese", "acted": "hanno pagato clausole",
         "step_open": "Clausole", "step_end": "Conclusa",
         "close_hint": "Sospendi le clausole", "open_hint": "Attiva subito le clausole",
         "deliveries": "Clausole pagate dalle squadre", "item": "clausola", "items": "clausole", "done": "Attiva",
         "pending": "Nessuna clausola", "preview": "", "resolve": "Concludi la finestra", "lost": "",
+        "reveal": "", "all_items": "", "amount": "Costo", "awaiting": "", "won_tag": "", "lost_tag": "",
     },
 }
+
+
+def session_labels(session):
+    """The words of ``session``'s kind (SESSION_LABELS), buste by default."""
+    return SESSION_LABELS.get(session.session_type, _BUSTE_LABELS)
+
+
+def rule_choices():
+    """Choices of the session rules, for the «Nuovo Mercato» wizard and the
+    «Regole» form alike: one list, the same words in both."""
+    return {
+        "refund_modes": Auction.RefundMode.choices,
+        "budget_rules": MarketSession.BudgetRule.choices,
+        "tie_breaks": MarketSession.TieBreak.choices,
+        "role_caps": [("P", "max_acquisitions_p"), ("D", "max_acquisitions_d"),
+                      ("C", "max_acquisitions_c"), ("A", "max_acquisitions_a")],
+    }
 
 
 def _renewals_board(league, participants):
@@ -398,6 +439,7 @@ def _renewals_board(league, participants):
         "lost": sum(lost.values()),
         "faces": "-".join(str(f) for f in rules["faces"]),
         "u21_years": rules["u21_years"],
+        "unrolled": [pl for pl in players if pl.contract_years == 0 and pl.renewal_declared is True],
     }
 
 
@@ -412,7 +454,7 @@ def session_manage_context(request, session):
     )
 
     is_renewals = session.session_type == MarketSession.SessionType.RENEWALS
-    labels = SESSION_LABELS.get(session.session_type, _BUSTE_LABELS)
+    labels = session_labels(session)
     participants_stats = []
     delivered = 0
     bid_counts = dict(
@@ -467,11 +509,7 @@ def session_manage_context(request, session):
         "free_by_role": repair["free_by_role"],
         "reachable": len(mail.league_recipients(league)),
         # Choices of the rules form (_market_rules_fields.html).
-        "refund_modes": Auction.RefundMode.choices,
-        "budget_rules": MarketSession.BudgetRule.choices,
-        "tie_breaks": MarketSession.TieBreak.choices,
-        "role_caps": [("P", "max_acquisitions_p"), ("D", "max_acquisitions_d"),
-                      ("C", "max_acquisitions_c"), ("A", "max_acquisitions_a")],
+        **rule_choices(),
     }
 
 
@@ -591,13 +629,20 @@ def _session_rules(post):
     session_type = type_aliases.get(raw_type, MarketSession.SessionType.REPAIR if raw_type == "repair" else MarketSession.SessionType.SEALED_BIDS)
 
     # Session-specific configuration payload
+    try:
+        multiplier = float(str(post.get("buyout_multiplier") or "1.5").replace(",", "."))
+    except ValueError:
+        multiplier = 1.5
     config = {
-        "fa_max_moves": _parse_int(post.get("fa_max_moves") or 3),
-        "fa_cost_type": post.get("fa_cost_type") or "quotation",
+        # Campo vuoto = 0 (illimitati); 3 solo se il campo non c'è.
+        "fa_max_moves": _parse_int(post.get("fa_max_moves", 3)),
+        "fa_cost_type": post.get("fa_cost_type") if post.get("fa_cost_type") in ("quotation", "base") else "quotation",
         "fa_period": post.get("fa_period") if post.get("fa_period") in MarketSession.FA_PERIODS else "rolling",
-        "waiver_order_type": post.get("waiver_order_type") or "inverse_standing",
+        "waiver_order_type": (post.get("waiver_order_type")
+                              if post.get("waiver_order_type") in ("inverse_standing", "rolling") else "inverse_standing"),
         "waiver_claim_hours": _parse_int(post.get("waiver_claim_hours") or 24),
-        "buyout_multiplier": float(post.get("buyout_multiplier") or 1.5),
+        # La clausola costa almeno quanto il cartellino.
+        "buyout_multiplier": max(1.0, multiplier) if multiplier == multiplier else 1.5,
         "buyout_min_hold_days": _parse_int(post.get("buyout_min_hold_days") or 7),
         "live_timer_seconds": _parse_int(post.get("live_timer_seconds") or 15),
         "description": (post.get("description") or "").strip(),
@@ -636,8 +681,8 @@ def admin_market_create(request):
     default_title_map = {
         MarketSession.SessionType.RENEWALS: "Mercato Rinnovi Contratti",
         MarketSession.SessionType.FREE_AGENCY: "Finestra Free Agency",
-        MarketSession.SessionType.WAIVER_WIRE: "Sessione Waiver a Turni",
-        MarketSession.SessionType.BUYOUT_CLAUSE: "Sessione Clausole Rescisorie",
+        MarketSession.SessionType.WAIVER_WIRE: "Draft Waiver Wire a Turni",
+        MarketSession.SessionType.BUYOUT_CLAUSE: "Sessione Clausole Rescissorie",
         MarketSession.SessionType.LIVE_AUCTION: "Asta Live di Riparazione",
     }
     default_title = default_title_map.get(session_type, "Mercato di Riparazione a Buste")
@@ -648,7 +693,7 @@ def admin_market_create(request):
     closes_at = _parse_local_datetime(request.POST.get("closes_at"))
     if opens_at and closes_at and closes_at <= opens_at:
         messages.error(request, "La chiusura deve essere successiva all'apertura.")
-        return redirect(_dashboard_url(request, league_id=league.id, tab="buste"))
+        return _create_back(request, league)
     if session_type == MarketSession.SessionType.WAIVER_WIRE and closes_at is None:
         # La finestra reclami dura quanto scelto nel wizard (24/48/72 ore).
         closes_at = (opens_at or timezone.now()) + timedelta(hours=rules["config"]["waiver_claim_hours"] or 24)
@@ -667,8 +712,7 @@ def admin_market_create(request):
     )
 
     if session_type == MarketSession.SessionType.RENEWALS and status == MarketSession.Status.OPEN:
-        league.renewals_open = True
-        league.save(update_fields=["renewals_open"])
+        sync_renewals_window({league.id})
 
     if request.POST.get("notify") == "1":
         report = mail.send_market_notice(request, session)
@@ -682,10 +726,18 @@ def admin_market_create(request):
         )
     else:
         messages.success(request, f"Sessione '{session.title}' creata con successo e aperta alle offerte.")
+    return _create_back(request, league, session)
+
+
+def _create_back(request, league, session=None):
+    """Dopo «Nuovo Mercato» (creato o rifiutato) si torna da dove si è partiti."""
     if request.POST.get("from") == "app" or request.POST.get("next") == "app":
-        return redirect(f"{reverse('app_mercato')}?session_id={session.id}")
+        url = reverse("app_mercato")
+        return redirect(f"{url}?session_id={session.id}" if session else url)
     if request.POST.get("from") == "regia":
         return redirect(f"{reverse('app_regia')}?league={league.id}")
+    if session is None:
+        return redirect(_dashboard_url(request, league_id=league.id, tab="buste"))
     return redirect(_back(request, _dashboard_url(request, session)))
 
 
@@ -697,12 +749,20 @@ def admin_market_status(request, session_id):
     if denied:
         return denied
     new_status = (request.POST.get("status") or "").strip().lower()
+    if session.status == MarketSession.Status.RESOLVED:
+        messages.error(request, "Lo spoglio è già stato eseguito: annullalo prima di riaprire la sessione.")
+        return redirect(_back(request, _dashboard_url(request, session)))
+    if (new_status == MarketSession.Status.OPEN and session.closes_at
+            and session.closes_at <= timezone.now()):
+        messages.error(request, "La chiusura è già passata: sposta prima la chiusura nelle «Regole», poi riapri.")
+        return redirect(_back(request, _dashboard_url(request, session)))
     if new_status in (MarketSession.Status.OPEN, MarketSession.Status.CLOSED):
         session.status = new_status
         session.save(update_fields=["status", "updated_at"])
         if session.session_type == MarketSession.SessionType.RENEWALS:
-            session.league.renewals_open = (new_status == MarketSession.Status.OPEN)
-            session.league.save(update_fields=["renewals_open"])
+            sync_renewals_window({session.league_id})
+            if new_status == MarketSession.Status.CLOSED:
+                _warn_unrolled(request, session.league)
         label = "aperta" if new_status == MarketSession.Status.OPEN else "chiusa"
         messages.success(request, f"Sessione '{session.title}' {label}.")
     return redirect(_back(request, _dashboard_url(request, session)))
@@ -727,6 +787,31 @@ def admin_market_notify(request, session_id):
     return redirect(_back(request, _dashboard_url(request, session)))
 
 
+# I tipi in cui lo spoglio (o il draft) si fa solo a sessione chiusa.
+_COUNT_AFTER_CLOSE = (
+    MarketSession.SessionType.SEALED_BIDS,
+    MarketSession.SessionType.REPAIR,
+    MarketSession.SessionType.WAIVER_WIRE,
+)
+
+
+def unrolled_renewals(league):
+    """I giocatori dichiarati da rinnovare il cui dado non è stato tirato:
+    alla chiusura dei rinnovi restano in rosa senza rinnovo."""
+    return list(
+        Player.objects.filter(owner__league=league, contract_years=0, renewal_declared=True)
+        .select_related("owner").order_by("owner__display_name", "name")
+    )
+
+
+def _warn_unrolled(request, league):
+    pending = unrolled_renewals(league)
+    if pending:
+        names = ", ".join(f"{p.name} ({p.owner.display_name})" for p in pending)
+        messages.warning(request, f"Dado rinnovo non tirato per {len(pending)} giocatori dichiarati: {names}. "
+                                  "Restano in rosa senza rinnovo finché qualcuno non tira il dado.")
+
+
 @staff_member_required
 @require_POST
 def admin_market_resolve(request, session_id):
@@ -737,6 +822,12 @@ def admin_market_resolve(request, session_id):
     if session.status == MarketSession.Status.RESOLVED:
         messages.warning(request, f"La sessione '{session.title}' è già stata scrutinata.")
         return redirect(_back(request, _dashboard_url(request, session)))
+    # Buste e waiver si scrutinano a consegna chiusa: prima si chiude la sessione.
+    if session.session_type in _COUNT_AFTER_CLOSE and session.is_open:
+        messages.error(request, "La sessione è ancora aperta: chiudila prima di eseguire lo spoglio.")
+        return redirect(_back(request, _dashboard_url(request, session)))
+    if session.session_type == MarketSession.SessionType.RENEWALS:
+        _warn_unrolled(request, session.league)
 
     summary = resolve_market_session(session.id)
     won_count = summary.get("total_acquisitions", 0)
@@ -764,14 +855,13 @@ def admin_market_delete(request, session_id):
     league_id = session.league_id
     league = session.league
     title = session.title
-    is_renewals = session.session_type == MarketSession.SessionType.RENEWALS
+    # Solo una sessione rinnovi aperta tiene aperta la finestra: eliminarne
+    # una vecchia non chiude quella aperta da «Nuova stagione».
+    was_open_renewals = (session.session_type == MarketSession.SessionType.RENEWALS
+                         and session.status == MarketSession.Status.OPEN)
     session.delete()
-    if is_renewals and league:
-        has_other_open = MarketSession.objects.filter(
-            league=league, session_type=MarketSession.SessionType.RENEWALS, status=MarketSession.Status.OPEN
-        ).exists()
-        league.renewals_open = has_other_open
-        league.save(update_fields=["renewals_open"])
+    if was_open_renewals and league:
+        sync_renewals_window({league.id})
     messages.info(request, f"Sessione '{title}' eliminata.")
     return redirect(_back(request, _dashboard_url(request, league_id=league_id, tab="buste")))
 
@@ -895,6 +985,9 @@ def admin_market_rules(request, session_id):
         fields.append("title")
     closes_at = _parse_local_datetime(request.POST.get("closes_at"))
     if request.POST.get("closes_at") is not None:
+        if closes_at and session.opens_at and closes_at <= session.opens_at:
+            messages.error(request, "La chiusura deve essere successiva all'apertura.")
+            return redirect(_back(request, _dashboard_url(request, session)))
         session.closes_at = closes_at
         fields.append("closes_at")
     session.save(update_fields=fields)

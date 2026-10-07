@@ -31,15 +31,15 @@ of a market's content is on this page: every item opens its own screen.
     {% for s in live_sessions %}
     <a class="mk-live-item c-amber" href="{% url 'admin_market_session' s.id %}">
         <span class="mk-live-top">
-            <span class="kind"><svg class="ic"><use href="#i-mail"/></svg> Buste</span>
-            {% if s.status == "open" %}<span class="tag t-live">Aperta</span>
-            {% elif s.status == "closed" %}<span class="tag t-warn">Da scrutinare</span>
+            <span class="kind"><svg class="ic"><use href="#{{ s.mk_labels.icon }}"/></svg> {{ s.mk_labels.kind }}</span>
+            {% if s.status == "open" %}<span class="tag t-live">{{ s.mk_labels.open }}</span>
+            {% elif s.status == "closed" %}<span class="tag t-warn">{{ s.mk_labels.todo }}</span>
             {% else %}<span class="tag t-info">Programmata</span>{% endif %}
         </span>
         <b class="t">{{ s.title }}</b>
         <span class="meta">
-            {% if s.status == "open" %}{% if s.closes_at %}Chiude il {{ s.closes_at|date:"D d/m H:i" }}{% else %}Chiusura manuale{% endif %} · {{ s.n_teams }}/{{ n_teams }} squadre hanno consegnato
-            {% elif s.status == "closed" %}Consegna chiusa · {{ s.n_bids }} bust{{ s.n_bids|pluralize:"a,e" }} da aprire
+            {% if s.status == "open" %}{% if s.closes_at %}Chiude il {{ s.closes_at|date:"D d/m H:i" }}{% else %}Chiusura manuale{% endif %}{% if s.mk_labels.acted %} · {{ s.n_teams }}/{{ n_teams }} squadre {{ s.mk_labels.acted }}{% endif %}
+            {% elif s.status == "closed" %}{{ s.mk_labels.closed }}{% if s.mk_labels.items %} · {{ s.n_bids }} {% if s.n_bids == 1 %}{{ s.mk_labels.item }}{% else %}{{ s.mk_labels.items }}{% endif %}{% endif %}
             {% else %}{% if s.opens_at %}Si apre il {{ s.opens_at|date:"D d/m H:i" }}{% else %}Da aprire a mano{% endif %}{% endif %}
         </span>
         <span class="go">Apri la sessione <svg class="ic"><use href="#i-arrow-right"/></svg></span>
@@ -89,8 +89,8 @@ of a market's content is on this page: every item opens its own screen.
         <div class="mk-type-top">
             <span class="mk-type-ic"><svg class="ic"><use href="#i-mail"/></svg></span>
             <div class="mk-type-name">
-                <div class="mk-type-t">Buste</div>
-                <div class="mk-type-d">Riparazione a offerte segrete</div>
+                <div class="mk-type-t">Sessioni</div>
+                <div class="mk-type-d">Buste, mercato libero, waiver, clausole e rinnovi</div>
             </div>
         </div>
         <div class="mk-type-foot">

@@ -1,18 +1,18 @@
 {% extends "auctions/market/base.html" %}
 {% comment %}
-Buste: the league's sealed-envelope sessions as cards. A session's
-deliveries, preview, count and envelopes open in its own screen
-(market/session.html).
+Sessioni: the league's market sessions of every kind (buste, free agency,
+waiver, clauses, renewals) as cards. A session's deliveries, preview, count
+and envelopes open in its own screen (market/session.html).
 {% endcomment %}
-{% block mk_title %}Buste · Mercato{% endblock %}
+{% block mk_title %}Sessioni · Mercato{% endblock %}
 {% block mk_color %}c-amber{% endblock %}
-{% block mk_crumbs %}<span class="sep">›</span> <span aria-current="page">Buste</span>{% endblock %}
+{% block mk_crumbs %}<span class="sep">›</span> <span aria-current="page">Sessioni</span>{% endblock %}
 
 {% block mk_head %}
 <div>
     <span class="kicker">{{ current_league.name }}</span>
-    <h1><svg class="ic"><use href="#i-mail"/></svg> Buste di riparazione</h1>
-    <div class="sub">Finestre a offerte segrete: le squadre consegnano le buste dall'app, tu controlli chi ha consegnato, guardi l'anteprima e apri lo spoglio. Apri una sessione per gestirla.</div>
+    <h1><svg class="ic"><use href="#i-mail"/></svg> Sessioni di mercato</h1>
+    <div class="sub">Le finestre di mercato della lega: buste, mercato libero, waiver, clausole e rinnovi. Le squadre agiscono dall'app, tu controlli chi ha partecipato, guardi l'anteprima e chiudi la sessione. Apri una sessione per gestirla.</div>
 </div>
 <span class="spacer"></span>
 {% if current_league %}
@@ -23,7 +23,7 @@ deliveries, preview, count and envelopes open in its own screen
 
 {% block mk_body %}
 <details class="howto" style="margin-bottom:18px">
-    <summary><svg class="ic"><use href="#i-info"/></svg> Come funziona il mercato a buste <span class="chev">▼</span></summary>
+    <summary><svg class="ic"><use href="#i-info"/></svg> Come funziona una sessione a buste <span class="chev">▼</span></summary>
     <div class="howto-body">
         <ol>
             <li><b>Crea una sessione</b>: apertura (subito o programmata), chiusura automatica, taglio condizionato e limiti d'acquisto per ruolo.</li>
@@ -43,14 +43,14 @@ deliveries, preview, count and envelopes open in its own screen
 {% else %}
 <div class="mk-live-empty">
     <svg class="ic"><use href="#i-info"/></svg>
-    <span><b>Nessuna sessione aperta.</b> Le squadre non possono consegnare buste finché non ne apri una.</span>
+    <span><b>Nessuna sessione aperta.</b> Le squadre non possono fare offerte né acquisti finché non ne apri una.</span>
     <span class="spacer"></span>
     <button type="button" class="fm-btn fm-btn-primary fm-btn-sm" onclick="openMarketWizard()"><svg class="ic"><use href="#i-plus"/></svg> Nuovo Mercato</button>
 </div>
 {% endif %}
 
 {% if past_sessions %}
-<div class="fm-section-title">Scrutinate <span class="sep"></span> {{ past_sessions|length }}</div>
+<div class="fm-section-title">Concluse <span class="sep"></span> {{ past_sessions|length }}</div>
 <div class="mk-sgrid">
     {% for s in past_sessions %}{% include "auctions/market/_session_card.html" %}{% endfor %}
 </div>
@@ -58,8 +58,8 @@ deliveries, preview, count and envelopes open in its own screen
 {% else %}
 <div class="fm-card mk-empty">
     <div class="ic-big"><svg class="ic"><use href="#i-mail"/></svg></div>
-    <b>Nessuna sessione a buste</b>
-    <p>Apri una finestra di riparazione: le squadre fanno le loro offerte segrete sugli svincolati ({{ free_total }} disponibili) e tu scruti tutte le buste insieme.</p>
+    <b>Nessuna sessione di mercato</b>
+    <p>Apri una finestra di mercato: buste segrete, mercato libero, waiver, clausole o rinnovi. Gli svincolati disponibili sono {{ free_total }}.</p>
     <button type="button" class="fm-btn fm-btn-primary" onclick="openMarketWizard()">
         <svg class="ic"><use href="#i-plus"/></svg> Crea la prima sessione</button>
 </div>

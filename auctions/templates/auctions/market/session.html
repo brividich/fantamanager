@@ -1,17 +1,17 @@
 {% extends "auctions/market/base.html" %}
 {% comment %}
-One buste session: state and actions, deliveries per team, the preview or
+One market session (any kind): state and actions, deliveries per team, the preview or
 the result of the count, ties and (for the admin only) the envelopes.
 {% endcomment %}
-{% block mk_title %}{{ s.title }} · Buste{% endblock %}
+{% block mk_title %}{{ s.title }} · {{ mk_labels.kind }}{% endblock %}
 {% block mk_color %}c-amber{% endblock %}
-{% block mk_crumbs %}<span class="sep">›</span> <a href="{% url 'admin_market_buste' %}?league={{ current_league.id }}">Buste</a>
+{% block mk_crumbs %}<span class="sep">›</span> <a href="{% url 'admin_market_buste' %}?league={{ current_league.id }}">Sessioni</a>
     <span class="sep">›</span> <span aria-current="page">{{ s.title }}</span>{% endblock %}
 
 {% block mk_head %}
 <div>
     <span class="kicker">{{ s.get_session_type_display }} · {{ current_league.name }}</span>
-    <h1><svg class="ic"><use href="#i-mail"/></svg> {{ s.title }}</h1>
+    <h1><svg class="ic"><use href="#{{ mk_labels.icon }}"/></svg> {{ s.title }}</h1>
 </div>
 <span class="spacer"></span>
 <a class="fm-btn fm-btn-ghost" href="{% url 'admin_market_buste' %}?league={{ current_league.id }}"><svg class="ic"><use href="#i-arrow-left"/></svg> Tutte le sessioni</a>

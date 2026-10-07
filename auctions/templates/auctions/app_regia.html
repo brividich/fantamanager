@@ -311,7 +311,7 @@ the same league.
     .pl-ct.last { background: rgba(234,179,8,.15); color: #eab308; border-color: rgba(234,179,8,.3); }
     .pl-ct.exp { background: rgba(239,68,68,.15); color: #f87171; border-color: rgba(239,68,68,.3); }
     .rg-role .none { font-size: 12px; color: var(--muted); }
-    .rg-team-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; align-items: center; }
+    .rg-team-actions { display: flex; gap: 8px; margin-top: 12px; align-items: center; }
     .rg-team-actions form { margin: 0; }
     .rg-team-actions .fm-btn { height: 36px; font-size: 12px; border-radius: 9px; }
     .rg-code {
@@ -471,7 +471,7 @@ the same league.
                     </div>
                     {% endfor %}
                 </div>
-                <div class="rg-team-actions">
+                <div class="rg-team-actions fm-onerow">
                     {% if not row.is_viewing %}
                     <form method="post" action="{% url 'app_view_as' p.id %}">{% csrf_token %}
                         <button type="submit" class="fm-btn fm-btn-primary"><svg class="ic"><use href="#i-eye"/></svg> Vedi come {{ p.display_name|truncatechars:18 }}</button>
@@ -550,7 +550,7 @@ the same league.
             <a href="{% url 'admin_market_dashboard' %}{{ league_q }}" style="margin-left:auto;font-size:11px;letter-spacing:.06em">Gestisci</a></div>
         {% for s in market_sessions %}
         <a class="a-row" href="{% url 'app_regia_market_session' s.id %}" style="text-decoration:none;color:inherit">
-            <span class="nm">{{ s.title }}<small>{{ s.get_status_display }}</small></span>
+            <span class="nm">{{ s.title }}<small>{{ s.mk_labels.kind }} · {% if s.status == "open" %}{{ s.mk_labels.open }}{% elif s.status == "closed" %}{{ s.mk_labels.todo }}{% elif s.status == "draft" %}Programmata{% else %}{{ s.mk_labels.resolved }}{% endif %}</small></span>
             <span class="val" style="font-size:12px;color:var(--muted)">{% if s.closes_at %}{{ s.closes_at|date:"d/m H:i" }}{% endif %}</span>
         </a>
         {% empty %}
@@ -558,7 +558,7 @@ the same league.
         {% endfor %}
         <div class="fm-onerow" style="gap:8px;margin-top:10px">
             <button type="button" class="fm-btn fm-btn-primary fm-btn-sm" onclick="openMarketWizard()"><svg class="ic"><use href="#i-plus"/></svg> Nuovo Mercato</button>
-            <a class="fm-btn fm-btn-outline fm-btn-sm" href="{% url 'admin_market_buste' %}{{ league_q }}"><svg class="ic"><use href="#i-mail"/></svg> Console Buste</a>
+            <a class="fm-btn fm-btn-outline fm-btn-sm" href="{% url 'admin_market_buste' %}{{ league_q }}"><svg class="ic"><use href="#i-mail"/></svg> Sessioni in console</a>
         </div>
     </section>
 

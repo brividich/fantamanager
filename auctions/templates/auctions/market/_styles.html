@@ -147,8 +147,11 @@
     .mk-sess-top h3 { margin: 0; font-family: var(--fm-display); font-weight: 800; font-size: 24px; line-height: 1.1; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
     .mk-sess-top .meta { font-size: 12px; color: var(--fm-text-secondary); margin-top: 5px; }
     .mk-sess-top .meta b { color: var(--fm-text); }
-    .mk-acts { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+    .mk-acts { display: flex; gap: 6px; align-items: center; }
+    /* The forms vanish from the layout: their buttons are the row's items,
+       so they keep fm-onerow's no-shrink, no-wrap rule too. */
     .mk-acts form { margin: 0; display: contents; }
+    .mk-acts > form > * { flex-shrink: 0; white-space: nowrap; }
 
     .mk-steps { display: flex; list-style: none; margin: 18px 0 16px; padding: 0; }
     .mk-steps li { flex: 1; position: relative; text-align: center; padding-top: 22px;
@@ -253,7 +256,7 @@
     @media (max-width: 620px) { .li { flex-wrap: wrap; } .li .btns { width: 100%; justify-content: flex-end; } }
 
     /* Movimenti */
-    .mk-filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+    .mk-filters { display: flex; gap: 6px; margin-bottom: 12px; }
     .mk-filters button { height: 30px; padding: 0 12px; font-size: 12px; border-radius: 999px; background: rgba(255,255,255,.04); color: var(--fm-text-secondary); }
     .mk-filters button[aria-pressed="true"] { background: rgba(8,124,240,.16); color: var(--fm-primary-light); border-color: var(--fm-border-active); }
     .mk-moves { list-style: none; margin: 0; padding: 0; }
@@ -298,14 +301,14 @@
     @media (max-width: 600px) { .mr-grid { grid-template-columns: 1fr; } .mr-roles { grid-template-columns: repeat(2, 1fr); } }
 
     /* ---- Breadcrumb and market switcher (the screens under the hub) ---- */
-    .mk-crumbs { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 6px 0 0;
+    .mk-crumbs { display: flex; align-items: center; gap: 6px; margin: 6px 0 0;
                  font-size: 12px; font-weight: 700; color: var(--fm-text-muted); }
     .mk-crumbs a { color: var(--fm-text-secondary); }
     .mk-crumbs a:hover { color: #fff; }
     .mk-crumbs .sep { opacity: .5; }
     .mk-crumbs [aria-current] { color: var(--fm-text); }
     .mk-head h1 .ic { width: 28px; height: 28px; color: var(--c, var(--fm-primary-light)); vertical-align: -3px; }
-    .mk-switch { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 18px; padding: 4px;
+    .mk-switch { display: flex; gap: 6px; margin: 0 0 18px; padding: 4px;
                  border-radius: 12px; background: rgba(255,255,255,.025); border: 1px solid var(--fm-border); width: fit-content; max-width: 100%; }
     .mk-switch a { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 14px; border-radius: 9px;
                    font-size: 13px; font-weight: 700; color: var(--fm-text-secondary); }

@@ -20,7 +20,7 @@ from .. import services
 from ..services import mail
 from ..models import Auction, MarketBid, MarketSession, Participant, Player, Trade
 from .admin_dashboard import _classifica_standings
-from .admin_market import session_manage_context, trades_manage_context
+from .admin_market import rule_choices, session_labels, session_manage_context, trades_manage_context
 from .app import _redirect_login
 from .common import (
     SESSION_LEAGUE_KEY,
@@ -75,10 +75,17 @@ def league_admin_digest(league):
     sessions = MarketSession.objects.filter(league=league)
     closed = sessions.filter(status=MarketSession.Status.CLOSED).first()
     if closed is not None:
-        items.append(_todo(
-            "warn", "mail", f"Spoglio da fare: {closed.title}",
-            "Le buste sono chiuse: controlla l'anteprima e assegna i giocatori.",
-            reverse("app_regia_market_session", args=[closed.id]), "Vai allo spoglio"))
+        if closed.session_type in (MarketSession.SessionType.SEALED_BIDS, MarketSession.SessionType.REPAIR):
+            items.append(_todo(
+                "warn", "mail", f"Spoglio da fare: {closed.title}",
+                "Le buste sono chiuse: controlla l'anteprima e assegna i giocatori.",
+                reverse("app_regia_market_session", args=[closed.id]), "Vai allo spoglio"))
+        else:
+            labels = session_labels(closed)
+            items.append(_todo(
+                "warn", "mail", f"{labels['todo']}: {closed.title}",
+                f"{labels['closed']}: riaprila o concludila con «{labels['resolve']}».",
+                reverse("app_regia_market_session", args=[closed.id]), "Apri la sessione"))
     opened = sessions.filter(status=MarketSession.Status.OPEN).first()
     if opened is not None:
         delivered = (MarketBid.objects.filter(session=opened)
@@ -189,6 +196,8 @@ def app_regia(request):
               .prefetch_related("proposer_players", "receiver_players"))
     auctions = list(Auction.objects.filter(league=league).order_by("-id")[:6])
     sessions = list(MarketSession.objects.filter(league=league).order_by("-created_at")[:3])
+    for s in sessions:
+        s.mk_labels = session_labels(s)
     from ..services.competitions import ensure_league_season_and_competitions
     season, competitions = ensure_league_season_and_competitions(league) if league else (None, [])
 
@@ -219,6 +228,7 @@ def app_regia(request):
         # The «Nuovo Mercato» wizard, shared with the console (_market_wizard.html).
         "mail_ready": mail.is_ready(),
         "open_wizard": request.GET.get("open_wizard") == "1",
+        **rule_choices(),
     })
     return render(request, "auctions/app_regia.html", ctx)
 

@@ -129,7 +129,7 @@ Apertura dalla pagina: openMarketWizard() / closeMarketWizard().
                     <div>
                         <h4>⚡ Mercato Libero Continuo (Free Agency)</h4>
                         <p>Acquisto immediato dal listone svincolati: chi primo arriva compra.</p>
-                        <div class="mwz-info"><b>ℹ️ Come funziona:</b> nessuna finestra da attendere. Il primo manager che acquista tessera il calciatore al costo scelto (quotazione o prezzo simbolico), entro il limite di movimenti settimanali.</div>
+                        <div class="mwz-info"><b>ℹ️ Come funziona:</b> nessuna finestra da attendere. Il primo manager che acquista tessera il calciatore al costo scelto (quotazione o prezzo simbolico), entro il limite di acquisti del periodo scelto nelle regole.</div>
                     </div>
                 </label>
                 <label class="mwz-card" data-kind="waiver_wire">
@@ -191,7 +191,9 @@ Apertura dalla pagina: openMarketWizard() / closeMarketWizard().
             <div class="mwz-box">
                 <label class="mwz-lbl" for="mwz-closes-at">Chiusura (consigliata)</label>
                 <input type="datetime-local" name="closes_at" id="mwz-closes-at" class="mwz-input">
-                <span class="mwz-hint">Allo scadere la sessione si chiude da sola; lo spoglio resta a te. Vuoto = chiusura manuale.</span>
+                <span class="mwz-hint" data-hint="buste">Allo scadere la sessione si chiude da sola; lo spoglio resta a te. Vuoto = chiusura manuale.</span>
+                <span class="mwz-hint" data-hint="waiver_wire" style="display:none">Allo scadere i reclami si chiudono; il draft resta a te. Vuoto = dopo la durata della finestra reclami (passo «Regole»).</span>
+                <span class="mwz-hint" data-hint="other" style="display:none">Allo scadere la sessione si chiude da sola. Vuoto = chiusura manuale.</span>
             </div>
             <div class="mwz-nav">
                 <button type="button" class="mwz-btn ghost" onclick="mwzGo(1)">← Indietro</button>
@@ -206,23 +208,21 @@ Apertura dalla pagina: openMarketWizard() / closeMarketWizard().
             <div data-for="buste">
                 <div class="mwz-box">
                     <span class="mwz-lbl">Regola del budget</span>
-                    <label class="mwz-opt"><input type="radio" name="budget_rule" value="priority" checked>
-                        <div>Ordine di preferenza (consigliata)<small>Ogni offerta deve stare nel budget; allo spoglio conta la priorità.</small></div></label>
-                    <label class="mwz-opt"><input type="radio" name="budget_rule" value="total">
-                        <div>Totale cumulativo<small>La somma delle offerte non supera il budget; quelle più alte in eccesso si annullano.</small></div></label>
+                    {# Le stesse scelte, con le stesse parole, del modulo «Regole» (_market_rules_fields.html): MarketSession.BudgetRule. #}
+                    {% for value, label in budget_rules %}
+                    <label class="mwz-opt"><input type="radio" name="budget_rule" value="{{ value }}"{% if value == "priority" %} checked{% endif %}> {{ label }}</label>
+                    {% endfor %}
                 </div>
                 <div class="mwz-box">
                     <label class="mwz-lbl" for="mwz-tie">Pari merito</label>
                     <select name="tie_break" id="mwz-tie" class="mwz-input">
-                        <option value="first">Vince chi ha inserito l'offerta per primo</option>
-                        <option value="manual">Decide l'admin (scelta o sorteggio)</option>
-                        <option value="rebid">Secondo sfoglio tra le squadre in parità</option>
+                        {% for value, label in tie_breaks %}<option value="{{ value }}"{% if value == "first" %} selected{% endif %}>{{ label }}</option>{% endfor %}
                     </select>
                 </div>
                 <div class="mwz-box">
                     <label class="mwz-lbl" for="mwz-max-bids">Offerte massime per squadra</label>
                     <input type="number" id="mwz-max-bids" name="max_bids" value="0" min="0" class="mwz-input">
-                    <span class="mwz-hint">0 = nessun limite.</span>
+                    <span class="mwz-hint">0 = nessun limite. Più offerte sullo stesso giocatore contano tutte.</span>
                 </div>
                 <div class="mwz-box">
                     <span class="mwz-lbl">Acquisti massimi per ruolo (0 = illimitati)</span>
@@ -313,12 +313,10 @@ Apertura dalla pagina: openMarketWizard() / closeMarketWizard().
             <div class="mwz-box" id="mwz-release-box">
                 <span class="mwz-lbl">Svincoli e tagli</span>
                 <label class="mwz-opt"><input type="checkbox" name="require_same_role_release" value="1"> Ogni acquisto sostituisce un giocatore di pari ruolo (taglio obbligatorio)</label>
-                <label class="mwz-opt"><input type="checkbox" name="allow_conditional_release" value="1" checked> Consenti tagli condizionati facoltativi</label>
+                <label class="mwz-opt"><input type="checkbox" name="allow_conditional_release" value="1" checked> Consenti tagli condizionati facoltativi (anche se non obbligatori)</label>
                 <label class="mwz-lbl" for="mwz-refund" style="margin-top:6px">Rimborso del giocatore tagliato</label>
                 <select name="refund_mode" id="mwz-refund" class="mwz-input">
-                    <option value="purchase" selected>Costo di acquisto originale</option>
-                    <option value="current">Quotazione attuale del listone</option>
-                    <option value="none">Nessun rimborso</option>
+                    {% for value, label in refund_modes %}<option value="{{ value }}"{% if value == "purchase" %} selected{% endif %}>{{ label }}</option>{% endfor %}
                 </select>
             </div>
 
@@ -390,6 +388,12 @@ Apertura dalla pagina: openMarketWizard() / closeMarketWizard().
             el.style.display = el.dataset.for === value ? "block" : "none";
         });
         $("mwz-release-box").style.display = value === "renewals" ? "none" : "block";
+        // Il suggerimento sulla chiusura dipende dal tipo: solo le buste hanno lo spoglio,
+        // il waiver senza data si chiude dopo la durata della finestra reclami.
+        const hint = value === "buste" || value === "waiver_wire" ? value : "other";
+        document.querySelectorAll("#mwz-step-2 [data-hint]").forEach((el) => {
+            el.style.display = el.dataset.hint === hint ? "block" : "none";
+        });
         $("mwz-title-box").style.display = value === "live" ? "none" : "block";
         $("mwz-next-1").textContent = value === "live" ? "Vai al setup dell'asta →" : "Continua →";
         const t = $("mwz-title-input");
@@ -409,7 +413,9 @@ Apertura dalla pagina: openMarketWizard() / closeMarketWizard().
             $("mwz-sum-kind").textContent = LABELS[kind];
             $("mwz-sum-title").textContent = $("mwz-title-input").value;
             $("mwz-sum-opens").textContent = later && opens ? opens.replace("T", " ") : "Subito";
-            $("mwz-sum-closes").textContent = closes ? closes.replace("T", " ") : "Manuale";
+            $("mwz-sum-closes").textContent = closes ? closes.replace("T", " ")
+                : kind === "waiver_wire" ? "+" + $("mwz-waiver-hours").value + " ore dall'apertura"
+                : "Manuale";
         }
         $("market-wizard-modal").querySelector(".mwz-sheet").scrollTop = 0;
     };

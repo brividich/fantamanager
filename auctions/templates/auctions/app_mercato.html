@@ -323,7 +323,7 @@
         <span>Sessioni di mercato</span>
         <div style="display:flex;align-items:center;gap:10px">
             <small>{{ active_sessions|length }} {% if active_sessions|length == 1 %}aperta{% else %}aperte{% endif %}</small>
-            {% if manages_app_league or is_app_admin %}
+            {% if manages_app_league %}
             <button type="button" class="mc-btn-wizard" onclick="openMarketWizard()" title="Avvia il wizard per creare una nuova sessione per {{ app_league.name }}">
                 <svg class="ic" style="width:13px;height:13px"><use href="#i-plus"/></svg>
                 <span>Nuovo Mercato</span>
@@ -359,7 +359,7 @@
                         <span class="status-pill status-open">Buste aperte</span>
                         {% endif %}
                     {% elif s.status == "resolved" %}
-                    <span class="status-pill status-resolved">{% if s.session_type == "renewals" %}Rinnovi chiusi{% else %}Spoglio eseguito{% endif %}</span>
+                    <span class="status-pill status-resolved">{{ s.mk_labels.resolved }}</span>
                     {% else %}
                     <span class="status-pill status-closed">Chiusa</span>
                     {% endif %}
@@ -446,7 +446,7 @@
             <svg class="ic" style="width:36px;height:36px;margin:0 auto 10px;color:var(--muted)"><use href="#i-shield"/></svg>
             <div style="font-weight:900;font-size:16px;color:var(--ink);margin-bottom:4px">Nessuna sessione di mercato attiva</div>
             <div style="font-size:13px;color:var(--muted)">L'amministratore programmerà le prossime finestre di mercato. Puoi comunque consultare il Listone Svincolati e le quotazioni.</div>
-            {% if manages_app_league or is_app_admin %}
+            {% if manages_app_league %}
             <div style="margin-top:14px">
                 <button type="button" class="mc-btn-primary" style="display:inline-flex;width:auto;padding:10px 18px" onclick="openMarketWizard()">
                     <svg class="ic" style="width:14px;height:14px"><use href="#i-plus"/></svg>
@@ -565,7 +565,7 @@
                 </span>
                 {% if market_session.closes_at %}<span>Chiusura: <b>{{ market_session.closes_at|date:"d/m H:i" }}</b></span>{% endif %}
                 {% elif market_session.status == "resolved" %}
-                <span class="status-pill status-resolved" style="font-size:10px;padding:2px 7px">{% if is_renewals %}Rinnovi chiusi{% else %}Spoglio eseguito{% endif %}</span>
+                <span class="status-pill status-resolved" style="font-size:10px;padding:2px 7px">{{ mk_labels.resolved }}</span>
                 {% else %}
                 <span class="status-pill status-closed" style="font-size:10px;padding:2px 7px">{% if is_renewals %}Rinnovi sospesi{% else %}Sessione chiusa{% endif %}</span>
                 {% endif %}
@@ -597,7 +597,7 @@
                 <div><b>Mercato Libero Continuo:</b> Acquista direttamente dal listone svincolati. Il primo fantallenatore che conferma acquista all'istante!</div>
             {% elif is_buyout_clause %}
                 <span style="font-size:17px">💰</span>
-                <div><b>Mercato con Clausole Rescisorie:</b> Paga la clausola per scippare un giocatore da una rosa avversaria. I crediti spesi vanno direttamente alla squadra venditrice.</div>
+                <div><b>Mercato con Clausole Rescissorie:</b> Paga la clausola per scippare un giocatore da una rosa avversaria. I crediti spesi vanno direttamente alla squadra venditrice.</div>
             {% elif is_waiver_wire %}
                 <span style="font-size:17px">📋</span>
                 <div><b>Draft Waiver Wire a Turni:</b> Inserisci i tuoi reclami in ordine di preferenza. Alla chiusura della finestra, il sistema assegna i giocatori un turno alla volta partendo da chi ha la precedenza.</div>
@@ -636,10 +636,17 @@
                 <div class="k">Protezione Acquisti</div>
             </div>
             {% elif is_waiver_wire %}
+            {% if market_session.status == "resolved" and buste_results %}
+            <div class="shc-stat">
+                <div class="v" style="color:#22c55e">{{ buste_results.my_won|length }}/{{ waiver_claims|length }}</div>
+                <div class="k">Reclami Assegnati</div>
+            </div>
+            {% else %}
             <div class="shc-stat">
                 <div class="v">{{ waiver_claims|length }}</div>
                 <div class="k">I Tuoi Reclami</div>
             </div>
+            {% endif %}
             <div class="shc-stat">
                 <div class="v" style="font-size:13px;padding-top:2px">{% if market_session.config.waiver_order_type == "rolling" %}Rotazione continua{% else %}Inverso classifica{% endif %}</div>
                 <div class="k">Criterio Priorità</div>
@@ -677,7 +684,7 @@
     {% endif %}
 
     <!-- Segmented Navigation dentro il Workspace -->
-    <div class="a-seg" data-asec-default="{% if is_buyout_clause %}clausole{% elif is_renewals %}rinnovi{% elif is_buste and market_session.status == 'resolved' %}esito_spoglio{% else %}svincolati{% endif %}" style="margin-bottom:14px;">
+    <div class="a-seg" data-asec-default="{% if is_buyout_clause %}clausole{% elif is_renewals %}rinnovi{% elif market_session.status == 'resolved' and is_buste or market_session.status == 'resolved' and is_waiver_wire %}esito_spoglio{% else %}svincolati{% endif %}" style="margin-bottom:14px;">
         {% if is_buyout_clause %}
         <button type="button" data-asec-go="clausole" class="on">
             Rose & Clausole
@@ -686,7 +693,12 @@
             Listone Svincolati
         </button>
         {% elif is_waiver_wire %}
-        <button type="button" data-asec-go="svincolati" class="on">
+        {% if market_session.status == "resolved" %}
+        <button type="button" data-asec-go="esito_spoglio" class="on">
+            🏆 Esito del Draft
+        </button>
+        {% endif %}
+        <button type="button" data-asec-go="svincolati"{% if market_session.status != "resolved" %} class="on"{% endif %}>
             Svincolati & Scelte
         </button>
         <button type="button" data-asec-go="waiver_claims">
@@ -946,6 +958,12 @@
                 <div style="display:flex;align-items:center;gap:10px">
                     {% if market_open %}
                     <button type="button" class="bid-del-btn" onclick="deleteWaiverClaim({{ c.id }})" title="Rimuovi questo reclamo">✕ Ritira</button>
+                    {% elif c.status == "won" %}
+                    <span class="status-pill status-open" style="font-size:10px;padding:2px 7px" title="{{ c.note }}">{{ mk_labels.won_tag }}</span>
+                    {% elif c.status == "lost" %}
+                    <span class="status-pill status-closed" style="font-size:10px;padding:2px 7px" title="{{ c.note }}">{{ mk_labels.lost_tag }}</span>
+                    {% else %}
+                    <span style="font-size:11px;color:var(--muted)">{{ mk_labels.awaiting }}</span>
                     {% endif %}
                 </div>
             </div>
@@ -1071,7 +1089,7 @@
         <!-- Risultato Personale -->
         <div class="a-card" style="padding:16px;margin-bottom:14px;border:1px solid rgba(34,197,94,.3);background:rgba(34,197,94,.03)">
             <div class="a-label" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-                <span style="color:#22c55e"><svg class="ic"><use href="#i-trophy"/></svg> Il Tuo Resoconto di Spoglio</span>
+                <span style="color:#22c55e"><svg class="ic"><use href="#i-trophy"/></svg> {% if is_waiver_wire %}Il Tuo Resoconto del Draft{% else %}Il Tuo Resoconto di Spoglio{% endif %}</span>
                 <span style="font-size:12px;font-weight:700;color:var(--muted)">{{ participant.display_name }}</span>
             </div>
             
@@ -1097,7 +1115,7 @@
 
             {% if buste_results.my_lost %}
             <div>
-                <div style="font-size:12px;font-weight:800;color:#ef4444;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">❌ Buste Non Aggiudicate ({{ buste_results.my_lost|length }})</div>
+                <div style="font-size:12px;font-weight:800;color:#ef4444;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">❌ {{ mk_labels.lost }} ({{ buste_results.my_lost|length }})</div>
                 <div style="display:flex;flex-direction:column;gap:6px">
                     {% for l in buste_results.my_lost %}
                     <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-radius:10px;background:var(--panel-2);border:1px solid var(--line)">
@@ -1108,7 +1126,7 @@
                             <small style="color:var(--muted);font-size:11px">({{ l.note }})</small>
                             {% endif %}
                         </div>
-                        <span style="font-family:var(--display);font-weight:800;font-size:13.5px;color:var(--muted)">Offerti: {{ l.amount }} FM</span>
+                        <span style="font-family:var(--display);font-weight:800;font-size:13.5px;color:var(--muted)">{{ mk_labels.amount }}: {{ l.amount }} FM</span>
                     </div>
                     {% endfor %}
                 </div>
@@ -1116,14 +1134,14 @@
             {% endif %}
 
             {% if not buste_results.my_won and not buste_results.my_lost %}
-            <div style="font-size:12.5px;color:var(--muted)">Non hai consegnato buste per questa sessione.</div>
+            <div style="font-size:12.5px;color:var(--muted)">{% if is_waiver_wire %}Non hai inviato reclami per questa sessione.{% else %}Non hai consegnato buste per questa sessione.{% endif %}</div>
             {% endif %}
         </div>
 
         <!-- Verbale Ufficiale della Lega -->
         <div class="a-card" style="padding:16px;margin-bottom:14px">
             <div class="a-label" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
-                <span><svg class="ic"><use href="#i-table"/></svg> Verbale di Spoglio Ufficiale di Lega</span>
+                <span><svg class="ic"><use href="#i-table"/></svg> {% if is_waiver_wire %}Esito del draft della lega{% else %}Verbale di Spoglio Ufficiale di Lega{% endif %}</span>
                 <div style="display:flex;align-items:center;gap:6px">
                     <a href="{% url 'app_print_buste_report' market_session.id %}" target="_blank" rel="noopener" class="role-chip on" style="cursor:pointer;text-decoration:none;padding:4px 10px;font-size:11px;display:inline-flex;align-items:center;gap:4px;" title="Stampa o salva in PDF il Verbale Ufficiale di Spoglio (formato A4)">
                         <svg class="ic" style="width:12px;height:12px"><use href="#i-print"/></svg> Stampa Verbale (PDF)
@@ -1143,7 +1161,7 @@
                             <th style="padding:8px 6px">Ruolo</th>
                             <th style="padding:8px 6px">Calciatore</th>
                             <th style="padding:8px 6px">Aggiudicatario</th>
-                            <th style="padding:8px 6px;text-align:right">Offerta</th>
+                            <th style="padding:8px 6px;text-align:right">{{ mk_labels.amount }}</th>
                             <th style="padding:8px 6px">Taglio Condizionato</th>
                         </tr>
                     </thead>
@@ -1453,6 +1471,12 @@
                     <b style="font-size:13.5px">{{ market_session.max_bids }} buste per squadra</b>
                 </div>
                 {% endif %}
+                {% if is_buste %}
+                <div style="background:var(--panel-2);padding:10px 12px;border-radius:10px;border:1px solid var(--line);">
+                    <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Acquisti per Ruolo</span>
+                    <b style="font-size:13.5px">P {{ market_session.max_acquisitions_p|default:"∞" }} · D {{ market_session.max_acquisitions_d|default:"∞" }} · C {{ market_session.max_acquisitions_c|default:"∞" }} · A {{ market_session.max_acquisitions_a|default:"∞" }}</b>
+                </div>
+                {% endif %}
             </div>
         </div>
         {% endif %}
@@ -1486,7 +1510,7 @@
 
 
 <!-- Wizard «Nuovo Mercato»: lo stesso file della console web (_market_wizard.html). -->
-{% if manages_app_league or is_app_admin %}
+{% if manages_app_league %}
 {% include "auctions/_market_wizard.html" with wz_league=app_league wz_from="app" wz_mail_ready=mail_ready wz_autoopen=open_wizard %}
 {% endif %}
 
