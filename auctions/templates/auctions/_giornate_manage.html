@@ -25,6 +25,13 @@ partono, così l'azione torna lì; ``gv_base``/``gv_back`` arrivano dalla view.
     .badge.blue { background:rgba(59,130,246,.14); color:#60a5fa; border-color:rgba(59,130,246,.35); }
     .badge.yellow { background:rgba(234,179,8,.14); color:#facc15; border-color:rgba(234,179,8,.35); }
 
+    .ms-row { display:grid; grid-template-columns:minmax(0,1fr) 104px 70px; gap:8px; align-items:center;
+              padding:6px 0; border-bottom:1px solid var(--line); }
+    .ms-row label { font-weight:700; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .ms-head { font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+    .gv-num { width:100%; max-width:120px; padding:7px 9px; border-radius:8px; border:1px solid var(--line);
+              background:var(--panel-2); color:var(--ink); font-weight:700; font-size:14px; }
+
     .voti-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:14px; }
     @media (max-width:960px) { .voti-grid { grid-template-columns:1fr; } }
 
@@ -127,6 +134,9 @@ partono, così l'azione torna lì; ``gv_base``/``gv_back`` arrivano dalla view.
         {% endif %}
         <a href="#upload-section" class="fm-btn fm-btn-ghost fm-btn-sm">
             📥 Importa File Excel / CSV
+        </a>
+        <a href="#manual-section" class="fm-btn fm-btn-ghost fm-btn-sm">
+            ✍️ Punteggi a mano
         </a>
     </div>
 </div>
@@ -233,6 +243,35 @@ partono, così l'azione torna lì; ``gv_base``/``gv_back`` arrivano dalla view.
             </tbody>
         </table>
     </div>
+</div>
+
+<!-- Punteggi a mano (es. da Fantapazz, che esporta solo un'immagine) -->
+<div id="manual-section" class="upload-card" style="margin-top:16px;">
+    <h3 style="margin:0 0 4px;font-size:18px;">✍️ Punteggi a mano · Giornata {{ current_giornata.number }}</h3>
+    <div class="muted" style="font-size:13px;">
+        Scrivi il totale di ogni squadra com'è sull'altro sito (per esempio Fantapazz: 85,5). I gol si calcolano dalle soglie della lega
+        (66 punti = 1 gol, poi uno ogni 6) se non li scrivi tu; risultati, scontri diretti e classifiche si aggiornano.
+        Le squadre lasciate vuote restano com'erano. Se poi carichi i voti o fai il sync live, i totali si ricalcolano dai voti.
+    </div>
+    {% if manual_scored %}<div class="muted" style="font-size:12.5px;margin-top:6px;"><span class="badge green">Inseriti a mano</span> Questa giornata ha già punteggi scritti a mano.</div>{% endif %}
+    <form method="post" action="{% url 'app_giornata_manual_scores' %}" style="margin-top:12px;">
+        {% csrf_token %}
+        <input type="hidden" name="league_id" value="{{ current_league.id }}">
+        <input type="hidden" name="giornata_number" value="{{ current_giornata.number }}">
+        <input type="hidden" name="next" value="{{ gv_back }}">
+        <div class="ms-row ms-head"><span>Squadra</span><span>Fantapunti</span><span>Gol</span></div>
+        {% for r in manual_rows %}
+        <div class="ms-row">
+            <label for="ms-{{ r.team.id }}">{{ r.team.display_name }}</label>
+            <input id="ms-{{ r.team.id }}" name="score_{{ r.team.id }}" inputmode="decimal" placeholder="es. 85,5"
+                   value="{{ r.value }}" class="gv-num">
+            <input name="goals_{{ r.team.id }}" inputmode="numeric" placeholder="auto" aria-label="Gol di {{ r.team.display_name }}" class="gv-num">
+        </div>
+        {% endfor %}
+        <div style="margin-top:12px;display:flex;justify-content:flex-end;">
+            <button type="submit" class="fm-btn fm-btn-primary">Salva punteggi della Giornata {{ current_giornata.number }}</button>
+        </div>
+    </form>
 </div>
 
 <!-- Upload Section -->

@@ -344,7 +344,9 @@ def admin_save_matchday_formation(participant, giornata, module, raw_ids, raw_be
         defaults={"module": module, "starter_ids": ordered, "bench_ids": bench},
     )
     recomputed = False
-    if giornata.status in (Giornata.Status.LIVE, Giornata.Status.SCORED):
+    # Only from votes: a giornata scored by hand (totals typed in) has none,
+    # and recomputing would turn every total into 0.
+    if giornata.status in (Giornata.Status.LIVE, Giornata.Status.SCORED) and giornata.performances.exists():
         from .scoring import compute_giornata
         compute_giornata(giornata, mark_scored=(giornata.status == Giornata.Status.SCORED))
         recomputed = True

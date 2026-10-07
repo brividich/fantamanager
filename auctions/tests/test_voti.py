@@ -622,3 +622,77 @@ class VotiFileLayoutTests(TestCase):
         self.assertEqual(rows[0]["name"], "Rrahmani")
         self.assertEqual(rows[0]["team"], "NAPOLI")
         self.assertEqual(rows[0]["own_goals"], 1)
+
+
+class ManualScoresTests(TestCase):
+    """Punteggi a mano: il totale di ogni squadra com'è su un altro sito
+    (Fantapazz esporta solo un'immagine), da cui gol, risultati e classifica."""
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+        from ..models import Competition, Fixture, Giornata, Participant, Season
+        self.owner = User.objects.create_user("owner_ms", password="pw")
+        self.league = League.objects.create(name="Lega Fantapazz", owner=self.owner)
+        self.home = Participant.objects.create(display_name="Dinamo Viaritta", league=self.league)
+        self.away = Participant.objects.create(display_name="Deportivo Zozzfanti", league=self.league)
+        season = Season.objects.create(league=self.league, name="Stagione 2026/27")
+        self.g = Giornata.objects.create(season=season, number=1, status="OPEN")
+        comp = Competition.objects.create(season=season, name="Campionato")
+        self.fx = Fixture.objects.create(competition=comp, giornata=self.g, home=self.home, away=self.away)
+        self.client.force_login(self.owner)
+
+    def _post(self, data, name="admin_giornata_manual_scores"):
+        from django.urls import reverse
+        payload = {"league_id": self.league.id, "giornata_number": 1}
+        payload.update(data)
+        return self.client.post(reverse(name), payload)
+
+    def test_totals_give_goals_result_and_scored_giornata(self):
+        from ..models import GiornataScore
+        resp = self._post({f"score_{self.home.id}": "85,5", f"score_{self.away.id}": "69.5"})
+        self.assertEqual(resp.status_code, 302)
+        home = GiornataScore.objects.get(giornata=self.g, participant=self.home)
+        self.assertEqual((home.total, home.goals), (Decimal("85.5"), 4))
+        self.assertEqual(GiornataScore.objects.get(giornata=self.g, participant=self.away).goals, 1)
+        self.fx.refresh_from_db()
+        self.assertEqual((self.fx.home_goals, self.fx.away_goals, self.fx.home_points, self.fx.away_points), (4, 1, 3, 0))
+        self.g.refresh_from_db()
+        self.assertEqual(self.g.status, "SCORED")
+
+    def test_typed_goals_win_over_the_thresholds(self):
+        from ..models import GiornataScore
+        self._post({f"score_{self.home.id}": "70", f"goals_{self.home.id}": "2", f"score_{self.away.id}": "70"})
+        self.assertEqual(GiornataScore.objects.get(giornata=self.g, participant=self.home).goals, 2)
+        self.fx.refresh_from_db()
+        self.assertEqual((self.fx.home_points, self.fx.away_points), (3, 0))
+
+    def test_bad_value_changes_nothing(self):
+        from ..models import GiornataScore
+        self._post({f"score_{self.home.id}": "tanti", f"score_{self.away.id}": "70"})
+        self.assertFalse(GiornataScore.objects.filter(giornata=self.g).exists())
+
+    def test_back_to_the_app_and_other_league_refused(self):
+        from django.contrib.auth.models import User
+        from django.urls import reverse
+        back = reverse("app_giornate") + f"?league={self.league.id}&giornata=1"
+        resp = self._post({f"score_{self.home.id}": "66", "next": back}, name="app_giornata_manual_scores")
+        self.assertRedirects(resp, back, fetch_redirect_response=False)
+        self.client.force_login(User.objects.create_user("x_ms", password="pw"))
+        self.assertEqual(self._post({f"score_{self.home.id}": "90"}).status_code, 403)
+
+    def test_formation_correction_keeps_typed_totals(self):
+        from ..models import GiornataScore
+        from .. import services
+        self._post({f"score_{self.home.id}": "85,5", f"score_{self.away.id}": "69,5"})
+        services.admin_save_matchday_formation(self.home, self.g, "4-3-3", [])
+        self.assertEqual(GiornataScore.objects.get(giornata=self.g, participant=self.home).total, Decimal("85.5"))
+
+    def test_live_page_shows_typed_totals(self):
+        self._post({f"score_{self.home.id}": "85,5", f"score_{self.away.id}": "69,5"})
+        s = self.client.session
+        s["participant_id"] = self.home.id
+        s.save()
+        resp = self.client.get("/app/live/?giornata=1")
+        self.assertContains(resp, "inserito a mano")
+        board = {row["participant"].id: row["total"] for row in resp.context["leaderboard"]}
+        self.assertEqual(board[self.home.id], Decimal("85.5"))
