@@ -1,0 +1,24 @@
+{% comment %}
+Testata dell'editor admin di una formazione: squadra, giornata, stato e le
+altre squadre della stessa giornata. Uguale in console e app.
+{% endcomment %}
+<!-- formation-admin:start -->
+<style>
+    .fa-note { font-size: 12.5px; color: var(--muted); margin: 6px 0 0; }
+    .fa-warn { margin: 10px 0 12px; padding: 10px 12px; border-radius: 10px; font-size: 12.5px;
+               border: 1px solid rgba(234,179,8,.35); background: rgba(234,179,8,.10); color: #facc15; }
+    .fa-teams { gap: 6px; margin: 10px 0 14px; }
+    .fa-teams a { flex: 0 0 auto; padding: 6px 12px; border-radius: 8px; font-size: 12.5px; font-weight: 700;
+                  text-decoration: none; color: var(--muted); background: var(--panel-2); border: 1px solid var(--line); }
+    .fa-teams a.on { background: var(--accent); border-color: var(--accent); color: #0a1108; }
+</style>
+<p class="fa-note"><b>Giornata {{ giornata.number }}</b> · {{ giornata.get_status_display }} · {% if is_mantra %}Mantra · {% endif %}Modulo {{ module }} · {{ starters_count }}/{{ starters_target }} titolari</p>
+{% if not lineups_editable %}
+<div class="fa-warn">La giornata è già partita: questa è una correzione dell'admin e vale solo per la Giornata {{ giornata.number }}.{% if has_scores %} Salvando, i punteggi della giornata si ricalcolano.{% endif %}</div>
+{% else %}
+<p class="fa-note">Vale solo per la Giornata {{ giornata.number }}; l'ultima formazione salvata dal manager resta com'è.</p>
+{% endif %}
+<nav class="fa-teams fm-onerow" aria-label="Squadre">
+    {% for t, url in team_links %}<a href="{{ url }}" class="{% if t.id == team.id %}on{% endif %}">{{ t.display_name }}</a>{% endfor %}
+</nav>
+<!-- formation-admin:end -->

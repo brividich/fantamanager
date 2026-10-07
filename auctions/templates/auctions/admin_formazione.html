@@ -1,0 +1,20 @@
+{% extends "auctions/base.html" %}
+{% comment %}
+Formazione di una squadra per una giornata, modificata dall'admin (console).
+Il campo è lo stesso partial della pagina Formazione del manager
+(_formation_pitch.html); la testata è _formation_admin_head.html.
+{% endcomment %}
+{% block title %}Formazione {{ team.display_name }} — G{{ giornata.number }}{% endblock %}
+{% block bodyclass %}role-admin{% endblock %}
+{% block wrapclass %}wrap-wide{% endblock %}
+
+{% block content %}
+{% include "auctions/_console_head.html" %}
+<div style="margin:6px 0 4px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+    <h1 style="margin:0;font-size:26px">Formazione · {{ team.display_name }}</h1>
+    <a class="fm-btn fm-btn-secondary" href="{{ giornate_url }}">← Giornata {{ giornata.number }}</a>
+</div>
+{% for m in messages %}<div class="msg {% if m.tags %}{{ m.tags }}{% endif %}">{{ m }}</div>{% endfor %}
+{% include "auctions/_formation_admin_head.html" %}
+{% include "auctions/_formation_pitch.html" %}
+{% endblock %}

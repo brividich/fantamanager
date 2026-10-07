@@ -451,3 +451,109 @@ class GiornatePageTests(TestCase):
         other = League.objects.create(name="Altra", owner=User.objects.create_user("x_gv", password="pw"))
         resp = self.client.post(reverse("admin_giornata_lock"), {"league_id": other.id, "giornata_number": 1})
         self.assertEqual(resp.status_code, 403)
+
+
+class AdminFormationEditorTests(TestCase):
+    """L'admin gestisce le formazioni di ogni giornata dalla pagina Giornate:
+    anche quelle bloccate o calcolate (correzione, con ricalcolo)."""
+
+    def setUp(self):
+        import re as _re
+        from django.contrib.auth.models import User
+        from ..models import Giornata, Participant, Player, Season
+        from .. import services
+        self._re = _re
+        self.services = services
+        self.owner = User.objects.create_user("owner_fe", password="pw")
+        self.league = League.objects.create(name="Lega Editor", owner=self.owner)
+        self.team = Participant.objects.create(display_name="Squadra A", league=self.league)
+        Participant.objects.create(display_name="Squadra B", league=self.league)
+        self.players = {}
+        for role, n in (("P", 1), ("D", 5), ("C", 3), ("A", 3)):
+            self.players[role] = [Player.objects.create(name=f"{role}{i}", role=role, team="X", league=self.league,
+                                                        owner=self.team, cost=Decimal("1")) for i in range(n)]
+        P, D, C, A = (self.players[r] for r in "PDCA")
+        self.xi = [P[0], *D[:4], *C, *A]
+        season = Season.objects.create(league=self.league, name="Stagione 2026/27")
+        self.g1 = Giornata.objects.create(season=season, number=1, status="OPEN")
+        self.g2 = Giornata.objects.create(season=season, number=2, status="SCHEDULED")
+        self.client.force_login(self.owner)
+
+    def _url(self, name, giornata):
+        from django.urls import reverse
+        return f"{reverse(name, args=[self.team.id])}?giornata={giornata.id}"
+
+    def test_giornate_page_lists_every_team_with_an_edit_link(self):
+        from django.urls import reverse
+        resp = self.client.get(reverse("admin_giornate") + f"?league={self.league.id}&giornata=2")
+        self.assertContains(resp, "Formazioni Giornata 2")
+        self.assertContains(resp, "Squadra B")
+        self.assertContains(resp, self._url("admin_formation_edit", self.g2))
+
+    def test_admin_sets_a_future_giornata_without_touching_the_managers_lineup(self):
+        from ..models import Formation, MatchdayFormation
+        self.services.save_formation(self.team, "4-3-3", [str(p.id) for p in self.xi], giornata=self.g1)
+        url = self._url("admin_formation_edit", self.g2)
+        resp = self.client.post(url, {"giornata": self.g2.id, "module": "3-4-3", "save": "1",
+                                      "starter": [str(p.id) for p in self.xi[:4]], "next": url})
+        self.assertRedirects(resp, url, fetch_redirect_response=False)
+        mf = MatchdayFormation.objects.get(giornata=self.g2, participant=self.team)
+        self.assertEqual(mf.module, "3-4-3")
+        self.assertEqual(Formation.objects.get(participant=self.team).module, "4-3-3")
+
+    def test_correcting_a_scored_giornata_recomputes_it(self):
+        from ..models import GiornataScore, PlayerPerformance
+        self.services.save_formation(self.team, "4-3-3", [str(p.id) for p in self.xi], giornata=self.g1)
+        d5 = self.players["D"][4]
+        for group in self.players.values():
+            for pl in group:
+                PlayerPerformance.objects.create(giornata=self.g1, player=pl,
+                                                 vote=Decimal("10") if pl == d5 else Decimal("6"))
+        self.services.compute_giornata(self.g1)
+        before = GiornataScore.objects.get(giornata=self.g1, participant=self.team).total
+        # The admin puts D5 (vote 10) in place of D0 (vote 6) for that giornata.
+        ids = [str(p.id) for p in self.xi]
+        ids[1] = str(d5.id)
+        self.client.post(self._url("admin_formation_edit", self.g1),
+                         {"giornata": self.g1.id, "module": "4-3-3", "save": "1", "starter": ids})
+        after = GiornataScore.objects.get(giornata=self.g1, participant=self.team).total
+        self.assertEqual(after - before, Decimal("4"))
+        self.g1.refresh_from_db()
+        self.assertEqual(self.g1.status, "SCORED")
+
+    def test_same_editor_in_console_and_app(self):
+        console = self.client.get(self._url("admin_formation_edit", self.g1))
+        app = self.client.get(self._url("app_formation_edit", self.g1))
+        self.assertEqual(console.status_code, 200)
+        self.assertEqual(app.status_code, 200)
+        for tag in ("formation-admin", "formation-pitch"):
+            with self.subTest(tag):
+                self.assertEqual(self._part(console, tag), self._part(app, tag))
+
+    def _part(self, resp, tag):
+        html = resp.content.decode()
+        part = html[html.index(f"<!-- {tag}:start -->"):html.index(f"<!-- {tag}:end -->")]
+        part = part.replace("/app/giornate/", "/dashboard/giornate/")
+        return self._re.sub(r'name="(next|csrfmiddlewaretoken)" value="[^"]*"', "", part)
+
+    def test_other_leagues_admin_is_refused(self):
+        from django.contrib.auth.models import User
+        stranger = User.objects.create_user("stranger_fe", password="pw")
+        League.objects.create(name="Sua", owner=stranger)
+        self.client.force_login(stranger)
+        resp = self.client.get(self._url("admin_formation_edit", self.g1))
+        self.assertEqual(resp.status_code, 403)
+        resp = self.client.post(self._url("admin_formation_edit", self.g1),
+                                {"giornata": self.g1.id, "module": "4-3-3", "starter": []})
+        self.assertEqual(resp.status_code, 403)
+
+
+class CoAdminFormationTests(AdminFormationEditorTests):
+    """Lo stesso, entrando come co-admin della lega (league.admins), non come proprietario."""
+
+    def setUp(self):
+        super().setUp()
+        from django.contrib.auth.models import User
+        co = User.objects.create_user("coadmin_fe", password="pw")
+        self.league.admins.add(co)
+        self.client.force_login(co)

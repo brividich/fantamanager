@@ -143,12 +143,31 @@ def _ordered_bench(owned, starter_ids, bench_ids):
     return bench
 
 
-def _owned(participant):
+def _by_role(players):
     # P, D, C, A (not alphabetical by role code); within a role, by name.
-    return sorted(
-        Player.objects.filter(owner=participant, abroad_list=False),
-        key=lambda p: ("PDCA".find(p.role) % 5, p.name),
-    )
+    return sorted(players, key=lambda p: ("PDCA".find(p.role) % 5, p.name))
+
+
+def _owned(participant):
+    return _by_role(Player.objects.filter(owner=participant, abroad_list=False))
+
+
+def _pool(participant, giornata):
+    """Chi puo' stare nella formazione di ``giornata``: la rosa di adesso piu'
+    chi c'era nella sua copia (un giocatore ceduto dopo il blocco quel giorno
+    giocava per questa squadra)."""
+    owned = _owned(participant)
+    mf = MatchdayFormation.objects.filter(giornata=giornata, participant=participant).first() if giornata else None
+    if mf is None:
+        return owned
+    have = {p.id for p in owned}
+    ids = [pid for pid in list(mf.starter_ids or []) + list(mf.bench_ids or []) if pid and pid not in have]
+    if not ids:
+        return owned
+    league_id = participant.league_id
+    extra = Player.objects.filter(id__in=ids)
+    extra = extra.filter(league_id=league_id) if league_id is not None else extra.filter(league__isnull=True)
+    return _by_role(list(owned) + list(extra))
 
 
 def formation_state(participant, giornata=None):
@@ -159,7 +178,7 @@ def formation_state(participant, giornata=None):
     saved = _saved_lineup(participant, giornata)
     module, starter_ids = saved["module"], saved["starter_ids"]
     slots = _module_slots(module, is_mantra)
-    owned = _owned(participant)
+    owned = _pool(participant, giornata) if saved["frozen"] else _owned(participant)
     by_id = {p.id: p for p in owned}
 
     # Assegnazione posizionale, con una rete per le formazioni salvate in
@@ -209,7 +228,7 @@ def formation_state(participant, giornata=None):
     }
 
 
-def _clean_lineup(participant, module, raw_ids, raw_bench_ids):
+def _clean_lineup(participant, module, raw_ids, raw_bench_ids, pool=None):
     """``(module, slot_ids, bench_ids)`` validati contro la rosa attuale.
 
     Scarta chi non e' in rosa, chi e' gia' schierato altrove e chi finisce in
@@ -223,7 +242,7 @@ def _clean_lineup(participant, module, raw_ids, raw_bench_ids):
     if module not in valid:
         module = _default_module(is_mantra)
     slots = _module_slots(module, is_mantra)
-    owned = {p.id: p for p in Player.objects.filter(owner=participant, abroad_list=False)}
+    owned = {p.id: p for p in (pool if pool is not None else _owned(participant))}
 
     ordered, seen = [None] * len(slots), set()
     for i, rid in enumerate(list(raw_ids)[:len(slots)]):
@@ -305,3 +324,28 @@ def lock_formations(giornata):
             giornata.locked_at = timezone.now()
             giornata.save(update_fields=["status", "locked_at"])
     return written
+
+
+def admin_save_matchday_formation(participant, giornata, module, raw_ids, raw_bench_ids=None):
+    """L'admin della lega scrive la formazione di una squadra per una giornata
+    qualsiasi, anche gia' bloccata o calcolata: una correzione (un manager che
+    non ha schierato, un errore). Tocca solo la copia di quella giornata, non
+    l'ultima formazione salvata dal manager. Se la giornata ha gia' punteggi
+    (live o calcolata) li ricalcola subito.
+
+    Ritorna ``(formazione, ricalcolata)``.
+    """
+    pool = _pool(participant, giornata)
+    module, ordered, bench = _clean_lineup(participant, module, raw_ids, raw_bench_ids, pool=pool)
+    taken = {pid for pid in ordered if pid} | set(bench)
+    bench += [p.id for p in pool if p.id not in taken]       # la panchina e' tutta la rosa che resta
+    mf, _ = MatchdayFormation.objects.update_or_create(
+        giornata=giornata, participant=participant,
+        defaults={"module": module, "starter_ids": ordered, "bench_ids": bench},
+    )
+    recomputed = False
+    if giornata.status in (Giornata.Status.LIVE, Giornata.Status.SCORED):
+        from .scoring import compute_giornata
+        compute_giornata(giornata, mark_scored=(giornata.status == Giornata.Status.SCORED))
+        recomputed = True
+    return mf, recomputed
