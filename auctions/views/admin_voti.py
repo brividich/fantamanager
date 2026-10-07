@@ -147,12 +147,12 @@ def _live_league(request):
 @require_POST
 def admin_live_voti_sync(request):
     """Trigger on-demand live matchday rating synchronization."""
-    from ..services.voti_live import LiveSyncManager
+    from ..services.voti_live import PROVIDERS, LiveSyncManager, normalize_provider
     league = _live_league(request)
     if league is None:
         return HttpResponseForbidden("Non hai i permessi per gestire questa lega.")
     giornata_num = form_int(request.POST.get("giornata_number"), 1, min_value=1)
-    provider = request.POST.get("provider") or "fantacalcio_web"
+    provider = normalize_provider(request.POST.get("provider"))
 
     mgr = LiveSyncManager.get_instance()
     mgr.provider = provider
@@ -161,8 +161,10 @@ def admin_live_voti_sync(request):
     if res.get("status") == "SUCCESS":
         messages.success(
             request,
-            f"🔴 Sync Live completato: {res.get('total_updated')} calciatori aggiornati in tempo reale per Giornata {giornata_num} ({provider})."
+            f"🔴 Sync Live completato: {res.get('total_updated')} calciatori aggiornati in tempo reale per Giornata {giornata_num} ({PROVIDERS[provider]})."
         )
+    elif res.get("status") == "ERROR":
+        messages.error(request, f"Sync Live non riuscito: {res.get('message')}.")
     else:
         messages.warning(request, f"Sync Live: {res.get('status')} - nessun dato disponibile al momento per G{giornata_num}.")
 

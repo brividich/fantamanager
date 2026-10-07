@@ -261,3 +261,132 @@ class VotiServicesTests(TestCase):
             "action": "stop_live_sync",
         })
         self.assertEqual(resp_stop.status_code, 302)
+
+
+class ApiFootballLiveTests(TestCase):
+    """Voti live da API-Football: nessuna pagina di siti di fantacalcio."""
+
+    FIXTURES = [
+        {"fixture": {"id": 11, "status": {"short": "2H"}}},
+        {"fixture": {"id": 12, "status": {"short": "NS"}}},
+    ]
+    PLAYERS = [
+        {"team": {"name": "Inter"}, "players": [
+            {"player": {"id": 501, "name": "L. Martínez"},
+             "statistics": [{"games": {"minutes": 70, "rating": "7.3", "position": "F"},
+                             "goals": {"total": 1, "conceded": 0, "assists": 1},
+                             "cards": {"yellow": 1, "red": 0},
+                             "penalty": {"scored": 1, "missed": 0, "saved": None}}]},
+            {"player": {"id": 502, "name": "Y. Sommer"},
+             "statistics": [{"games": {"minutes": 90, "rating": "6.1", "position": "G"},
+                             "goals": {"total": None, "conceded": 2, "assists": None},
+                             "cards": {"yellow": 0, "red": 0},
+                             "penalty": {"scored": 0, "missed": 0, "saved": 1}}]},
+            {"player": {"id": 503, "name": "Panchinaro"},
+             "statistics": [{"games": {"minutes": None, "rating": None, "position": "D"},
+                             "goals": {}, "cards": {}, "penalty": {}}]},
+        ]},
+    ]
+    EVENTS = [
+        {"type": "Goal", "detail": "Own Goal", "player": {"id": 502}},
+        {"type": "Goal", "detail": "Normal Goal", "player": {"id": 501}},
+    ]
+
+    def _fake_get(self):
+        calls = []
+        payloads = {"/fixtures": self.FIXTURES, "/fixtures/players": self.PLAYERS,
+                    "/fixtures/events": self.EVENTS}
+
+        class Resp:
+            headers = {}
+
+            def __init__(self, data):
+                self._data = data
+
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return {"response": self._data, "errors": []}
+
+        def get(url, params=None, headers=None, timeout=None):
+            path = url.split("v3.football.api-sports.io", 1)[1]
+            calls.append((path, params))
+            return Resp(payloads[path])
+        return get, calls
+
+    def test_rows_from_started_fixtures_only(self):
+        from unittest import mock
+        import os
+        from ..providers import apifootball
+        get, calls = self._fake_get()
+        with mock.patch.dict(os.environ, {"APIFOOTBALL_KEY": "k"}):
+            rows = apifootball.matchday_live_rows(5, season=2026, get=get)
+        self.assertEqual(calls[0], ("/fixtures", {"league": 135, "season": 2026,
+                                                  "round": "Regular Season - 5"}))
+        # Partita non iniziata (12): nessuna richiesta di statistiche.
+        self.assertFalse(any(p and p.get("fixture") == 12 for _, p in calls[1:]))
+        by_id = {r["api_id"]: r for r in rows}
+        lautaro = by_id[501]
+        self.assertEqual((lautaro["vote"], lautaro["role"], lautaro["goals"], lautaro["assists"],
+                          lautaro["pen_scored"], lautaro["yellow"], lautaro["own_goals"]),
+                         ("7.3", "A", 1, 1, 1, True, 0))
+        sommer = by_id[502]
+        self.assertEqual((sommer["role"], sommer["goals_conceded"], sommer["pen_saved"],
+                          sommer["own_goals"]), ("P", 2, 1, 1))
+        self.assertIsNone(by_id[503]["vote"])
+
+    def test_sync_matches_by_registry_id_then_by_name(self):
+        from unittest import mock
+        from ..models import Footballer
+        from ..services.voti_live import LiveSyncManager
+        league = League.objects.create(name="Lega Live", budget=Decimal("500"))
+        season = Season.objects.create(name="2026/2027", league=league, is_current=True)
+        Giornata.objects.create(season=season, number=5)
+        f = Footballer.objects.create(api_id=501, name="Lautaro Martínez")
+        lautaro = Player.objects.create(league=league, name="Lautaro", role="A", team="Inter",
+                                        initial_price=1, footballer=f)
+        sommer = Player.objects.create(league=league, name="Sommer", role="P", team="Inter",
+                                       initial_price=1)
+        rows = [
+            {"api_id": 501, "name": "L. Martínez", "team": "Inter", "role": "A", "vote": "7.3",
+             "goals": 1, "assists": 0, "own_goals": 0, "pen_scored": 0, "pen_missed": 0,
+             "pen_saved": 0, "goals_conceded": 0, "yellow": False, "red": False},
+            {"api_id": 502, "name": "Sommer", "team": "Inter", "role": "P", "vote": "6.1",
+             "goals": 0, "assists": 0, "own_goals": 0, "pen_scored": 0, "pen_missed": 0,
+             "pen_saved": 0, "goals_conceded": 2, "yellow": False, "red": False},
+        ]
+        mgr = LiveSyncManager.get_instance()
+        mgr.provider = "apifootball"
+        with mock.patch("auctions.providers.apifootball.matchday_live_rows", return_value=rows):
+            res = mgr.sync_now(giornata_num=5, is_provisional=True, leagues=[league])
+        self.assertEqual(res["status"], "SUCCESS")
+        perf = PlayerPerformance.objects.get(player=lautaro)
+        self.assertEqual(perf.vote, Decimal("7.5"))
+        self.assertEqual(perf.live_source, "apifootball")
+        self.assertEqual(PlayerPerformance.objects.get(player=sommer).goals_conceded, 2)
+
+    def test_missing_key_is_reported_not_silent(self):
+        from unittest import mock
+        import os
+        from ..services.voti_live import LiveSyncManager
+        mgr = LiveSyncManager.get_instance()
+        mgr.provider = "apifootball"
+        with mock.patch.dict(os.environ, {"APIFOOTBALL_KEY": ""}):
+            res = mgr.sync_now(giornata_num=3, is_provisional=True)
+        self.assertEqual(res["status"], "ERROR")
+        self.assertIn("APIFOOTBALL_KEY", res["message"])
+        self.assertEqual(mgr.get_status()["last_status"], "ERROR")
+
+    def test_old_provider_value_falls_back_to_apifootball(self):
+        from ..services.voti_live import normalize_provider
+        self.assertEqual(normalize_provider("fantacalcio_web"), "apifootball")
+        self.assertEqual(normalize_provider(None), "apifootball")
+        self.assertEqual(normalize_provider("simulation"), "simulation")
+
+    def test_no_third_party_fantasy_site_is_read(self):
+        from pathlib import Path
+        from ..services import voti_live
+        source = Path(voti_live.__file__).read_text(encoding="utf-8")
+        self.assertNotIn("fantacalcio.it", source)
+        self.assertNotIn("BeautifulSoup", source)

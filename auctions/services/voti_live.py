@@ -1,30 +1,34 @@
 """Live Voti and Matchday Background Sync Service for FantaManager.
 
-Handles real-time matchday synchronization (provisional ratings and in-game events
-from live providers such as Fantacalcio.it Live / Statistico / Sofascore),
-background auto-sync every 60 seconds, and seamless consolidation into official
-final scores.
+Handles real-time matchday synchronization (provisional ratings and in-game
+events from API-Football, a licensed data provider), background auto-sync every
+60 seconds, and consolidation into official final scores. The official votes of
+a matchday still come from a file the league uploads (``services.voti``): no
+web page of a third-party fantasy site is ever read.
 """
 import logging
 import threading
 import time
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
-import requests
-from bs4 import BeautifulSoup
 from django.db import transaction
 from django.utils import timezone
 
 from ..models import Giornata, Player, PlayerPerformance, Season
+from ..providers import apifootball
 from ..providers.importers import _find_match
 from .scoring import compute_giornata
 
 logger = logging.getLogger("auctions.voti_live")
 
-DEFAULT_USER_AGENT = (
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-)
+# Le fonti live possibili. Un valore sconosciuto (anche il vecchio
+# "fantacalcio_web", ancora nei form salvati nei browser) ripiega su API-Football.
+PROVIDERS = {"apifootball": "API-Football", "simulation": "Simulazione"}
+DEFAULT_PROVIDER = "apifootball"
+
+
+def normalize_provider(value: Optional[str]) -> str:
+    return value if value in PROVIDERS else DEFAULT_PROVIDER
 
 
 def _parse_dec_safe(val: Any) -> Optional[Decimal]:
@@ -66,97 +70,13 @@ def round_live_vote(val: Any) -> Optional[Decimal]:
 
 
 
-def fetch_fantacalcio_live(giornata_num: Optional[int] = None, season_slug: str = "2026-27") -> List[Dict[str, Any]]:
-    """Fetch live or official ratings from Fantacalcio.it public matchday tables.
+def fetch_apifootball_live(giornata_num: int) -> List[Dict[str, Any]]:
+    """Live ratings and events of a Serie A matchday from API-Football.
 
-    During weekend matchdays, this contains live provisional grades and events.
-    After the round closes, it freezes as the final official press ratings.
+    Raises ``apifootball.ApiFootballError`` (missing key, plan, limits) so the
+    caller can report it instead of showing an empty, silent sync.
     """
-    url = "https://www.fantacalcio.it/voti-fantacalcio-serie-a"
-    if giornata_num:
-        url = f"https://www.fantacalcio.it/voti-fantacalcio-serie-a/{season_slug}/{giornata_num}"
-
-    headers = {
-        "User-Agent": DEFAULT_USER_AGENT,
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "it-IT,it;q=0.9,en;q=0.8",
-    }
-
-    try:
-        resp = requests.get(url, headers=headers, timeout=12)
-        if resp.status_code != 200:
-            logger.warning("Fantacalcio live fetch failed with HTTP %s for url %s", resp.status_code, url)
-            return []
-    except Exception as e:
-        logger.warning("Network error fetching Fantacalcio live: %s", e)
-        return []
-
-    soup = BeautifulSoup(resp.text, "html.parser")
-    tables = soup.find_all("table")
-    if not tables:
-        return []
-
-    rows: List[Dict[str, Any]] = []
-
-    for t in tables:
-        # Club name is typically in the first table header
-        first_th = t.find("th")
-        club_name = first_th.get_text(strip=True) if first_th else ""
-
-        for tr in t.find_all("tr"):
-            player_link = tr.find("a", class_=lambda c: c and "player-name" in c)
-            if not player_link:
-                continue
-
-            name = player_link.get_text(strip=True)
-            if not name:
-                continue
-
-            role_el = tr.find("span", class_="role")
-            role_raw = role_el.get("data-value", "") if role_el else ""
-
-            # Grade pills: pill 0 = Fantacalcio, pill 1 = Milano/Gazzetta, pill 2 = Statistico
-            grade_val = None
-            grade_el = tr.find("span", class_="player-grade")
-            if grade_el and grade_el.get("data-value"):
-                grade_val = _parse_dec_safe(grade_el.get("data-value"))
-
-            # Bonus / malus spans
-            def get_bonus(attr_title: str) -> int:
-                span = tr.find("span", title=lambda t: t and attr_title.lower() in t.lower())
-                if span and span.get("data-value"):
-                    return _parse_int_safe(span.get("data-value"))
-                return 0
-
-            goals = get_bonus("Gol segnati")
-            goals_conceded = get_bonus("Gol subiti")
-            own_goals = get_bonus("Autoreti")
-            pen_scored = get_bonus("Rigori segnati")
-            pen_missed = get_bonus("Rigori sbagliati")
-            pen_saved = get_bonus("Rigori parati")
-            assists = get_bonus("Assist")
-
-            # Cards
-            yellow = bool(tr.find("span", title=lambda t: t and "ammon" in t.lower()))
-            red = bool(tr.find("span", title=lambda t: t and "espul" in t.lower()))
-
-            rows.append({
-                "name": name,
-                "team": club_name,
-                "role": role_raw.upper(),
-                "vote": grade_val,
-                "goals": goals,
-                "goals_conceded": goals_conceded,
-                "own_goals": own_goals,
-                "pen_scored": pen_scored,
-                "pen_missed": pen_missed,
-                "pen_saved": pen_saved,
-                "assists": assists,
-                "yellow": yellow,
-                "red": red,
-            })
-
-    return rows
+    return apifootball.matchday_live_rows(giornata_num)
 
 
 def fetch_simulation_live(giornata_num: int) -> List[Dict[str, Any]]:
@@ -206,7 +126,7 @@ class LiveSyncManager:
     def __init__(self):
         self.is_enabled: bool = False
         self.interval_seconds: int = 60
-        self.provider: str = "fantacalcio_web"   # 'fantacalcio_web' | 'simulation' | 'apifootball'
+        self.provider: str = DEFAULT_PROVIDER   # 'apifootball' | 'simulation'
         self.last_sync_time: Optional[timezone.datetime] = None
         self.last_status: str = "IDLE"           # 'IDLE' | 'SUCCESS' | 'ERROR' | 'SYNCING'
         self.last_message: str = "In attesa di attivazione o sincronizzazione."
@@ -250,10 +170,10 @@ class LiveSyncManager:
             "history": list(self.history),
         }
 
-    def start_background(self, interval: int = 60, provider: str = "fantacalcio_web"):
+    def start_background(self, interval: int = 60, provider: str = DEFAULT_PROVIDER):
         with self._lock:
             self.interval_seconds = max(15, interval)
-            self.provider = provider
+            self.provider = normalize_provider(provider)
             self.is_enabled = True
             self._stop_event.clear()
             self._record_event("START", "SUCCESS", f"Polling live avviato (ogni {self.interval_seconds}s con {self.provider}).")
@@ -315,10 +235,18 @@ class LiveSyncManager:
         self.active_giornata_num = target_num
 
         # Fetch ratings from provider
+        self.provider = normalize_provider(self.provider)
         if self.provider == "simulation":
             rows = fetch_simulation_live(target_num)
         else:
-            rows = fetch_fantacalcio_live(target_num)
+            try:
+                rows = fetch_apifootball_live(target_num)
+            except apifootball.ApiFootballError as exc:
+                self.last_status = "ERROR"
+                self.last_message = f"API-Football: {exc}."
+                self._record_event("SYNC", "ERROR", self.last_message, 0, target_num)
+                logger.warning(self.last_message)
+                return {"updated": 0, "status": "ERROR", "message": str(exc)}
 
         if not rows:
             self.last_status = "IDLE"
@@ -345,11 +273,19 @@ class LiveSyncManager:
                 if giornata.status == Giornata.Status.SCORED and is_provisional:
                     continue
 
-                league_players = list(Player.objects.filter(league=season.league) if season.league else Player.objects.all())
+                pool = Player.objects.filter(league=season.league) if season.league else Player.objects.all()
+                league_players = list(pool.select_related("footballer"))
+                # API-Football rows carry the player's id: the registry link
+                # (Player.footballer) identifies him exactly, names only as fallback.
+                by_api_id = {pl.footballer.api_id: pl for pl in league_players if pl.footballer_id}
                 claimed_ids = set()
 
                 for r in rows:
-                    p = _find_match(r, league_players, claimed_ids)
+                    p = by_api_id.get(r.get("api_id"))
+                    if p is not None and p.pk in claimed_ids:
+                        p = None
+                    if p is None:
+                        p = _find_match(r, league_players, claimed_ids)
                     if not p:
                         continue
                     claimed_ids.add(p.pk)

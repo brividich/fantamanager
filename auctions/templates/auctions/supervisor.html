@@ -1887,8 +1887,8 @@ function togglePasswordVisibility(inputId, btn) {
     <div class="metric-card">
         <div class="metric-label">Provider Attivo</div>
         <div class="metric-value" style="font-size:20px;color:#60a5fa">
-            {% if live_sync.provider == 'fantacalcio_web' %}
-                ⚽ Fantacalcio.it Live
+            {% if live_sync.provider == 'apifootball' %}
+                ⚽ API-Football
             {% elif live_sync.provider == 'simulation' %}
                 🧪 Simulazione Test
             {% else %}
@@ -1915,6 +1915,7 @@ function togglePasswordVisibility(inputId, btn) {
             </h3>
             <div style="font-size:12px;color:var(--muted);margin-top:2px">
                 Esegue la scansione automatica ogni minuto durante le partite, aggiornando formazioni, bonus/malus e punteggi live.
+                I voti provvisori sono il rating di API-Football arrotondato al mezzo punto; i voti ufficiali arrivano dal file caricato a fine giornata.
             </div>
         </div>
         <div>
@@ -1947,7 +1948,7 @@ function togglePasswordVisibility(inputId, btn) {
             <div>
                 <label style="font-size:12px;font-weight:700;display:block;margin-bottom:5px">Provider Sorgente Voti</label>
                 <select name="provider" style="width:100%;padding:8px 12px;background:#1e2430;border:1px solid rgba(255,255,255,0.15);color:#fff;border-radius:6px;font-size:13px">
-                    <option value="fantacalcio_web" selected>Fantacalcio.it Live / Statistico (Zero API Key)</option>
+                    <option value="apifootball" selected>API-Football (serve APIFOOTBALL_KEY, piano a pagamento)</option>
                     <option value="simulation">Simulazione Test (Genera flussi live di prova)</option>
                 </select>
             </div>
@@ -2019,7 +2020,7 @@ function togglePasswordVisibility(inputId, btn) {
                 <div style="flex:1">
                     <label style="font-size:11px;font-weight:700;display:block;margin-bottom:4px">Provider</label>
                     <select name="provider" style="width:100%;padding:7px 10px;background:#1e2430;border:1px solid rgba(255,255,255,0.12);color:#fff;border-radius:6px;font-size:12px">
-                        <option value="fantacalcio_web" selected>Fantacalcio.it</option>
+                        <option value="apifootball" selected>API-Football</option>
                         <option value="simulation">Simulazione</option>
                     </select>
                 </div>
