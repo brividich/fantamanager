@@ -58,6 +58,16 @@ giornata dalla pagina Giornate (`admin_save_matchday_formation`): tocca solo
 la copia di quella giornata e, se la giornata ha già punteggi dai voti, li
 ricalcola.
 
+## Regole di punteggio della lega
+
+Soglie dei gol, bonus e malus stanno in `Season.rules` della stagione corrente
+della lega, sopra `scoring.DEFAULTS` (Fantacalcio classico). Si leggono sempre
+con `scoring.effective_rules(...)`: mette i default e azzera le voci spente
+(`rules["off"]`). Si cambiano dalla pagina Giornate (`_scoring_rules.html`,
+view `admin_scoring_rules`); `recompute_season` le applica alle giornate già
+giocate. Un nuovo bonus si aggiunge a `DEFAULTS`, al motore e a `RULE_GROUPS`
+(`views/admin_voti.py`).
+
 ## Punteggi a mano
 
 Una lega che gioca su un altro sito (Fantapazz esporta solo un'immagine della

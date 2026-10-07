@@ -669,7 +669,7 @@ def get_fixture_details(fixture):
     """
     giornata = fixture.giornata
     season = giornata.season
-    rules = {**scoring.DEFAULTS, **((season.rules or {}) if season else {})}
+    rules = scoring.effective_rules(season.rules if season else None)
     perf_map = giornata_perf_map(giornata)
 
     def _team_detail(part):

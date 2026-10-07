@@ -56,6 +56,7 @@ def _serialisable_lines(res):
     return {
         "subs": res["subs"],
         "modificatore": f(res["modificatore"]),
+        "fair_play": f(res.get("fair_play")),
         "lines": [{
             "id": l["id"], "role": l["role"], "vote": f(l["vote"]),
             "fantavoto": f(l["fantavoto"]), "has_vote": l["has_vote"], "sub_in": l["sub_in"],
@@ -131,7 +132,7 @@ def set_manual_scores(giornata, entries):
     sync computes it again from the votes and replaces these totals.
 
     ``entries``: ``{participant: (total, goals_or_None)}``. Returns the rows."""
-    rules = {**scoring.DEFAULTS, **((giornata.season.rules or {}) if giornata.season_id else {})}
+    rules = scoring.effective_rules(giornata.season.rules if giornata.season_id else None)
     lock_formations(giornata)
     for team, (total, goals) in entries.items():
         GiornataScore.objects.update_or_create(
@@ -140,7 +141,8 @@ def set_manual_scores(giornata, entries):
                 "total": total,
                 "goals": goals if goals is not None else scoring.goals_from_total(total, rules),
                 "modificatore": 0,
-                "breakdown": {"manual": True, "lines": [], "subs": 0, "modificatore": 0},
+                "breakdown": {"manual": True, "goals_typed": goals is not None,
+                              "lines": [], "subs": 0, "modificatore": 0},
             },
         )
     _resolve_fixtures(giornata)
@@ -149,3 +151,24 @@ def set_manual_scores(giornata, entries):
     giornata.save(update_fields=["status", "scored_at"])
     return list(GiornataScore.objects.filter(giornata=giornata)
                 .select_related("participant").order_by("-total"))
+
+
+def recompute_season(season):
+    """Apply the league's (new) rules to every giornata already played: those
+    with votes are computed again; those scored by hand keep their totals and
+    get their goals again from the thresholds, unless the goals were typed in.
+    Returns how many giornate changed."""
+    rules = scoring.effective_rules(season.rules)
+    done = 0
+    for giornata in season.giornate.filter(status=Giornata.Status.SCORED).order_by("number"):
+        if giornata.performances.exists():
+            compute_giornata(giornata)
+        else:
+            for gs in GiornataScore.objects.filter(giornata=giornata):
+                info = gs.breakdown or {}
+                if info.get("manual") and not info.get("goals_typed"):
+                    gs.goals = scoring.goals_from_total(gs.total, rules)
+                    gs.save(update_fields=["goals"])
+            _resolve_fixtures(giornata)
+        done += 1
+    return done

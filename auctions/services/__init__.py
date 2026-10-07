@@ -141,6 +141,8 @@ from .market import (
 from .scoring import (
     _serialisable_lines,
     compute_giornata,
+    recompute_season,
+    set_manual_scores,
     giornata_perf_map,
     lineup_io,
     score_participant_giornata,
@@ -323,6 +325,8 @@ __all__ = [
     "_serialisable_lines",
     "score_participant_giornata",
     "compute_giornata",
+    "recompute_season",
+    "set_manual_scores",
     # calendar
     "_round_robin",
     "generate_calendar",

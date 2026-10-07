@@ -138,6 +138,9 @@ partono, così l'azione torna lì; ``gv_base``/``gv_back`` arrivano dalla view.
         <a href="#manual-section" class="fm-btn fm-btn-ghost fm-btn-sm">
             ✍️ Punteggi a mano
         </a>
+        <a href="#rules-section" class="fm-btn fm-btn-ghost fm-btn-sm" onclick="document.getElementById('rules-section').open = true">
+            ⚙️ Regole
+        </a>
     </div>
 </div>
 
@@ -244,6 +247,8 @@ partono, così l'azione torna lì; ``gv_base``/``gv_back`` arrivano dalla view.
         </table>
     </div>
 </div>
+
+{% include "auctions/_scoring_rules.html" %}
 
 <!-- Punteggi a mano (es. da Fantapazz, che esporta solo un'immagine) -->
 <div id="manual-section" class="upload-card" style="margin-top:16px;">

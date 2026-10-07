@@ -1,0 +1,65 @@
+{% comment %}
+Regole di punteggio della lega (soglie gol, bonus e malus, modificatore difesa),
+dentro _giornate_manage.html: uguale in console e app. Dati da _rules_form
+(views/admin_voti.py); ogni bonus/malus si può spegnere.
+{% endcomment %}
+<style>
+    .sr-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap:8px 16px; margin-top:8px; }
+    .sr-row { display:grid; grid-template-columns:22px minmax(0,1fr) 88px; gap:8px; align-items:center;
+              padding:6px 0; border-bottom:1px solid var(--line); }
+    .sr-row label, .sr-actions label { font-weight:700; color:var(--ink); font-size:13px; text-transform:none; letter-spacing:0; }
+    .sr-row small { display:block; font-weight:500; color:var(--muted); font-size:11px; text-transform:none; letter-spacing:0; }
+    .sr-row.off label { opacity:.5; }
+    .sr-row input[type=checkbox] { width:18px; height:18px; accent-color:var(--accent); }
+    .sr-group { margin-top:14px; font-size:12px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+    .sr-modif { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:8px; margin-top:8px; }
+    @media (max-width:560px) { .sr-modif { grid-template-columns:repeat(2, minmax(0,1fr)); } }
+    .sr-actions { margin-top:14px; display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between; }
+</style>
+<details id="rules-section" class="upload-card" style="margin-top:16px;">
+    <summary style="cursor:pointer;font-size:18px;font-weight:800;">⚙️ Regole di punteggio della lega {% if rules_custom %}<span class="badge blue" style="vertical-align:middle">personalizzate</span>{% else %}<span class="badge" style="vertical-align:middle">classiche</span>{% endif %}</summary>
+    <div class="muted" style="font-size:13px;margin-top:6px;">
+        Valgono per tutta la stagione di {{ current_league.name }}: soglie dei gol, bonus e malus di ogni evento.
+        Togli la spunta per non contare una voce. I numeri con la virgola vanno bene (es. -0,5).
+    </div>
+    <form method="post" action="{% url 'app_scoring_rules' %}">
+        {% csrf_token %}
+        <input type="hidden" name="league_id" value="{{ current_league.id }}">
+        <input type="hidden" name="next" value="{{ gv_back }}">
+        {% for g in rule_groups %}
+        <div class="sr-group">{{ g.title }}</div>
+        <div class="sr-grid">
+            {% for r in g.rows %}
+            <div class="sr-row{% if r.switchable and not r.on %} off{% endif %}">
+                {% if r.switchable %}<input type="checkbox" name="on_{{ r.key }}" value="1" {% if r.on %}checked{% endif %} aria-label="Conta {{ r.label }}">{% else %}<span></span>{% endif %}
+                <label for="rule-{{ r.key }}">{{ r.label }}{% if r.hint %}<small>{{ r.hint }}</small>{% endif %}</label>
+                <input id="rule-{{ r.key }}" name="rule_{{ r.key }}" value="{{ r.value }}" inputmode="decimal" class="gv-num">
+            </div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+
+        <div class="sr-group">Modificatore difesa</div>
+        <div class="sr-row" style="grid-template-columns:22px minmax(0,1fr)">
+            <input type="checkbox" id="rule-modif" name="modificatore_difesa" value="1" {% if modif_on %}checked{% endif %}>
+            <label for="rule-modif">Attivo<small>Media voto del portiere e dei 3 migliori difensori. Ogni fascia: «media ≥» e il bonus; vale la fascia più alta raggiunta.</small></label>
+        </div>
+        <div class="sr-modif">
+            {% for m in modif_rows %}
+            <div>
+                <input name="modif_avg_{{ m.i }}" value="{{ m.avg }}" inputmode="decimal" class="gv-num" placeholder="media ≥" aria-label="Media fascia {{ forloop.counter }}">
+                <input name="modif_bonus_{{ m.i }}" value="{{ m.bonus }}" inputmode="decimal" class="gv-num" placeholder="bonus" aria-label="Bonus fascia {{ forloop.counter }}" style="margin-top:4px">
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="sr-actions">
+            <label style="font-size:13px;display:flex;gap:8px;align-items:center;"><input type="checkbox" name="recompute" value="1" checked> Ricalcola le giornate già giocate</label>
+            <div style="display:flex;gap:8px;">
+                <button type="submit" name="reset" value="1" class="fm-btn fm-btn-ghost fm-btn-sm"
+                        onclick="return confirm('Tornare ai valori classici del Fantacalcio?');">Valori classici</button>
+                <button type="submit" class="fm-btn fm-btn-primary">Salva regole</button>
+            </div>
+        </div>
+    </form>
+</details>
