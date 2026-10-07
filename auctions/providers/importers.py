@@ -105,17 +105,26 @@ def _find_match(row, existing, claimed):
             if p.pk not in claimed and p.ext_id and p.ext_id == ext_id:
                 return p
 
+    code = _team_code(row.get("team"))
+
+    def _pick(candidates):
+        # Two players with the same name (two «Martinez L.»): the row's club decides.
+        if len(candidates) > 1 and code:
+            same_club = [p for p in candidates if _team_code(p.team) == code]
+            if same_club:
+                return same_club[0]
+        return candidates[0] if candidates else None
+
     lname = name.lower()
-    for p in existing:
-        if p.pk not in claimed and p.name.lower() == lname:
-            return p
+    found = _pick([p for p in existing if p.pk not in claimed and p.name.lower() == lname])
+    if found is not None:
+        return found
 
     nname = _norm(name)
-    for p in existing:
-        if p.pk not in claimed and _norm(p.name) == nname:
-            return p
+    found = _pick([p for p in existing if p.pk not in claimed and _norm(p.name) == nname])
+    if found is not None:
+        return found
 
-    code = _team_code(row.get("team"))
     role = (row.get("role") or "").strip()
     l_long, l_short = _name_parts(name)
     best, best_score = None, -1
