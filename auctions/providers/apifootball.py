@@ -381,3 +381,49 @@ def departures(entries, players, club_id, is_serie_a, *, today=None, max_age_day
             continue
         found[player.id] = {"club": dest_name, "date": (last.get("date") or "")[:10]}
     return found
+
+
+# --- Anagrafica dei calciatori: le rose dei club di Serie A ----------------------
+
+def serie_a_teams(*, get=requests.get):
+    """[(id, nome, logo)] dei club della Serie A (stagione in corso o precedente).
+
+    Vuoto se il piano non concede nessuna delle due stagioni: chi chiama
+    ripiega sulle squadre del listone (:func:`italian_clubs`).
+    """
+    for season in (_season(), _season() - 1):
+        if _season_refused_recently(season):
+            continue
+        try:
+            teams = _get("/teams", {"league": SERIE_A, "season": season}, get=get)
+        except _SeasonRefused:
+            _refused_seasons[season] = time.monotonic()
+            continue
+        found = [((t.get("team") or {}).get("id"), (t.get("team") or {}).get("name") or "",
+                  (t.get("team") or {}).get("logo") or "") for t in teams]
+        found = [t for t in found if t[0]]
+        if found:
+            return found
+    return []
+
+
+def squad(team_id, *, get=requests.get):
+    """La rosa attuale di un club (una richiesta, non dipende dalla stagione).
+
+    ``[{"id", "name", "age", "number", "position", "photo"}]`` con
+    ``position`` già tradotto nel ruolo del listone (P/D/C/A, "" se ignoto).
+    """
+    players = []
+    for block in _get("/players/squads", {"team": team_id}, get=get):
+        for p in block.get("players") or []:
+            if not p.get("id"):
+                continue
+            players.append({
+                "id": p["id"],
+                "name": (p.get("name") or "").strip(),
+                "age": p.get("age") if isinstance(p.get("age"), int) else None,
+                "number": p.get("number") if isinstance(p.get("number"), int) else None,
+                "position": POSITIONS.get(p.get("position") or "", ""),
+                "photo": p.get("photo") or "",
+            })
+    return players

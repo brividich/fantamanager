@@ -23,6 +23,7 @@ from .championship import (
     Season,
 )
 from .core import generate_public_token
+from .footballer import Footballer
 from .league import (
     League,
     LeagueConfig,
@@ -52,6 +53,7 @@ __all__ = [
     "LeagueConfig",
     "RosterLog",
     "Player",
+    "Footballer",
     "AuctionSession",
     "Auction",
     "AuctionQueueItem",

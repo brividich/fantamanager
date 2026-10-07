@@ -60,6 +60,11 @@ class Player(models.Model):
     # Official source player id (Fantacalcio "Id" column), kept so photo URLs
     # can be (re)generated from a template without re-importing the listone.
     ext_id       = models.CharField(max_length=30, blank=True, db_index=True)
+    # Il calciatore reale dell'anagrafica comune (API-Football): lo stesso per
+    # tutte le leghe. Vuoto finché non è stato riconosciuto.
+    footballer   = models.ForeignKey(
+        "Footballer", null=True, blank=True, on_delete=models.SET_NULL, related_name="league_players"
+    )
 
     # Ruoli Mantra come li scrive il listone ufficiale nella colonna RM:
     # "Dc", "M;C", "B;Dd;E". Vuoto per i listoni importati prima del Mantra e

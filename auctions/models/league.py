@@ -30,6 +30,9 @@ class League(models.Model):
     # any role and the only ceiling is its budget. The per-role numbers are kept
     # either way, so switching the mode back restores the previous caps.
     slot_limits = models.BooleanField(default=True)
+    # La lega ha caricato un listone suo. Se no usa la lista generale dei
+    # calciatori (Footballer), che le arriva e si aggiorna da sola.
+    own_listone = models.BooleanField(default=False)
     slots_p  = models.PositiveIntegerField(default=3)
     slots_d  = models.PositiveIntegerField(default=8)
     slots_c  = models.PositiveIntegerField(default=8)
