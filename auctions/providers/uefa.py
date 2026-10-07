@@ -18,15 +18,12 @@ RANKING_PAGE = "https://www.uefa.com/nationalassociations/uefarankings/club/"
 # Per i compensi contano le prime 100 (5.05): tre pagine bastano e avanzano.
 PAGE_SIZE = 100
 MAX_PAGES = 3
-# Il servizio sta dietro una CDN che respinge i client "non browser": ci si
-# presenta come la pagina di uefa.com che lo interroga.
+# Ci si presenta per quello che si è: nessun user-agent da browser né
+# Origin/Referer di uefa.com per passare i controlli della CDN. Se il servizio
+# rifiuta i client automatici, l'admin incolla il ranking (``parse_pasted``).
 HEADERS = {
-    "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                   "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"),
-    "Accept": "application/json, text/plain, */*",
-    "Accept-Language": "en-GB,en;q=0.9,it;q=0.8",
-    "Origin": "https://www.uefa.com",
-    "Referer": "https://www.uefa.com/",
+    "User-Agent": "FantaManager/1.0 (ranking UEFA per i compensi di lega)",
+    "Accept": "application/json",
 }
 
 

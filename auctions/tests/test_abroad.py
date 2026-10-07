@@ -185,15 +185,16 @@ class UefaRankingTests(TestCase):
         self.assertEqual([r[:2] for r in rows], [("Real Madrid", 1), ("Bayern München", 2)])
         self.assertEqual(rows[1][2], "Germany")
 
-    def test_asks_like_a_browser_from_uefa_com(self):
+    def test_identifies_itself_and_does_not_pose_as_uefa_com(self):
         seen = {}
 
         def get(url, **kw):
             seen.update(kw)
             return Resp(self.UEFA_SHAPE)
         uefa.fetch(get=get, year=2027)
-        self.assertIn("Mozilla", seen["headers"]["User-Agent"])
-        self.assertEqual(seen["headers"]["Referer"], "https://www.uefa.com/")
+        self.assertTrue(seen["headers"]["User-Agent"].startswith("FantaManager/"))
+        self.assertNotIn("Referer", seen["headers"])
+        self.assertNotIn("Origin", seen["headers"])
         self.assertEqual(seen["params"]["seasonYear"], 2027)
 
     def test_refused_request_explains_why(self):
