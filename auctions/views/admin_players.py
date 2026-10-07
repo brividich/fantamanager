@@ -101,7 +101,6 @@ def admin_players(request):
         "filter_qs": filter_qs, "teams": teams,
         "leagues": leagues, "current_league": league,
         "participants": participants.order_by("display_name"),
-        "photo_template_default": importers.FANTACALCIO_PHOTO_TEMPLATE,
         # The stats card reports coverage. A server may provide its own stats
         # file (FANTAMANAGER_STATS_FILE) that imports apply by themselves;
         # otherwise the league uploads one.
@@ -122,15 +121,20 @@ def admin_players(request):
 @staff_member_required
 @require_POST
 def admin_apply_photos(request):
-    """Populate Player.photo_url from a URL template (default: Fantacalcio.it).
+    """Populate Player.photo_url from a URL template the admin provides.
 
     Optional ``listone_file`` first backfills missing ``ext_id`` by name match
     (so a pool imported before ids were captured still gets photos). ``template``
-    overrides the default pattern; ``only_missing=0`` re-applies to everyone."""
+    is required (no third-party CDN by default); ``only_missing=0`` re-applies
+    to everyone."""
     league, denied = league_scope_or_403(request, request.POST.get("league_id"))
     if denied:
         return denied
-    template = (request.POST.get("template") or "").strip() or importers.FANTACALCIO_PHOTO_TEMPLATE
+    template = (request.POST.get("template") or "").strip()
+    if not template:
+        return JsonResponse(
+            {"ok": False, "error": "Indica l'indirizzo delle foto, con {id} al posto dell'id del giocatore."},
+            status=400)
     only_missing = request.POST.get("only_missing", "1") == "1"
 
     backfilled = 0

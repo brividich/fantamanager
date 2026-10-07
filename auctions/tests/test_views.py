@@ -1134,7 +1134,7 @@ class PhotoTests(TestCase):
 
     def test_apply_photos_skips_without_ext_id(self):
         Player.objects.create(name="Ignoto", role="A", league=self.league)  # no ext_id
-        rep = self.importers.apply_photos(league=self.league)
+        rep = self.importers.apply_photos(league=self.league, template="https://x/{id}.png")
         self.assertEqual(rep["set"], 0)
         self.assertEqual(rep["without_ext_id"], 1)
 
@@ -1158,15 +1158,44 @@ class PhotoTests(TestCase):
         p = Player.objects.get(name="Carnesecchi")
         self.assertEqual(p.ext_id, "4431")
 
-    def test_default_template_is_fantacalcio(self):
-        self.assertIn("content.fantacalcio.it", self.importers.FANTACALCIO_PHOTO_TEMPLATE)
-        self.assertIn("{id}", self.importers.FANTACALCIO_PHOTO_TEMPLATE)
+    def test_there_is_no_default_third_party_template(self):
+        self.assertFalse(hasattr(self.importers, "FANTACALCIO_PHOTO_TEMPLATE"))
+        with self.assertRaises(ValueError):
+            self.importers.apply_photos(league=self.league, template="")
+
+    def test_migration_drops_third_party_photo_urls(self):
+        import importlib
+        from django.apps import apps
+        from auctions.models import Footballer
+        mig = importlib.import_module("auctions.migrations.0058_clear_thirdparty_photo_urls")
+        f = Footballer.objects.create(api_id=9, name="Svilar",
+                                      photo_url="https://media.api-sports.io/football/players/9.png")
+        linked = Player.objects.create(name="Svilar", role="P", league=self.league, footballer=f,
+                                       photo_url="https://content.fantacalcio.it/web/campioncini/20/card/1.png")
+        alone = Player.objects.create(name="Altro", role="P", league=self.league,
+                                      photo_url="https://content.fantacalcio.it/web/campioncini/20/card/2.png")
+        mine = Player.objects.create(name="Mio", role="P", league=self.league,
+                                     photo_url="https://example.com/mio.png")
+        mig.clear_photos(apps, None)
+        for p in (linked, alone, mine):
+            p.refresh_from_db()
+        self.assertEqual(linked.photo_url, f.photo_url)
+        self.assertEqual(alone.photo_url, "")
+        self.assertEqual(mine.photo_url, "https://example.com/mio.png")
+
+    def test_apply_photos_view_needs_a_template(self):
+        Player.objects.create(name="Vlahovic", role="A", league=self.league, ext_id="2702")
+        self.client.force_login(self.user)
+        resp = self.client.post("/admin-auction/players/photos/",
+                                {"league_id": self.league.id})
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(Player.objects.get(name="Vlahovic").photo_url, "")
 
     def test_apply_photos_view(self):
         Player.objects.create(name="Vlahovic", role="A", league=self.league, ext_id="2702")
         self.client.force_login(self.user)
         resp = self.client.post("/admin-auction/players/photos/",
-                                {"league_id": self.league.id})
+                                {"league_id": self.league.id, "template": "https://x/{id}.png"})
         self.assertEqual(resp.status_code, 200)
         d = resp.json()
         self.assertTrue(d["ok"])
