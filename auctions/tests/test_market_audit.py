@@ -179,3 +179,27 @@ class SessionAdminActionsTests(TestCase):
             "closes_at": timezone.localtime(opens - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M")})
         s.refresh_from_db()
         self.assertIsNone(s.closes_at)
+
+    def test_bids_are_counted_only_after_closing(self):
+        s = self._session("sealed_bids")
+        res = self.client.post(reverse("admin_market_resolve", args=[s.id]), follow=True)
+        s.refresh_from_db()
+        self.assertEqual(s.status, MarketSession.Status.OPEN)
+        self.assertContains(res, "chiudila prima")
+        page = self.client.get(reverse("admin_market_session", args=[s.id]))
+        self.assertNotContains(page, reverse("admin_market_resolve", args=[s.id]))
+        s.status = MarketSession.Status.CLOSED
+        s.save()
+        self.client.post(reverse("admin_market_resolve", args=[s.id]))
+        s.refresh_from_db()
+        self.assertEqual(s.status, MarketSession.Status.RESOLVED)
+
+    def test_declared_renewals_without_dice_are_flagged(self):
+        team = Participant.objects.create(league=self.league, display_name="Delta", credits=Decimal("500"))
+        Player.objects.create(league=self.league, owner=team, name="Senza Dado", role="C", team="Lecce",
+                              cost=Decimal("10"), contract_years=0, renewal_declared=True)
+        s = self._session("renewals")
+        res = self.client.post(reverse("admin_market_status", args=[s.id]), {"status": "closed"}, follow=True)
+        self.assertContains(res, "Senza Dado (Delta)")
+        page = self.client.get(reverse("app_regia_market_session", args=[s.id]))
+        self.assertContains(page, "Dado rinnovo non tirato")

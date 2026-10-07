@@ -439,6 +439,7 @@ def _renewals_board(league, participants):
         "lost": sum(lost.values()),
         "faces": "-".join(str(f) for f in rules["faces"]),
         "u21_years": rules["u21_years"],
+        "unrolled": [pl for pl in players if pl.contract_years == 0 and pl.renewal_declared is True],
     }
 
 
@@ -760,6 +761,8 @@ def admin_market_status(request, session_id):
         session.save(update_fields=["status", "updated_at"])
         if session.session_type == MarketSession.SessionType.RENEWALS:
             sync_renewals_window({session.league_id})
+            if new_status == MarketSession.Status.CLOSED:
+                _warn_unrolled(request, session.league)
         label = "aperta" if new_status == MarketSession.Status.OPEN else "chiusa"
         messages.success(request, f"Sessione '{session.title}' {label}.")
     return redirect(_back(request, _dashboard_url(request, session)))
@@ -784,6 +787,31 @@ def admin_market_notify(request, session_id):
     return redirect(_back(request, _dashboard_url(request, session)))
 
 
+# I tipi in cui lo spoglio (o il draft) si fa solo a sessione chiusa.
+_COUNT_AFTER_CLOSE = (
+    MarketSession.SessionType.SEALED_BIDS,
+    MarketSession.SessionType.REPAIR,
+    MarketSession.SessionType.WAIVER_WIRE,
+)
+
+
+def unrolled_renewals(league):
+    """I giocatori dichiarati da rinnovare il cui dado non è stato tirato:
+    alla chiusura dei rinnovi restano in rosa senza rinnovo."""
+    return list(
+        Player.objects.filter(owner__league=league, contract_years=0, renewal_declared=True)
+        .select_related("owner").order_by("owner__display_name", "name")
+    )
+
+
+def _warn_unrolled(request, league):
+    pending = unrolled_renewals(league)
+    if pending:
+        names = ", ".join(f"{p.name} ({p.owner.display_name})" for p in pending)
+        messages.warning(request, f"Dado rinnovo non tirato per {len(pending)} giocatori dichiarati: {names}. "
+                                  "Restano in rosa senza rinnovo finché qualcuno non tira il dado.")
+
+
 @staff_member_required
 @require_POST
 def admin_market_resolve(request, session_id):
@@ -794,6 +822,12 @@ def admin_market_resolve(request, session_id):
     if session.status == MarketSession.Status.RESOLVED:
         messages.warning(request, f"La sessione '{session.title}' è già stata scrutinata.")
         return redirect(_back(request, _dashboard_url(request, session)))
+    # Buste e waiver si scrutinano a consegna chiusa: prima si chiude la sessione.
+    if session.session_type in _COUNT_AFTER_CLOSE and session.is_open:
+        messages.error(request, "La sessione è ancora aperta: chiudila prima di eseguire lo spoglio.")
+        return redirect(_back(request, _dashboard_url(request, session)))
+    if session.session_type == MarketSession.SessionType.RENEWALS:
+        _warn_unrolled(request, session.league)
 
     summary = resolve_market_session(session.id)
     won_count = summary.get("total_acquisitions", 0)

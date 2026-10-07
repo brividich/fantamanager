@@ -1363,7 +1363,8 @@ class MarketManageParityTests(TestCase):
         self.assertEqual(console.status_code, 200)
         self.assertEqual(app.status_code, 200)
         self.assertContains(app, "Chiudi finestra")
-        self.assertContains(app, "Scrutina buste")
+        # Le buste si scrutinano a sessione chiusa: aperta, si offre solo «Chiudi».
+        self.assertNotContains(app, "Scrutina buste")
         self.assertEqual(self._part(console, "session-manage"), self._part(app, "session-manage"))
 
     def test_trades_screen_is_the_same_in_console_and_app(self):

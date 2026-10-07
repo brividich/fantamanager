@@ -63,7 +63,7 @@ mk_labels, is_buste, is_renewals, renewals,
                     <svg class="ic"><use href="#i-play"/></svg> Apri ora</button>
             </form>
             {% endif %}
-            {% if s.status == "open" or s.status == "closed" %}
+            {% if s.status == "closed" or s.status == "open" and not is_buste and s.session_type != "waiver_wire" %}
             <form method="post" action="{% url 'admin_market_resolve' s.id %}" onsubmit="return confirm({% if s.session_type == 'free_agency' or s.session_type == 'buyout_clause' %}'Concludere la finestra? Gli acquisti non saranno più possibili e ne resterà il riepilogo.'{% elif s.session_type == 'waiver_wire' %}'Vuoi eseguire il draft Waiver Wire adesso? I calciatori verranno assegnati alle squadre secondo l\'ordine di scelta.'{% elif s.session_type == 'renewals' %}'Confermi la chiusura dei rinnovi? I contratti non rinnovati verranno svincolati definitivamente.'{% elif s.status == 'open' %}'Vuoi chiudere e scrutinare tutte le buste adesso? L\'operazione assegnerà i giocatori ed effettuerà i tagli.'{% else %}'Confermi lo spoglio delle buste?'{% endif %});">
                 {% csrf_token %}<input type="hidden" name="next" value="{{ mk_back }}">
                 <button type="submit" class="fm-btn fm-btn-primary fm-btn-sm">
@@ -207,6 +207,14 @@ mk_labels, is_buste, is_renewals, renewals,
         <span class="mk-rule">Acquisti per ruolo: <b>P {{ s.max_acquisitions_p|default:"∞" }} · D {{ s.max_acquisitions_d|default:"∞" }} · C {{ s.max_acquisitions_c|default:"∞" }} · A {{ s.max_acquisitions_a|default:"∞" }}</b></span>
         {% endif %}
     </div>
+    {% if is_renewals and renewals.unrolled and s.status != "open" and s.status != "draft" %}
+    <div class="mk-banner warn" style="margin-top:12px">
+        <svg class="ic"><use href="#i-info"/></svg>
+        <span><b>Dado rinnovo non tirato</b> per {{ renewals.unrolled|length }} giocator{{ renewals.unrolled|length|pluralize:"e,i" }} dichiarat{{ renewals.unrolled|length|pluralize:"o,i" }}:
+        {% for p in renewals.unrolled %}{{ p.name }} ({{ p.owner.display_name }}){% if not forloop.last %}, {% endif %}{% endfor %}.
+        Restano in rosa senza rinnovo finché qualcuno non tira il dado.</span>
+    </div>
+    {% endif %}
     {% if is_renewals and not current_league.contracts_enabled %}
     <div class="mk-banner warn" style="margin-top:12px">
         <svg class="ic"><use href="#i-info"/></svg>
