@@ -263,3 +263,57 @@ class GoalkeeperAndU21Tests(TestCase):
         other = Player.objects.create(name="Camarda", role="A", league=self.league, owner=self.a)
         self.assertFalse(contracts.declare_u21(other.id, participant_id=self.a.id)["ok"])  # una per stagione
 
+
+
+class AnimatedDiceTests(TestCase):
+    """Il dado animato: le risposte portano le facce, la console risponde in JSON al tiro."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user("admin", password="pw")
+        self.league = League.objects.create(name="L", owner=self.owner, contracts_enabled=True,
+                                            contract_rules={"faces": [1, 2, 3, 4]})
+        self.a = Participant.objects.create(display_name="Alfa", league=self.league)
+        self.p = Player.objects.create(name="Dybala", role="A", league=self.league, owner=self.a, cost=Decimal("5"))
+
+    def test_results_carry_the_die_faces(self):
+        res = contracts.roll_contract(self.p.id, participant_id=self.a.id, rng=Fixed(4))
+        self.assertEqual((res["face"], res["years"], res["faces"]), (4, 4, [1, 2, 3, 4]))
+        Player.objects.filter(pk=self.p.pk).update(contract_years=0, renewal_declared=True)
+        self.league.renewals_open = True
+        self.league.save()
+        res = contracts.roll_renewal(self.p.id, participant_id=self.a.id, rng=Fixed(True, 2))
+        self.assertEqual((res["green"], res["face"], res["faces"]), (True, 2, [1, 2, 3, 4]))
+
+    def test_console_roll_answers_json_to_the_animation(self):
+        self.client.force_login(self.owner)
+        url = reverse("admin_contracts_action")
+        resp = self.client.post(url, {"league_id": self.league.id, "action": "roll", "player_id": self.p.id,
+                                      "manual_face": "3"}, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        data = resp.json()
+        self.assertEqual((data["ok"], data["face"], data["years"], data["faces"]), (True, 3, 3, [1, 2, 3, 4]))
+        self.assertIn("Dybala", data["feedback_message"])
+        # Il messaggio resta anche per la pagina che si ricarica dopo il dado.
+        self.assertContains(self.client.get(reverse("admin_contracts") + f"?league={self.league.id}"),
+                            "Dybala: dado 3")
+        # Senza JavaScript il modulo funziona come prima.
+        other = Player.objects.create(name="Kean", role="A", league=self.league, owner=self.a)
+        resp = self.client.post(url, {"league_id": self.league.id, "action": "roll", "player_id": other.id})
+        self.assertEqual(resp.status_code, 302)
+
+    def test_pages_load_the_die(self):
+        self.client.force_login(self.owner)
+        page = self.client.get(reverse("admin_contracts") + f"?league={self.league.id}")
+        self.assertContains(page, "window.FMDice")
+        self.assertContains(page, 'data-dice="contract" data-player="Dybala"')
+
+    def test_goalkeeper_block_message_has_no_missing_die(self):
+        Player.objects.create(name="Sommer", role="P", team="INT", league=self.league, owner=self.a, contract_years=2)
+        keeper = Player.objects.create(name="Martinez", role="P", team="INT", league=self.league, owner=self.a)
+        s = self.client.session
+        s["participant_id"] = self.a.id
+        s.save()
+        data = self.client.post(reverse("app_contract_roll", args=[keeper.id]),
+                                HTTP_X_REQUESTED_WITH="XMLHttpRequest").json()
+        self.assertEqual((data["face"], data["block"]), (None, "Sommer"))
+        self.assertIn("blocco portieri", data["feedback_message"])
+        self.assertNotIn("None", data["feedback_message"])

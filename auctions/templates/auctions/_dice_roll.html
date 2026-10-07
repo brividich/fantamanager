@@ -1,0 +1,264 @@
+{# Dado animato per i contratti (regolamento 4): dado contratti e dado rinnovo.
+   L'esito lo decide sempre il server; il dado gira mentre aspetta la risposta
+   e si ferma sulla faccia uscita. Uso:
+     FMDice.play({kind: "contract" | "renewal", title, subtitle, request: () => Promise<json>})
+   ritorna una Promise con la risposta, risolta quando la finestra si chiude. #}
+<style>
+    .fmd-overlay { position: fixed; inset: 0; z-index: 10000; display: flex; align-items: center; justify-content: center;
+                   padding: 16px; background: rgba(3, 8, 18, .72); backdrop-filter: blur(4px); opacity: 0; transition: opacity .2s ease; }
+    .fmd-overlay.fmd-in { opacity: 1; }
+    .fmd-card { width: min(420px, 100%); box-sizing: border-box; padding: 22px 20px 18px; border-radius: 18px; text-align: center;
+                background: linear-gradient(180deg, #13213a, #0b1527); border: 1px solid rgba(120, 170, 255, .22);
+                box-shadow: 0 24px 60px rgba(0, 0, 0, .55); color: #e8f0ff; font-family: inherit;
+                transform: translateY(10px) scale(.98); transition: transform .25s ease; }
+    .fmd-overlay.fmd-in .fmd-card { transform: none; }
+    .fmd-title { font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: #8fb4ff; }
+    .fmd-subtitle { margin-top: 4px; font-size: 19px; font-weight: 800; }
+    .fmd-table { position: relative; height: 170px; margin: 14px 0 6px; display: flex; align-items: center; justify-content: center; gap: 34px;
+                 border-radius: 14px; background: radial-gradient(ellipse at 50% 75%, rgba(30, 165, 255, .16), transparent 70%); }
+    .fmd-scene { width: 92px; height: 92px; perspective: 600px; position: relative; }
+    .fmd-scene::after { content: ""; position: absolute; left: 10%; right: 10%; bottom: -26px; height: 14px; border-radius: 50%;
+                        background: rgba(0, 0, 0, .45); filter: blur(6px); }
+    .fmd-scene.fmd-hidden { display: none; }
+    .fmd-cube { width: 100%; height: 100%; position: relative; transform-style: preserve-3d;
+                transform: rotateX(-22deg) rotateY(28deg); }
+    .fmd-face { position: absolute; inset: 0; box-sizing: border-box; border-radius: 16px; display: grid; padding: 14px;
+                grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); place-items: center;
+                background: linear-gradient(145deg, #ffffff, #dfe6f2); border: 1px solid rgba(0, 0, 0, .12);
+                box-shadow: inset 0 0 14px rgba(0, 0, 0, .14); backface-visibility: hidden; }
+    .fmd-face:nth-child(1) { transform: rotateY(0deg) translateZ(46px); }
+    .fmd-face:nth-child(2) { transform: rotateY(180deg) translateZ(46px); }
+    .fmd-face:nth-child(3) { transform: rotateY(90deg) translateZ(46px); }
+    .fmd-face:nth-child(4) { transform: rotateY(-90deg) translateZ(46px); }
+    .fmd-face:nth-child(5) { transform: rotateX(90deg) translateZ(46px); }
+    .fmd-face:nth-child(6) { transform: rotateX(-90deg) translateZ(46px); }
+    .fmd-pip { width: 15px; height: 15px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #3b4a63, #0b1220); }
+    .fmd-num { grid-column: 1 / -1; grid-row: 1 / -1; font-size: 40px; font-weight: 900; color: #0b1220; }
+    .fmd-face.fmd-green { background: linear-gradient(145deg, #4ade80, #15803d); }
+    .fmd-face.fmd-red { background: linear-gradient(145deg, #f87171, #b91c1c); }
+    .fmd-face.fmd-green .fmd-num, .fmd-face.fmd-red .fmd-num { color: #fff; text-shadow: 0 2px 6px rgba(0, 0, 0, .35); }
+    .fmd-scene.fmd-shake .fmd-cube { animation: fmd-shake .38s ease-in-out infinite; }
+    .fmd-scene.fmd-throw { animation: fmd-throw 1.7s cubic-bezier(.2, .7, .3, 1) both; }
+    .fmd-scene.fmd-landed .fmd-face.fmd-up { box-shadow: inset 0 0 14px rgba(0, 0, 0, .14), 0 0 0 3px #38bdf8, 0 0 26px rgba(56, 189, 248, .7); }
+    @keyframes fmd-shake {
+        0%, 100% { transform: rotateX(-22deg) rotateY(28deg) translateY(0); }
+        25% { transform: rotateX(-14deg) rotateY(40deg) translateY(-6px); }
+        75% { transform: rotateX(-30deg) rotateY(16deg) translateY(-3px); }
+    }
+    @keyframes fmd-throw {
+        0% { transform: translateY(-70px) scale(.85); }
+        45% { transform: translateY(0) scale(1); }
+        60% { transform: translateY(-22px); }
+        75% { transform: translateY(0); }
+        86% { transform: translateY(-7px); }
+        100% { transform: translateY(0); }
+    }
+    .fmd-result { min-height: 52px; margin-top: 18px; font-size: 15px; line-height: 1.45; opacity: 0; transition: opacity .3s ease; }
+    .fmd-result.fmd-show { opacity: 1; }
+    .fmd-result b { font-size: 22px; display: block; }
+    .fmd-result .fmd-good { color: #4ade80; }
+    .fmd-result .fmd-bad { color: #f87171; }
+    .fmd-result .fmd-note { color: #9fb3d1; font-size: 13px; }
+    .fmd-actions { margin-top: 14px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    .fmd-btn { min-width: 150px; padding: 10px 18px; border: 0; border-radius: 10px; font-weight: 800; font-size: 14px; cursor: pointer;
+               background: #1ea5ff; color: #04111f; visibility: hidden; }
+    .fmd-btn.fmd-show { visibility: visible; }
+    .fmd-bar { width: 150px; height: 3px; border-radius: 2px; background: rgba(255, 255, 255, .12); overflow: hidden; visibility: hidden; }
+    .fmd-bar.fmd-show { visibility: visible; }
+    .fmd-bar i { display: block; height: 100%; width: 100%; background: #1ea5ff; transform-origin: left; }
+    .fmd-bar.fmd-run i { animation: fmd-bar 4s linear forwards; }
+    @keyframes fmd-bar { to { transform: scaleX(0); } }
+    @media (prefers-reduced-motion: reduce) {
+        .fmd-scene.fmd-shake .fmd-cube, .fmd-scene.fmd-throw { animation: none; }
+        .fmd-cube { transition: none !important; }
+    }
+</style>
+<script>
+window.FMDice = (function () {
+    "use strict";
+    var RENEWAL = ["G", "G", "G", "R", "R", "R"];
+    // Rotazione del cubo che porta la faccia i (nell'ordine dei .fmd-face) verso chi guarda.
+    var FRONT = [[0, 0], [0, -180], [0, -90], [0, 90], [-90, 0], [90, 0]];
+    var PIPS = {1: [5], 2: [3, 7], 3: [3, 5, 7], 4: [1, 3, 7, 9], 5: [1, 3, 5, 7, 9], 6: [1, 3, 4, 6, 7, 9]};
+    var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    function el(tag, cls, text) {
+        var e = document.createElement(tag);
+        if (cls) e.className = cls;
+        if (text != null) e.textContent = text;
+        return e;
+    }
+    function wait(ms) { return new Promise(function (r) { setTimeout(r, reduced ? Math.min(ms, 150) : ms); }); }
+    function years(n) { return n + (n === 1 ? " anno" : " anni"); }
+
+    function faceContent(face, value) {
+        face.innerHTML = "";
+        if (value === "G" || value === "R") {
+            face.classList.add(value === "G" ? "fmd-green" : "fmd-red");
+            face.appendChild(el("span", "fmd-num", value === "G" ? "✓" : "✕"));
+        } else if (PIPS[value]) {
+            for (var cell = 1; cell <= 9; cell++) {
+                var slot = el("span");
+                if (PIPS[value].indexOf(cell) >= 0) slot.className = "fmd-pip";
+                face.appendChild(slot);
+            }
+        } else {
+            face.appendChild(el("span", "fmd-num", String(value)));
+        }
+    }
+
+    // Un dado: sei facce prese dall'elenco (ripetuto se ne ha meno di sei).
+    function makeDie(values) {
+        var scene = el("div", "fmd-scene");
+        var cube = el("div", "fmd-cube");
+        var six = [];
+        for (var i = 0; i < 6; i++) six.push(values[i % values.length]);
+        six.forEach(function (v) {
+            var face = el("div", "fmd-face");
+            faceContent(face, v);
+            cube.appendChild(face);
+        });
+        scene.appendChild(cube);
+        return {scene: scene, cube: cube, values: six};
+    }
+
+    function land(die, value) {
+        var options = [];
+        die.values.forEach(function (v, i) { if (String(v) === String(value)) options.push(i); });
+        if (!options.length) options = [0];
+        var idx = options[Math.floor(Math.random() * options.length)];
+        var turnX = (2 + Math.floor(Math.random() * 2)) * 360;
+        var turnY = (3 + Math.floor(Math.random() * 2)) * 360;
+        die.scene.classList.remove("fmd-shake");
+        die.scene.classList.remove("fmd-throw");
+        void die.scene.offsetWidth;  // riparte l'animazione del lancio
+        die.scene.classList.add("fmd-throw");
+        die.cube.style.transition = reduced ? "none" : "transform 1.6s cubic-bezier(.17,.67,.21,1)";
+        die.cube.style.transform = "rotateX(" + (turnX + FRONT[idx][0]) + "deg) rotateY(" + (turnY + FRONT[idx][1]) + "deg)";
+        Array.prototype.forEach.call(die.cube.children, function (f, i) { f.classList.toggle("fmd-up", i === idx); });
+        return wait(1700).then(function () { die.scene.classList.add("fmd-landed"); });
+    }
+
+    function play(opts) {
+        var overlay = el("div", "fmd-overlay");
+        overlay.setAttribute("role", "dialog");
+        overlay.setAttribute("aria-modal", "true");
+        var card = el("div", "fmd-card");
+        card.appendChild(el("div", "fmd-title", opts.title || "Dado"));
+        if (opts.subtitle) card.appendChild(el("div", "fmd-subtitle", opts.subtitle));
+        var table = el("div", "fmd-table");
+        var result = el("div", "fmd-result");
+        result.setAttribute("aria-live", "polite");
+        var actions = el("div", "fmd-actions");
+        var btn = el("button", "fmd-btn", "Continua");
+        btn.type = "button";
+        var bar = el("div", "fmd-bar");
+        bar.appendChild(el("i"));
+        actions.appendChild(btn);
+        actions.appendChild(bar);
+        card.appendChild(table);
+        card.appendChild(result);
+        card.appendChild(actions);
+        overlay.appendChild(card);
+        document.body.appendChild(overlay);
+        requestAnimationFrame(function () { overlay.classList.add("fmd-in"); });
+
+        var renewal = opts.kind === "renewal";
+        var contractDie = makeDie(opts.faces || [1, 1, 2, 2, 3, 3]);
+        var colorDie = renewal ? makeDie(RENEWAL) : null;
+        if (colorDie) {
+            table.appendChild(colorDie.scene);
+            contractDie.scene.classList.add("fmd-hidden");
+        }
+        table.appendChild(contractDie.scene);
+        (colorDie || contractDie).scene.classList.add("fmd-shake");
+
+        function show(html) {
+            result.innerHTML = html;
+            result.classList.add("fmd-show");
+        }
+        function esc(s) { var d = el("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; }
+
+        var started = Date.now();
+        var answer;
+        var done = Promise.resolve()
+            .then(function () { return opts.request(); })
+            .then(function (res) { answer = res; })
+            .catch(function () { answer = {ok: false, message: "Errore di connessione"}; })
+            .then(function () { return wait(Math.max(0, 650 - (Date.now() - started))); })
+            .then(function () {
+                var res = answer || {};
+                if (!res.ok) {
+                    (colorDie || contractDie).scene.classList.remove("fmd-shake");
+                    show('<span class="fmd-bad">' + esc(res.message || res.feedback_message || "Tiro non riuscito") + "</span>");
+                    return;
+                }
+                if (res.faces && res.faces.length) {
+                    var redrawn = makeDie(res.faces);
+                    table.replaceChild(redrawn.scene, contractDie.scene);
+                    if (colorDie) redrawn.scene.classList.add("fmd-hidden");
+                    else redrawn.scene.classList.add("fmd-shake");
+                    contractDie = redrawn;
+                }
+                if (!renewal) {
+                    if (res.face == null) {  // blocco portieri: nessun tiro
+                        contractDie.scene.classList.remove("fmd-shake");
+                        show("<b>" + years(res.years) + "</b>" + '<span class="fmd-note">Blocco portieri: stesso contratto di '
+                             + esc(res.block) + ", nessun dado.</span>");
+                        return;
+                    }
+                    return land(contractDie, res.face).then(function () {
+                        if (res.years !== res.face) {
+                            show("<b>" + years(res.years) + "</b>" + '<span class="fmd-note">Il dado dice ' + years(res.face)
+                                 + ", ma la clausola sul prezzo dà almeno " + years(res.floor) + ".</span>");
+                        } else {
+                            show("<b>" + years(res.years) + "</b>" + '<span class="fmd-note">di contratto</span>');
+                        }
+                    });
+                }
+                return land(colorDie, res.green ? "G" : "R").then(function () {
+                    if (!res.green) {
+                        show('<b class="fmd-bad">Rosso</b><span class="fmd-note">Rescissione: torna svincolato.</span>');
+                        return;
+                    }
+                    show('<b class="fmd-good">Verde!</b><span class="fmd-note">Si rinnova: ora il dado contratti…</span>');
+                    contractDie.scene.classList.remove("fmd-hidden");
+                    return wait(500).then(function () { return land(contractDie, res.face); }).then(function () {
+                        show('<b class="fmd-good">Rinnova per ' + years(res.years) + "</b>"
+                             + '<span class="fmd-note">Dado verde, poi dado contratti.</span>');
+                    });
+                });
+            });
+
+        return done.then(function () {
+            return new Promise(function (resolve) {
+                var closed = false;
+                function close() {
+                    if (closed) return;
+                    closed = true;
+                    document.removeEventListener("keydown", onKey);
+                    overlay.classList.remove("fmd-in");
+                    setTimeout(function () { overlay.remove(); resolve(answer); }, 200);
+                }
+                function onKey(e) { if (e.key === "Escape" || e.key === "Enter") close(); }
+                btn.textContent = answer && answer.ok ? "Continua" : "Chiudi";
+                btn.classList.add("fmd-show");
+                btn.addEventListener("click", close);
+                document.addEventListener("keydown", onKey);
+                btn.focus();
+                if (answer && answer.ok) {
+                    // Si chiude da solo dopo qualche secondo, a meno che non si tocchi la finestra.
+                    bar.classList.add("fmd-show", "fmd-run");
+                    var timer = setTimeout(close, 4000);
+                    card.addEventListener("pointerdown", function () {
+                        clearTimeout(timer);
+                        bar.classList.remove("fmd-show");
+                    }, {once: true});
+                }
+            });
+        });
+    }
+
+    return {play: play};
+})();
+</script>
