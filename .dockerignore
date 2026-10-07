@@ -29,3 +29,11 @@ backups/
 media/
 .env
 data/.secret_key
+
+# Fogli e documenti di leghe reali o di terzi: mai dentro un'immagine pubblica.
+*.xlsx
+*.xls
+*.csv
+*.pdf
+data/*
+!data/README.md
