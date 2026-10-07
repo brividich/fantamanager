@@ -25,6 +25,9 @@ stessi testi**.
   I dati arrivano da `session_manage_context` / `trades_manage_context`
   (`views/admin_market.py`). Ogni form manda `next` = la pagina da cui parte,
   così l'azione torna lì (console o app); `_back()` accetta solo indirizzi del sito.
+- Giornate, voti e calcolo: `_giornate_manage.html`, in `admin_giornate.html`
+  (console) e `app_giornate.html` (app); una sola view, `admin_giornate`
+  (`views/admin_voti.py`), che sceglie la cornice dall'indirizzo.
 - L'anagrafica dei calciatori (API-Football, unica per tutte le leghe):
   `_footballers.html`, in `admin_footballers.html` (console) e
   `app_footballers.html` (app); dati da `footballers_context`
@@ -34,7 +37,18 @@ stessi testi**.
 - I test di parità confrontano web e app: `MarketWizardParityTests` e
   `MarketManageParityTests` in `auctions/tests/test_market.py`,
   `CompetitionWizardParityTests` in `auctions/tests/test_competitions.py`,
-  `FootballersPageTests` in `auctions/tests/test_footballers.py`.
+  `FootballersPageTests` in `auctions/tests/test_footballers.py`,
+  `GiornatePageTests` in `auctions/tests/test_voti.py`.
+
+## Formazioni: una per giornata
+
+Si schiera per la prossima giornata ancora da giocare (`target_giornata`,
+`services/formation.py`); il salvataggio scrive l'ultima formazione
+(`Formation`, il modello per le giornate dopo) e la copia della giornata
+(`MatchdayFormation`). Quando la giornata parte (blocco a mano, primo sync live
+o import dei voti: `lock_formations`) ogni squadra ha la sua copia e da lì non
+cambia più: i ricalcoli usano quella, anche se la rosa poi cambia. L'ordine
+della panchina lo sceglie il manager ed è la priorità dei cambi.
 
 ## Barre di pulsanti: sempre su una riga
 

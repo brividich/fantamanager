@@ -277,6 +277,117 @@ class SeasonScoringTests(TestCase):
         self.assertEqual(Giornata.objects.get(pk=self.g.pk).status, "SCORED")
 
 
+class MatchdayFormationTests(TestCase):
+    """Ogni giornata ha la sua formazione: si schiera per la prossima, si blocca
+    quando parte e i ricalcoli successivi non cambiano piu' il punteggio."""
+
+    def setUp(self):
+        from ..models import Giornata, Season
+        self.league = League.objects.create(name="L", budget=Decimal("500"),
+                                             slots_p=3, slots_d=8, slots_c=8, slots_a=6)
+        self.p = Participant.objects.create(display_name="Mister", league=self.league, credits=Decimal("500"))
+        self.players = {}
+        for role, n in (("P", 1), ("D", 6), ("C", 3), ("A", 3)):
+            self.players[role] = [
+                Player.objects.create(name=f"{role}{i}", role=role, team="Inter",
+                                      league=self.league, owner=self.p, cost=Decimal("10"))
+                for i in range(n)]
+        self.season = Season.objects.create(league=self.league, name="25/26", matchdays=4)
+        self.g = [Giornata.objects.create(season=self.season, number=n,
+                                          status="OPEN" if n == 1 else "SCHEDULED") for n in range(1, 5)]
+        P, D, C, A = (self.players[r] for r in "PDCA")
+        self.xi = [P[0], *D[:4], *C, *A]           # 4-3-3, D[4] and D[5] on the bench
+
+    def _ids(self, players):
+        return [str(pl.id) for pl in players]
+
+    def _votes(self, giornata, vote_for):
+        from ..models import PlayerPerformance
+        for group in self.players.values():
+            for pl in group:
+                v = vote_for(pl)
+                PlayerPerformance.objects.create(giornata=giornata, player=pl,
+                                                 vote=None if v is None else Decimal(v))
+
+    def test_target_is_the_first_giornata_after_the_last_started(self):
+        self.assertEqual(services.target_giornata(self.league), self.g[0])
+        self.g[0].status = "SCORED"
+        self.g[0].save()
+        self.assertEqual(services.target_giornata(self.league), self.g[1])
+        self.g[2].status = "LOCKED"       # G3 started though G2 was never locked
+        self.g[2].save()
+        self.assertEqual(services.target_giornata(self.league), self.g[3])
+        self.assertIsNone(services.target_giornata(None))
+
+    def test_save_writes_the_giornata_copy_and_refuses_a_started_one(self):
+        from ..models import MatchdayFormation
+        services.save_formation(self.p, "4-3-3", self._ids(self.xi), giornata=self.g[0])
+        mf = MatchdayFormation.objects.get(giornata=self.g[0], participant=self.p)
+        self.assertEqual(mf.starter_ids, [pl.id for pl in self.xi])
+        self.g[0].status = "LOCKED"
+        self.g[0].save()
+        self.assertIsNone(services.save_formation(self.p, "3-5-2", [], giornata=self.g[0]))
+        mf.refresh_from_db()
+        self.assertEqual(mf.module, "4-3-3")
+
+    def test_past_giornata_keeps_its_lineup_after_changes_and_sales(self):
+        from ..models import GiornataScore
+        services.save_formation(self.p, "4-3-3", self._ids(self.xi), giornata=self.g[0])
+        self._votes(self.g[0], lambda pl: "6")
+        services.compute_giornata(self.g[0])
+        first = GiornataScore.objects.get(giornata=self.g[0], participant=self.p).total
+        # Next week: a new lineup for G2 and the goalkeeper sold.
+        services.save_formation(self.p, "4-3-3", [], giornata=self.g[1])
+        gk = self.players["P"][0]
+        gk.owner = None
+        gk.save()
+        services.compute_giornata(self.g[0])          # recomputed later on
+        self.assertEqual(GiornataScore.objects.get(giornata=self.g[0], participant=self.p).total, first)
+
+    def test_lock_copies_the_last_lineup_for_teams_that_did_not_save(self):
+        from ..models import MatchdayFormation
+        services.save_formation(self.p, "4-3-3", self._ids(self.xi))   # no giornata: template only
+        services.lock_formations(self.g[0])
+        self.g[0].refresh_from_db()
+        self.assertEqual(self.g[0].status, "LOCKED")
+        mf = MatchdayFormation.objects.get(giornata=self.g[0], participant=self.p)
+        self.assertEqual(mf.starter_ids, [pl.id for pl in self.xi])
+        self.assertEqual(set(mf.bench_ids), {self.players["D"][4].id, self.players["D"][5].id})
+
+    def test_bench_order_decides_the_substitute(self):
+        from ..models import GiornataScore
+        d1, d4, d5 = self.players["D"][0], self.players["D"][4], self.players["D"][5]
+        votes = {d1.id: None, d4.id: "5", d5.id: "8"}
+        # D5 first on the bench: he replaces the defender without a vote.
+        services.save_formation(self.p, "4-3-3", self._ids(self.xi), [d5.id, d4.id], giornata=self.g[0])
+        self._votes(self.g[0], lambda pl: votes.get(pl.id, "6"))
+        services.compute_giornata(self.g[0])
+        sub = GiornataScore.objects.get(giornata=self.g[0], participant=self.p).breakdown["lines"][1]
+        self.assertEqual(sub["sub_in"], d5.id)
+
+    def test_page_shows_the_giornata_and_saves_the_bench_order(self):
+        from ..models import MatchdayFormation
+        s = self.client.session
+        s["participant_id"] = self.p.id
+        s.save()
+        resp = self.client.get("/app/formazione/")
+        self.assertContains(resp, "Giornata 1")
+        d4, d5 = self.players["D"][4], self.players["D"][5]
+        resp = self.client.post("/app/formazione/", {
+            "module": "4-3-3", "giornata": self.g[0].id, "save": "1",
+            "starter": self._ids(self.xi), "bench": [d5.id, d4.id]})
+        self.assertRedirects(resp, "/app/formazione/", fetch_redirect_response=False)
+        mf = MatchdayFormation.objects.get(giornata=self.g[0], participant=self.p)
+        self.assertEqual(mf.bench_ids[:2], [d5.id, d4.id])
+        # The page was opened for G1, which has started meanwhile: nothing changes.
+        self.g[0].status = "LOCKED"
+        self.g[0].save()
+        self.client.post("/app/formazione/", {"module": "3-5-2", "giornata": self.g[0].id, "save": "1", "starter": []})
+        mf.refresh_from_db()
+        self.assertEqual(mf.module, "4-3-3")
+        self.assertFalse(MatchdayFormation.objects.filter(giornata=self.g[1]).exists())
+
+
 class CalendarStandingsTests(TestCase):
     """Round-robin calendar, head-to-head fixtures, and the league table."""
 

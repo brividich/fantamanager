@@ -65,7 +65,7 @@ from .admin_competitions import (
     admin_competition_regenerate,
     admin_competition_delete,
 )
-from .admin_voti import admin_giornate, admin_upload_voti, admin_voti_import, admin_live_voti_sync, admin_live_voti_consolidate
+from .admin_voti import admin_giornata_lock, admin_giornate, admin_upload_voti, admin_voti_import, admin_live_voti_sync, admin_live_voti_consolidate
 from .admin_mail import admin_mail_settings
 from .admin_market import (
     admin_market_buste,
@@ -454,6 +454,7 @@ __all__ = [
     "admin_voti_import",
     "admin_live_voti_sync",
     "admin_live_voti_consolidate",
+    "admin_giornata_lock",
     # competitions
     "admin_competitions",
     "admin_competition_create",

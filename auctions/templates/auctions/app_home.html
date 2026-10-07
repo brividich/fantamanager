@@ -106,7 +106,7 @@
             {% endif %}
         </div>
         <div class="qa-title">Formazione</div>
-        <div class="qa-sub">{{ lineup_done }}/{{ lineup_target }} schierati</div>
+        <div class="qa-sub">{% if next_giornata %}G{{ next_giornata.number }} · {% endif %}{{ lineup_done }}/{{ lineup_target }} schierati</div>
     </a>
     <a href="{% url 'app_rosa' %}" class="qa-card">
         <div class="qa-top">

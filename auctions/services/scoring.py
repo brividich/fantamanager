@@ -3,22 +3,43 @@ from django.utils import timezone
 
 from .. import scoring
 from ..models import Giornata, GiornataScore, Participant, Player, PlayerPerformance
-from .formation import _formation_saved
+from .formation import _ordered_bench, _owned, _saved_lineup, lock_formations
 
 
 def lineup_io(participant, giornata=None):
-    """(starters, bench) as ordered ``{"id","role"}`` lists from the manager's
-    saved Formation — starters in slot order, bench = the remaining roster (the
-    substitution pool, ordered by role then name). Used to feed the engine."""
-    module, starter_ids = _formation_saved(participant, giornata=giornata)
-    owned = {p.id: p for p in Player.objects.filter(owner=participant, abroad_list=False).order_by("role", "name")}
+    """(starters, bench) as ordered ``{"id","role"}`` lists for the engine.
+
+    A giornata already under way uses its own frozen lineup, exactly as it was
+    at the lock: a player sold since still played for this team that day.
+    Otherwise the saved lineup against the current roster — starters in slot
+    order, bench in the manager's order, then the rest by role and name."""
+    saved = _saved_lineup(participant, giornata)
+    if saved["frozen"]:
+        ids = [pid for pid in saved["starter_ids"] + saved["bench_ids"] if pid]
+        players = {p.id: p for p in Player.objects.filter(id__in=ids)}
+        starters, seen = [], set()
+        for pid in saved["starter_ids"]:
+            p = players.get(pid) if pid else None
+            if p and pid not in seen:
+                starters.append({"id": p.id, "role": p.role})
+                seen.add(pid)
+        bench = []
+        for pid in saved["bench_ids"]:
+            p = players.get(pid)
+            if p and pid not in seen:
+                bench.append({"id": p.id, "role": p.role})
+                seen.add(pid)
+        return starters, bench
+
+    owned = _owned(participant)
+    by_id = {p.id: p for p in owned}
     starters, seen = [], set()
-    for pid in starter_ids:
-        p = owned.get(pid) if pid else None      # slot vuoto = None nella lista
+    for pid in saved["starter_ids"]:
+        p = by_id.get(pid) if pid else None      # slot vuoto = None nella lista
         if p and pid not in seen:
             starters.append({"id": p.id, "role": p.role})
             seen.add(pid)
-    bench = [{"id": p.id, "role": p.role} for p in owned.values() if p.id not in seen]
+    bench = [{"id": p.id, "role": p.role} for p in _ordered_bench(owned, list(seen), saved["bench_ids"])]
     return starters, bench
 
 
@@ -63,6 +84,8 @@ def compute_giornata(giornata, mark_scored: bool = True):
     """Score every active team in the season's league for this giornata, resolve
     its head-to-head fixtures, and mark it SCORED (or LIVE if mark_scored=False). Returns the GiornataScore rows
     (highest total first)."""
+    # The giornata has started: every team's lineup is frozen as it is now.
+    lock_formations(giornata)
     league = giornata.season.league if giornata.season_id else None
     teams = Participant.objects.filter(is_active=True)
     teams = teams.filter(league=league) if league is not None else teams.filter(league__isnull=True)

@@ -101,6 +101,11 @@
     .fm-save .ic { width: 18px; height: 18px; }
 
     .bench-badge { min-width: 20px; text-align: center; }
+    .fz-note { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .bench-move { display: flex; gap: 4px; flex-shrink: 0; margin-left: 8px; }
+    .bench-move button { width: 32px; height: 30px; border-radius: 8px; border: 1px solid var(--line);
+                         background: var(--panel-2); color: var(--ink); font-size: 11px; cursor: pointer; }
+    .bench-player:first-child .bench-up, .bench-player:last-child .bench-down { opacity: .3; pointer-events: none; }
     /* minmax(0, …): the module chips must scroll, not stretch the page past the phone. */
     .fz-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
     .fz-grid > * { min-width: 0; }
@@ -118,8 +123,9 @@
 <div class="tab-head">
     <a class="fm-back" href="{% url 'app_rosa' %}"><svg class="ic"><use href="#i-arrow-left"/></svg> Torna alla Rosa</a>
     <h1>Formazione</h1>
-    <p>{% if is_mantra %}Mantra · {% endif %}Modulo {{ module }} ·
+    <p>{% if giornata %}<b>Giornata {{ giornata.number }}</b> · {% endif %}{% if is_mantra %}Mantra · {% endif %}Modulo {{ module }} ·
        {{ starters_count }}/{{ starters_target }} titolari schierati</p>
+    {% if giornata %}<p class="fz-note">Vale per la Giornata {{ giornata.number }} e resta per le successive finché non la cambi. Quando la giornata parte la formazione si blocca.</p>{% endif %}
 </div>
 
 {% if owned_count == 0 %}
@@ -132,6 +138,9 @@
 <div class="fz-grid fit-body">
 <form method="post" id="fm-form">
     {% csrf_token %}
+    {# Before the module chips: a chip's own value comes later and wins. #}
+    <input type="hidden" name="module" value="{{ module }}">
+    <input type="hidden" name="giornata" value="{{ giornata.id|default:'' }}">
 
     <div class="mod-picker" style="margin-bottom:12px">
         {% for m in modules %}
@@ -163,13 +172,14 @@
         {% endfor %}
     </div>
 
-    <button type="submit" name="module" value="{{ module }}" class="fm-save" style="margin-top:14px">
+    <button type="submit" name="save" value="1" class="fm-save" style="margin-top:14px">
         <svg class="ic" style="width:18px;height:18px"><use href="#i-save"/></svg> Salva formazione
     </button>
 </form>
 
 <div class="a-card fz-bench" style="padding:14px;">
-    <div class="a-label" style="margin-bottom:10px;"><svg class="ic"><use href="#i-users"/></svg> Panchina (riserve in ordine) · {{ bench|length }}</div>
+    <div class="a-label" style="margin-bottom:4px;"><svg class="ic"><use href="#i-users"/></svg> Panchina (riserve in ordine) · {{ bench|length }}</div>
+    <p class="fz-note" style="margin:0 0 10px">Se un titolare non prende voto entra la prima riserva del suo ruolo: ordinale con le frecce, poi salva.</p>
     <div class="fit-scroll">
     {% for pl in bench %}
     <div class="a-row bench-player" data-pid="{{ pl.id }}" draggable="true" style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px; cursor:grab; border-radius:10px; margin-bottom:4px; background:rgba(255,255,255,0.02);">
@@ -178,7 +188,10 @@
             <span class="role-badge bench-badge role-{{ pl.role }}" style="flex-shrink:0;">{% if is_mantra and pl.roles_display %}{{ pl.roles_display }}{% else %}{{ pl.role }}{% endif %}</span>
             <span class="nm" style="min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:700;">{{ pl.name }}<small style="color:var(--muted)">{{ pl.team }}</small></span>
         </div>
-        <span style="font-size:12px;color:var(--muted);font-weight:700;flex-shrink:0;margin-left:8px;">Qt. {{ pl.initial_price|floatformat:0 }} FM</span>
+        <span class="bench-move">
+            <button type="button" class="bench-up" aria-label="Sposta su {{ pl.name }}">▲</button>
+            <button type="button" class="bench-down" aria-label="Sposta giù {{ pl.name }}">▼</button>
+        </span>
     </div>
     {% empty %}
     <p class="muted" style="font-size:13px;text-align:center;padding:16px 0">
@@ -208,10 +221,40 @@
         sels.forEach(s => s.addEventListener('change', refresh));
         refresh();
 
+        // Ordine della panchina: frecce su/giù, e al salvataggio la form manda
+        // le riserve nell'ordine in cui si vedono.
+        function renumber() {
+            document.querySelectorAll('.bench-player').forEach((row, i) => {
+                const n = row.querySelector('span'); if (n) n.textContent = 'R' + (i + 1);
+            });
+        }
+        document.querySelectorAll('.bench-player').forEach(row => {
+            row.querySelector('.bench-up').addEventListener('click', e => {
+                e.stopPropagation();
+                const prev = row.previousElementSibling;
+                if (prev && prev.classList.contains('bench-player')) { row.parentNode.insertBefore(row, prev); renumber(); }
+            });
+            row.querySelector('.bench-down').addEventListener('click', e => {
+                e.stopPropagation();
+                const next = row.nextElementSibling;
+                if (next && next.classList.contains('bench-player')) { row.parentNode.insertBefore(next, row); renumber(); }
+            });
+        });
+        const form = document.getElementById('fm-form');
+        if (form) form.addEventListener('submit', () => {
+            form.querySelectorAll('input[name="bench"]').forEach(i => i.remove());
+            document.querySelectorAll('.bench-player').forEach(row => {
+                const i = document.createElement('input');
+                i.type = 'hidden'; i.name = 'bench'; i.value = row.dataset.pid;
+                form.appendChild(i);
+            });
+        });
+
         // Drag and drop / Tap to deploy su mobile e desktop
         let draggedPid = null, clone = null;
         document.querySelectorAll('.bench-player').forEach(row => {
             row.addEventListener('click', e => {
+                if (e.target.closest('.bench-move')) return;
                 const pid = row.dataset.pid;
                 if (!pid) return;
                 const availableSelects = Array.from(document.querySelectorAll('.slot select'));
@@ -256,6 +299,7 @@
             });
 
             row.addEventListener('touchstart', e => {
+                if (e.target.closest('.bench-move')) return;   // the arrows, not a drag
                 draggedPid = row.dataset.pid;
                 clone = row.cloneNode(true);
                 clone.style.position = 'fixed';
