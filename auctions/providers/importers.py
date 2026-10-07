@@ -274,10 +274,11 @@ def sync_players(rows, *, league=None, replace=False, prune=False):
     }
 
 
-# Verified working pattern (Fantacalcio.it "campioncini" card image). Any Referer
-# is accepted, so the browser can load it directly. ``{id}`` = the official
-# player id stored in ``Player.ext_id``; ``{name}``/``{team}`` are also available.
-FANTACALCIO_PHOTO_TEMPLATE = "https://content.fantacalcio.it/web/campioncini/20/card/{id}.png"
+# There is no default photo source: the images of a fantasy site's CDN are not
+# ours to hotlink. Photos come from the API-Football registry
+# (``Player.footballer``) or from a URL pattern the league admin provides for a
+# source they are entitled to use. ``{id}`` = ``Player.ext_id``; ``{name}`` and
+# ``{team}`` are also available.
 
 
 def backfill_ext_ids(rows, *, league=None):
@@ -308,7 +309,7 @@ def backfill_ext_ids(rows, *, league=None):
     return updated
 
 
-def apply_photos(*, league=None, template=FANTACALCIO_PHOTO_TEMPLATE, only_missing=True):
+def apply_photos(*, league=None, template, only_missing=True):
     """Fill ``Player.photo_url`` from ``template`` for players that have an ext_id.
 
     ``template`` may reference ``{id}`` (the ext_id), ``{name}`` and ``{team}``.
@@ -317,6 +318,8 @@ def apply_photos(*, league=None, template=FANTACALCIO_PHOTO_TEMPLATE, only_missi
     """
     from ..models import Player
 
+    if not (template or "").strip():
+        raise ValueError("apply_photos needs a URL template")
     qs = Player.objects.all()
     qs = qs.filter(league=league) if league is not None else qs
     total = qs.count()
