@@ -20,6 +20,12 @@ from decimal import Decimal
 # Classic Fantacalcio.it defaults. Values are points added to the base voto.
 DEFAULTS = {
     "goal":          3,      # rete segnata (rigore incluso)
+    # Gol per ruolo e rigore segnato: None = come "goal".
+    "goal_P":        None,
+    "goal_D":        None,
+    "goal_C":        None,
+    "goal_A":        None,
+    "goal_penalty":  None,
     "assist":        1,
     "own_goal":     -2,      # autorete
     "pen_missed":   -3,      # rigore sbagliato
@@ -28,6 +34,7 @@ DEFAULTS = {
     "red":          -1,      # espulsione
     "goal_conceded": -1,     # gol subìto (portiere), per rete
     "clean_sheet":   1,      # portiere imbattuto (0 gol subiti)
+    "fair_play":     0,      # squadra senza cartellini fra chi ha giocato (0 = no)
     "conv_base":     66,     # fantapunti per il 1º gol
     "conv_step":     6,      # fantapunti per ogni gol successivo
     "max_subs":      3,      # sostituzioni dalla panchina
@@ -41,6 +48,25 @@ DEFAULTS = {
     "captain_malus_threshold": 5.5,
     "captain_malus_value":    -0.5,
 }
+
+
+# Voci che una lega puo' spegnere (``rules["off"]``): valgono 0 senza perdere il valore scelto.
+SWITCHABLE = ("goal", "assist", "own_goal", "pen_missed", "pen_saved", "yellow", "red",
+              "goal_conceded", "clean_sheet", "fair_play")
+
+
+def effective_rules(raw=None):
+    """The rules a league plays with: the defaults, its own values on top, and
+    every switched-off item (``raw["off"]``) worth 0."""
+    raw = dict(raw or {})
+    off = set(raw.pop("off", None) or [])
+    rules = {**DEFAULTS, **raw}
+    for key in off & set(SWITCHABLE):
+        rules[key] = 0
+    if "goal" in off:              # no bonus for goals at all, whatever the role
+        for key in ("goal_P", "goal_D", "goal_C", "goal_A", "goal_penalty"):
+            rules[key] = 0
+    return rules
 
 
 def _d(x):
@@ -61,7 +87,14 @@ def player_fantavoto(perf, role, rules):
 
     r = rules
     total = _d(vote)
-    total += _d(r["goal"])          * int(perf.get("goals", 0))
+    goals = int(perf.get("goals", 0))
+    per_goal = r.get(f"goal_{role}")
+    per_goal = _d(r["goal"] if per_goal is None else per_goal)
+    pens = min(int(perf.get("pen_scored", 0)), goals)     # rigori segnati: gia' nei gol
+    if r.get("goal_penalty") is None:
+        total += per_goal * goals
+    else:
+        total += per_goal * (goals - pens) + _d(r["goal_penalty"]) * pens
     total += _d(r["assist"])        * int(perf.get("assists", 0))
     total += _d(r["own_goal"])      * int(perf.get("own_goals", 0))
     total += _d(r["pen_missed"])    * int(perf.get("pen_missed", 0))
@@ -93,6 +126,7 @@ def player_fantavoto(perf, role, rules):
 
 def goals_from_total(total, rules):
     """Convert a summed fantavoto to goals on the threshold ladder."""
+    rules = effective_rules(rules)
     base, step = _d(rules["conv_base"]), _d(rules["conv_step"])
     total = _d(total)
     if total < base:
@@ -123,7 +157,7 @@ def score_lineup(starters, bench, perf, rules=None):
     Returns a detailed result: total fantapunti, goals, the applied defensive
     modifier, and per-slot lines (with which bench player, if any, came on).
     """
-    rules = {**DEFAULTS, **(rules or {})}
+    rules = effective_rules(rules)
 
     lines = []
     for s in starters:
@@ -163,10 +197,19 @@ def score_lineup(starters, bench, perf, rules=None):
         modificatore = _modificatore_difesa(lines, rules)
         total += modificatore
 
+    # Fair play: nobody who played (starter or substitute) got a card.
+    fair_play = Decimal("0")
+    if rules.get("fair_play") and any(l["has_vote"] for l in lines):
+        played = [perf.get(l["sub_in"] or l["id"], {}) for l in lines if l["has_vote"]]
+        if not any(p.get("yellow") or p.get("red") for p in played):
+            fair_play = _d(rules["fair_play"])
+            total += fair_play
+
     return {
         "total": total,
         "goals": goals_from_total(total, rules),
         "modificatore": modificatore,
+        "fair_play": fair_play,
         "subs": subs_done,
         "lines": lines,
     }

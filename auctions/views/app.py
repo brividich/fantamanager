@@ -204,7 +204,7 @@ def app_live(request):
         if current_giornata:
             my_score = GiornataScore.objects.filter(giornata=current_giornata, participant=participant).first()
             perf_map = services.giornata_perf_map(current_giornata)
-            rules = (season.rules or {}) if season else {}
+            rules = scoring.effective_rules(season.rules if season else None)
             # Totals typed in by the admin (another site gives no votes): they win
             # over the engine, which has nothing to count.
             manual = {gs.participant_id: gs for gs in GiornataScore.objects.filter(giornata=current_giornata)

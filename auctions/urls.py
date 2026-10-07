@@ -281,6 +281,7 @@ urlpatterns = [
     path("dashboard/giornate/live-consolidate/", views.admin_live_voti_consolidate, name="admin_live_voti_consolidate"),
     path("dashboard/giornate/blocca/", views.admin_giornata_lock, name="admin_giornata_lock"),
     path("dashboard/giornate/punteggi/", views.admin_giornata_manual_scores, name="admin_giornata_manual_scores"),
+    path("dashboard/giornate/regole/", views.admin_scoring_rules, name="admin_scoring_rules"),
     path("dashboard/giornate/formazione/<int:participant_id>/", views.admin_formation_edit, name="admin_formation_edit"),
     path("app/giornate/", views.admin_giornate, name="app_giornate"),
     path("app/giornate/import/", views.admin_voti_import, name="app_voti_import"),
@@ -288,6 +289,7 @@ urlpatterns = [
     path("app/giornate/live-consolidate/", views.admin_live_voti_consolidate, name="app_live_voti_consolidate"),
     path("app/giornate/blocca/", views.admin_giornata_lock, name="app_giornata_lock"),
     path("app/giornate/punteggi/", views.admin_giornata_manual_scores, name="app_giornata_manual_scores"),
+    path("app/giornate/regole/", views.admin_scoring_rules, name="app_scoring_rules"),
     path("app/giornate/formazione/<int:participant_id>/", views.admin_formation_edit, name="app_formation_edit"),
     path("dashboard/contracts/action/", views.admin_contracts_action, name="admin_contracts_action"),
 

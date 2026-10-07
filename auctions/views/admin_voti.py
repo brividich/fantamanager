@@ -10,7 +10,8 @@ from django.views.decorators.http import require_POST
 
 from ..models import Formation, Giornata, League, Participant, Season
 from ..services.competitions import season_name
-from ..services.scoring import set_manual_scores
+from .. import scoring as scoring_engine
+from ..services.scoring import recompute_season, set_manual_scores
 from ..services.formation import (admin_save_matchday_formation, formation_state, is_editable,
                                   lock_formations, target_giornata)
 from ..services.voti import compute_coppa_italia_battle_royale, import_voti_giornata, parse_voti_file
@@ -127,6 +128,7 @@ def admin_giornate(request):
         "lineups_saved": lineups_saved,
         "lineup_rows": lineup_rows,
         "manual_rows": manual_rows,
+        **_rules_form(season),
         "manual_scored": manual_scored,
         "teams_count": teams_count,
         "live_sync_status": LiveSyncManager.get_instance().get_status(),
@@ -270,6 +272,123 @@ def admin_giornata_manual_scores(request):
         return redirect(back)
     set_manual_scores(giornata, entries)
     messages.success(request, f"Giornata {num}: punteggi di {len(entries)} squadre salvati, risultati e classifica aggiornati.")
+    return redirect(back)
+
+
+# The league's scoring rules, as the form shows them: (key, label, hint, switchable, optional).
+RULE_GROUPS = [
+    ("Gol e panchina", [
+        ("conv_base", "Primo gol con", "fantapunti", False, False),
+        ("conv_step", "Un gol in più ogni", "fantapunti", False, False),
+        ("max_subs", "Cambi dalla panchina", "giocatori", False, False),
+    ]),
+    ("Bonus e malus", [
+        ("goal", "Gol segnato", "", True, False),
+        ("goal_P", "Gol del portiere", "vuoto = come un gol", False, True),
+        ("goal_D", "Gol del difensore", "vuoto = come un gol", False, True),
+        ("goal_C", "Gol del centrocampista", "vuoto = come un gol", False, True),
+        ("goal_A", "Gol dell'attaccante", "vuoto = come un gol", False, True),
+        ("goal_penalty", "Rigore segnato", "vuoto = come un gol", False, True),
+        ("assist", "Assist", "", True, False),
+        ("own_goal", "Autogol", "", True, False),
+        ("pen_missed", "Rigore sbagliato", "", True, False),
+        ("pen_saved", "Rigore parato (portiere)", "", True, False),
+        ("yellow", "Ammonizione", "", True, False),
+        ("red", "Espulsione", "", True, False),
+        ("goal_conceded", "Gol subito (portiere), per gol", "", True, False),
+        ("clean_sheet", "Porta inviolata (portiere)", "", True, False),
+        ("fair_play", "Fair play: nessun cartellino in squadra", "", True, False),
+    ]),
+]
+_RULE_LIMITS = {"conv_base": (1, 200), "conv_step": (Decimal("0.5"), 50), "max_subs": (0, 11)}
+
+
+def _rules_form(season):
+    raw = dict(season.rules or {}) if season else {}
+    off = set(raw.get("off") or [])
+    values = {**scoring_engine.DEFAULTS, **{k: v for k, v in raw.items() if k != "off"}}
+    groups = []
+    for title, items in RULE_GROUPS:
+        rows = []
+        for key, label, hint, switchable, optional in items:
+            value = values.get(key)
+            rows.append({"key": key, "label": label, "hint": hint, "switchable": switchable,
+                         "on": key not in off, "value": "" if value is None else _decimal_text(Decimal(str(value)))})
+        groups.append({"title": title, "rows": rows})
+    table = [list(r) for r in (values.get("modif_table") or [])][:4]
+    table += [["", ""]] * (4 - len(table))
+    return {
+        "rule_groups": groups,
+        "modif_on": bool(values.get("modificatore_difesa")),
+        "modif_rows": [{"i": i, "avg": _decimal_text(Decimal(str(a))) if a != "" else "",
+                        "bonus": _decimal_text(Decimal(str(b))) if b != "" else ""} for i, (a, b) in enumerate(table)],
+        "rules_custom": bool(raw),
+    }
+
+
+@staff_member_required
+@require_POST
+def admin_scoring_rules(request):
+    """Save the league's scoring rules (thresholds, every bonus and malus, each
+    one switchable) on its current season; optionally apply them to the
+    giornate already played."""
+    league_id = request.POST.get("league_id")
+    league = get_object_or_404(League, pk=league_id) if league_id else current_league(request)
+    if league is None or not user_can_manage_league(request.user, league):
+        return HttpResponseForbidden("Non hai i permessi per gestire questa lega.")
+    season = _current_season(league)
+    back = _back(request, _giornate_url(request))
+
+    if request.POST.get("reset"):
+        season.rules = {}
+        season.save(update_fields=["rules"])
+        messages.success(request, "Regole di punteggio riportate ai valori classici del Fantacalcio.")
+    else:
+        rules, off, bad = {k: v for k, v in (season.rules or {}).items() if k in ("captain_enabled",) or k.startswith("captain_")}, [], []
+        for _title, items in RULE_GROUPS:
+            for key, label, _hint, switchable, optional in items:
+                raw = (request.POST.get(f"rule_{key}") or "").strip().replace(",", ".")
+                if not raw:
+                    if not optional:
+                        bad.append(label)
+                    continue
+                try:
+                    value = Decimal(raw)
+                except InvalidOperation:
+                    bad.append(label)
+                    continue
+                low, high = _RULE_LIMITS.get(key, (-20, 20))
+                if not low <= value <= high:
+                    bad.append(label)
+                    continue
+                rules[key] = int(value) if key == "max_subs" else float(value)
+                if switchable and not request.POST.get(f"on_{key}"):
+                    off.append(key)
+        table = []
+        for i in range(4):
+            a = (request.POST.get(f"modif_avg_{i}") or "").strip().replace(",", ".")
+            b = (request.POST.get(f"modif_bonus_{i}") or "").strip().replace(",", ".")
+            if not a and not b:
+                continue
+            try:
+                table.append([float(Decimal(a)), float(Decimal(b))])
+            except InvalidOperation:
+                bad.append("Modificatore difesa")
+        if bad:
+            messages.error(request, "Valori non validi: " + ", ".join(dict.fromkeys(bad)) + ". Nessuna regola cambiata.")
+            return redirect(back)
+        rules["modificatore_difesa"] = bool(request.POST.get("modificatore_difesa"))
+        if table:
+            rules["modif_table"] = table
+        if off:
+            rules["off"] = off
+        season.rules = rules
+        season.save(update_fields=["rules"])
+        messages.success(request, "Regole di punteggio della lega salvate.")
+    if request.POST.get("recompute"):
+        n = recompute_season(season)
+        messages.info(request, f"Ricalcolate {n} giornate già giocate con le nuove regole." if n
+                      else "Nessuna giornata già giocata da ricalcolare.")
     return redirect(back)
 
 

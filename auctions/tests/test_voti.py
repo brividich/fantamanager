@@ -696,3 +696,90 @@ class ManualScoresTests(TestCase):
         self.assertContains(resp, "inserito a mano")
         board = {row["participant"].id: row["total"] for row in resp.context["leaderboard"]}
         self.assertEqual(board[self.home.id], Decimal("85.5"))
+
+
+class ScoringRulesTests(TestCase):
+    """Regole di punteggio della lega: soglie gol, bonus e malus (ognuno si può
+    spegnere), gol per ruolo, rigore, fair play, modificatore difesa."""
+
+    def test_engine_switch_off_role_goal_penalty_and_fair_play(self):
+        from .. import scoring
+        perf = {"vote": 6, "goals": 2, "pen_scored": 1, "yellow": True}
+        base, _ = scoring.player_fantavoto(perf, "D", scoring.effective_rules({}))
+        self.assertEqual(base, Decimal("11.5"))                    # 6 + 2*3 - 0.5
+        rules = scoring.effective_rules({"goal_D": 4.5, "goal_penalty": 2, "off": ["yellow"]})
+        fv, _ = scoring.player_fantavoto(perf, "D", rules)
+        self.assertEqual(fv, Decimal("12.5"))                      # 6 + 4.5 + 2
+        no_goals = scoring.effective_rules({"goal_D": 4.5, "off": ["goal"]})
+        self.assertEqual(scoring.player_fantavoto(perf, "D", no_goals)[0], Decimal("5.5"))
+        starters = [{"id": 1, "role": "P"}, {"id": 2, "role": "A"}]
+        clean = {1: {"vote": 6}, 2: {"vote": 6}}
+        res = scoring.score_lineup(starters, [], clean, {"fair_play": 1, "clean_sheet": 0})
+        self.assertEqual(res["fair_play"], Decimal("1"))
+        clean[2]["yellow"] = True
+        self.assertEqual(scoring.score_lineup(starters, [], clean, {"fair_play": 1})["fair_play"], Decimal("0"))
+
+    def test_goal_ladder_follows_the_league(self):
+        from .. import scoring
+        self.assertEqual(scoring.goals_from_total(Decimal("71"), {"conv_base": 60, "conv_step": 5}), 3)
+        self.assertEqual(scoring.goals_from_total(Decimal("71"), {}), 1)
+
+    def _setup_league(self):
+        from django.contrib.auth.models import User
+        from ..models import Competition, Fixture, Giornata, Participant, Season
+        owner = User.objects.create_user("owner_sr", password="pw")
+        league = League.objects.create(name="Lega Regole", owner=owner)
+        home = Participant.objects.create(display_name="Casa", league=league)
+        away = Participant.objects.create(display_name="Ospiti", league=league)
+        season = Season.objects.create(league=league, name="S")
+        g = Giornata.objects.create(season=season, number=1, status="OPEN")
+        fx = Fixture.objects.create(competition=Competition.objects.create(season=season, name="C"),
+                                    giornata=g, home=home, away=away)
+        self.client.force_login(owner)
+        return league, season, g, fx, home, away
+
+    def test_admin_saves_rules_and_played_giornate_follow(self):
+        from django.urls import reverse
+        from .. import services
+        league, season, g, fx, home, away = self._setup_league()
+        services.set_manual_scores(g, {home: (Decimal("70"), None), away: (Decimal("64"), None)})
+        fx.refresh_from_db()
+        self.assertEqual((fx.home_goals, fx.away_goals), (1, 0))
+        form = {"league_id": league.id, "recompute": "1", "rule_conv_base": "60", "rule_conv_step": "5",
+                "rule_max_subs": "3", "rule_goal": "3", "on_goal": "1", "rule_assist": "1", "on_assist": "1",
+                "rule_own_goal": "-2", "rule_pen_missed": "-3", "rule_pen_saved": "3", "rule_yellow": "-0,5",
+                "rule_red": "-1", "rule_goal_conceded": "-1", "rule_clean_sheet": "1", "rule_fair_play": "0",
+                "rule_goal_D": "4,5", "modif_avg_0": "7", "modif_bonus_0": "6", "modificatore_difesa": "1"}
+        resp = self.client.post(reverse("admin_scoring_rules"), form)
+        self.assertEqual(resp.status_code, 302)
+        season.refresh_from_db()
+        self.assertEqual(season.rules["conv_base"], 60.0)
+        self.assertEqual(season.rules["goal_D"], 4.5)
+        self.assertIn("yellow", season.rules["off"])               # left unticked
+        self.assertNotIn("goal", season.rules["off"])
+        self.assertTrue(season.rules["modificatore_difesa"])
+        self.assertEqual(season.rules["modif_table"], [[7.0, 6.0]])
+        fx.refresh_from_db()
+        self.assertEqual((fx.home_goals, fx.away_goals), (3, 1))   # 70 and 64 on the 60/5 ladder
+
+    def test_bad_value_changes_nothing_and_reset_restores(self):
+        from django.urls import reverse
+        league, season, *_ = self._setup_league()
+        season.rules = {"conv_base": 70}
+        season.save()
+        self.client.post(reverse("admin_scoring_rules"), {"league_id": league.id, "rule_conv_base": "boh"})
+        season.refresh_from_db()
+        self.assertEqual(season.rules, {"conv_base": 70})
+        self.client.post(reverse("admin_scoring_rules"), {"league_id": league.id, "reset": "1"})
+        season.refresh_from_db()
+        self.assertEqual(season.rules, {})
+
+    def test_form_is_on_the_giornate_page_and_other_league_refused(self):
+        from django.contrib.auth.models import User
+        from django.urls import reverse
+        league, *_ = self._setup_league()
+        resp = self.client.get(reverse("admin_giornate") + f"?league={league.id}")
+        self.assertContains(resp, "Regole di punteggio della lega")
+        self.assertContains(resp, 'name="rule_goal_penalty"')
+        self.client.force_login(User.objects.create_user("x_sr", password="pw"))
+        self.assertEqual(self.client.post(reverse("admin_scoring_rules"), {"league_id": league.id, "reset": "1"}).status_code, 403)
