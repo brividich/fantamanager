@@ -24,9 +24,8 @@ datas += collect_data_files("auctions")          # auctions/templates/**
 _templates = os.path.join(ROOT, "auctions", "templates")
 if os.path.isdir(_templates):
     datas += [(_templates, os.path.join("auctions", "templates"))]
-# Season stats shipped with the build (auctions/data/*.xlsx). Named explicitly so
-# a change in how collect_data_files treats non-package subfolders can never
-# silently ship an app whose player cards have nothing to show.
+# auctions/data/ (vuota nel repository: le statistiche di terzi non si
+# ridistribuiscono). Se una build privata ci mette dei file, li imbarca.
 _data = os.path.join(ROOT, "auctions", "data")
 if os.path.isdir(_data):
     datas += [(_data, os.path.join("auctions", "data"))]

@@ -1,6 +1,7 @@
 import asyncio
 import json
 import io
+import os
 import re
 import sqlite3
 import tempfile
@@ -1317,66 +1318,99 @@ class StatsTests(TestCase):
         self.assertEqual(Player.objects.get(name="Dimarco").fanta_avg, Decimal("7.1"))
 
 
-class BundledStatsTests(TestCase):
-    """Le statistiche di stagione viaggiano dentro l'app, non le carica l'utente."""
+class ServerStatsTests(TestCase):
+    """Le statistiche di stagione: l'app non ne include; le dà il server
+    (FANTAMANAGER_STATS_FILE) oppure le carica la lega."""
+
+    CSV = (b"Id;R;Nome;Squadra;Pv;Mv;Fm;Gf;Ass\n"
+           b"4220;A;Malen;Roma;30;6,8;8,9;9;3\n"
+           b"2160;C;Dimarco;Inter;33;6,5;7,1;4;8\n")
 
     def setUp(self):
+        import tempfile
         from django.contrib.auth import get_user_model
         self.user = get_user_model().objects.create_user(
             "regia-stat", password="x", is_staff=True, is_superuser=True)
         self.client.force_login(self.user)
         self.league = League.objects.create(name="Lega Stat")
+        tmp = tempfile.NamedTemporaryFile(suffix=".csv", delete=False)
+        tmp.write(self.CSV)
+        tmp.close()
+        self.addCleanup(os.unlink, tmp.name)
+        self.stats_path = tmp.name
 
-    def test_the_shipped_file_is_present_and_parses(self):
+    def _server_file(self):
+        return override_settings(FANTAMANAGER_STATS_FILE=self.stats_path,
+                                 FANTAMANAGER_STATS_SEASON="2025/26")
+
+    def test_the_repository_ships_no_third_party_stats(self):
+        data = Path(importers.__file__).resolve().parent.parent / "data"
+        shipped = [f for f in data.glob("*") if f.suffix.lower() in (".xlsx", ".xls", ".csv")] \
+            if data.is_dir() else []
+        self.assertEqual(shipped, [])
+
+    @override_settings(FANTAMANAGER_STATS_FILE="")
+    def test_without_a_server_file_nothing_is_seeded(self):
         rows, errors = importers.bundled_stats_rows()
+        self.assertEqual(rows, [])
+        report = importers.sync_players(
+            [{"ext_id": "4220", "name": "Malen", "role": "A", "team": "Roma", "initial_price": 1}],
+            league=self.league)
+        self.assertEqual(report["stats_seeded"], 0)
+
+    def test_the_server_file_parses(self):
+        with self._server_file():
+            rows, errors = importers.bundled_stats_rows()
         self.assertEqual(errors, [])
-        self.assertGreater(len(rows), 400)
-        self.assertTrue(any(r["fanta_avg"] for r in rows))
+        self.assertEqual(len(rows), 2)
 
     def test_importing_a_listone_fills_the_stats_by_itself(self):
-        rows, _ = importers.bundled_stats_rows()
-        sample = next(r for r in rows if r["ext_id"] and r["fanta_avg"])
-        report = importers.sync_players(
-            [{"ext_id": sample["ext_id"], "name": sample["name"], "role": "A",
-              "team": sample["team"], "initial_price": 1}],
-            league=self.league)
+        with self._server_file():
+            report = importers.sync_players(
+                [{"ext_id": "4220", "name": "Malen", "role": "A", "team": "Roma",
+                  "initial_price": 1}],
+                league=self.league)
         self.assertEqual(report["stats_seeded"], 1)
-        p = Player.objects.get(league=self.league, ext_id=sample["ext_id"])
-        self.assertEqual(p.fanta_avg, sample["fanta_avg"])
-        self.assertEqual(p.presences, sample["presences"])
+        p = Player.objects.get(league=self.league, ext_id="4220")
+        self.assertEqual(p.fanta_avg, Decimal("8.9"))
+        self.assertEqual(p.presences, 30)
 
     def test_seeding_never_overwrites_stats_already_there(self):
-        rows, _ = importers.bundled_stats_rows()
-        sample = next(r for r in rows if r["ext_id"] and r["fanta_avg"])
         Player.objects.create(
-            league=self.league, ext_id=sample["ext_id"], name=sample["name"],
+            league=self.league, ext_id="4220", name="Malen",
             role="A", initial_price=1, fanta_avg=Decimal("3.5"))
-        importers.seed_stats(self.league)
-        p = Player.objects.get(league=self.league, ext_id=sample["ext_id"])
+        with self._server_file():
+            importers.seed_stats(self.league)
+        p = Player.objects.get(league=self.league, ext_id="4220")
         self.assertEqual(p.fanta_avg, Decimal("3.5"))
 
-    def test_the_button_applies_the_shipped_file_with_no_upload(self):
-        rows, _ = importers.bundled_stats_rows()
-        sample = next(r for r in rows if r["ext_id"] and r["fanta_avg"])
+    def test_the_button_applies_the_server_file_with_no_upload(self):
         Player.objects.create(
-            league=self.league, ext_id=sample["ext_id"], name=sample["name"],
-            role="A", initial_price=1)
-        r = self.client.post("/admin-auction/players/stats/",
-                             {"league_id": self.league.id})
+            league=self.league, ext_id="4220", name="Malen", role="A", initial_price=1)
+        with self._server_file():
+            r = self.client.post("/admin-auction/players/stats/",
+                                 {"league_id": self.league.id})
         self.assertEqual(r.status_code, 200)
         body = r.json()
         self.assertTrue(body["ok"])
         self.assertEqual(body["matched"], 1)
-        self.assertIn(importers.BUNDLED_STATS_SEASON, body["source"])
+        self.assertIn("2025/26", body["source"])
 
-    def test_an_uploaded_file_still_wins_over_the_shipped_one(self):
+    @override_settings(FANTAMANAGER_STATS_FILE="")
+    def test_without_a_server_file_the_button_asks_for_one(self):
+        r = self.client.post("/admin-auction/players/stats/", {"league_id": self.league.id})
+        self.assertEqual(r.status_code, 400)
+        self.assertFalse(r.json()["ok"])
+
+    def test_an_uploaded_file_still_wins_over_the_server_one(self):
         Player.objects.create(league=self.league, name="Malen", role="A", initial_price=1)
         from django.core.files.uploadedfile import SimpleUploadedFile
         csv = SimpleUploadedFile(
             "mie.csv", b"Nome;Squadra;Pv;Mv;Fm;Gf;Ass\nMalen;Atalanta;30;7;9;20;5\n",
             content_type="text/csv")
-        r = self.client.post("/admin-auction/players/stats/",
-                             {"league_id": self.league.id, "stats_file": csv})
+        with self._server_file():
+            r = self.client.post("/admin-auction/players/stats/",
+                                 {"league_id": self.league.id, "stats_file": csv})
         self.assertEqual(r.json()["source"], "mie.csv")
         p = Player.objects.get(league=self.league, name="Malen")
         self.assertEqual(p.goals, 20)
@@ -1385,9 +1419,11 @@ class BundledStatsTests(TestCase):
         Player.objects.create(league=self.league, name="Con", role="A",
                               initial_price=1, fanta_avg=Decimal("7.5"))
         Player.objects.create(league=self.league, name="Senza", role="A", initial_price=1)
-        r = self.client.get(f"/admin-auction/players/?league={self.league.id}")
+        with self._server_file():
+            r = self.client.get(f"/admin-auction/players/?league={self.league.id}")
         self.assertEqual(r.context["stats_covered"], 1)
-        self.assertEqual(r.context["stats_season"], importers.BUNDLED_STATS_SEASON)
+        self.assertEqual(r.context["stats_season"], "2025/26")
+        self.assertTrue(r.context["stats_server_file"])
 
 
 class AppShellTests(TestCase):
