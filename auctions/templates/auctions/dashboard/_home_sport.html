@@ -5,7 +5,7 @@
     <!-- ═══════════════════════════════════ MULTI-TENANT HUB (NO LEAGUE SELECTED) -->
     <div class="fm-sport-header-bar">
         <div class="fm-sport-header-info">
-            <div class="fm-sport-badge-row">
+            <div class="fm-sport-badge-row fm-onerow">
                 <span class="fm-badge-pill pill-accent"><svg class="ic">
                         <use href="#i-trophy" />
                     </svg> Hub Multi-Tenant</span>
@@ -15,7 +15,7 @@
             <p class="fm-sport-desc">Da dove vuoi partire? Seleziona la competizione per accedere al centro di
                 controllo, conduzione aste live, mercato e rose.</p>
         </div>
-        <div class="fm-sport-header-actions">
+        <div class="fm-sport-header-actions fm-onerow">
             <a class="fm-btn fm-btn-primary fm-glow-btn fm-btn-sm" href="{% url 'admin_create_league' %}">
                 <svg class="ic">
                     <use href="#i-plus" />
@@ -128,7 +128,7 @@
     <!-- 1. COMPACT LEAGUE OPERATIONAL BAR -->
     <div class="fm-sport-header-bar">
         <div class="fm-sport-header-info">
-            <div class="fm-sport-badge-row">
+            <div class="fm-sport-badge-row fm-onerow">
                 <span class="fm-badge-pill pill-lead"><svg class="ic">
                         <use href="#i-trophy" />
                     </svg> {{ current_league.name }}</span>
@@ -143,7 +143,7 @@
             <p class="fm-sport-desc">Centro di controllo completo: gestione rose per reparto, crediti, iscritti e
                 sessioni d'asta.</p>
         </div>
-        <div class="fm-sport-header-actions">
+        <div class="fm-sport-header-actions fm-onerow">
             <a class="fm-btn fm-btn-primary fm-glow-btn fm-btn-sm" href="{% url 'admin_auction_wizard' %}">
                 <svg class="ic">
                     <use href="#i-plus" />
@@ -1806,7 +1806,7 @@
                 <button type="button" class="fm-modal-close" onclick="closeModal('modal-credentials-summary')">&times;</button>
             </div>
             <div class="fm-modal-body" style="max-height:480px;overflow-y:auto">
-                <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+                <div class="fm-onerow" style="gap:8px;margin-bottom:14px">
                     <button type="button" class="fm-btn fm-btn-primary fm-btn-sm" onclick="copyAllCredentialsToClipboard()">
                         📋 Copia Tutto negli Appunti
                     </button>
