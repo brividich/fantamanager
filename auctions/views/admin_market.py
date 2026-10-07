@@ -23,6 +23,7 @@ from ..services.market import (
     plan_market_resolution,
     resolve_market_session,
     settle_market_tie,
+    session_moves,
     sync_market_schedule,
     undo_market_resolution,
 )
@@ -313,6 +314,8 @@ _BUSTE_LABELS = {
     "step_open": "Consegna", "step_end": "Spoglio",
     "close_hint": "Chiudi la consegna delle buste", "open_hint": "Apri subito la consegna delle buste",
     "deliveries": "Consegna delle buste", "item": "offerta", "items": "offerte", "done": "Consegnate",
+    "pending": "In attesa", "preview": "Anteprima spoglio", "resolve": "Scrutina buste",
+    "lost": "Buste non aggiudicate",
 }
 SESSION_LABELS = {
     _ST.SEALED_BIDS: _BUSTE_LABELS,
@@ -324,24 +327,29 @@ SESSION_LABELS = {
         "close_hint": "Sospendi i rinnovi: le squadre non possono dichiarare né tirare i dadi",
         "open_hint": "Apri subito i rinnovi",
         "deliveries": "Rinnovi delle squadre", "item": "", "items": "", "done": "In regola",
+        "pending": "", "preview": "", "resolve": "Chiudi & Risolvi Rinnovi", "lost": "",
     },
     _ST.FREE_AGENCY: {
         "open": "Acquisti aperti", "closed": "Acquisti sospesi", "resolved": "Finestra conclusa",
         "step_open": "Acquisti", "step_end": "Conclusa",
         "close_hint": "Sospendi gli acquisti", "open_hint": "Apri subito gli acquisti",
         "deliveries": "Acquisti delle squadre", "item": "acquisto", "items": "acquisti", "done": "Attiva",
+        "pending": "Nessun acquisto", "preview": "", "resolve": "Concludi la finestra", "lost": "",
     },
     _ST.WAIVER_WIRE: {
         "open": "Reclami aperti", "closed": "Reclami chiusi", "resolved": "Draft eseguito",
         "step_open": "Reclami", "step_end": "Draft",
         "close_hint": "Chiudi la finestra dei reclami", "open_hint": "Apri subito i reclami",
         "deliveries": "Reclami delle squadre", "item": "reclamo", "items": "reclami", "done": "Inviati",
+        "pending": "In attesa", "preview": "Anteprima draft", "resolve": "Esegui Draft Waiver",
+        "lost": "Reclami non assegnati",
     },
     _ST.BUYOUT_CLAUSE: {
         "open": "Clausole attive", "closed": "Clausole sospese", "resolved": "Finestra conclusa",
         "step_open": "Clausole", "step_end": "Conclusa",
         "close_hint": "Sospendi le clausole", "open_hint": "Attiva subito le clausole",
         "deliveries": "Clausole pagate dalle squadre", "item": "clausola", "items": "clausole", "done": "Attiva",
+        "pending": "Nessuna clausola", "preview": "", "resolve": "Concludi la finestra", "lost": "",
     },
 }
 
@@ -404,12 +412,17 @@ def session_manage_context(request, session):
     )
 
     is_renewals = session.session_type == MarketSession.SessionType.RENEWALS
+    labels = SESSION_LABELS.get(session.session_type, _BUSTE_LABELS)
     participants_stats = []
     delivered = 0
     bid_counts = dict(
-        MarketBid.objects.filter(session=session)
+        (session_moves(session) if session.session_type in (_ST.FREE_AGENCY, _ST.BUYOUT_CLAUSE)
+         else MarketBid.objects.filter(session=session))
         .values("participant_id").annotate(cnt=Count("id")).values_list("participant_id", "cnt")
     )
+    # Free agency and clauses buy on the spot: what they "hand in" are the
+    # purchases in the roster log, not envelopes.
+    session.n_bids = sum(bid_counts.values())
     participants = list(
         Participant.objects.filter(league=league).annotate(roster_n=Count("roster")).order_by("display_name")
     )
@@ -431,7 +444,7 @@ def session_manage_context(request, session):
     results, is_preview = None, False
     if session.status == MarketSession.Status.RESOLVED:
         results = session.results_summary or None
-    elif request.GET.get("preview") == "1" and not is_renewals:
+    elif request.GET.get("preview") == "1" and labels["preview"]:
         results = plan_market_resolution(session.id)
         is_preview = True
 
@@ -440,7 +453,8 @@ def session_manage_context(request, session):
         "s": session,
         "current_league": league,
         "now": timezone.now(),
-        "mk_labels": SESSION_LABELS.get(session.session_type, _BUSTE_LABELS),
+        "mk_labels": labels,
+        "is_buste": session.session_type in (_ST.SEALED_BIDS, _ST.REPAIR),
         "is_renewals": is_renewals,
         "renewals": renewals,
         "mail_ready": mail.is_ready(),
@@ -634,6 +648,9 @@ def admin_market_create(request):
     if opens_at and closes_at and closes_at <= opens_at:
         messages.error(request, "La chiusura deve essere successiva all'apertura.")
         return redirect(_dashboard_url(request, league_id=league.id, tab="buste"))
+    if session_type == MarketSession.SessionType.WAIVER_WIRE and closes_at is None:
+        # La finestra reclami dura quanto scelto nel wizard (24/48/72 ore).
+        closes_at = (opens_at or timezone.now()) + timedelta(hours=rules["config"]["waiver_claim_hours"] or 24)
     scheduled = opens_at is not None and opens_at > timezone.now()
 
     status = MarketSession.Status.DRAFT if scheduled else MarketSession.Status.OPEN

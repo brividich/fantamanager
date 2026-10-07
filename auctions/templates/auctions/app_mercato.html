@@ -753,7 +753,7 @@
                 <a href="?{% if market_session %}session_id={{ market_session.id }}{% elif is_listone_view %}view=listone{% endif %}" class="role-chip" style="cursor:pointer;text-decoration:none;padding:0 12px;font-size:12px;background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.3);display:inline-flex;align-items:center;line-height:1;" title="Azzera ricerca">✕ Resetta</a>
                 {% endif %}
             </div>
-            <div class="role-chips" role="radiogroup" aria-label="Ruolo">
+            <div class="role-chips fm-onerow" role="radiogroup" aria-label="Ruolo">
                 {% for code, label in role_filters %}
                 <label class="role-chip r-{{ code }} {% if role == code %}on{% endif %}" style="cursor:pointer">
                     <input type="radio" name="role" value="{{ code }}" {% if role == code %}checked{% endif %} onchange="this.form.submit()" style="display:none">{{ label }}
@@ -1061,6 +1061,7 @@
             </div>
         </div>
     </div>
+    {% endif %}
 
     <!-- =====================================================================
          TAB: ESITO SPOGLIO BUSTE (Quando la sessione è scrutinata)
@@ -1428,14 +1429,16 @@
                     <b style="font-size:13.5px">{% if market_session.config.buyout_min_hold_days == 0 %}0{% else %}{{ market_session.config.buyout_min_hold_days|default:7 }}{% endif %} giorni</b>
                 </div>
                 {% endif %}
+                {% if is_buste %}
                 <div style="background:var(--panel-2);padding:10px 12px;border-radius:10px;border:1px solid var(--line);">
                     <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Regola Budget</span>
                     <b style="font-size:13.5px">{% if market_session.budget_rule == "total" %}Totale offerte ≤ budget{% else %}Ogni offerta ≤ budget, conta priorità{% endif %}</b>
                 </div>
                 <div style="background:var(--panel-2);padding:10px 12px;border-radius:10px;border:1px solid var(--line);">
                     <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Spareggio Pari Merito</span>
-                    <b style="font-size:13.5px">{% if market_session.tie_break == "first" %}Vince chi offre per primo{% else %}Decide l'amministratore / sorteggio{% endif %}</b>
+                    <b style="font-size:13.5px">{% if market_session.tie_break == "first" %}Vince chi offre per primo{% elif market_session.tie_break == "rebid" %}Secondo sfoglio tra le squadre in parità{% else %}Decide l'amministratore / sorteggio{% endif %}</b>
                 </div>
+                {% endif %}
                 <div style="background:var(--panel-2);padding:10px 12px;border-radius:10px;border:1px solid var(--line);">
                     <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Sostituzione Rosa</span>
                     <b style="font-size:13.5px">{% if market_session.require_same_role_release %}Obbligatoria con pari ruolo{% elif market_session.allow_conditional_release %}Taglio condizionato facoltativo{% else %}Nessun taglio consentito{% endif %}</b>
@@ -1444,7 +1447,7 @@
                     <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Rimborso Svincoli</span>
                     <b style="font-size:13.5px">{{ market_session.get_release_refund_mode_display }}</b>
                 </div>
-                {% if market_session.max_bids %}
+                {% if is_buste and market_session.max_bids %}
                 <div style="background:var(--panel-2);padding:10px 12px;border-radius:10px;border:1px solid var(--line);">
                     <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Offerte Massime</span>
                     <b style="font-size:13.5px">{{ market_session.max_bids }} buste per squadra</b>
@@ -1454,7 +1457,6 @@
         </div>
         {% endif %}
     </div>
-    {% endif %}
 
     <!-- =====================================================================
          TAB 4: EXTRA SALARY CAP (Se abilitato)
@@ -1597,10 +1599,11 @@
             <input type="hidden" id="fa-player-id" name="player_id">
             <input type="hidden" name="session_id" value="{{ market_session.id }}">
 
+            {% if market_session.allow_conditional_release or market_session.require_same_role_release %}
             <div class="form-group">
-                <label>Svincola un calciatore (opzionale o se hai la rosa piena)</label>
-                <select name="release_player_id" id="fa-release-player" onchange="updateFaCalc()">
-                    <option value="">-- Nessun taglio (mantieni tutti i giocatori) --</option>
+                <label>{% if market_session.require_same_role_release %}Giocatore da sostituire (stesso ruolo, obbligatorio){% else %}Svincola un calciatore (opzionale o se hai la rosa piena){% endif %}</label>
+                <select name="release_player_id" id="fa-release-player" onchange="updateFaCalc()"{% if market_session.require_same_role_release %} required data-same-role="1"{% endif %}>
+                    <option value="">{% if market_session.require_same_role_release %}-- Scegli chi tagliare --{% else %}-- Nessun taglio (mantieni tutti i giocatori) --{% endif %}</option>
                     {% for rp in my_roster %}
                     <option value="{{ rp.id }}" data-refund="{{ rp.market_refund }}" data-role="{{ rp.role }}">
                         Taglia {{ rp.name }} ({{ rp.role }} - {{ rp.team }}) [+{{ rp.market_refund }} FM]
@@ -1608,6 +1611,7 @@
                     {% endfor %}
                 </select>
             </div>
+            {% endif %}
 
             <div style="background:rgba(255,255,255,.04);padding:14px;border-radius:12px;margin-bottom:14px;font-size:12px">
                 <div style="display:flex;justify-content:space-between;margin-bottom:6px">
@@ -1655,10 +1659,11 @@
             <input type="hidden" id="bo-player-id" name="player_id">
             <input type="hidden" name="session_id" value="{{ market_session.id }}">
 
+            {% if market_session.allow_conditional_release or market_session.require_same_role_release %}
             <div class="form-group">
-                <label>Svincola un calciatore (opzionale o se hai la rosa piena)</label>
-                <select name="release_player_id" id="bo-release-player" onchange="updateBoCalc()">
-                    <option value="">-- Nessun taglio (mantieni tutti i giocatori) --</option>
+                <label>{% if market_session.require_same_role_release %}Giocatore da sostituire (stesso ruolo, obbligatorio){% else %}Svincola un calciatore (opzionale o se hai la rosa piena){% endif %}</label>
+                <select name="release_player_id" id="bo-release-player" onchange="updateBoCalc()"{% if market_session.require_same_role_release %} required data-same-role="1"{% endif %}>
+                    <option value="">{% if market_session.require_same_role_release %}-- Scegli chi tagliare --{% else %}-- Nessun taglio (mantieni tutti i giocatori) --{% endif %}</option>
                     {% for rp in my_roster %}
                     <option value="{{ rp.id }}" data-refund="{{ rp.market_refund }}" data-role="{{ rp.role }}">
                         Taglia {{ rp.name }} ({{ rp.role }} - {{ rp.team }}) [+{{ rp.market_refund }} FM]
@@ -1666,6 +1671,7 @@
                     {% endfor %}
                 </select>
             </div>
+            {% endif %}
 
             <div style="background:rgba(255,255,255,.04);padding:14px;border-radius:12px;margin-bottom:14px;font-size:12px">
                 <div style="display:flex;justify-content:space-between;margin-bottom:6px">
@@ -1724,17 +1730,19 @@
                 </small>
             </div>
 
+            {% if market_session.allow_conditional_release or market_session.require_same_role_release %}
             <div class="form-group">
-                <label>Taglio condizionato (svincola solo se ti aggiudichi questo giocatore)</label>
-                <select name="release_player_id" id="ww-release-player">
-                    <option value="">-- Nessun taglio (se hai slot liberi) --</option>
+                <label>{% if market_session.require_same_role_release %}Giocatore da sostituire (stesso ruolo, obbligatorio){% else %}Taglio condizionato (svincola solo se ti aggiudichi questo giocatore){% endif %}</label>
+                <select name="release_player_id" id="ww-release-player"{% if market_session.require_same_role_release %} required data-same-role="1"{% endif %}>
+                    <option value="">{% if market_session.require_same_role_release %}-- Scegli chi tagliare --{% else %}-- Nessun taglio (se hai slot liberi) --{% endif %}</option>
                     {% for rp in my_roster %}
-                    <option value="{{ rp.id }}">
+                    <option value="{{ rp.id }}" data-role="{{ rp.role }}">
                         Taglia {{ rp.name }} ({{ rp.role }} - {{ rp.team }})
                     </option>
                     {% endfor %}
                 </select>
             </div>
+            {% endif %}
 
             <div class="modal-btns">
                 <button type="button" class="btn-cancel" onclick="closeWaiverModal()">Annulla</button>
@@ -1766,17 +1774,22 @@
         rEl.textContent = role;
         rEl.className = "role-badge role-" + role;
         document.getElementById("bid-amount").value = Math.max(1, quota);
-        const rel = document.getElementById("bid-release-player");
-        if (rel) {
-            rel.value = "";
-            if (rel.dataset.sameRole) {
-                Array.from(rel.options).forEach(o => {
-                    if (o.value) o.hidden = o.disabled = o.dataset.role !== role;
-                });
-            }
-        }
+        prepRelease("bid-release-player", role);
         updateBudgetCalc();
         modal.classList.add("open");
+    }
+
+    // The cut select of a purchase dialog: empty, and with "same role" rules
+    // only the players of the role being bought.
+    function prepRelease(id, role) {
+        const rel = document.getElementById(id);
+        if (!rel) return;
+        rel.value = "";
+        if (rel.dataset.sameRole) {
+            Array.from(rel.options).forEach(o => {
+                if (o.value) o.hidden = o.disabled = o.dataset.role !== role;
+            });
+        }
     }
 
     function closeBidModal() {
@@ -1889,8 +1902,7 @@
         rEl.textContent = role;
         rEl.className = "role-badge role-" + role;
         faCurrentCost = parseInt(cost, 10) || 0;
-        const rel = document.getElementById("fa-release-player");
-        if (rel) rel.value = "";
+        prepRelease("fa-release-player", role);
         updateFaCalc();
         modal.classList.add("open");
     }
@@ -1965,8 +1977,7 @@
         rEl.textContent = role;
         rEl.className = "role-badge role-" + role;
         boCurrentCost = parseInt(cost, 10) || 0;
-        const rel = document.getElementById("bo-release-player");
-        if (rel) rel.value = "";
+        prepRelease("bo-release-player", role);
         updateBoCalc();
         modal.classList.add("open");
     }
@@ -2045,6 +2056,7 @@
         const rEl = document.getElementById("ww-modal-role");
         rEl.textContent = role;
         rEl.className = "role-badge role-" + role;
+        prepRelease("ww-release-player", role);
         modal.classList.add("open");
     }
 

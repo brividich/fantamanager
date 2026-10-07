@@ -53,22 +53,21 @@ nome, così chi salva sa che c'erano anche quando sono spente.
         <span class="mr-hint">0 = nessuna protezione.</span>
     </label>
     {% endif %}
-    {% if s.session_type != "buyout_clause" %}
     <label class="mr-field">
         <span class="mr-lbl">Rimborso del giocatore tagliato</span>
         <select name="refund_mode" class="mr-input">
             {% for value, label in refund_modes %}<option value="{{ value }}"{% if s.release_refund_mode == value %} selected{% endif %}>{{ label }}</option>{% endfor %}
         </select>
     </label>
-    {% endif %}
 </div>
-{% if s.session_type != "buyout_clause" %}
 <div class="mr-checks">
+    <input type="hidden" name="checks" value="require_same_role_release">
     <input type="hidden" name="checks" value="allow_conditional_release">
+    <label><input type="checkbox" name="require_same_role_release" value="1"{% if s.require_same_role_release %} checked{% endif %}>
+        Ogni acquisto sostituisce un giocatore di pari ruolo (taglio obbligatorio)</label>
     <label><input type="checkbox" name="allow_conditional_release" value="1"{% if s.allow_conditional_release %} checked{% endif %}>
-        Consenti di svincolare un giocatore della rosa insieme all'acquisto</label>
+        Consenti tagli facoltativi insieme all'acquisto</label>
 </div>
-{% endif %}
 {% else %}
 <div class="mr-grid">
     <label class="mr-field">

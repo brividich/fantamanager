@@ -2,6 +2,7 @@ from decimal import Decimal
 import json
 from datetime import timedelta
 
+from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -15,6 +16,9 @@ from ..services.market import (
     resolve_waiver_session,
     resolve_market_session,
     place_market_bid,
+    buyout_price,
+    undo_market_resolution,
+    waiver_order,
 )
 
 
@@ -460,3 +464,117 @@ class MarketEndpointsIntegrationTests(TestCase):
         self.assertContains(resp, "Fase 1: Dichiarazione Rinnovi")
 
 
+
+
+class MarketModeRulesTests(TestCase):
+    """Each kind of market keeps to its own settings (free agency, clauses, waiver)."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user("owner_modes", password="pw")
+        self.league = League.objects.create(name="Lega Modi", budget=Decimal("500"), owner=self.owner)
+        self.a = Participant.objects.create(league=self.league, display_name="Alfa", credits=Decimal("500"))
+        self.b = Participant.objects.create(league=self.league, display_name="Beta", credits=Decimal("500"))
+        self.free = [
+            Player.objects.create(league=self.league, name=f"Libero {i}", role="A", team="Pisa",
+                                  initial_price=Decimal("10"))
+            for i in range(4)
+        ]
+        self.mine = Player.objects.create(league=self.league, owner=self.a, name="Mio", role="A",
+                                          team="Como", cost=Decimal("8"))
+
+    def _session(self, kind, **kw):
+        return MarketSession.objects.create(league=self.league, title=kind, session_type=kind,
+                                            status=MarketSession.Status.OPEN, **kw)
+
+    def test_cuts_follow_the_session_rules(self):
+        fa = self._session("free_agency", allow_conditional_release=False)
+        res = acquire_free_agent(fa.id, self.a.id, self.free[0].id, release_player_id=self.mine.id)
+        self.assertEqual(res["error"], "release_not_allowed")
+        bo = self._session("buyout_clause", allow_conditional_release=False, config={"buyout_min_hold_days": 0})
+        theirs = Player.objects.create(league=self.league, owner=self.b, name="Suo", role="A", cost=Decimal("10"))
+        res = execute_buyout(bo.id, self.a.id, theirs.id, release_player_id=self.mine.id)
+        self.assertEqual(res["error"], "release_not_allowed")
+        ww = self._session("waiver_wire", require_same_role_release=True)
+        res = place_waiver_claim(ww.id, self.a.id, self.free[0].id)
+        self.assertEqual(res["error"], "release_required")
+
+    def test_each_entry_point_only_serves_its_own_kind(self):
+        ww = self._session("waiver_wire")
+        res = place_market_bid(ww.id, self.a.id, self.free[0].id, 1)
+        self.assertEqual(res["error"], "invalid_session_type")
+        buste = self._session("sealed_bids")
+        res = place_waiver_claim(buste.id, self.a.id, self.free[0].id)
+        self.assertEqual(res["error"], "invalid_session_type")
+
+    def test_free_agency_moves_belong_to_the_session_not_its_title(self):
+        fa = self._session("free_agency", config={"fa_max_moves": 2})
+        self.assertTrue(acquire_free_agent(fa.id, self.a.id, self.free[0].id)["ok"])
+        self.assertTrue(acquire_free_agent(fa.id, self.a.id, self.free[1].id)["ok"])
+        fa.title = "Rinominata"
+        fa.save()
+        res = acquire_free_agent(fa.id, self.a.id, self.free[2].id)
+        self.assertEqual(res["error"], "move_limit_reached")
+        # An older window with the same title doesn't end up in this one's summary.
+        RosterLog.objects.filter(participant=self.a).update(created_at=timezone.now() - timedelta(days=30))
+        newer = self._session("free_agency")
+        self.assertEqual(resolve_market_session(newer.id)["total_acquisitions"], 0)
+        self.assertFalse(undo_market_resolution(newer.id)["ok"])
+
+    def test_clause_price_has_no_float_rounding(self):
+        bo = self._session("buyout_clause", config={"buyout_multiplier": 1.1})
+        player = Player(cost=Decimal("50"))
+        self.assertEqual(buyout_price(bo, player), Decimal("55"))
+
+    def test_waiver_skips_players_taken_meanwhile_and_cuts_once(self):
+        ww = self._session("waiver_wire", config={"waiver_order_type": "rolling", "waiver_order": [self.a.id, self.b.id]})
+        place_waiver_claim(ww.id, self.a.id, self.free[0].id, priority=1, release_player_id=self.mine.id)
+        place_waiver_claim(ww.id, self.a.id, self.free[1].id, priority=2, release_player_id=self.mine.id)
+        place_waiver_claim(ww.id, self.b.id, self.free[2].id, priority=1)
+        Player.objects.filter(pk=self.free[2].pk).update(owner=self.a)  # taken elsewhere
+        summary = resolve_waiver_session(ww.id)
+        cuts = [w for w in summary["won"] if w["released_player_id"] == self.mine.id]
+        self.assertEqual(len(cuts), 1)
+        self.free[2].refresh_from_db()
+        self.assertEqual(self.free[2].owner, self.a)
+        self.assertNotIn("Libero 2", [w["player_name"] for w in summary["won"]])
+
+    def test_rolling_order_carries_over_and_undo_restores_it(self):
+        first = self._session("waiver_wire", config={"waiver_order_type": "rolling", "waiver_order": [self.a.id, self.b.id]})
+        place_waiver_claim(first.id, self.a.id, self.free[0].id)
+        resolve_waiver_session(first.id)
+        first.refresh_from_db()
+        rotated = first.config["waiver_order"]
+        self.assertEqual(rotated, [self.b.id, self.a.id])
+        second = self._session("waiver_wire", config={"waiver_order_type": "rolling"})
+        self.assertEqual(waiver_order(second, {self.a.id: self.a, self.b.id: self.b}), rotated)
+        self.assertTrue(undo_market_resolution(first.id)["ok"])
+        first.refresh_from_db()
+        self.assertEqual(first.config["waiver_order"], [self.a.id, self.b.id])
+
+    def test_waiver_window_closes_after_the_chosen_hours(self):
+        self.client.force_login(self.owner)
+        self.client.post(reverse("admin_market_create"), {
+            "league_id": self.league.id, "market_kind": "waiver_wire", "title": "W", "waiver_claim_hours": "48"})
+        ww = MarketSession.objects.get(title="W")
+        self.assertAlmostEqual((ww.closes_at - ww.created_at).total_seconds(), 48 * 3600, delta=60)
+
+    def test_free_agency_screen_counts_purchases_and_concludes(self):
+        fa = self._session("free_agency")
+        acquire_free_agent(fa.id, self.a.id, self.free[0].id)
+        self.client.force_login(self.owner)
+        page = self.client.get(reverse("admin_market_session", args=[fa.id]))
+        self.assertEqual(page.context["s"].n_bids, 1)
+        self.assertEqual(page.context["delivered"], 1)
+        self.assertContains(page, "Concludi la finestra")
+        self.assertNotContains(page, "Anteprima spoglio")
+        self.assertNotContains(page, "Offerte massime per squadra")
+
+    def test_team_rules_tab_has_no_envelope_rules_outside_buste(self):
+        fa = self._session("free_agency")
+        s = self.client.session
+        s["participant_id"] = self.a.id
+        s.save()
+        page = self.client.get(reverse("app_mercato") + f"?session_id={fa.id}")
+        self.assertContains(page, "Limite Cambi Settimanali")
+        self.assertNotContains(page, "Spareggio Pari Merito")
+        self.assertNotContains(page, "Regola Budget")
