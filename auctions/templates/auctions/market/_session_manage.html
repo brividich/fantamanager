@@ -5,8 +5,13 @@ anteprima o esito dello spoglio, pareggi e (solo admin) le buste.
 UNICA per console web (market/session.html) e app (app_regia_session.html):
 le azioni e i testi si cambiano qui, valgono per entrambe.
 
+Ogni tipo di mercato ha le sue fasi, i suoi numeri e le sue regole: i testi
+arrivano da mk_labels (SESSION_LABELS in views/admin_market.py) e i rinnovi
+hanno un quadro tutto loro (renewals: contratti da dichiarare e dadi per squadra).
+
 Parametri: s, current_league, participants_stats, delivered, bids_list,
 results, is_preview, free_total, free_by_role, reachable, mail_ready, now,
+mk_labels, is_renewals, renewals,
   mk_back  pagina a cui tornare dopo un'azione (questa)
   mk_list  pagina a cui tornare dopo aver eliminato la sessione
 {% endcomment %}
@@ -19,10 +24,10 @@ results, is_preview, free_total, free_by_role, reachable, mail_ready, now,
     <div class="mk-sess-top">
         <div class="ttl">
             <div class="mk-sess-state">
-                {% if s.status == "open" %}<span class="tag t-live">Aperta alle offerte</span>
-                {% elif s.status == "closed" %}<span class="tag t-warn">Consegna chiusa</span>
+                {% if s.status == "open" %}<span class="tag t-live">{{ mk_labels.open }}</span>
+                {% elif s.status == "closed" %}<span class="tag t-warn">{{ mk_labels.closed }}</span>
                 {% elif s.status == "draft" %}<span class="tag t-info">Programmata</span>
-                {% else %}<span class="tag t-done">Scrutinio completato</span>{% endif %}
+                {% else %}<span class="tag t-done">{{ mk_labels.resolved }}</span>{% endif %}
             </div>
             <div class="meta">
                 Creata il {{ s.created_at|date:"d/m/Y H:i" }}
@@ -32,7 +37,7 @@ results, is_preview, free_total, free_by_role, reachable, mail_ready, now,
         </div>
 
         <div class="mk-acts">
-            {% if s.status == "open" or s.status == "closed" %}
+            {% if not is_renewals and s.status == "open" or not is_renewals and s.status == "closed" %}
             <a href="?preview=1" class="fm-btn fm-btn-secondary fm-btn-sm" title="Simula lo spoglio senza assegnare nulla">
                 <svg class="ic"><use href="#i-eye"/></svg> Anteprima spoglio</a>
             {% endif %}
@@ -40,7 +45,7 @@ results, is_preview, free_total, free_by_role, reachable, mail_ready, now,
             <form method="post" action="{% url 'admin_market_status' s.id %}">
                 {% csrf_token %}<input type="hidden" name="next" value="{{ mk_back }}">
                 <input type="hidden" name="status" value="closed">
-                <button type="submit" class="fm-btn btn-warn fm-btn-sm" title="Chiudi la consegna delle buste">
+                <button type="submit" class="fm-btn btn-warn fm-btn-sm" title="{{ mk_labels.close_hint }}">
                     <svg class="ic"><use href="#i-lock"/></svg> Chiudi finestra</button>
             </form>
             {% elif s.status == "closed" %}
@@ -54,7 +59,7 @@ results, is_preview, free_total, free_by_role, reachable, mail_ready, now,
             <form method="post" action="{% url 'admin_market_status' s.id %}">
                 {% csrf_token %}<input type="hidden" name="next" value="{{ mk_back }}">
                 <input type="hidden" name="status" value="open">
-                <button type="submit" class="fm-btn fm-btn-primary fm-btn-sm" title="Apri subito la consegna delle buste">
+                <button type="submit" class="fm-btn fm-btn-primary fm-btn-sm" title="{{ mk_labels.open_hint }}">
                     <svg class="ic"><use href="#i-play"/></svg> Apri ora</button>
             </form>
             {% endif %}
@@ -75,7 +80,10 @@ results, is_preview, free_total, free_by_role, reachable, mail_ready, now,
                     <svg class="ic"><use href="#i-bell"/></svg> Avvisa via email</button>
             </form>
             {% endif %}
-            {% if s.status == "resolved" %}
+            {% if s.status == "resolved" and is_renewals %}
+            <a href="{% url 'admin_print_renewals' %}?league={{ current_league.id }}" target="_blank" rel="noopener" class="fm-btn fm-btn-primary fm-btn-sm" title="Stampa o salva in PDF il Report Rinnovi della Lega">
+                <svg class="ic"><use href="#i-print"/></svg> Report Rinnovi (PDF)</a>
+            {% elif s.status == "resolved" %}
             <a href="{% url 'admin_print_buste_report' s.id %}" target="_blank" rel="noopener" class="fm-btn fm-btn-primary fm-btn-sm" title="Stampa o salva in PDF il Verbale Ufficiale di Spoglio">
                 <svg class="ic"><use href="#i-print"/></svg> Verbale (PDF)</a>
             <a href="{% url 'admin_export_buste_csv' s.id %}" class="fm-btn fm-btn-secondary fm-btn-sm" title="Scarica il verbale in CSV">
@@ -103,18 +111,24 @@ results, is_preview, free_total, free_by_role, reachable, mail_ready, now,
 
     <ol class="mk-steps" aria-label="Avanzamento della sessione">
         <li class="{% if s.status == 'draft' %}now{% else %}done{% endif %}">{% if s.status == 'draft' %}Programmata{% else %}Creata{% endif %}</li>
-        <li class="{% if s.status == 'open' %}now{% elif s.status == 'closed' or s.status == 'resolved' %}done{% endif %}">Consegna</li>
-        <li class="{% if s.status == 'closed' %}now{% elif s.status == 'resolved' %}done{% endif %}">Chiusa</li>
-        <li class="{% if s.status == 'resolved' %}now{% endif %}">Spoglio</li>
+        <li class="{% if s.status == 'open' %}now{% elif s.status == 'closed' or s.status == 'resolved' %}done{% endif %}">{{ mk_labels.step_open }}</li>
+        <li class="{% if s.status == 'closed' %}now{% elif s.status == 'resolved' %}done{% endif %}">{% if is_renewals %}Sospesa{% else %}Chiusa{% endif %}</li>
+        <li class="{% if s.status == 'resolved' %}now{% endif %}">{{ mk_labels.step_end }}</li>
     </ol>
 
     <div class="mk-kpis">
+        {% if is_renewals %}
+        <div class="mk-kpi {% if renewals.to_declare %}warn{% endif %}">
+            <div class="k">Contratti scaduti</div>
+            <div class="v">{{ renewals.expiring }}</div>
+            <div class="s">{{ renewals.to_declare }} da dichiarare</div>
+        </div>
+        {% else %}
         <div class="mk-kpi">
             <div class="k">
                 {% if s.session_type == "free_agency" %}Acquisti live effettuati
                 {% elif s.session_type == "waiver_wire" %}Reclami ricevuti
                 {% elif s.session_type == "buyout_clause" %}Clausole pagate
-                {% elif s.session_type == "renewals" %}Rinnovi dichiarati
                 {% else %}Buste ricevute{% endif %}
             </div>
             <div class="v">{{ s.n_bids }}</div>
@@ -122,12 +136,12 @@ results, is_preview, free_total, free_by_role, reachable, mail_ready, now,
                 {% if s.session_type == "free_agency" %}{% if s.config.fa_max_moves %}max {{ s.config.fa_max_moves }} a sett.{% else %}illimitati{% endif %}
                 {% elif s.session_type == "waiver_wire" %}{% if s.config.waiver_order_type == "rolling" %}rotazione continua{% else %}inverso classifica{% endif %}
                 {% elif s.session_type == "buyout_clause" %}moltiplicatore {{ s.config.buyout_multiplier|default:1.5 }}x
-                {% elif s.session_type == "renewals" %}dadi e contratti
                 {% else %}{% if s.max_bids %}max {{ s.max_bids }} a squadra{% else %}senza limite{% endif %}{% endif %}
             </div>
         </div>
+        {% endif %}
         <div class="mk-kpi {% if participants_stats and delivered == participants_stats|length %}ok{% endif %}">
-            <div class="k">Squadre attive</div>
+            <div class="k">{% if is_renewals %}Squadre in regola{% else %}Squadre attive{% endif %}</div>
             <div class="v">{{ delivered }}<small>/{{ participants_stats|length }}</small></div>
             <div class="mk-bar"><span style="width:{% widthratio delivered participants_stats|length|default:1 100 %}%"></span></div>
         </div>
@@ -147,15 +161,29 @@ results, is_preview, free_total, free_by_role, reachable, mail_ready, now,
             <div class="s">{% if s.closes_at %}chiusa il {{ s.closes_at|date:"d/m H:i" }}{% else %}consegna terminata{% endif %}</div>
             {% endif %}
         </div>
+        {% if is_renewals %}
+        <div class="mk-kpi">
+            <div class="k">Dadi da tirare</div>
+            <div class="v">{{ renewals.dice }}</div>
+            <div class="s">{{ renewals.to_roll }} rinnovo · {{ renewals.new_contracts }} contratti</div>
+        </div>
+        {% else %}
         <a class="mk-kpi" href="{% url 'admin_players' %}?league={{ current_league.id }}&status=free" title="Apri il listone degli svincolati">
             <div class="k">Svincolati disponibili</div>
             <div class="v">{{ free_total }}</div>
             <div class="s">{% for r, n in free_by_role %}{{ r }} {{ n }}{% if not forloop.last %} · {% endif %}{% endfor %}</div>
         </a>
+        {% endif %}
     </div>
 
     <div class="mk-rules">
-        {% if s.session_type == "free_agency" %}
+        {% if is_renewals %}
+        <span class="mk-rule">Tipo: <b>Mercato Rinnovi Contratti</b></span>
+        <span class="mk-rule">Dado rinnovo: <b>3 verdi · 3 rosse</b> (rosso = rescissione)</span>
+        <span class="mk-rule">Dado contratti: <b>{{ renewals.faces }} anni</b></span>
+        <span class="mk-rule">Non dichiarati: <b>svincolati</b></span>
+        <span class="mk-rule">Scommessa Under 21: <b>{{ renewals.u21_years }} anni</b></span>
+        {% elif s.session_type == "free_agency" %}
         <span class="mk-rule">Tipo: <b>Mercato Libero Continuo (Free Agency)</b></span>
         <span class="mk-rule">Limite cambi: <b>{% if s.config.fa_max_moves %}{{ s.config.fa_max_moves }} a settimana{% else %}Illimitati{% endif %}</b></span>
         <span class="mk-rule">Costo acquisto: <b>{% if s.config.fa_cost_type == "base" %}Prezzo base (1 FM){% else %}Quotazione attuale Listone{% endif %}</b></span>
@@ -168,7 +196,7 @@ results, is_preview, free_total, free_by_role, reachable, mail_ready, now,
         {% elif s.session_type == "buyout_clause" %}
         <span class="mk-rule">Tipo: <b>Mercato con Clausole Rescisorie</b></span>
         <span class="mk-rule">Moltiplicatore clausola: <b>{{ s.config.buyout_multiplier|default:1.5 }}x valore d'asta</b></span>
-        <span class="mk-rule">Protezione post-acquisto: <b>{{ s.config.buyout_min_hold_days|default:7 }} giorni</b></span>
+        <span class="mk-rule">Protezione post-acquisto: <b>{% if s.config.buyout_min_hold_days == 0 %}0{% else %}{{ s.config.buyout_min_hold_days|default:7 }}{% endif %} giorni</b></span>
         <span class="mk-rule">Accredito: <b>100% dell'importo accreditato alla squadra cedente</b></span>
         {% else %}
         <span class="mk-rule">Offerte: <b>{% if s.max_bids %}max {{ s.max_bids }} per squadra{% else %}senza limite{% endif %}</b></span>
@@ -178,6 +206,12 @@ results, is_preview, free_total, free_by_role, reachable, mail_ready, now,
         <span class="mk-rule">Acquisti per ruolo: <b>P {{ s.max_acquisitions_p|default:"∞" }} · D {{ s.max_acquisitions_d|default:"∞" }} · C {{ s.max_acquisitions_c|default:"∞" }} · A {{ s.max_acquisitions_a|default:"∞" }}</b></span>
         {% endif %}
     </div>
+    {% if is_renewals and not current_league.contracts_enabled %}
+    <div class="mk-banner warn" style="margin-top:12px">
+        <svg class="ic"><use href="#i-info"/></svg>
+        <span>I contratti non sono attivi in questa lega: senza contratti non ci sono rinnovi da gestire. Attivali nelle regole della lega.</span>
+    </div>
+    {% endif %}
 </article>
 
 {% if results %}
@@ -190,13 +224,22 @@ results, is_preview, free_total, free_by_role, reachable, mail_ready, now,
         <a href="{{ mk_back }}" class="fm-btn fm-btn-secondary fm-btn-sm">Chiudi anteprima</a>
     </div>
     {% endif %}
+    {% if is_renewals %}
+    <div class="fm-section-title"><svg class="ic"><use href="#i-trophy"/></svg> Esito dei rinnovi <span class="sep"></span></div>
+    <div class="mk-results">
+        <div class="mk-kpi ok"><div class="v">{{ results.renewed|length }}</div><div class="k">Contratti rinnovati</div></div>
+        <div class="mk-kpi {% if results.rescinded %}warn{% endif %}"><div class="v">{{ results.rescinded|length }}</div><div class="k">Rescissi (dado rosso)</div></div>
+        <div class="mk-kpi"><div class="v">{{ results.released|length }}</div><div class="k">Svincolati a fine contratto</div></div>
+    </div>
+    {% else %}
     <div class="fm-section-title"><svg class="ic"><use href="#i-trophy"/></svg> {% if is_preview %}Esito previsto dello spoglio{% else %}Esito dello spoglio{% endif %} <span class="sep"></span></div>
     <div class="mk-results">
         <div class="mk-kpi ok"><div class="v">{{ results.total_acquisitions|default:0 }}</div><div class="k">Acquisti assegnati</div></div>
         <div class="mk-kpi {% if results.total_ties %}warn{% endif %}"><div class="v">{{ results.total_ties|default:0 }}</div><div class="k">Pareggi / ballottaggi</div></div>
         <div class="mk-kpi"><div class="v">{{ results.lost|length }}</div><div class="k">Buste non aggiudicate</div></div>
     </div>
-    {% if s.status == "resolved" %}
+    {% endif %}
+    {% if s.status == "resolved" and not is_renewals %}
     <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
         <a href="{% url 'admin_print_buste_report' s.id %}" target="_blank" rel="noopener" class="fm-btn fm-btn-primary fm-btn-sm" style="display:inline-flex;align-items:center;gap:6px">
             <svg class="ic"><use href="#i-print"/></svg> Stampa Verbale Ufficiale (PDF)
@@ -252,7 +295,25 @@ results, is_preview, free_total, free_by_role, reachable, mail_ready, now,
 </div>
 {% endif %}
 
-{% if results.won %}
+{% if is_renewals and results.renewed %}
+<div class="fm-card">
+    <h3 class="mk-card-t"><svg class="ic"><use href="#i-refresh"/></svg> Contratti rinnovati (dado verde) <span class="cnt">{{ results.renewed|length }}</span></h3>
+    <div class="table-scroll">
+        <table>
+            <thead><tr><th>Giocatore</th><th>Squadra</th><th>Nuovo contratto</th></tr></thead>
+            <tbody>
+            {% for r in results.renewed %}
+            <tr>
+                <td><b>{{ r.player_name }}</b></td>
+                <td>{{ r.participant_name }}</td>
+                <td><span class="mk-pill ok">{{ r.years }} {% if r.years == 1 %}anno{% else %}anni{% endif %}</span></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% elif results.won %}
 <div class="fm-card">
     <h3 class="mk-card-t"><svg class="ic"><use href="#i-gavel"/></svg> {% if is_preview %}Aggiudicazioni previste{% else %}Aggiudicazioni effettuate{% endif %} <span class="cnt">{{ results.won|length }}</span></h3>
     <div class="table-scroll">
@@ -335,21 +396,49 @@ results, is_preview, free_total, free_by_role, reachable, mail_ready, now,
 </details>
 {% endif %}
 
+{% elif is_renewals %}
+<div class="fm-card">
+    <h3 class="mk-card-t"><svg class="ic"><use href="#i-users"/></svg> {{ mk_labels.deliveries }}
+        <span class="cnt {% if delivered < participants_stats|length %}warn{% endif %}">{{ delivered }}/{{ participants_stats|length }}</span></h3>
+    <p class="mk-hint">Per ogni squadra: i contratti scaduti ancora da dichiarare, i dadi rinnovo da tirare per chi è stato dichiarato e i contratti dei nuovi acquisti ancora da tirare col dado contratti.</p>
+    <div class="table-scroll">
+        <table>
+            <thead><tr><th>Squadra</th><th style="text-align:center">Da dichiarare</th><th style="text-align:center">Dado rinnovo</th><th style="text-align:center">Dado contratti</th><th style="text-align:center">Rinnovati / persi</th><th>Stato</th></tr></thead>
+            <tbody>
+            {% for r in renewals.rows %}
+            <tr>
+                <td><b>{{ r.participant.display_name }}</b></td>
+                <td style="text-align:center">{% if r.to_declare %}<span class="mk-pill warn">{{ r.to_declare }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+                <td style="text-align:center">{% if r.to_roll %}<span class="mk-pill warn">{{ r.to_roll }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+                <td style="text-align:center">{% if r.new_contracts %}<span class="mk-pill">{{ r.new_contracts }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+                <td style="text-align:center"><span class="mk-plus">{{ r.renewed }}</span> / <span class="muted">{{ r.lost }}</span></td>
+                <td>{% if r.done %}<span class="tag t-live">{{ mk_labels.done }}</span>
+                    {% elif r.to_declare %}<span class="tag t-warn">Da dichiarare</span>
+                    {% elif r.to_roll %}<span class="tag t-warn">Dadi da tirare</span>
+                    {% else %}<span class="tag">Contratti da tirare</span>{% endif %}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="muted" style="text-align:center">Nessuna squadra nella lega. <a href="{% url 'admin_participants' %}?league={{ current_league.id }}">Aggiungile</a></td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
 {% else %}
 <div class="fm-card">
-    <h3 class="mk-card-t"><svg class="ic"><use href="#i-users"/></svg> Consegna delle buste
+    <h3 class="mk-card-t"><svg class="ic"><use href="#i-users"/></svg> {{ mk_labels.deliveries }}
         <span class="cnt {% if delivered < participants_stats|length %}warn{% endif %}">{{ delivered }}/{{ participants_stats|length }}</span></h3>
     <div class="table-scroll">
         <table>
-            <thead><tr><th>Squadra</th><th>Crediti residui</th><th>Rosa</th><th style="text-align:center">Buste</th><th>Stato</th></tr></thead>
+            <thead><tr><th>Squadra</th><th>Crediti residui</th><th>Rosa</th><th style="text-align:center">{{ mk_labels.items|capfirst }}</th><th>Stato</th></tr></thead>
             <tbody>
             {% for item in participants_stats %}
             <tr>
                 <td><b>{{ item.participant.display_name }}</b></td>
                 <td><span class="mk-fm">{{ item.participant.remaining_credits|floatformat:0 }} FM</span></td>
                 <td>{{ item.participant.roster_n }}{% if current_league.total_slots %}<span class="muted">/{{ current_league.total_slots }}</span>{% endif %}</td>
-                <td style="text-align:center"><span class="mk-pill {% if item.has_submitted %}ok{% endif %}">{{ item.bids_count }} {% if item.bids_count == 1 %}offerta{% else %}offerte{% endif %}</span></td>
-                <td>{% if item.has_submitted %}<span class="tag t-live">Consegnate</span>{% else %}<span class="tag">In attesa</span>{% endif %}</td>
+                <td style="text-align:center"><span class="mk-pill {% if item.has_submitted %}ok{% endif %}">{{ item.bids_count }} {% if item.bids_count == 1 %}{{ mk_labels.item }}{% else %}{{ mk_labels.items }}{% endif %}</span></td>
+                <td>{% if item.has_submitted %}<span class="tag t-live">{{ mk_labels.done }}</span>{% else %}<span class="tag">In attesa</span>{% endif %}</td>
             </tr>
             {% empty %}
             <tr><td colspan="5" class="muted" style="text-align:center">Nessuna squadra nella lega. <a href="{% url 'admin_participants' %}?league={{ current_league.id }}">Aggiungile</a></td></tr>
@@ -404,7 +493,7 @@ results, is_preview, free_total, free_by_role, reachable, mail_ready, now,
         <div class="mr-stack">
             <label class="mr-field"><span class="mr-lbl">Titolo</span>
                 <input type="text" name="title" value="{{ s.title }}" class="mr-input"></label>
-            <label class="mr-field"><span class="mr-lbl">Chiusura consegna (vuoto = manuale)</span>
+            <label class="mr-field"><span class="mr-lbl">Chiusura (vuoto = manuale)</span>
                 <input type="datetime-local" name="closes_at" class="mr-input" value="{% if s.closes_at %}{{ s.closes_at|date:'Y-m-d\TH:i' }}{% endif %}"></label>
             {% include "auctions/_market_rules_fields.html" with s=s %}
         </div>

@@ -114,9 +114,9 @@
             <div><label>Centrocamp.</label><input name="slots_c" value="{{ cfg.slots_c }}" inputmode="numeric"></div>
             <div><label>Attaccanti</label><input name="slots_a" value="{{ cfg.slots_a }}" inputmode="numeric"></div>
         </div>
-        {# In Mantra i ruoli sono dodici e quasi tutti multipli: "otto difensori"
+        {% comment %} In Mantra i ruoli sono dodici e quasi tutti multipli: "otto difensori"
            non vuol dire piu' niente, quindi la rosa si conta a portieri e
-           giocatori di movimento. #}
+           giocatori di movimento. {% endcomment %}
         <div class="grid2" id="slots-mantra" style="display:none">
             <div><label>Portieri</label><input name="slots_gk" value="{{ cfg.slots_gk|default:3 }}" inputmode="numeric"></div>
             <div><label>Giocatori di movimento</label><input name="slots_out" value="{{ cfg.slots_out|default:22 }}" inputmode="numeric"></div>

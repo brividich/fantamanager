@@ -1,8 +1,10 @@
-{# Dado animato per i contratti (regolamento 4): dado contratti e dado rinnovo.
+{% comment %}
+Dado animato per i contratti (regolamento 4): dado contratti e dado rinnovo.
    L'esito lo decide sempre il server; il dado gira mentre aspetta la risposta
    e si ferma sulla faccia uscita. Uso:
      FMDice.play({kind: "contract" | "renewal", title, subtitle, request: () => Promise<json>})
-   ritorna una Promise con la risposta, risolta quando la finestra si chiude. #}
+   ritorna una Promise con la risposta, risolta quando la finestra si chiude.
+{% endcomment %}
 <style>
     .fmd-overlay { position: fixed; inset: 0; z-index: 10000; display: flex; align-items: center; justify-content: center;
                    padding: 16px; background: rgba(3, 8, 18, .72); backdrop-filter: blur(4px); opacity: 0; transition: opacity .2s ease; }

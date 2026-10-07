@@ -541,7 +541,8 @@ def app_mercato(request):
     if market_session and is_buyout_clause:
         opp_qs = Player.objects.filter(league=league, owner__isnull=False).exclude(owner=participant).select_related("owner").order_by("owner__display_name", "role", "-cost", "name")
         mult = float((market_session.config or {}).get("buyout_multiplier") or 1.5)
-        hold_days = int((market_session.config or {}).get("buyout_min_hold_days") or 7)
+        hold_cfg = (market_session.config or {}).get("buyout_min_hold_days")
+        hold_days = int(hold_cfg) if hold_cfg is not None else 7  # 0 = nessuna protezione
         now = timezone.now()
         for pl in opp_qs:
             base_cost = pl.cost if (pl.cost is not None and pl.cost >= 1) else Decimal("1")

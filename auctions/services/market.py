@@ -949,6 +949,9 @@ def undo_market_resolution(session_id):
     session = MarketSession.objects.select_for_update().get(pk=session_id)
     if session.status != MarketSession.Status.RESOLVED:
         return {"ok": False, "message": "La sessione non risulta scrutinata."}
+    if session.session_type == MarketSession.SessionType.RENEWALS:
+        # Dadi tirati e contratti svincolati non si riavvolgono in blocco.
+        return {"ok": False, "message": "La chiusura dei rinnovi non si annulla: correggi i singoli contratti dalla pagina Contratti."}
 
     won = (session.results_summary or {}).get("won", [])
     ids = {w["player_id"] for w in won} | {w["released_player_id"] for w in won if w.get("released_player_id")}
@@ -1236,7 +1239,8 @@ def execute_buyout(session_id, buyer_id, player_id, release_player_id=None):
     seller = Participant.objects.select_for_update().get(pk=player.owner_id)
 
     cfg = session.config or {}
-    hold_days = int(cfg.get("buyout_min_hold_days") or 7)
+    # 0 = nessuna protezione: solo una chiave assente vale i 7 giorni di default.
+    hold_days = int(cfg.get("buyout_min_hold_days") if cfg.get("buyout_min_hold_days") is not None else 7)
     if hold_days > 0:
         if player.acquired_at is not None:
             days_held = (timezone.now() - player.acquired_at).total_seconds() / 86400.0

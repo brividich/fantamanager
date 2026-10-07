@@ -2,7 +2,7 @@
 from datetime import datetime, timedelta
 
 from django.contrib import messages
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.http import HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -12,9 +12,10 @@ from django.utils.http import url_has_allowed_host_and_scheme, urlencode
 from django.views.decorators.http import require_POST
 
 from ..models import (
-    Auction, MarketBid, MarketSession, Participant, Player, RosterLog, Trade, TradeWindow,
+    Auction, ContractEvent, MarketBid, MarketSession, Participant, Player, RosterLog, Trade, TradeWindow,
 )
 from ..services import mail
+from ..services.contracts import contract_rules
 from ..services.trade import decide_trade
 from ..services.market import (
     build_buste_csv,
@@ -304,6 +305,94 @@ def admin_market_buste(request):
     return _market_page(request, "auctions/market/buste.html", "buste", league, extra)
 
 
+_ST = MarketSession.SessionType
+# What each kind of session calls its phases and what the teams hand in: the
+# management screen (market/_session_manage.html) speaks the session's language.
+_BUSTE_LABELS = {
+    "open": "Aperta alle offerte", "closed": "Consegna chiusa", "resolved": "Scrutinio completato",
+    "step_open": "Consegna", "step_end": "Spoglio",
+    "close_hint": "Chiudi la consegna delle buste", "open_hint": "Apri subito la consegna delle buste",
+    "deliveries": "Consegna delle buste", "item": "offerta", "items": "offerte", "done": "Consegnate",
+}
+SESSION_LABELS = {
+    _ST.SEALED_BIDS: _BUSTE_LABELS,
+    _ST.REPAIR: _BUSTE_LABELS,
+    _ST.LIVE_AUCTION: _BUSTE_LABELS,
+    _ST.RENEWALS: {
+        "open": "Rinnovi aperti", "closed": "Rinnovi sospesi", "resolved": "Rinnovi chiusi",
+        "step_open": "Rinnovi", "step_end": "Chiusura",
+        "close_hint": "Sospendi i rinnovi: le squadre non possono dichiarare né tirare i dadi",
+        "open_hint": "Apri subito i rinnovi",
+        "deliveries": "Rinnovi delle squadre", "item": "", "items": "", "done": "In regola",
+    },
+    _ST.FREE_AGENCY: {
+        "open": "Acquisti aperti", "closed": "Acquisti sospesi", "resolved": "Finestra conclusa",
+        "step_open": "Acquisti", "step_end": "Conclusa",
+        "close_hint": "Sospendi gli acquisti", "open_hint": "Apri subito gli acquisti",
+        "deliveries": "Acquisti delle squadre", "item": "acquisto", "items": "acquisti", "done": "Attiva",
+    },
+    _ST.WAIVER_WIRE: {
+        "open": "Reclami aperti", "closed": "Reclami chiusi", "resolved": "Draft eseguito",
+        "step_open": "Reclami", "step_end": "Draft",
+        "close_hint": "Chiudi la finestra dei reclami", "open_hint": "Apri subito i reclami",
+        "deliveries": "Reclami delle squadre", "item": "reclamo", "items": "reclami", "done": "Inviati",
+    },
+    _ST.BUYOUT_CLAUSE: {
+        "open": "Clausole attive", "closed": "Clausole sospese", "resolved": "Finestra conclusa",
+        "step_open": "Clausole", "step_end": "Conclusa",
+        "close_hint": "Sospendi le clausole", "open_hint": "Attiva subito le clausole",
+        "deliveries": "Clausole pagate dalle squadre", "item": "clausola", "items": "clausole", "done": "Attiva",
+    },
+}
+
+
+def _renewals_board(league, participants):
+    """Where every team stands in a renewals market (regolamento 4): contracts
+    to declare, renewal dice and contract dice still to roll, and how the
+    season's renewals went so far."""
+    players = list(
+        Player.objects.filter(owner__league=league, abroad_list=False)
+        .filter(Q(contract_years__isnull=True) | Q(contract_years=0))
+    ) if league.contracts_enabled else []
+    events = ContractEvent.objects.filter(
+        league=league, season=league.season_number,
+        kind__in=(ContractEvent.Kind.RENEWED, ContractEvent.Kind.RESCINDED, ContractEvent.Kind.NOT_RENEWED),
+    ).values_list("participant_id", "kind")
+    renewed, lost = {}, {}
+    for pid, kind in events:
+        bucket = renewed if kind == ContractEvent.Kind.RENEWED else lost
+        bucket[pid] = bucket.get(pid, 0) + 1
+    rows = []
+    for p in participants:
+        mine = [pl for pl in players if pl.owner_id == p.id]
+        expiring = [pl for pl in mine if pl.contract_years == 0]
+        row = {
+            "participant": p,
+            "expiring": len(expiring),
+            "to_declare": sum(pl.renewal_declared is None for pl in expiring),
+            "to_roll": sum(pl.renewal_declared is True for pl in expiring),
+            "new_contracts": sum(pl.contract_years is None for pl in mine),
+            "renewed": renewed.get(p.id, 0),
+            "lost": lost.get(p.id, 0),
+        }
+        row["done"] = not (row["to_declare"] or row["to_roll"] or row["new_contracts"])
+        rows.append(row)
+    rules = contract_rules(league)
+    return {
+        "rows": rows,
+        "done": sum(r["done"] for r in rows),
+        "expiring": sum(r["expiring"] for r in rows),
+        "to_declare": sum(r["to_declare"] for r in rows),
+        "to_roll": sum(r["to_roll"] for r in rows),
+        "new_contracts": sum(r["new_contracts"] for r in rows),
+        "dice": sum(r["to_roll"] + r["new_contracts"] for r in rows),
+        "renewed": sum(renewed.values()),
+        "lost": sum(lost.values()),
+        "faces": "-".join(str(f) for f in rules["faces"]),
+        "u21_years": rules["u21_years"],
+    }
+
+
 def session_manage_context(request, session):
     """Everything market/_session_manage.html shows for ``session``: the same
     data for the console page and for the app's Regia."""
@@ -314,16 +403,23 @@ def session_manage_context(request, session):
         .annotate(n_bids=Count("bids")).select_related("league").first()
     )
 
+    is_renewals = session.session_type == MarketSession.SessionType.RENEWALS
     participants_stats = []
     delivered = 0
     bid_counts = dict(
         MarketBid.objects.filter(session=session)
         .values("participant_id").annotate(cnt=Count("id")).values_list("participant_id", "cnt")
     )
-    for p in Participant.objects.filter(league=league).annotate(roster_n=Count("roster")).order_by("display_name"):
+    participants = list(
+        Participant.objects.filter(league=league).annotate(roster_n=Count("roster")).order_by("display_name")
+    )
+    for p in participants:
         cnt = bid_counts.get(p.id, 0)
         delivered += cnt > 0
         participants_stats.append({"participant": p, "bids_count": cnt, "has_submitted": cnt > 0})
+    renewals = _renewals_board(league, participants) if is_renewals else None
+    if renewals:
+        delivered = renewals["done"]
 
     bids_list = []
     if request.GET.get("reveal") == "1" or session.status == MarketSession.Status.RESOLVED:
@@ -335,7 +431,7 @@ def session_manage_context(request, session):
     results, is_preview = None, False
     if session.status == MarketSession.Status.RESOLVED:
         results = session.results_summary or None
-    elif request.GET.get("preview") == "1":
+    elif request.GET.get("preview") == "1" and not is_renewals:
         results = plan_market_resolution(session.id)
         is_preview = True
 
@@ -344,6 +440,9 @@ def session_manage_context(request, session):
         "s": session,
         "current_league": league,
         "now": timezone.now(),
+        "mk_labels": SESSION_LABELS.get(session.session_type, _BUSTE_LABELS),
+        "is_renewals": is_renewals,
+        "renewals": renewals,
         "mail_ready": mail.is_ready(),
         "participants_stats": participants_stats,
         "delivered": delivered,
@@ -742,6 +841,10 @@ def admin_trade_decide(request, trade_id):
     return redirect(_back(request, _dashboard_url(request, league_id=trade.league_id, tab="scambi")))
 
 
+# Form field of each rule, where it isn't named like the model field.
+_RULE_POST_KEYS = {"release_refund_mode": "refund_mode"}
+
+
 @staff_member_required
 @require_POST
 def admin_market_rules(request, session_id):
@@ -753,10 +856,22 @@ def admin_market_rules(request, session_id):
         messages.error(request, "Lo spoglio è già stato eseguito: annullalo prima di cambiare le regole.")
         return redirect(_back(request, _dashboard_url(request, session)))
     title = (request.POST.get("title") or "").strip()
-    rules = _session_rules(request.POST)
+    post = request.POST
+    rules = _session_rules(post)
+    # The type is chosen at creation and never changes; each type's form
+    # (_market_rules_fields.html) sends only its own settings, so only those
+    # change: the rest of the rules and of the config stay as they were.
+    rules.pop("session_type")
+    config = dict(session.config or {})
+    config.update({key: value for key, value in rules.pop("config").items() if key in post})
+    session.config = config
+    fields = ["config", "updated_at"]
+    checks = set(post.getlist("checks"))
     for field, value in rules.items():
-        setattr(session, field, value)
-    fields = list(rules) + ["updated_at"]
+        key = _RULE_POST_KEYS.get(field, field)
+        if key in post or field in checks:
+            setattr(session, field, value)
+            fields.append(field)
     if title:
         session.title = title
         fields.append("title")

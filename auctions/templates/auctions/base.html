@@ -141,7 +141,7 @@
     </style>
 
     <script>
-        // One-row bars (.fm-onerow, console.css): tell the CSS on which side
+        // One-row bars (.fm-onerow, console.css, and the app's .a-seg): tell the CSS on which side
         // there is more to scroll, and bring the active item into view.
         (function () {
             function mark(el) {
@@ -162,7 +162,7 @@
                 }
                 mark(el);
             }
-            function all() { document.querySelectorAll(".fm-onerow").forEach(init); }
+            function all() { document.querySelectorAll(".fm-onerow, .a-seg").forEach(init); }
             document.addEventListener("DOMContentLoaded", all);
             window.addEventListener("load", all);
             window.addEventListener("resize", all, {passive: true});
