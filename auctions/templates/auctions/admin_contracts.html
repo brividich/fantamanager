@@ -1368,7 +1368,7 @@
                 </div>
                 <div class="ct-act">
                     {% if p.contract_years is None %}
-                    <form method="post" action="{% url 'admin_contracts_action' %}">
+                    <form method="post" action="{% url 'admin_contracts_action' %}" data-dice="contract" data-player="{{ p.name }}">
                         {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}">
                         <input type="hidden" name="action" value="roll"><input type="hidden" name="player_id" value="{{ p.id }}">
                         <select name="manual_face" title="Lascia 🎲 per il dado virtuale o scegli il risultato del dado vero">
@@ -1377,7 +1377,7 @@
                         <button type="submit" class="ct-btn go">Tira</button>
                     </form>
                     {% elif p.contract_years == 0 and p.renewal_declared and current_league.renewals_open %}
-                    <form method="post" action="{% url 'admin_contracts_action' %}">
+                    <form method="post" action="{% url 'admin_contracts_action' %}" data-dice="renewal" data-player="{{ p.name }}">
                         {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}">
                         <input type="hidden" name="action" value="renew"><input type="hidden" name="player_id" value="{{ p.id }}">
                         <select name="manual_outcome" title="Dado rinnovo"><option value="">🎲</option><option value="green">🟢</option><option value="red">🔴</option></select>
@@ -1402,6 +1402,7 @@
     {% endfor %}
 </div>
 
+{% include "auctions/_dice_roll.html" %}
 <script>
 (function () {
     // Chiuse all'apertura della pagina; dopo un'azione (Tira, Imposta…) si
@@ -1425,6 +1426,28 @@
         b.addEventListener("click", function () {
             var open = b.getAttribute("data-teams") === "open";
             teams.forEach(function (d) { d.open = open; });
+        });
+    });
+
+    // Tira / Rinnovo: il dado animato (anche col risultato di un dado vero
+    // scelto nel menu), poi la pagina si ricarica con l'esito.
+    document.querySelectorAll("form[data-dice]").forEach(function (form) {
+        form.addEventListener("submit", function (e) {
+            if (!window.FMDice || !window.fetch) return;
+            e.preventDefault();
+            var renewal = form.getAttribute("data-dice") === "renewal";
+            window.FMDice.play({
+                kind: renewal ? "renewal" : "contract",
+                title: renewal ? "Dado rinnovo" : "Dado contratti",
+                subtitle: form.getAttribute("data-player"),
+                request: function () {
+                    // getAttribute: form.action è il campo nascosto che si chiama "action".
+                    return fetch(form.getAttribute("action"), {
+                        method: "POST", body: new FormData(form), credentials: "same-origin",
+                        headers: {"X-Requested-With": "XMLHttpRequest"}
+                    }).then(function (r) { return r.json(); });
+                }
+            }).then(function () { location.reload(); });
         });
     });
 

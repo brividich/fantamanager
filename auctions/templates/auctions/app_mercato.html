@@ -1723,6 +1723,7 @@
 </div>
 {% endif %}
 
+{% include "auctions/_dice_roll.html" %}
 <!-- =========================================================================
      JAVASCRIPT: CLIENT INTERACTION & STATE
      ========================================================================= -->
@@ -2081,54 +2082,31 @@
     }
 
     /* ---- Contract & Renewal Functions ---- */
-    async function rollRenewal(playerId, playerName) {
-        if (!confirm(`Tirare il dado rinnovo (3 verdi / 3 rosse) per ${playerName}?`)) return;
+    // Il dado gira mentre il server tira, poi si ferma sulla faccia uscita.
+    function postDice(url) {
         const data = new FormData();
         data.append("next", "mercato");
-        try {
-            const r = await fetch(`/app/rosa/rinnovi/${playerId}/dado/`, {
-                method: "POST", body: data, headers: { "X-CSRFToken": CSRF_TOKEN, "X-Requested-With": "XMLHttpRequest" }
-            });
-            const res = await r.json();
-            if (res.ok) {
-                const msg = res.feedback_message || (res.green ? `🟢 Dado Verde! ${playerName} ha rinnovato!` : `🔴 Dado Rosso! ${playerName} rescinde.`);
-                if (window.showToast) window.showToast(msg, res.green ? "success" : "warning");
-                else alert(msg);
-                setTimeout(() => location.reload(), 900);
-            } else {
-                if (window.showToast) window.showToast(res.message || "Errore durante il tiro", "error");
-                else alert(res.message || "Errore durante il tiro");
-            }
-        } catch (err) {
-            console.error(err);
-            if (window.showToast) window.showToast("Errore di connessione", "error");
-            else alert("Errore di connessione");
-        }
+        return fetch(url, {
+            method: "POST", body: data, headers: { "X-CSRFToken": CSRF_TOKEN, "X-Requested-With": "XMLHttpRequest" }
+        }).then(r => r.json());
+    }
+
+    async function rollRenewal(playerId, playerName) {
+        if (!confirm(`Tirare il dado rinnovo (3 verdi / 3 rosse) per ${playerName}?`)) return;
+        const res = await FMDice.play({
+            kind: "renewal", title: "Dado rinnovo", subtitle: playerName,
+            request: () => postDice(`/app/rosa/rinnovi/${playerId}/dado/`),
+        });
+        if (res && res.ok) location.reload();
     }
 
     async function rollContract(playerId, playerName) {
         if (!confirm(`Tirare il dado contratti per ${playerName}?`)) return;
-        const data = new FormData();
-        data.append("next", "mercato");
-        try {
-            const r = await fetch(`/app/rosa/contratto/${playerId}/dado/`, {
-                method: "POST", body: data, headers: { "X-CSRFToken": CSRF_TOKEN, "X-Requested-With": "XMLHttpRequest" }
-            });
-            const res = await r.json();
-            if (res.ok) {
-                const msg = res.feedback_message || `🎲 ${playerName}: ${res.years} ann${res.years === 1 ? 'o' : 'i'} di contratto!`;
-                if (window.showToast) window.showToast(msg, "success");
-                else alert(msg);
-                setTimeout(() => location.reload(), 900);
-            } else {
-                if (window.showToast) window.showToast(res.message || "Errore durante il tiro", "error");
-                else alert(res.message || "Errore durante il tiro");
-            }
-        } catch (err) {
-            console.error(err);
-            if (window.showToast) window.showToast("Errore di connessione", "error");
-            else alert("Errore di connessione");
-        }
+        const res = await FMDice.play({
+            kind: "contract", title: "Dado contratti", subtitle: playerName,
+            request: () => postDice(`/app/rosa/contratto/${playerId}/dado/`),
+        });
+        if (res && res.ok) location.reload();
     }
 
     // Auto-select tab if ?tab= is specified in URL
