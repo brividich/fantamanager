@@ -141,6 +141,34 @@
     </style>
 
     <script>
+        // One-row bars (.fm-onerow, console.css): tell the CSS on which side
+        // there is more to scroll, and bring the active item into view.
+        (function () {
+            function mark(el) {
+                const max = el.scrollWidth - el.clientWidth, m = [];
+                if (el.scrollLeft > 2) m.push("start");
+                if (el.scrollLeft < max - 2) m.push("end");
+                const v = m.join(" ");
+                if (v) el.dataset.more = v; else delete el.dataset.more;
+            }
+            function init(el) {
+                if (el.__fmOneRow) return mark(el);
+                el.__fmOneRow = true;
+                el.addEventListener("scroll", () => mark(el), {passive: true});
+                const on = el.querySelector(".is-active, .on, [aria-current], .active");
+                if (on && el.scrollWidth > el.clientWidth) {
+                    const r = on.getBoundingClientRect(), b = el.getBoundingClientRect();
+                    el.scrollLeft += (r.left - b.left) - (el.clientWidth - r.width) / 2;
+                }
+                mark(el);
+            }
+            function all() { document.querySelectorAll(".fm-onerow").forEach(init); }
+            document.addEventListener("DOMContentLoaded", all);
+            window.addEventListener("load", all);
+            window.addEventListener("resize", all, {passive: true});
+            window.fmOneRow = all;
+        })();
+
         function auctionSocketUrl(id) {
             const p = location.protocol === "https:" ? "wss" : "ws";
             return `${p}://${location.host}/ws/auction/${id}/`;

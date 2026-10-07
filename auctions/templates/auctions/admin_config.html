@@ -229,7 +229,7 @@ its name to be typed: it takes teams, listone, auctions and sessions with it.
                 {% if not r.auctions and r.pool %}<a href="{% url 'admin_auction_wizard' %}?league={{ lg.id }}">Crea</a>{% endif %}</li>
         </ul>
 
-        <div class="lg-actions">
+        <div class="lg-actions fm-onerow">
             <button type="button" class="fm-btn fm-btn-primary" data-edit="{{ lg.id }}" aria-expanded="false" aria-controls="ed-{{ lg.id }}">
                 <svg class="ic"><use href="#i-gear"/></svg> Modifica</button>
             <a class="fm-btn fm-btn-secondary" href="{% url 'dashboard_league' lg.id %}"><svg class="ic"><use href="#i-table"/></svg> Console</a>

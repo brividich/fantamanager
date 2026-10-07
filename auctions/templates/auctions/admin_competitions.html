@@ -39,7 +39,7 @@
         .card-box { padding: 14px; }
         .tbl-clean th, .tbl-clean td { padding: 8px 6px; font-size: 12px; }
         .card-title { flex-direction: column; align-items: flex-start; gap: 8px; }
-        .card-title > div:last-child { width: 100%; display: flex; flex-wrap: wrap; }
+        .card-title > div:last-child { width: 100%; display: flex; }
         .card-title .fm-btn { flex: 1; justify-content: center; }
     }
 
@@ -102,7 +102,7 @@
             Lega: <b>{{ current_league.name }}</b> · {{ season.name }} ({{ season.matchdays }} Giornate)
         </div>
     </div>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <div class="fm-onerow" style="gap:8px">
         <a class="fm-btn fm-btn-secondary" href="{% url 'admin_giornate' %}?league={{ current_league.id }}">
             <svg class="ic"><use href="#i-pulse"/></svg> Giornate & Voti
         </a>
@@ -147,7 +147,7 @@
                 Partite registrate: <b>{{ selected_competition.fixtures.count }}</b>
             </div>
         </div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <div class="fm-onerow" style="gap:8px">
             {% if selected_competition.kind in "ROUND_ROBIN KNOCKOUT SEASON_SPLIT" %}
             <form method="post" action="{% url 'admin_competition_regenerate' selected_competition.id %}" onsubmit="return confirm('Rigenerare gli accoppiamenti cancellerà le partite correnti di questo torneo. Continuare?');" style="margin:0">
                 {% csrf_token %}

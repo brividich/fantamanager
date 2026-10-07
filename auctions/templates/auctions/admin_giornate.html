@@ -46,7 +46,7 @@
 {% endfor %}
 
 <!-- Matchdays Strip -->
-<div class="giornate-strip">
+<div class="giornate-strip fm-onerow">
     {% for g in giornate %}
     <a href="?giornata={{ g.number }}" class="giornata-btn {% if g.number == current_giornata.number %}active{% endif %} {% if g.status == 'SCORED' %}scored{% endif %}">
         <span>G{{ g.number }}</span>
@@ -85,7 +85,7 @@
             {% endif %}
         </div>
     </div>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <div class="fm-onerow" style="gap:8px">
         <!-- Form Serie A Matchday -->
         <form method="post" style="display:flex;align-items:center;gap:6px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:2px 6px;">
             {% csrf_token %}

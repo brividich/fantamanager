@@ -13,11 +13,13 @@ of a market's content is on this page: every item opens its own screen.
 </div>
 <span class="spacer"></span>
 {% if current_league %}
-<a class="fm-btn fm-btn-secondary" href="{% url 'app_regia' %}?league={{ current_league.id }}" title="La stessa lega nell'app, come la vedono le squadre">
-    <svg class="ic"><use href="#i-shirt"/></svg> Apri nell'app</a>
-{# Always at hand: trades open all season would otherwise hide the only way to open a market. #}
-<button type="button" class="fm-btn fm-btn-primary" onclick="openMarketWizard()" title="Un nuovo mercato, solo per {{ current_league.name }}">
-    <svg class="ic"><use href="#i-plus"/></svg> Nuovo Mercato</button>
+<div class="mk-head-actions fm-onerow">
+    <a class="fm-btn fm-btn-secondary" href="{% url 'app_regia' %}?league={{ current_league.id }}" title="La stessa lega nell'app, come la vedono le squadre">
+        <svg class="ic"><use href="#i-shirt"/></svg> Apri nell'app</a>
+    {# Always at hand: trades open all season would otherwise hide the only way to open a market. #}
+    <button type="button" class="fm-btn fm-btn-primary" onclick="openMarketWizard()" title="Un nuovo mercato, solo per {{ current_league.name }}">
+        <svg class="ic"><use href="#i-plus"/></svg> Nuovo Mercato</button>
+</div>
 {% endif %}
 {% endblock %}
 
@@ -156,7 +158,7 @@ of a market's content is on this page: every item opens its own screen.
 </div>
 
 <!-- ======================================================= QUICK LINKS -->
-<nav class="mk-links" aria-label="Pagine collegate" style="margin-top:10px">
+<nav class="mk-links fm-onerow" aria-label="Pagine collegate" style="margin-top:10px">
     <span class="lbl">Vai a</span>
     <a class="mk-link" href="{% url 'admin_participants' %}?league={{ current_league.id }}"><svg class="ic"><use href="#i-shield"/></svg> Squadre e rose</a>
     <a class="mk-link" href="{% url 'admin_players' %}?league={{ current_league.id }}&status=free"><svg class="ic"><use href="#i-users"/></svg> Svincolati <span class="n">{{ free_total }}</span></a>
