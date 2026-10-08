@@ -998,7 +998,7 @@
         document.getElementById('sup-edit-copy-btn').style.display = 'none';
         document.getElementById('sup-edit-role').value = role;
         document.getElementById('sup-edit-is-active').checked = isActive;
-        document.getElementById('sup-edit-user-title').innerHTML = `<span>⚙️</span> Modifica Utente · <b>${username}</b>`;
+        document.getElementById('sup-edit-user-title').innerHTML = `<span>⚙️</span> Modifica Utente · <b>${fmEsc(username)}</b>`;
         
         const selfWarning = document.getElementById('sup-edit-self-warning');
         const roleSelect = document.getElementById('sup-edit-role');

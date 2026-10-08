@@ -546,7 +546,7 @@
         return defs
             .filter(([k]) => stats[k] !== undefined && stats[k] !== null)
             .map(([k, label, key]) =>
-                `<span class="stat${key ? " key" : ""}"><b>${stats[k]}</b><span>${label}</span></span>`)
+                `<span class="stat${key ? " key" : ""}"><b>${fmEsc(stats[k])}</b><span>${label}</span></span>`)
             .join("");
     }
 
@@ -620,13 +620,13 @@
             const mr = (s.player && s.player.mantra_roles) || [];
             const mrHtml = mr.length
                 ? `<span class="tv-mroles">` +
-                  mr.map(r => `<span class="tv-mrole">${r}</span>`).join("") + `</span>`
+                  mr.map(r => `<span class="tv-mrole">${fmEsc(r)}</span>`).join("") + `</span>`
                 : "";
-            const roleBadge = mr.length ? "" : (s.player ? `<span class="role-badge role-${s.player.role}">${s.player.role}</span>` : "");
+            const roleBadge = mr.length ? "" : (s.player ? `<span class="role-badge role-${fmRole(s.player.role)}">${fmEsc(s.player.role)}</span>` : "");
             $tvPlayer.innerHTML = s.player
                 ? roleBadge +
-                  `<span class="tv-name-wrap"><span class="tv-player-team">${s.player.team || ""}</span>` +
-                  `<span class="tv-player-name">${s.player.name}</span>${mrHtml}</span>`
+                  `<span class="tv-name-wrap"><span class="tv-player-team">${fmEsc(s.player.team)}</span>` +
+                  `<span class="tv-player-name">${fmEsc(s.player.name)}</span>${mrHtml}</span>`
                 : `<span class="stars">★ ★ ★</span>`;
         }
         if ($ghost) $ghost.textContent = s.player ? s.player.name : "";
@@ -702,15 +702,15 @@
                 `<div class="sealed-kick">${sealed.round > 1
                     ? "Spareggio alle buste · giro " + sealed.round
                     : "Asta alle buste"}</div>` +
-                `<div class="sealed-line">Minimo ${money(sealed.floor)} FM · ` +
-                `${sealed.submitted || 0} buste consegnate</div>`;
+                `<div class="sealed-line">Minimo ${fmEsc(money(sealed.floor))} FM · ` +
+                `${fmEsc(sealed.submitted || 0)} buste consegnate</div>`;
         } else if (rows.length) {
             box.style.display = "block";
             box.innerHTML =
                 `<div class="sealed-kick">Buste aperte</div>` +
                 `<div class="sealed-rows">` + rows.map((r, i) =>
                     `<div class="sealed-row${i === 0 ? " win" : ""}">` +
-                    `<span>${r.team}</span><span>${money(r.amount)} FM</span></div>`).join("") +
+                    `<span>${fmEsc(r.team)}</span><span>${fmEsc(money(r.amount))} FM</span></div>`).join("") +
                 `</div>`;
         } else {
             box.style.display = "none";
@@ -817,9 +817,9 @@
         const span = document.createElement("span");
         span.className = "tk-item flash-in";
         const logo = bid.participant_logo
-            ? `<img class="tk-logo" src="${bid.participant_logo}" alt="">`
+            ? `<img class="tk-logo" src="${fmEsc(bid.participant_logo)}" alt="">`
             : `<svg class="ic" style="width:19px;height:19px;stroke:var(--tv-mut)"><use href="#i-ball"/></svg>`;
-        span.innerHTML = `${logo}<b>${bid.participant}</b><span class="amt">${money(bid.amount)}</span>`;
+        span.innerHTML = `${logo}<b>${fmEsc(bid.participant)}</b><span class="amt">${fmEsc(money(bid.amount))}</span>`;
         $log.prepend(span);
         while ($log.children.length > 12) $log.removeChild($log.lastChild);
     }

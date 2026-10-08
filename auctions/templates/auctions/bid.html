@@ -873,7 +873,7 @@
         (state.quick_increments || []).forEach((inc) => {
             const b = document.createElement("button");
             b.className = "bidbtn";
-            b.innerHTML = `+${money(inc)}<small>FM</small>`;
+            b.innerHTML = `+${fmEsc(money(inc))}<small>FM</small>`;
             b.onclick = () => sendBid(inc);
             $buttons.appendChild(b);
         });
@@ -1007,14 +1007,19 @@
         const r = await fetch(`/watch/${AUCTION_ID}/search/?q=` + encodeURIComponent(q));
         const d = await r.json();
         if (!d.ok) return;
-        box.innerHTML = d.results.map(p =>
+        box.innerHTML = d.results.map((p, i) =>
             `<div class="wr-row">` +
-              `<span class="role-badge role-${p.role}">${p.role}</span>` +
-              `<span class="wr-name">${p.name}<small>${p.team} · quot. ${p.quota} FM</small></span>` +
+              `<span class="role-badge role-${fmRole(p.role)}">${fmEsc(p.role)}</span>` +
+              `<span class="wr-name">${fmEsc(p.name)}<small>${fmEsc(p.team)} · quot. ${fmEsc(p.quota)} FM</small></span>` +
               (p.watching
                 ? `<span style="color:var(--accent,#13b5ff);font-size:13px;font-weight:800">seguito ✓</span>`
-                : `<button type="button" class="wr-add" onclick="watchAdd(${p.id}, '${p.name.replace(/'/g,"\\'")}', '${p.role}', '${p.team.replace(/'/g,"\\'")}')">+ Segui</button>`) +
+                : `<button type="button" class="wr-add" data-i="${i}">+ Segui</button>`) +
             `</div>`).join("") || `<p style="color:var(--muted);font-size:13px;padding:6px 2px">Nessun svincolato trovato.</p>`;
+        // Nome e squadra restano dati: niente codice costruito con loro.
+        box.querySelectorAll(".wr-add").forEach(btn => btn.addEventListener("click", () => {
+            const p = d.results[Number(btn.dataset.i)];
+            watchAdd(p.id, p.name, p.role, p.team);
+        }));
     }
     async function watchAdd(playerId, name, role, team) {
         const d = await watchToggle(playerId);   // adds it server-side + updates WATCHED
@@ -1025,10 +1030,10 @@
         const div = document.createElement("div");
         div.className = "watch-item"; div.dataset.wid = d.watch_id; div.dataset.pid = playerId;
         div.innerHTML =
-            `<span class="role-badge role-${role}">${role}</span>` +
-            `<span class="wi-name">${name}<small>${team}</small></span>` +
-            `<input class="wi-max" type="number" inputmode="numeric" placeholder="max" onchange="watchSetMax(${d.watch_id}, this.value, ${playerId})">` +
-            `<button type="button" class="wi-del" title="Rimuovi" onclick="watchToggle(${playerId})">✕</button>`;
+            `<span class="role-badge role-${fmRole(role)}">${fmEsc(role)}</span>` +
+            `<span class="wi-name">${fmEsc(name)}<small>${fmEsc(team)}</small></span>` +
+            `<input class="wi-max" type="number" inputmode="numeric" placeholder="max" onchange="watchSetMax(${Number(d.watch_id)}, this.value, ${Number(playerId)})">` +
+            `<button type="button" class="wi-del" title="Rimuovi" onclick="watchToggle(${Number(playerId)})">✕</button>`;
         list.appendChild(div);
         updateWatchCount();
     }
@@ -1054,7 +1059,7 @@
         return defs
             .filter(([k]) => stats[k] !== undefined && stats[k] !== null)
             .map(([k, label, key]) =>
-                `<span class="stat${key ? " key" : ""}"><b>${stats[k]}</b><span>${label}</span></span>`)
+                `<span class="stat${key ? " key" : ""}"><b>${fmEsc(stats[k])}</b><span>${label}</span></span>`)
             .join("");
     }
 
@@ -1085,14 +1090,14 @@
                 const ava = `<svg class="ic"><use href="#i-shirt"/></svg>`;
                 const mr = s.player.mantra_roles || [];
                 const roleTag = mr.length
-                    ? `<span class="bp-mroles">` + mr.map(r => `<span class="bp-mrole">${r}</span>`).join("") + `</span>`
-                    : `<span class="role-badge role-${s.player.role}">${s.player.role}</span>`;
+                    ? `<span class="bp-mroles">` + mr.map(r => `<span class="bp-mrole">${fmEsc(r)}</span>`).join("") + `</span>`
+                    : `<span class="role-badge role-${fmRole(s.player.role)}">${fmEsc(s.player.role)}</span>`;
                 $bp.innerHTML =
-                    `<span class="bp-ava role-${s.player.role}">${ava}</span>` +
+                    `<span class="bp-ava role-${fmRole(s.player.role)}">${ava}</span>` +
                     `<span style="text-align:left">` +
                       roleTag +
-                      `<span class="bp-name" style="font-family:var(--display);font-weight:800;font-size:20px">${s.player.name}</span>` +
-                      `<span class="muted" style="font-size:13px;display:block">${s.player.team || ""}</span>` +
+                      `<span class="bp-name" style="font-family:var(--display);font-weight:800;font-size:20px">${fmEsc(s.player.name)}</span>` +
+                      `<span class="muted" style="font-size:13px;display:block">${fmEsc(s.player.team)}</span>` +
                     `</span>`;
             } else {
                 $bp.innerHTML = `<span class="muted" style="font-size:14px">In attesa del prossimo giocatore…</span>`;
@@ -1213,7 +1218,7 @@
             const yours = sealedMe && sealedMe.your_amount;
             mine.style.display = yours ? "block" : "none";
             if (yours) mine.innerHTML =
-                `La tua busta: <span style="color:var(--gold)">${money(yours)} FM</span>` +
+                `La tua busta: <span style="color:var(--gold)">${fmEsc(money(yours))} FM</span>` +
                 `<br><small class="muted">Puoi riscriverla finché il tempo non scade.</small>`;
         } else {
             panel.style.display = "none";
@@ -1226,7 +1231,7 @@
             reveal.style.display = "block";
             document.getElementById("sealed-reveal-list").innerHTML = rows.map((r, i) =>
                 `<div class="sealed-row${i === 0 ? " win" : ""}">` +
-                `<span>${r.team}</span><span>${money(r.amount)} FM</span></div>`).join("");
+                `<span>${fmEsc(r.team)}</span><span>${fmEsc(money(r.amount))} FM</span></div>`).join("");
         } else {
             reveal.style.display = "none";
         }

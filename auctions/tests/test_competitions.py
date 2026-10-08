@@ -1,5 +1,6 @@
 from decimal import Decimal
 from django.test import TestCase
+from django.urls import reverse
 from auctions.models import Competition, Fixture, Formation, Giornata, GiornataScore, League, Participant, Player, PlayerPerformance, Season
 from auctions.services.competitions import (
     generate_round_robin_schedule,
@@ -296,7 +297,10 @@ class CompetitionsEngineTests(TestCase):
         matched_fx = next(f for f in first_m["fixtures"] if f.id == fx.id)
         self.assertIsNotNone(matched_fx.home_score)
 
-        # Test API endpoint
+        # Test API endpoint (a team of the league, logged in on the app)
+        session = self.client.session
+        session["participant_id"] = fx.home_id
+        session.save()
         resp = self.client.get(f"/app/fixture/{fx.id}/detail/")
         self.assertEqual(resp.status_code, 200)
         json_data = resp.json()
@@ -356,3 +360,76 @@ class CompetitionWizardParityTests(TestCase):
         self.assertEqual(comp.season.league, self.league)
         self.assertEqual(comp.settings["win_points"], 2)
         self.assertEqual(comp.settings["home_bonus"], 1.0)
+
+
+class FixtureModalXssTests(TestCase):
+    """Tabellino della partita: i nomi arrivano dai dati della lega (listone
+    importato, nomi delle squadre) e possono contenere HTML. Il JSON li dà così
+    come sono; il modale (un solo partial per console e app) li mette nella
+    pagina solo passando da esc() o textContent."""
+
+    EVIL = "<img src=x onerror=alert(1)>"
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+        self.owner = User.objects.create_user("owner_xss", password="pw")
+        self.league = League.objects.create(name="Lega XSS", owner=self.owner)
+        season = Season.objects.create(league=self.league, name="2026/27", is_current=True)
+        g1 = Giornata.objects.create(season=season, number=1)
+        home = Participant.objects.create(display_name=self.EVIL, league=self.league)
+        away = Participant.objects.create(display_name="Ospiti", league=self.league)
+        comp = Competition.objects.create(season=season, name="Campionato")
+        self.fx = Fixture.objects.create(competition=comp, giornata=g1, home=home, away=away)
+        p = Player.objects.create(name=self.EVIL, role="A", team=self.EVIL, initial_price=1,
+                                  league=self.league, owner=home)
+        Formation.objects.create(participant=home, module="4-3-3", starter_ids=[p.id])
+        PlayerPerformance.objects.create(giornata=g1, player=p, vote=Decimal("7"), goals=1)
+        from auctions.services.scoring import compute_giornata
+        compute_giornata(g1)
+
+    def test_json_keeps_the_names_as_they_are(self):
+        self.client.force_login(self.owner)
+        fixture = self.client.get(f"/app/fixture/{self.fx.id}/detail/").json()["fixture"]
+        self.assertEqual(fixture["home"]["name"], self.EVIL)
+        starter = fixture["home"]["starters"][0]
+        self.assertEqual((starter["name"], starter["team"]), (self.EVIL, self.EVIL))
+        self.assertEqual(fixture["home"]["scorers"][0]["name"], self.EVIL)
+
+    def test_modal_js_escapes_every_name(self):
+        import re
+        from pathlib import Path
+        from django.conf import settings
+        partial = Path(settings.BASE_DIR, "auctions/templates/auctions/_fixture_modal_js.html").read_text(encoding="utf-8")
+        self.assertIn("function esc(s)", partial)
+        for value in ("p.name", "p.team", "p.starter_name", "p.role", "fix.home.name", "fix.away.name",
+                      "s.name", "team.name", "fix.status_display"):
+            # concatenato in una stringa senza passare da esc(
+            self.assertIsNone(re.search(r"\+\s*" + re.escape(value) + r"\b", partial), value)
+            self.assertIsNone(re.search(r"\$\{\s*" + re.escape(value) + r"\b", partial), value)
+        self.assertNotIn("scLine.innerHTML", partial)
+        self.assertIn("fixRole(p.role)", partial)
+
+    def test_both_pages_use_the_shared_partial(self):
+        self.client.force_login(self.owner)
+        for name in ("admin_competitions", "app_lega"):
+            html = self.client.get(reverse(name) + f"?league={self.league.id}").content.decode()
+            self.assertEqual(html.count("function renderPlayersList"), 1, name)
+            self.assertIn("function esc(s)", html)
+            self.assertNotIn(self.EVIL, html)                   # il server lo scrive sempre escapato
+        console = self.client.get(reverse("admin_competitions") + f"?league={self.league.id}").content.decode()
+        app = self.client.get(reverse("app_lega") + f"?league={self.league.id}").content.decode()
+        self.assertIn(f"/dashboard/fixture/0/detail/", console)
+        self.assertIn(f"/app/fixture/0/detail/", app)
+
+    def test_live_auction_pages_escape_names(self):
+        """Maxischermo, offerte e regia: nomi di giocatori, club e squadre
+        passano da fmEsc() (base.html) prima di finire in innerHTML."""
+        from pathlib import Path
+        from django.conf import settings
+        root = Path(settings.BASE_DIR, "auctions/templates/auctions")
+        self.assertIn("function fmEsc(s)", (root / "base.html").read_text(encoding="utf-8"))
+        for name in ("screen.html", "bid.html", "dashboard/_live_js.html"):
+            src = (root / name).read_text(encoding="utf-8")
+            for raw in ("${s.player.name}", "${s.player.team", "${bid.participant}", "${r.team}",
+                        "${p.name}", "role-${s.player.role}", "${stats[k]}"):
+                self.assertNotIn(raw, src, f"{name}: {raw}")
