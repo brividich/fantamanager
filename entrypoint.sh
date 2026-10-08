@@ -1,8 +1,27 @@
 #!/bin/sh
 set -e
 
+DATA_DIRS="/app/data /app/media /app/logs /app/backups /app/staticfiles"
+
+# Started as root (the default): hand the data folders to the unprivileged
+# "app" user and run everything below as that user. The folders are bind
+# mounts from the host (NAS), possibly created by an older root container. If
+# the host refuses the change of owner, stay root rather than not starting.
+if [ "$(id -u)" = "0" ] && id app >/dev/null 2>&1 && [ -z "$FM_RUN_AS_ROOT" ]; then
+    mkdir -p $DATA_DIRS
+    chown -R app:app $DATA_DIRS 2>/dev/null || true
+    ok=1
+    for d in $DATA_DIRS; do
+        setpriv --reuid=app --regid=app --init-groups test -w "$d" || ok=0
+    done
+    if [ "$ok" = "1" ]; then
+        exec setpriv --reuid=app --regid=app --init-groups /bin/sh "$0" "$@"
+    fi
+    echo "[Entrypoint] ATTENZIONE: le cartelle dati non sono scrivibili dall'utente 'app': resto root."
+fi
+
 # Ensure persistent directories exist
-mkdir -p /app/data /app/media /app/logs /app/backups /app/staticfiles
+mkdir -p $DATA_DIRS
 
 # A server other people reach runs with DEBUG off unless told otherwise.
 export DJANGO_DEBUG="${DJANGO_DEBUG:-False}"
@@ -27,9 +46,10 @@ fi
 # If PostgreSQL is configured, verify driver and wait for DB
 if [ -n "$POSTGRES_DB" ]; then
     echo "[Entrypoint] Verifying PostgreSQL driver..."
+    # Nothing is installed at startup: the image carries its dependencies.
     if ! python -c "import psycopg" 2>/dev/null && ! python -c "import psycopg2" 2>/dev/null; then
-        echo "[Entrypoint] Driver PostgreSQL non trovato nell'immagine Docker in uso. Installazione automatica in corso..."
-        pip install --no-cache-dir "psycopg[binary]>=3.1,<4.0"
+        echo "[Entrypoint] ERRORE: driver PostgreSQL assente dall'immagine. Ricostruiscila: docker compose build" >&2
+        exit 1
     fi
 
     if [ "$POSTGRES_PASSWORD" = "fantamanager_secret_pass" ]; then

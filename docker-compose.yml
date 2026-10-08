@@ -56,7 +56,7 @@ services:
       # Statistiche di stagione tue (facoltative), per esempio in ./data: vedi .env
       - FANTAMANAGER_STATS_FILE=${FANTAMANAGER_STATS_FILE:-}
       - FANTAMANAGER_STATS_SEASON=${FANTAMANAGER_STATS_SEASON:-}
-      - DJANGO_CSRF_TRUSTED_ORIGINS=${DJANGO_CSRF_TRUSTED_ORIGINS:-https://fantamngr.nasbovabracci.synology.me,https://*.synology.me,http://*.synology.me,http://localhost:8088,http://127.0.0.1:8088}
+      - DJANGO_CSRF_TRUSTED_ORIGINS=${DJANGO_CSRF_TRUSTED_ORIGINS:-https://*.synology.me,http://*.synology.me,http://localhost:8088,http://127.0.0.1:8088}
     volumes:
       # Il codice della cartella (lo stesso da cui si costruisce l'immagine):
       # un `git pull` + riavvio basta ad aggiornare. Per girare solo col codice

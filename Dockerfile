@@ -27,8 +27,13 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy application source code
 COPY . /app/
 
-# Create persistent storage directories
-RUN mkdir -p /app/data /app/media /app/logs /app/backups /app/staticfiles && \
+# Create persistent storage directories and the unprivileged user the server
+# runs as. The entrypoint starts as root only to hand the data folders (bind
+# mounts from the host) to that user, then drops to it.
+RUN groupadd --system --gid 1000 app && \
+    useradd --system --uid 1000 --gid app --home-dir /app --shell /usr/sbin/nologin app && \
+    mkdir -p /app/data /app/media /app/logs /app/backups /app/staticfiles && \
+    chown -R app:app /app/data /app/media /app/logs /app/backups /app/staticfiles && \
     chmod +x /app/entrypoint.sh
 
 # Expose HTTP & WebSocket port
