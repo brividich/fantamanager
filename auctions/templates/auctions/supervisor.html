@@ -455,6 +455,9 @@
     <a href="?tab=live_sync" class="super-tab-link {% if tab == 'live_sync' %}active{% endif %}" style="border:1px solid rgba(234,179,8,0.3)">
         ⚡ Live Matchday & Voti
     </a>
+    <a href="{% url 'supervisor_algo' %}" class="super-tab-link">
+        🎚️ Voto algoritmico
+    </a>
 </div>
 
 <details class="howto noprint">
@@ -1028,7 +1031,7 @@
         document.getElementById('sup-edit-copy-btn').style.display = 'none';
         document.getElementById('sup-edit-role').value = role;
         document.getElementById('sup-edit-is-active').checked = isActive;
-        document.getElementById('sup-edit-user-title').innerHTML = `<span>⚙️</span> Modifica Utente · <b>${username}</b>`;
+        document.getElementById('sup-edit-user-title').innerHTML = `<span>⚙️</span> Modifica Utente · <b>${fmEsc(username)}</b>`;
         
         const selfWarning = document.getElementById('sup-edit-self-warning');
         const roleSelect = document.getElementById('sup-edit-role');

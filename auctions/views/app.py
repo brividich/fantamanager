@@ -21,6 +21,7 @@ from ..models import (
     MarketSession,
     Participant,
     Player,
+    PlayerPerformance,
     Season,
     Trade,
 )
@@ -208,6 +209,7 @@ def app_live(request):
     opponent = None
     leaderboard = []
     manual = {}
+    vote_why_map = {}
 
     if season:
         all_giornate = list(season.giornate.all().order_by("number"))
@@ -225,6 +227,7 @@ def app_live(request):
         if current_giornata:
             my_score = GiornataScore.objects.filter(giornata=current_giornata, participant=participant).first()
             perf_map = services.giornata_perf_map(current_giornata)
+            vote_why_map = _vote_why_map(current_giornata)
             rules = scoring.effective_rules(season.rules if season else None)
             # Totals typed in by the admin (another site gives no votes): they win
             # over the engine, which has nothing to count.
@@ -367,8 +370,21 @@ def app_live(request):
         "leaderboard": leaderboard,
         "lineup_performances": lineup_performances,
         "manual_scores": bool(current_giornata and manual),
+        "vote_why_map": vote_why_map,
     })
     return render(request, "auctions/app_live.html", ctx)
+
+
+def _vote_why_map(giornata):
+    """id giocatore → «perché questo voto» per i voti algoritmici della giornata."""
+    from ..services.voto_algo import vote_why
+    out = {}
+    for pid, detail, vote in (PlayerPerformance.objects.filter(giornata=giornata, vote_detail__isnull=False)
+                              .values_list("player_id", "vote_detail", "vote")):
+        why = vote_why(detail, vote)
+        if why:
+            out[pid] = why
+    return out
 
 
 
@@ -1348,6 +1364,20 @@ def app_logout(request):
     return redirect("app_login")
 
 
+def _can_see_league(request, league):
+    """Partecipante della lega (sessione dell'app o account) o suo admin."""
+    if league is None:
+        return False
+    user = getattr(request, "user", None)
+    if user_can_manage_league(user, league):
+        return True
+    participant = _session_participant(request)
+    if participant is not None and participant.league_id == league.id:
+        return True
+    return bool(user and user.is_authenticated
+                and Participant.objects.filter(user=user, league=league, is_active=True).exists())
+
+
 def app_fixture_detail(request, fixture_id):
     """JSON API endpoint returning the full match sheet details for a fixture:
     starters, benches, votes, fantavoti, substitutions, cards, goals, modifier.
@@ -1357,14 +1387,13 @@ def app_fixture_detail(request, fixture_id):
 
     fixture = get_object_or_404(
         Fixture.objects.select_related("giornata", "giornata__season", "giornata__season__league",
-                                       "home", "away", "competition"),
+                                       "home", "away", "competition", "competition__season"),
         id=fixture_id,
     )
-    # Lineups and votes belong to the league: its teams and its admins only.
-    league = fixture.giornata.season.league
-    participant = _session_participant(request)
-    in_league = participant is not None and league is not None and participant.league_id == league.id
-    if not (in_league or user_can_manage_league(request.user, league)):
+    # Formazioni e voti sono della lega: solo chi ci gioca (sessione dell'app o
+    # account) o chi la gestisce. 404, non 403: non si rivela che la partita esiste.
+    season = fixture.competition.season if fixture.competition_id else fixture.giornata.season
+    if not _can_see_league(request, season.league if season else None):
         return JsonResponse({"success": False, "error": "Partita non disponibile."}, status=404)
     details = get_fixture_details(fixture)
     return JsonResponse({"success": True, "fixture": details})

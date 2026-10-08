@@ -49,7 +49,7 @@
         return STAT_TILES
             .filter(([k]) => stats[k] !== undefined && stats[k] !== null)
             .map(([k, label, key]) =>
-                `<span class="pl-stat${key ? " is-key" : ""}"><b>${stats[k]}</b><i>${label}</i></span>`)
+                `<span class="pl-stat${key ? " is-key" : ""}"><b>${fmEsc(stats[k])}</b><i>${label}</i></span>`)
             .join("");
     }
 
@@ -134,11 +134,11 @@
                     ? `Base d'asta ${Math.round(s.player.initial_price)} FM` : "";
                 const mr = s.player.mantra_roles || [];
                 const meta = mr.length
-                    ? `<span class="mrole-chips">${mr.map(r => `<span class="mrole-chip">${r}</span>`).join("")}</span>`
-                    : `<span class="role-badge role-${s.player.role}">${s.player.role}</span>${ROLE_LABEL[s.player.role] || s.player.role}`;
+                    ? `<span class="mrole-chips">${mr.map(r => `<span class="mrole-chip">${fmEsc(r)}</span>`).join("")}</span>`
+                    : `<span class="role-badge role-${fmRole(s.player.role)}">${fmEsc(s.player.role)}</span>${fmEsc(ROLE_LABEL[s.player.role] || s.player.role)}`;
                 $bp.innerHTML =
-                    `<div class="pl-name">${s.player.name}</div>` +
-                    `<div class="pl-meta">${meta} · ${s.player.team || ""}</div>` +
+                    `<div class="pl-name">${fmEsc(s.player.name)}</div>` +
+                    `<div class="pl-meta">${meta} · ${fmEsc(s.player.team)}</div>` +
                     `<div class="pl-note">${base}</div>` +
                     `<div class="pl-stats">${statTiles(s.player.stats)}</div>`;
                 $bp.dataset.player = s.player.name;
@@ -288,7 +288,7 @@
             document.getElementById("sealed-result-rows").innerHTML = rows.map((r, i) =>
                 `<div style="display:flex;justify-content:space-between;gap:16px;` +
                 `font-weight:${i === 0 ? 800 : 600}${i === 0 ? ";color:#ffb526" : ""}">` +
-                `<span>${r.team}</span><span>${money(r.amount)} FM</span></div>`).join("");
+                `<span>${fmEsc(r.team)}</span><span>${fmEsc(money(r.amount))} FM</span></div>`).join("");
         } else {
             result.style.display = "none";
         }
@@ -420,8 +420,8 @@
         } else {
             $callResults.innerHTML = rows.map((p, i) => `
                 <div class="call-row" role="option" id="call-opt-${i}" tabindex="-1"
-                     aria-selected="false" data-id="${p.id}">
-                    <span class="role-badge role-${p.role}">${p.role}</span>
+                     aria-selected="false" data-id="${callEsc(p.id)}">
+                    <span class="role-badge role-${fmRole(p.role)}">${callEsc(p.role)}</span>
                     <span class="call-nm">${callEsc(p.name)}<small>${callEsc(p.team)}</small></span>
                     <span class="call-q">${Math.round(p.quotation)} FM</span>
                     <button type="button" class="fm-btn fm-btn-primary fm-btn-sm"
@@ -556,18 +556,19 @@
             const rec = it.is_recovery
                 ? '<span class="role-badge" style="background:#f59e0b;color:#fff;margin-left:4px;font-size:10px" title="Giro di recupero">REC</span>'
                 : '';
-            return `<tr data-player-id="${it.player_id}">
+            const pid = Number(it.player_id);
+            return `<tr data-player-id="${pid}">
                 <td class="muted" style="width:26px">${idx + 1}</td>
                 <td style="width:30px">
-                    <span class="role-badge role-${it.role}">${it.role}</span>${rec}
+                    <span class="role-badge role-${fmRole(it.role)}">${esc(it.role)}</span>${rec}
                 </td>
                 <td style="font-weight:600">${esc(it.name)}<div class="muted" style="font-size:11px">${esc(it.team || "")}</div></td>
                 <td style="text-align:right;font-weight:700;white-space:nowrap">
-                    <span>${it.price} FM</span>
+                    <span>${esc(it.price)} FM</span>
                     <span class="q-actions">
-                        <button type="button" class="fm-btn-icon" title="Metti come prossimo" onclick="prioritizeQueuePlayer(${it.player_id})">⚡</button>
-                        <button type="button" class="fm-btn-icon" title="Rimanda a fine reparto" onclick="postponeQueuePlayer(${it.player_id})">⏭</button>
-                        <button type="button" class="fm-btn-icon text-danger" title="Escludi dalla coda" onclick="excludeQueuePlayer(${it.player_id})">✕</button>
+                        <button type="button" class="fm-btn-icon" title="Metti come prossimo" onclick="prioritizeQueuePlayer(${pid})">⚡</button>
+                        <button type="button" class="fm-btn-icon" title="Rimanda a fine reparto" onclick="postponeQueuePlayer(${pid})">⏭</button>
+                        <button type="button" class="fm-btn-icon text-danger" title="Escludi dalla coda" onclick="excludeQueuePlayer(${pid})">✕</button>
                     </span>
                 </td>
             </tr>`;
@@ -788,7 +789,7 @@
             `<span class="team-crest is-initials sm"></span>` +
             `<span class="act-w"></span>` +
             `<span class="act-a">rilancia a</span>` +
-            `<span class="act-amt">${money(bid.amount)} FM</span>`;
+            `<span class="act-amt">${fmEsc(money(bid.amount))} FM</span>`;
         row.querySelector(".act-w").textContent = bid.participant;
         row.querySelector(".team-crest").textContent = (bid.participant || "").slice(0, 2).toUpperCase();
         list.prepend(row);
@@ -832,8 +833,8 @@
         tr.innerHTML =
             `<td class="muted" style="white-space:nowrap">${t}</td>` +
             `<td class="muted" style="white-space:nowrap;font-variant-numeric:tabular-nums">${rem}</td>` +
-            `<td>${bid.participant}</td>` +
-            `<td style="text-align:right"><span class="amt">${money(bid.amount)} FM</span></td>` +
+            `<td>${fmEsc(bid.participant)}</td>` +
+            `<td style="text-align:right"><span class="amt">${fmEsc(money(bid.amount))} FM</span></td>` +
             `<td class="col-ua"><span style="color:var(--live)">accettata</span></td><td></td>`;
         tbody.prepend(tr);
     }

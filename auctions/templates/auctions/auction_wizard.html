@@ -344,7 +344,7 @@ const wiz = {
             ["Rimborso svincolo", (f.querySelector('[name="release_refund_mode"]').selectedOptions[0] || {}).text || "—"],
         ];
         document.getElementById("summary").innerHTML =
-            rows.map(([k, val]) => `<tr><td>${k}</td><td><b>${val || "—"}</b></td></tr>`).join("");
+            rows.map(([k, val]) => `<tr><td>${fmEsc(k)}</td><td><b>${fmEsc(val || "—")}</b></td></tr>`).join("");
     },
 };
 
@@ -359,12 +359,12 @@ function refreshLeagueMeta() {
     if (!o) return;
     document.getElementById("no-listone").style.display = leaguePoolCount() ? "none" : "block";
     document.getElementById("lg-meta").innerHTML =
-        `<span>Squadre <b>${o.dataset.teams}</b></span>` +
-        `<span>Budget <b>${o.dataset.budget} FM</b></span>` +
-        `<span>Slot <b>${o.dataset.slots}</b></span>` +
-        `<span>Listone <b>${o.dataset.pool}</b></span>` +
-        `<span>Svincolati <b>${o.dataset.free}</b></span>` +
-        `<span>Fonte <b>${o.dataset.source}</b></span>`;
+        `<span>Squadre <b>${fmEsc(o.dataset.teams)}</b></span>` +
+        `<span>Budget <b>${fmEsc(o.dataset.budget)} FM</b></span>` +
+        `<span>Slot <b>${fmEsc(o.dataset.slots)}</b></span>` +
+        `<span>Listone <b>${fmEsc(o.dataset.pool)}</b></span>` +
+        `<span>Svincolati <b>${fmEsc(o.dataset.free)}</b></span>` +
+        `<span>Fonte <b>${fmEsc(o.dataset.source)}</b></span>`;
 }
 document.getElementById("league-select").addEventListener("change", refreshLeagueMeta);
 document.getElementById("wiz-form").addEventListener("submit", ev => {

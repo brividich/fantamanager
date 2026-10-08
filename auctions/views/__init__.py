@@ -237,6 +237,19 @@ from .auth import (
 )
 from .history import admin_storico, app_storico
 from .password_reset import password_reset_confirm, password_reset_request
+from .algo_settings import (
+    supervisor_algo,
+    supervisor_algo_calibrate,
+    supervisor_algo_defaults,
+    supervisor_algo_fit,
+    supervisor_algo_preview,
+    supervisor_algo_reference_delete,
+    supervisor_algo_reference_upload,
+    supervisor_algo_restore,
+    supervisor_algo_sample_delete,
+    supervisor_algo_sample_import,
+    supervisor_algo_save,
+)
 from .supervisor import (
     supervisor_backup_download,
     supervisor_dashboard,
@@ -257,6 +270,17 @@ __all__ = [
     "logout_view",
     "onboarding_view",
     # supervisor
+    "supervisor_algo",
+    "supervisor_algo_calibrate",
+    "supervisor_algo_defaults",
+    "supervisor_algo_fit",
+    "supervisor_algo_preview",
+    "supervisor_algo_reference_delete",
+    "supervisor_algo_reference_upload",
+    "supervisor_algo_restore",
+    "supervisor_algo_sample_delete",
+    "supervisor_algo_sample_import",
+    "supervisor_algo_save",
     "supervisor_backup_download",
     "supervisor_dashboard",
     "supervisor_impersonate_exit",

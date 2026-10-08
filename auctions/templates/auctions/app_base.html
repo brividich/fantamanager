@@ -523,15 +523,17 @@ window.showToast = function(msg, type) {
     
     if(type === 'good' || type === 'success') {
         toast.style.borderLeft = '4px solid #22c55e';
-        toast.innerHTML = `<svg style="width:20px;height:20px;color:#22c55e;flex-shrink:0"><use href="#i-check"/></svg> <span>${msg}</span>`;
+        toast.innerHTML = `<svg style="width:20px;height:20px;color:#22c55e;flex-shrink:0"><use href="#i-check"/></svg> <span></span>`;
     } else if (type === 'bad' || type === 'error') {
         toast.style.borderLeft = '4px solid #ef4444';
-        toast.innerHTML = `<svg style="width:20px;height:20px;color:#ef4444;flex-shrink:0"><use href="#i-alert"/></svg> <span>${msg}</span>`;
+        toast.innerHTML = `<svg style="width:20px;height:20px;color:#ef4444;flex-shrink:0"><use href="#i-alert"/></svg> <span></span>`;
     } else {
         toast.style.borderLeft = '4px solid var(--accent)';
-        toast.innerHTML = `<svg style="width:20px;height:20px;color:var(--accent);flex-shrink:0"><use href="#i-bell"/></svg> <span>${msg}</span>`;
+        toast.innerHTML = `<svg style="width:20px;height:20px;color:var(--accent);flex-shrink:0"><use href="#i-bell"/></svg> <span></span>`;
     }
-    
+    // Il messaggio può contenere nomi di giocatori o squadre: solo testo.
+    toast.querySelector('span').textContent = msg;
+
     container.appendChild(toast);
     void toast.offsetWidth;
     toast.style.opacity = '1';
