@@ -386,6 +386,24 @@ the same league.
     </div>
 </div>
 
+<details class="howto noprint" style="margin-top:14px">
+    <summary><svg class="ic"><use href="#i-gavel"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        Da qui gestisci la lega <b>{{ app_league.name }}</b>: in <b>Status</b> le cose da fare, aste, mercati, scambi e competizioni; in <b>Squadre</b> le rose; in <b>Strumenti</b> tutte le pagine di gestione.
+        <ol>
+            <li><b>Squadre</b>{% if kpi.teams %} ✓ {{ kpi.teams }}{% endif %}: {% if not kpi.teams %}<b>adesso</b> aggiungile: <b>Strumenti</b> → <b>Squadre</b> → <b>Aggiungi squadra</b>, oppure <b>Importa</b> le rose da file.{% else %}dalla scheda <b>Squadre</b> tocca una squadra e poi <b>Copia invito</b> per mandare all'allenatore il suo link; PIN, email e QR sono in <b>Strumenti</b> → <b>Squadre</b>.{% endif %}</li>
+            <li><b>Listone</b>{% if kpi.pool %} ✓ {{ kpi.pool }} giocatori{% endif %}: {% if not kpi.pool %}<b>adesso</b> caricalo da <b>Strumenti</b> → <b>Giocatori</b> (file delle Quotazioni).{% else %}aggiornalo o controlla gli svincolati da <b>Strumenti</b> → <b>Giocatori</b>.{% endif %}</li>
+            <li><b>Asta</b>: {% if active_auction %}<b>in corso</b>, <b>{{ active_auction.title }}</b>: tocca <b>Regia live</b> per condurla e <b>Maxischermo</b> per lo schermo della sala.{% elif auctions %}nel riquadro <b>Aste</b> tocca un'asta per aprirla, o <b>+ Nuova</b> per crearne un'altra.{% else %}nel riquadro <b>Aste</b> tocca <b>+ Nuova</b> per creare l'asta iniziale.{% endif %}</li>
+            <li><b>Mercati</b>: nel riquadro <b>Mercato</b> tocca <b>Nuovo Mercato</b> per aprire buste, svincoli o rinnovi; tocca una sessione per gestirla e fare lo spoglio.</li>
+            {% if trades_to_ratify %}
+            <li><b>Adesso:</b> {{ trades_to_ratify|length }} scamb{{ trades_to_ratify|length|pluralize:"io,i" }} da ratificare: <b>Ratifica</b> o <b>Boccia</b> nel riquadro <b>Scambi da ratificare</b>.</li>
+            {% endif %}
+            <li>Durante il campionato: <b>Nuova Competizione</b> per calendari e coppe, <b>Strumenti</b> → <b>Giornate &amp; Voti</b> per formazioni, voti e calcolo.</li>
+        </ol>
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> In <b>Status</b>, <b>Da fare</b> ti dice sempre il prossimo passo. Con <b>Vedi come</b> (scheda <b>Squadre</b>) usi l'app come quella squadra.</div>
+    </div>
+</details>
+
 <div class="a-seg" data-asec-default="overview" style="margin-top:14px">
     <button type="button" data-asec-go="overview">Status</button>
     <button type="button" data-asec-go="teams">Squadre <span class="n">{{ kpi.teams }}</span></button>

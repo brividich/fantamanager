@@ -293,6 +293,87 @@
     </div>
 </div>
 
+<details class="howto noprint">
+    <summary><svg class="ic"><use href="#i-swap"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        {% if initial_view == "hub" %}
+        Tutti i mercati della lega: scegli una sessione per entrarci e fare le tue mosse.
+        <ol>
+            {% if active_auction %}
+            <li><b>Adesso:</b> c'è un'asta live in sala: tocca <b>Entra nella Sala Asta</b>.</li>
+            {% endif %}
+            <li>In <b>Sessioni di mercato</b> ogni riquadro è una sessione. Se è aperta tocca il pulsante verde (<b>Entra e fai le offerte</b>, <b>Entra e acquista</b>, <b>Inserisci le scelte</b>…); se è chiusa, <b>Vedi dettagli ed esiti</b>.</li>
+            <li><b>Consulta Listone Svincolati</b> per quotazioni, fantamedie e ruoli dei giocatori liberi, anche a mercato chiuso.</li>
+            {% if trades_enabled %}
+            <li><b>Vai alla Sezione Scambi</b> per proporre scambi alle altre squadre o rispondere a quelli ricevuti.</li>
+            {% endif %}
+            {% if manages_app_league %}
+            <li>Da admin: <b>Nuovo Mercato</b> apre il wizard per creare una sessione.</li>
+            {% endif %}
+        </ol>
+        {% elif is_listone_view and not requested_session_id %}
+        Il listone dei giocatori liberi, da consultare.
+        <ol>
+            <li>Cerca per nome o squadra e tocca <b>Cerca</b>; filtra per ruolo, cambia l'ordine o spunta <b>Solo nel mio budget</b>.</li>
+            <li>Tocca un giocatore per vedere la sua scheda.</li>
+            <li>Per comprare entra in una sessione aperta: tocca <b>Tutti i Mercati</b>.</li>
+        </ol>
+        {% elif market_session %}
+        {% if is_renewals %}
+        I rinnovi dei contratti scaduti, in due fasi.
+        <ol>
+            <li>In <b>📜 I Miei Rinnovi &amp; Dadi</b> spunta i giocatori da rinnovare e tocca <b>Conferma Dichiarazione Rinnovi</b>: quelli non spuntati vengono svincolati subito.</li>
+            <li>Per ogni giocatore dichiarato tocca <b>🎲 Tira Dado Rinnovo</b>: verde rinnova, rossa svincola.</li>
+            <li>Per i nuovi acquisti senza durata tocca <b>🎲 Tira Dado</b> per assegnare gli anni di contratto.</li>
+            <li><b>👥 Quadro Lega (Rinnovi)</b> mostra i contratti scaduti di tutte le squadre.</li>
+        </ol>
+        {% elif market_session.status == "resolved" and is_buste or market_session.status == "resolved" and is_waiver_wire %}
+        La sessione è conclusa: qui trovi com'è andata.
+        <ol>
+            <li>In <b>{% if is_waiver_wire %}🏆 Esito del Draft{% else %}🏆 Esito Spoglio &amp; Verbale{% endif %}</b> vedi i giocatori che hai preso, quelli persi e tutte le assegnazioni della lega.</li>
+            {% if is_buste %}<li><b>Le mie Buste</b> mostra le offerte che avevi consegnato.</li>{% endif %}
+        </ol>
+        {% elif not market_open %}
+        La sessione è chiusa: non si possono più fare offerte.
+        <ol>
+            <li>Aspetta che l'admin pubblichi l'esito: lo trovi qui, nella stessa sessione.</li>
+            <li>Tocca <b>Tutti i Mercati</b> per vedere se ci sono altre sessioni aperte.</li>
+        </ol>
+        {% elif is_free_agency %}
+        Mercato libero: compri subito dal listone, chi conferma per primo prende il giocatore.
+        <ol>
+            <li>In <b>Svincolati &amp; Acquisti</b> cerca il giocatore e tocca <b>⚡ Acquista</b>.</li>
+            <li>Se serve scegli chi svincolare, poi tocca <b>⚡ Conferma Acquisto</b>: il giocatore è subito tuo.</li>
+            <li>Controlla in alto i cambi che ti restano.</li>
+        </ol>
+        {% elif is_buyout_clause %}
+        Clausole rescissorie: paghi la clausola e prendi un giocatore da un'altra squadra.
+        <ol>
+            <li>In <b>Rose &amp; Clausole</b> cerca il giocatore e tocca <b>💰 Paga Clausola</b>.</li>
+            <li>Se serve scegli chi svincolare, poi tocca <b>💰 Conferma e Scippa</b>: i crediti vanno alla squadra che lo cede.</li>
+        </ol>
+        {% elif is_waiver_wire %}
+        Reclami a turni: scegli chi vuoi, alla chiusura i giocatori vengono assegnati in ordine di priorità.
+        <ol>
+            <li>In <b>Svincolati &amp; Scelte</b> tocca <b>📋 Reclama</b> sui giocatori che vuoi.</li>
+            <li>In <b>I Miei Reclami</b> controlla l'ordine delle tue scelte; <b>✕ Ritira</b> per toglierne una.</li>
+            <li><b>Ordine Scelta</b> mostra quale squadra sceglie per prima.</li>
+        </ol>
+        {% else %}
+        Buste segrete: consegni le offerte prima della chiusura{% if market_session.closes_at %} ({{ market_session.closes_at|date:"d/m H:i" }}){% endif %}; allo spoglio vince chi offre di più.
+        <ol>
+            <li>In <b>Svincolati &amp; Offerte</b> cerca il giocatore e tocca <b>Offri</b>.</li>
+            <li>Scrivi l'offerta, scegli la priorità e, se serve, chi tagliare; poi tocca <b>Consegna Busta</b>.</li>
+            <li>In <b>Le mie Buste</b> controlli le offerte consegnate; <b>✕ Ritira</b> per annullarne una.</li>
+        </ol>
+        {% endif %}
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Le regole di questa sessione sono nella scheda <b>{% if is_renewals %}Regolamento Comma 4{% else %}Regolamento{% endif %}</b>{% if cap and cap.extra_open %}; in <b>Extra Cap</b> converti budget in tetto salariale{% endif %}. <b>Tutti i Mercati</b> ti riporta all'elenco.</div>
+        {% else %}
+        Nessuna sessione selezionata: tocca <b>Tutti i Mercati</b> per tornare all'elenco.
+        {% endif %}
+    </div>
+</details>
+
 {% include "auctions/_slot_strip.html" %}
 
 <!-- =========================================================================

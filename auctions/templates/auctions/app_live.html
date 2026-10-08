@@ -185,6 +185,28 @@
     {% endif %}
 </div>
 
+<details class="howto noprint">
+    <summary><svg class="ic"><use href="#i-pulse"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        I voti e i punti della giornata: la tua squadra, {% if opponent %}la sfida con {{ opponent.display_name }}, {% endif %}i subentri dalla panchina e la classifica di giornata.
+        {% if giornata %}
+        <ol>
+            <li>Scegli la giornata dai chip <b>G1</b>, <b>G2</b>…: quella col pallino è in corso.</li>
+            <li>Tocca <b>↻ Aggiorna</b> per ricaricare i voti: la pagina non si aggiorna da sola.</li>
+            {% if opponent and opp_live %}
+            <li>Passa da <b>{{ participant.display_name }}</b> a <b>{{ opponent.display_name }}</b> con i due pulsanti sotto il risultato per vedere i voti dell'avversario.</li>
+            {% endif %}
+            <li>Accanto a ogni titolare c'è il voto (sotto, <b>FV</b> è il fantavoto con bonus e malus); <b>s.v.</b> vuol dire senza voto: entra la prima riserva del suo ruolo, segnata <b>IN CAMPO</b> in <b>Panchina a disposizione</b>.</li>
+            <li>In fondo, <b>Classifica di Giornata</b>: i punti di tutte le squadre della lega.</li>
+        </ol>
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Tocca il nome di un giocatore per la sua scheda. Per la prossima giornata schiera da <b>Formazione</b>.</div>
+        {% else %}
+        <ol>
+            <li>Non ci sono ancora giornate: quando parte il campionato della lega le trovi qui.</li>
+        </ol>
+        {% endif %}
+    </div>
+</details>
 {% if manual_scores %}
 <div class="msg" style="margin-bottom:12px">Risultato della Giornata {{ giornata.number }} inserito a mano dall'admin (per esempio da Fantapazz): ci sono i totali e i gol, non i voti dei singoli giocatori.</div>
 {% endif %}

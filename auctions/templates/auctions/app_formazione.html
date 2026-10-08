@@ -9,5 +9,24 @@
        {{ starters_count }}/{{ starters_target }} titolari schierati</p>
     {% if giornata %}<p class="fz-note">Vale per la Giornata {{ giornata.number }} e resta per le successive finché non la cambi. Quando la giornata parte la formazione si blocca.</p>{% endif %}
 </div>
+<details class="howto noprint">
+    <summary><svg class="ic"><use href="#i-table"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        Qui schieri la squadra{% if giornata %} della Giornata {{ giornata.number }}{% endif %}: modulo, titolari e ordine della panchina.
+        {% if owned_count == 0 %}
+        <ol>
+            <li>La tua rosa è vuota: prima vinci giocatori all'asta o sul <b>Mercato</b>, poi torna qui.</li>
+        </ol>
+        {% else %}
+        <ol>
+            <li>Scegli il modulo toccando uno dei chip in alto (es. <b>{{ module }}</b>).</li>
+            <li>{% if starters_count < starters_target %}<b>Adesso:</b> hai schierato {{ starters_count }} titolari su {{ starters_target }}. {% endif %}Tocca <b>＋</b> su ogni posto del campo e scegli il giocatore; oppure tocca (o trascina) un giocatore della <b>Panchina</b> per metterlo nel primo posto libero del suo ruolo.</li>
+            <li>Metti in ordine la <b>Panchina</b> con le frecce <b>▲</b> <b>▼</b>: se un titolare non prende voto entra la prima riserva del suo ruolo.</li>
+            <li>Tocca <b>Salva formazione</b>: vale per questa giornata e per le successive finché non la cambi.</li>
+        </ol>
+        {% endif %}
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Quando la giornata parte la formazione si blocca: da lì non si cambia più, e qui schieri già per la giornata dopo.</div>
+    </div>
+</details>
 {% include "auctions/_formation_pitch.html" %}
 {% endblock %}
