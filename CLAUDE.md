@@ -36,12 +36,19 @@ stessi testi**.
   `_footballers.html`, in `admin_footballers.html` (console) e
   `app_footballers.html` (app); dati da `footballers_context`
   (`views/footballers.py`).
-- Dove l'app non ha ancora una sua schermata (contratti lato admin, giocatori,
-  squadre) apre quella della console: una sola versione.
+- Le squadre della lega (email e inviti, account del portale, link e QR,
+  scheda): `_teams_manage.html`, in `admin_participants.html` (console) e
+  `app_regia_teams.html` (app); dati da `teams_manage_context`
+  (`views/admin_participants.py`). Colonne e schede seguono la larghezza del
+  riquadro (container query), non della finestra: la colonna dell'app è più
+  stretta della pagina della console.
+- Dove l'app non ha ancora una sua schermata (contratti lato admin, giocatori)
+  apre quella della console: una sola versione.
 - I test di parità confrontano web e app: `MarketWizardParityTests` e
   `MarketManageParityTests` in `auctions/tests/test_market.py`,
   `CompetitionWizardParityTests` in `auctions/tests/test_competitions.py`,
   `FootballersPageTests` in `auctions/tests/test_footballers.py`,
+  `TeamsPageTests` in `auctions/tests/test_participant_accounts.py`,
   `GiornatePageTests` e `AdminFormationEditorTests` in `auctions/tests/test_voti.py`.
 
 ## Formazioni: una per giornata

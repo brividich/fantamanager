@@ -309,6 +309,7 @@ urlpatterns = [
     path("app/regia/", views.app_regia, name="app_regia"),
     path("app/regia/mercato/<int:session_id>/", views.app_regia_market_session, name="app_regia_market_session"),
     path("app/regia/scambi/", views.app_regia_trades, name="app_regia_trades"),
+    path("app/regia/squadre/", views.app_regia_teams, name="app_regia_teams"),
     path("app/regia/vedi/<int:participant_id>/", views.app_view_as, name="app_view_as"),
     path("app/regia/vedi/esci/", views.app_view_as_exit, name="app_view_as_exit"),
     path("app/altro/pin/", views.app_update_pin, name="app_update_pin"),

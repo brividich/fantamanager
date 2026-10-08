@@ -159,6 +159,16 @@ class RemoteAccessTests(TestCase):
         self.assertEqual(r.status_code, 302)
         self.assertIn("/regia/unlock/", r["Location"])
 
+    def test_app_teams_page_is_gated_through_the_tunnel_too(self):
+        """The app's Squadre shows the same join links and accounts."""
+        self._open()
+        r = self.client.get(f"/app/regia/squadre/?league={self.league.id}",
+                            HTTP_HOST="abc-def.trycloudflare.com")
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("/regia/unlock/", r["Location"])
+        self.assertIn(f"league%3D{self.league.id}", r["Location"])     # back to the same league
+        self.assertEqual(self.client.get(f"/app/regia/squadre/?league={self.league.id}").status_code, 200)
+
 
 class RemoteErrorShieldTests(TestCase):
     """Tracebacks must not leave the building through the public URL."""

@@ -9,6 +9,7 @@ eyes ("Vedi come"). The two halves share the selected league through the
 session, so switching league on one side is already done on the other.
 """
 from decimal import Decimal
+from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.http import HttpResponseForbidden
@@ -16,11 +17,12 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from .. import services
+from .. import remote, services
 from ..services import mail
 from ..models import Auction, MarketBid, MarketSession, Participant, Player, Trade
 from .admin_dashboard import _classifica_standings
 from .admin_market import rule_choices, session_labels, session_manage_context, trades_manage_context
+from .admin_participants import teams_manage_context
 from .app import _redirect_login
 from .common import (
     SESSION_LEAGUE_KEY,
@@ -116,14 +118,14 @@ def league_admin_digest(league):
         items.append(_todo(
             "warn", "shield", "Aggiungi le squadre",
             "La lega non ha ancora squadre iscritte.",
-            reverse("admin_participants") + q, "Aggiungi"))
+            reverse("app_regia_teams") + q, "Aggiungi"))
     else:
         locked_out = teams.filter(user__isnull=True, access_code="").count()
         if locked_out:
             items.append(_todo(
                 "info", "lock", f"{locked_out} squadr{'a' if locked_out == 1 else 'e'} senza accesso",
                 "Né un account né un PIN: dai loro un codice o il link di invito.",
-                reverse("admin_participants") + q, "Sistema"))
+                reverse("app_regia_teams") + q, "Sistema"))
     if pool and teams_n and not auctions.exists():
         items.append(_todo(
             "info", "plus", "Crea la prima asta",
@@ -301,3 +303,26 @@ def app_regia_trades(request):
         "mk_back": f"{reverse('app_regia_trades')}?league={league.id}",
     })
     return render(request, "auctions/app_regia_trades.html", ctx)
+
+
+def app_regia_teams(request):
+    """The league's teams, managed from the app: the console's own screen
+    (_teams_manage.html) inside the app shell."""
+    participant, ctx = _app_ctx(request, "regia")
+    if ctx is None:
+        return _redirect_login(request, ctx)
+    league = app_admin_league(request, ctx["admin_leagues"], participant)
+    if league is None:
+        messages.error(request, "La Regia è per chi gestisce una lega: il tuo account non ne gestisce nessuna.")
+        return redirect("app_home")
+    # Join links and coaches' accounts: through the internet tunnel the
+    # console asks for the regia PIN first, and so does this page.
+    if remote.request_is_remote(request) and not request.session.get("regia_unlocked"):
+        return redirect(f"{reverse('regia_unlock')}?{urlencode({'next': request.get_full_path()})}")
+    ctx.update(teams_manage_context(request, league))
+    ctx.update({
+        "app_league": league,
+        "active_auction": _app_active_auction(league),
+        "manages_app_league": True,
+    })
+    return render(request, "auctions/app_regia_teams.html", ctx)
