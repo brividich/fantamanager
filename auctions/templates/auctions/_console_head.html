@@ -126,6 +126,8 @@ button) and everything else opens as a full-screen menu: ``.fm-chrome`` is
         <svg class="ic"><use href="#i-pulse"/></svg> Giornate & Voti</a>
     <a class="fm-nav-link {% if console_active == 'season' %}is-active{% endif %}" href="{% url 'admin_season' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
         <svg class="ic"><use href="#i-table"/></svg> Stagione</a>
+    <a class="fm-nav-link {% if console_active == 'storico' %}is-active{% endif %}" href="{% url 'admin_storico' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
+        <svg class="ic"><use href="#i-trophy"/></svg> Storico</a>
     <a class="fm-nav-link {% if console_active == 'import' %}is-active{% endif %}" href="{% url 'admin_fantapazz' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
         <svg class="ic"><use href="#i-import"/></svg> Importa</a>
     <a class="fm-nav-link {% if console_active == 'export' %}is-active{% endif %}" href="{% url 'admin_export' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">

@@ -533,3 +533,49 @@ class KnockoutAdvanceTests(TestCase):
         semis = comp.fixtures.exclude(stage__startswith="Girone")
         self.assertEqual(sorted((f.home_id, f.away_id) for f in semis), [(t0, t3), (t2, t1)])
         self.assertTrue(all(f.giornata.number == 3 and f.stage == "Semifinale" for f in semis))
+
+
+class HistoryPageTests(TestCase):
+    """Storico: albo d'oro per stagione e classifica di sempre, uguale in
+    console e app (_season_history.html)."""
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+        self.owner = User.objects.create_user("presidente_storico", password="pw", is_staff=True)
+        self.league = League.objects.create(name="Lega Storica", owner=self.owner)
+        self.teams = [Participant.objects.create(display_name=f"Club {i}", league=self.league) for i in range(4)]
+        self.old = Season.objects.create(league=self.league, name="Stagione 2025/26", matchdays=3, is_current=False)
+        for n in range(1, 4):
+            Giornata.objects.create(season=self.old, number=n)
+        comp = Competition.objects.create(season=self.old, name="Campionato", kind=Competition.Type.ROUND_ROBIN)
+        setup_round_robin_competition(comp)
+        from auctions.services.scoring import set_manual_scores
+        for n in range(1, 4):
+            set_manual_scores(self.old.giornate.get(number=n),
+                              {t: (Decimal("80") if t == self.teams[2] else Decimal("60"), None) for t in self.teams})
+        Season.objects.create(league=self.league, name="Stagione 2026/27", is_current=True)
+
+    def _section(self, html):
+        import re
+        return re.sub(r"\s+", " ", html.split("<!-- season-history:start -->", 1)[1]
+                      .split("<!-- season-history:end -->", 1)[0])
+
+    def test_console_and_app_show_the_same_history(self):
+        from django.urls import reverse
+        self.client.force_login(self.owner)
+        console = self.client.get(reverse("admin_storico"), {"league": self.league.id})
+        self.assertContains(console, "Stagione 2025/26")
+        self.assertContains(console, "Club 2")
+        session = self.client.session
+        session["participant_id"] = self.teams[0].id
+        session.save()
+        app = self.client.get(reverse("app_storico"))
+        self.assertEqual(app.status_code, 200)
+        self.assertEqual(self._section(console.content.decode()), self._section(app.content.decode()))
+
+    def test_the_champion_gets_a_title(self):
+        from auctions.services.history import league_history
+        history = league_history(self.league)
+        top = history["alltime"][0]
+        self.assertEqual((top["team"], top["titles"]), (self.teams[2], 1))
+        self.assertEqual(history["seasons"][0]["season"].name, "Stagione 2026/27")     # current first

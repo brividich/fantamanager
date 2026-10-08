@@ -36,23 +36,30 @@ stessi testi**.
   `_footballers.html`, in `admin_footballers.html` (console) e
   `app_footballers.html` (app); dati da `footballers_context`
   (`views/footballers.py`).
+- Lo storico della lega (albo d'oro e classifica di sempre): `_season_history.html`,
+  in `admin_storico.html` (console) e `app_storico.html` (app); dati da
+  `league_history` (`services/history.py`).
 - Dove l'app non ha ancora una sua schermata (contratti lato admin, giocatori,
   squadre) apre quella della console: una sola versione.
 - I test di parità confrontano web e app: `MarketWizardParityTests` e
   `MarketManageParityTests` in `auctions/tests/test_market.py`,
   `CompetitionWizardParityTests` in `auctions/tests/test_competitions.py`,
   `FootballersPageTests` in `auctions/tests/test_footballers.py`,
-  `GiornatePageTests` e `AdminFormationEditorTests` in `auctions/tests/test_voti.py`.
+  `GiornatePageTests` e `AdminFormationEditorTests` in `auctions/tests/test_voti.py`,
+  `HistoryPageTests` in `auctions/tests/test_competitions.py`.
 
 ## Formazioni: una per giornata
 
 Si schiera per la prossima giornata ancora da giocare (`target_giornata`,
 `services/formation.py`); il salvataggio scrive l'ultima formazione
 (`Formation`, il modello per le giornate dopo) e la copia della giornata
-(`MatchdayFormation`). Quando la giornata parte (blocco a mano, primo sync live
-o import dei voti: `lock_formations`) ogni squadra ha la sua copia e da lì non
+(`MatchdayFormation`). Quando la giornata parte (blocco a mano, primo sync live,
+import dei voti o scadenza `Giornata.starts_at` applicata dallo scheduler
+`run_scheduler` o alla prima visita: `lock_formations`) ogni squadra ha la sua copia e da lì non
 cambia più: i ricalcoli usano quella, anche se la rosa poi cambia. L'ordine
-della panchina lo sceglie il manager ed è la priorità dei cambi.
+della panchina lo sceglie il manager ed è la priorità dei cambi. Capitano e vice
+(`captain_id`/`vice_id`) stanno fra i titolari e seguono la copia della giornata;
+valgono solo se la lega accende `captain_enabled` nelle Regole di punteggio.
 L'admin della lega modifica la formazione di ogni squadra per qualsiasi
 giornata dalla pagina Giornate (`admin_save_matchday_formation`): tocca solo
 la copia di quella giornata e, se la giornata ha già punteggi dai voti, li
@@ -101,6 +108,13 @@ lega (`Player`, con rosa, costo e contratto) restano della lega.
 L'admin di una lega (proprietario o co-admin in `league.admins`) gestisce solo
 le sue leghe: usare `user_can_manage_league` / `manageable_leagues`
 (`views/common.py`), mai il solo `league.owner`.
+
+## Stagioni
+
+`start_new_season` chiude la `Season` corrente e ne apre una nuova
+(`roll_season`, `services/competitions.py`) con le stesse regole e competizioni:
+giornate e classifiche dell'anno finito restano lì (storico). Le coppe a
+eliminazione avanzano da sole a fine turno (`services/knockout.py`).
 
 ## Test
 

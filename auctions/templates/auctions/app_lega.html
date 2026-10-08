@@ -3,7 +3,7 @@
 {% block app %}
 <div class="tab-head">
     <h1>{% if app_league %}{{ app_league.name }}{% else %}Lega{% endif %}</h1>
-    <p>{{ standings|length }} squadre</p>
+    <p>{{ standings|length }} squadre · <a href="{% url 'app_storico' %}">🏆 Storico e albo d'oro</a></p>
 </div>
 
 <div class="a-seg" data-asec-default="classifica" style="margin-bottom:14px;">

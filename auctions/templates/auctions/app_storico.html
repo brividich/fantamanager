@@ -1,0 +1,14 @@
+{% extends "auctions/app_base.html" %}
+{% comment %}
+Storico della lega nell'app. Il contenuto è lo stesso partial della console
+(_season_history.html): qui c'è solo la cornice.
+{% endcomment %}
+{% block title %}Storico — FantaManager{% endblock %}
+{% block app %}
+<div class="tab-head">
+    <a class="fm-back" href="{% url 'app_lega' %}"><svg class="ic"><use href="#i-arrow-left"/></svg> Torna alla Lega</a>
+    <h1>Storico</h1>
+    <p>Albo d'oro e classifica di sempre di {{ app_league.name }}</p>
+</div>
+{% include "auctions/_season_history.html" %}
+{% endblock %}
