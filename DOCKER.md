@@ -140,3 +140,11 @@ Il container gira come utente `app` (uid 1000): all'avvio l'entrypoint passa a q
 cartelle `data`, `media`, `logs`, `backups`. Se il NAS non lo permette resta root e lo scrive nel log
 (`FM_RUN_AS_ROOT=1` per restare root di proposito). Dopo questo aggiornamento serve
 `docker compose build` (o il pull dell'immagine), non solo il riavvio.
+
+## 🌐 Servizio pubblico (profilo server)
+
+Per un servizio su internet aperto a più leghe (non il NAS di casa) avvia con
+`DJANGO_SETTINGS_MODULE=liveauction.settings_server`. Il profilo si rifiuta di partire con DEBUG
+acceso, `DJANGO_ALLOWED_HOSTS=*`, senza PostgreSQL o con la password d'esempio del database; forza
+link squadra con token, cookie solo HTTPS, log su stdout, cache su Redis se c'è `REDIS_URL`, e
+spegne il tunnel cloudflared e la lettura delle classifiche da siti terzi.

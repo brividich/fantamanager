@@ -296,6 +296,9 @@ TIMER_SYNC_INTERVAL_SECONDS = float(os.getenv("TIMER_SYNC_INTERVAL_SECONDS", "2"
 # matching unguessable token. Defaults to off for trusted LAN use; turn on for
 # internet-facing deployments. See auctions.views screen()/bid_page()/join().
 PUBLIC_TOKENS_REQUIRED = os.getenv("PUBLIC_TOKENS_REQUIRED", "False").lower() in ("1", "true", "yes")
+# The cloudflared tunnel that puts a LAN/desktop install on the internet for
+# remote bidders. A hosted server (settings_server) has no use for it.
+FM_REMOTE_TUNNEL = os.getenv("FM_REMOTE_TUNNEL", "True").lower() in ("1", "true", "yes")
 
 # --- Dati dei calciatori -----------------------------------------------------
 # Statistiche di stagione applicate da sole a ogni import del listone: un file
