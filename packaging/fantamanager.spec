@@ -53,6 +53,7 @@ hiddenimports += [
     "auctions.consumers",
     "auctions.routing",
     "psycopg",          # harmless if absent; lets POSTGRES_DB work if ever set
+    "requests",         # il PC della sala parla col sito (services/sala.py)
 ]
 
 a = Analysis(

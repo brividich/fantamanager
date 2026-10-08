@@ -20,6 +20,8 @@ def screen(request, auction_id):
     if settings.PUBLIC_TOKENS_REQUIRED and not request.user.is_staff:
         if (request.GET.get("t") or "").strip() != auction.public_token:
             return HttpResponseForbidden("Token schermo mancante o non valido.")
+    # La connessione in tempo reale dello schermo lo riconosce da qui.
+    request.session[f"screen_ok_{auction.id}"] = True
     recent = (
         auction.bids.select_related("participant")
         .filter(accepted=True, cancelled=False)[:10]

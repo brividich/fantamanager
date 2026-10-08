@@ -18,6 +18,19 @@ altre squadre della stessa giornata. Uguale in console e app.
 {% else %}
 <p class="fa-note">Vale solo per la Giornata {{ giornata.number }}; l'ultima formazione salvata dal manager resta com'è.</p>
 {% endif %}
+<details class="howto noprint">
+    <summary><svg class="ic"><use href="#i-shirt"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        Qui schieri la formazione di una squadra per la <b>Giornata {{ giornata.number }}</b> al posto del suo allenatore.
+        <ol>
+            <li>Scegli la squadra dalla fila qui sotto; per un'altra giornata torna a <b>Giornata {{ giornata.number }}</b> e scegline un'altra dalla pagina Giornate.</li>
+            <li>Tocca il modulo che vuoi, poi riempi ogni posto del campo scegliendo il giocatore dal menu.</li>
+            <li>Metti in ordine la panchina con le frecce ▲ ▼: la prima riserva del ruolo entra per prima se un titolare non prende voto.</li>
+            <li>Premi <b>Salva formazione</b>.</li>
+        </ol>
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> {% if lineups_editable %}La modifica vale solo per questa giornata: l'ultima formazione salvata dal manager per le giornate dopo non cambia.{% elif has_scores %}La giornata ha già punteggi: salvando si ricalcolano con questa formazione.{% else %}La giornata è bloccata: la modifica vale solo per questa giornata e la usano i calcoli dei voti.{% endif %}</div>
+    </div>
+</details>
 <nav class="fa-teams fm-onerow" aria-label="Squadre">
     {% for t, url in team_links %}<a href="{{ url }}" class="{% if t.id == team.id %}on{% endif %}">{{ t.display_name }}</a>{% endfor %}
 </nav>

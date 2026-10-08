@@ -30,6 +30,7 @@ import socket
 import subprocess
 import sys
 import tarfile
+import logging
 import threading
 import time
 import urllib.request
@@ -38,6 +39,8 @@ from pathlib import Path
 from django.conf import settings
 
 # Cloudflare's own "latest" download endpoints.
+logger = logging.getLogger("auctions.remote")
+
 _RELEASE = "https://github.com/cloudflare/cloudflared/releases/latest/download/"
 _ASSETS = {
     ("windows", "amd64"): "cloudflared-windows-amd64.exe",
@@ -62,6 +65,8 @@ _STATE = {
     "detail": "",        # human-readable progress ("Scarico cloudflared…")
     "port": None,
     "started_at": None,
+    "wanted": False,     # la regia lo vuole aperto: se cade, si riapre da solo
+    "attempt": 0,        # tentativi di riapertura dall'ultima caduta
 }
 _PROC = None
 _SAVED = {}              # settings we override while the tunnel is up
@@ -352,6 +357,25 @@ def _set(**kw):
         _STATE.update(kw)
 
 
+# Chi vuole sapere quando l'indirizzo pubblico cambia (services/sala.py lo
+# comunica al sito delle leghe scaricate). Si chiamano con l'indirizzo nuovo,
+# o None quando il tunnel si chiude; un errore di uno non ferma gli altri.
+_LISTENERS = []
+
+
+def on_public_url(callback):
+    if callback not in _LISTENERS:
+        _LISTENERS.append(callback)
+
+
+def _notify(url):
+    for callback in list(_LISTENERS):
+        try:
+            callback(url)
+        except Exception:  # noqa: BLE001 — un ascoltatore rotto non tocca il tunnel
+            logger.exception("remote: avviso del nuovo indirizzo non riuscito")
+
+
 def _timeout_guard(seconds=75):
     """Flip to an error if the tunnel never comes up, even if cloudflared is mute.
 
@@ -382,17 +406,46 @@ def _watch(proc):
             host = url.split("//", 1)[1]
             _harden(host, url)
             _set(status="on", url=url, host=host, detail="", error="",
-                 started_at=time.time())
+                 started_at=time.time(), attempt=0)
+            _notify(url)
     # Child ended. If it never opened a tunnel, say so; if it was up and died,
-    # drop back to "off" with a note so the console stops advertising a dead URL.
+    # drop back to "error" with a note so the console stops advertising a dead
+    # URL. While the regia still wants it on (nobody pressed "Disattiva"), it
+    # comes back by itself: a quick tunnel gets a new address, which goes to
+    # the listeners (the sites of the leagues downloaded here) again.
+    if proc is not _PROC:
+        return                      # stop() o un tunnel nuovo: non è affar nostro
+    was_on = False
     with _LOCK:
         if _STATE["status"] in ("starting", "preparing"):
             _STATE.update(status="error", detail="",
                           error=_STATE["error"] or "cloudflared si è chiuso senza aprire il tunnel.")
         elif _STATE["status"] == "on":
+            was_on = True
             _unharden()
             _STATE.update(status="error", url="", host="", detail="",
                           error="Il tunnel si è interrotto. Riattivalo per riavere il link.")
+        retry = _STATE.get("wanted") and _STATE.get("port")
+        if retry:
+            _STATE["error"] = "Il tunnel si è interrotto: lo riapro da solo…"
+        attempt = _STATE.get("attempt") or 0
+    if was_on:
+        _notify(None)
+    if retry:
+        _restart_later(_STATE["port"], attempt)
+
+
+def _restart_later(port, attempt):
+    """Riapre il tunnel dopo 2, 4, 8… secondi (al massimo uno al minuto)."""
+    def _run():
+        time.sleep(min(60, 2 ** (attempt + 1)))
+        with _LOCK:
+            if not _STATE.get("wanted") or _STATE["status"] in ("on", "starting", "preparing"):
+                return
+            _STATE.update(status="off", attempt=attempt + 1)
+        logger.info("remote: riapro il tunnel (tentativo %s)", attempt + 1)
+        start(port)
+    threading.Thread(target=_run, daemon=True).start()
 
 
 def start(port):
@@ -404,7 +457,7 @@ def start(port):
     with _LOCK:
         if _STATE["status"] in ("on", "starting", "preparing"):
             return status()
-        _STATE.update(status="preparing", url="", host="", error="", detail="",
+        _STATE.update(status="preparing", url="", host="", error="", detail="", wanted=True,
                       port=int(port), pin=_STATE["pin"] or f"{secrets.randbelow(900000) + 100000}")
 
     def _run():
@@ -452,6 +505,9 @@ def shutdown_process(delay=0.6):
 def stop():
     """Close the tunnel and put every hardened setting back."""
     global _PROC
+    with _LOCK:
+        was_on = _STATE["status"] == "on"
+        _STATE["wanted"] = False          # nessun riavvio da solo dopo «Disattiva»
     proc, _PROC = _PROC, None
     if proc is not None and proc.poll() is None:
         proc.terminate()
@@ -465,4 +521,6 @@ def stop():
                       port=None, started_at=None)
     with _PIN_LOCK:
         _PIN_STATE.update(tries=0, locked_until=0.0)
+    if was_on:
+        _notify(None)
     return status()

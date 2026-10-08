@@ -19,6 +19,39 @@ mk_labels, is_buste, is_renewals, renewals,
 <style>
     .mk-sess-state { display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
 </style>
+<details class="howto noprint">
+    <summary><svg class="ic"><use href="#{{ mk_labels.icon }}"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        Qui guidi la sessione <b>{{ s.title }}</b> dall'apertura alla fine. Le squadre partecipano dall'app, nella scheda <b>Mercato</b>.
+        <ol>
+            <li>{% if s.status == "draft" %}<b>Adesso:</b> la sessione è programmata{% if s.opens_at %} e si apre da sola il {{ s.opens_at|date:"d/m H:i" }}{% endif %}.
+                Per aprirla subito premi <b>Apri ora</b>.{% elif s.status == "open" %}✓ La sessione è aperta alle squadre.{% else %}✓ La sessione è stata aperta.{% endif %}</li>
+            {% if s.status != "resolved" %}
+            <li>Controlla le regole sotto i numeri: per cambiarle, anche titolo e chiusura, premi <b>Regole</b>.
+                Con <b>Avvisa via email</b> mandi l'avviso alle squadre{% if not mail_ready %} (prima configura la posta: Impostazioni → Posta){% endif %}.</li>
+            {% endif %}
+            <li>{% if s.status == "open" %}<b>Adesso:</b> segui in <b>{{ mk_labels.deliveries }}</b> come procedono le squadre ({{ delivered }}/{{ participants_stats|length }}).
+                {% if s.closes_at %}Si chiude da sola il {{ s.closes_at|date:"d/m H:i" }}{% else %}La chiusura è manuale{% endif %}: per fermarla prima premi <b>Chiudi finestra</b>.
+                {% elif s.status == "draft" %}Quando è aperta, segui in <b>{{ mk_labels.deliveries }}</b> come procedono le squadre.
+                {% elif s.status == "closed" %}✓ {{ mk_labels.closed }}: se serve altro tempo premi <b>Riapri finestra</b>.
+                {% else %}✓ Fase «{{ mk_labels.step_open }}» finita.{% endif %}</li>
+            {% if mk_labels.preview and s.status != "resolved" %}
+            <li>Prima di concludere puoi premere <b>{{ mk_labels.preview }}</b>: vedi l'esito senza assegnare nulla.</li>
+            {% endif %}
+            <li>{% if s.status == "resolved" %}✓ {{ mk_labels.resolved }}.
+                {% else %}{% if s.status == "closed" or s.status == "open" and not is_buste and s.session_type != "waiver_wire" %}{% if s.status == "closed" %}<b>Adesso:</b> premi{% else %}Alla fine premi{% endif %}
+                <b>{{ mk_labels.resolve }}</b>{% else %}Alla fine qui compare il tasto per concludere{% if is_buste or s.session_type == "waiver_wire" %}, dopo la chiusura della finestra{% endif %}{% endif %}: {% if is_renewals %}i contratti non rinnovati vengono svincolati{% elif s.session_type == "free_agency" or s.session_type == "buyout_clause" %}gli acquisti si fermano e ne resta il riepilogo{% else %}i giocatori vengono assegnati e i tagli eseguiti{% endif %}.{% endif %}</li>
+            {% if results.tied and not is_preview %}
+            <li>Se restano pareggi, in <b>Pareggi riscontrati</b> scegli per ogni giocatore <b>Sorteggio</b> o a chi assegnarlo e premi <b>Risolvi</b>.</li>
+            {% endif %}
+            {% if s.status == "resolved" %}
+            <li>{% if is_renewals %}Stampa o salva il resoconto con <b>Report Rinnovi (PDF)</b>.{% else %}Scarica il verbale con <b>Verbale (PDF)</b> o <b>CSV</b>{% if is_buste or s.session_type == "waiver_wire" %}.
+                Se qualcosa non va, <b>Annulla {% if is_buste %}spoglio{% else %}draft{% endif %}</b> storna acquisti e tagli e rimette {% if is_buste %}le buste{% else %}i reclami{% endif %} in attesa{% endif %}.{% endif %}</li>
+            {% endif %}
+        </ol>
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> {% if mk_labels.reveal and s.status != "resolved" %}Con <b>{{ mk_labels.reveal }}</b> vedi le offerte arrivate prima della fine: le squadre no. {% endif %}Il cestino in alto elimina la sessione con tutte le sue offerte.</div>
+    </div>
+</details>
 <div class="mk-col">
 <article class="fm-card">
     <div class="mk-sess-top">

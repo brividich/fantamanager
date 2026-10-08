@@ -132,7 +132,7 @@ def join(request):
         elif access_code:
             # Look up pre-created participant by code.
             participant = Participant.objects.filter(
-                access_code=access_code, is_active=True
+                access_code__iexact=access_code, is_active=True
             ).first()
             if not participant:
                 error = "Codice non riconosciuto. Contatta l'organizzatore."

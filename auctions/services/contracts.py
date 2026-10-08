@@ -22,6 +22,7 @@ from decimal import Decimal
 from django.db import transaction
 
 from ..models import ContractEvent, League, Participant, Player, RosterLog
+from .sala import ensure_unlocked as _sala_guard
 
 logger = logging.getLogger("auctions.contracts")
 
@@ -198,6 +199,7 @@ def declare_u21(player_id, *, participant_id=None, by_admin=False):
 
 
 def _release(player, note):
+    _sala_guard(player.league_id)
     owner = player.owner
     RosterLog.objects.create(
         participant=owner, participant_name=owner.display_name,

@@ -56,6 +56,33 @@ relativi alla pagina che include il partial, la lega in ?league= compresa.
     .fb-empty { padding:26px 10px; text-align:center; color:var(--fm-text-muted); font-size:13px; }
 </style>
 
+<details class="howto noprint">
+    <summary><svg class="ic"><use href="#i-search"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        L'elenco dei calciatori di Serie A preso da API-Football: è lo stesso per tutte le leghe.
+        <ol>
+            <li>Scrivi un nome o un club e premi <b>Cerca</b>; restringi con ruolo, club{% if fb_has_league %}, stato nella lega{% endif %}
+                o <b>Usciti dalla Serie A</b>. <b>Azzera</b> toglie i filtri.</li>
+            {% if fb_has_league %}
+            <li>A destra di ogni calciatore vedi com'è messo nella lega: la squadra che lo ha in rosa con il costo,
+                <b>Svincolato</b> con la quotazione, oppure <b>Non nel listone</b>.</li>
+            {% endif %}
+            {% if fb_league and fb_league.own_listone and fb_can_manage_league %}
+            <li>La lega usa una lista propria: se vuoi tornare a questa anagrafica premi <b>Usa la lista generale</b>
+                (chi è in rosa resta dov'è).</li>
+            {% endif %}
+            {% if fb_can_sync %}
+            <li>{% if fb_api_ready %}Per aggiornare club e rose premi <b>Aggiorna da API-Football</b>: ci vuole qualche minuto, poi ricarica la pagina.{% else %}Per aggiornarla serve la chiave <b>APIFOOTBALL_KEY</b> sul server.{% endif %}</li>
+            {% endif %}
+            {% if fb_can_edit %}
+            <li>Se un ruolo è sbagliato apri <b>Ruoli</b> sotto il nome, correggilo (anche i ruoli Mantra) e premi <b>Salva</b>:
+                gli aggiornamenti da API-Football non lo cambiano più (✎).</li>
+            {% endif %}
+        </ol>
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Una lega senza lista propria usa questa anagrafica come listone; rosa, costo e contratto di ogni giocatore restano della lega.</div>
+    </div>
+</details>
+
 <div class="fb-stats">
     <div class="fb-stat"><div class="n">{{ fb_total }}</div><div class="k">Calciatori in Serie A</div></div>
     <div class="fb-stat"><div class="n">{{ fb_clubs|length }}</div><div class="k">Club</div></div>

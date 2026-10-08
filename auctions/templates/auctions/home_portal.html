@@ -563,7 +563,7 @@
             <svg class="ic" style="width:16px;height:16px;color:var(--fm-primary-light)"><use href="#i-trophy"/></svg>
             <b>Seleziona la tua Lega per visualizzare l'asta e il maxischermo:</b>
         </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <div class="fm-onerow" style="gap:8px">
             {% for lg in leagues %}
             <a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% url 'home' %}?league={{ lg.id }}" style="font-size:12px">
                 #{{ lg.id }} {{ lg.name }}
@@ -583,6 +583,30 @@
             Benvenuto in FantaManager. Seleziona l'accesso libero per partecipare all'asta o proiettare il maxischermo, oppure accedi all'area manageriale per la regia e gestione completa della lega.
         </p>
     </div>
+
+    <details class="howto noprint">
+        <summary><svg class="ic"><use href="#i-shield"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+        <div class="howto-body">
+            La porta d'ingresso: scegli dove andare in base a cosa devi fare.
+            <ol>
+                {% if not current_league and leagues|length > 1 %}
+                <li>Prima scegli la tua lega dalla barra qui sopra: così vedi la sua asta e il suo maxischermo.</li>
+                {% endif %}
+                <li>Fai l'asta come allenatore? Tocca <b>Partecipa all'Asta Live</b> ed entra con il codice o il link della tua squadra.</li>
+                <li>Vuoi l'asta sulla TV o sul proiettore? Tocca
+                    {% if active_auction %}<b>Apri Maxischermo su Proiettore</b>{% else %}<b>Maxischermo (Scegli Sessione)</b> e scegli l'asta{% endif %}.</li>
+                <li>Rosa, formazione e buste di mercato: tocca <b>Portale App Allenatori (Rosa &amp; Formazione)</b>.</li>
+                {% if is_unlocked %}
+                <li>Organizzi la lega: tocca <b>Entra nel Command Center / Dashboard</b>.</li>
+                {% elif is_remote %}
+                <li>Organizzi la lega? Scrivi il <b>PIN REGIA</b> (lo trovi nella pagina <b>Accesso Remoto</b> del PC della lega), tocca <b>Accedi</b> ed entra con il tuo account.</li>
+                {% else %}
+                <li>Organizzi la lega? Tocca <b>Accedi come Host Locale</b> ed entra con il tuo account.</li>
+                {% endif %}
+            </ol>
+            <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Gli allenatori non hanno bisogno di password: il link o il QR della squadra li fa entrare già riconosciuti.</div>
+        </div>
+    </details>
 
     <!-- 4. THE TWO DOORS (CHOOSER & LOGIN) -->
     <div class="hp-doors-grid">

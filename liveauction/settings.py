@@ -105,6 +105,8 @@ MIDDLEWARE = [
     "auctions.middleware.RemoteErrorShield",
     # Plain-text refusals (403, 405...) get a real page when a browser asks.
     "auctions.middleware.FriendlyErrorPages",
+    # Lega bloccata dall'asta in sala: un messaggio, non un errore (services/sala.py).
+    "auctions.middleware.SalaLockGuard",
 ]
 
 # WhiteNoise serves static files efficiently when running behind a single ASGI

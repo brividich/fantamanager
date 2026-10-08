@@ -14,6 +14,18 @@
 {% endblock %}
 
 {% block mk_body %}
+<details class="howto noprint">
+    <summary><svg class="ic"><use href="#i-list"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        Lo storico di ogni cambio di rosa della lega, dal più recente: qui si guarda, non si modifica.
+        <ol>
+            <li>{% if moves %}Usa <b>Tutti</b>, <b>Acquisti</b>, <b>Svincoli</b> e <b>Scambi</b> per vedere un tipo di movimento alla volta.{% else %}Per ora non c'è nessun movimento: compaiono appena una squadra compra, svincola o scambia.{% endif %}</li>
+            <li>Ogni riga dice data, giocatore, squadra e crediti: in meno se spesi, in più se rimborsati.</li>
+            <li>Per avere le rose in un file premi <b>Export rose</b>.</li>
+        </ol>
+    </div>
+</details>
+
 <div class="fm-card">
     {% if moves %}
     <div class="mk-filters fm-onerow" role="group" aria-label="Filtra i movimenti">

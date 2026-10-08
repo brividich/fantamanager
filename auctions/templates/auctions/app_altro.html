@@ -42,6 +42,27 @@
     }
 </style>
 
+<details class="howto noprint">
+    <summary><svg class="ic"><use href="#i-gear"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        {% if participant %}Il profilo della tua squadra e le impostazioni dell'app.{% else %}Il tuo account e le impostazioni dell'app.{% endif %}
+        <ol>
+            {% if participant %}
+            <li>Nel <b>PIN della squadra</b> scrivi un codice tuo (almeno 3 caratteri) e tocca <b>Salva PIN</b>: serve per entrare nella tua squadra.</li>
+            {% else %}
+            <li>Non hai una squadra tua: dalla <b>Regia</b> apri l'app come una squadra delle tue leghe con «Vedi come».</li>
+            {% endif %}
+            <li>Tocca <b>Installa l'app sul telefono</b> per averla sulla schermata Home, a tutto schermo.</li>
+            <li><b>Tema</b> alterna la modalità scura e chiara.</li>
+            <li><b>{% if participant %}Cambia squadra o account{% else %}Collega una squadra{% endif %}</b> per entrare con un altro codice o profilo; <b>Esci</b> chiude la sessione.</li>
+            {% if is_app_admin %}
+            <li><b>Regia della lega</b> apre il pannello dell'admin.</li>
+            {% endif %}
+        </ol>
+        {% if participant %}<div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Non dare il PIN agli altri: chi lo conosce entra come la tua squadra.</div>{% endif %}
+    </div>
+</details>
+
 <div class="altro-grid">
 <div class="altro-col">
 {% if participant %}

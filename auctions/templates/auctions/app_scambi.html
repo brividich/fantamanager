@@ -52,6 +52,28 @@
     <p><a href="{% url 'app_mercato' %}" style="color:var(--accent);text-decoration:none">‹ Mercato</a> · Proponi scambi di calciatori e crediti alle altre squadre</p>
 </div>
 
+<details class="howto noprint">
+    <summary><svg class="ic"><use href="#i-swap"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        {% if not trades_enabled %}
+        Gli scambi fra squadre non sono attivi in questa lega: se ti servono, chiedi all'admin di abilitarli.
+        {% else %}
+        Scambi di giocatori e crediti con le altre squadre, in due schede.
+        <ol>
+            {% if incoming %}
+            <li><b>Adesso:</b> hai {{ incoming|length }} propost{{ incoming|length|pluralize:"a,e" }} da valutare: in <b>Trattative</b> tocca <b>Accetta</b> o <b>Rifiuta</b>.</li>
+            {% endif %}
+            <li><b>Nuovo Scambio</b>: {% if trade_window_open %}scegli la squadra in <b>Con quale squadra?</b>, spunta chi <b>Cedi</b> e chi <b>Ricevi</b>, aggiungi crediti se vuoi, scegli <b>Definitiva</b> o <b>Prestito</b> e tocca <b>Invia proposta</b>.{% else %}il periodo scambi è chiuso{% if trade_window %}: riapre il {{ trade_window.opens_at|date:"d/m/Y" }}{% endif %}.{% endif %}</li>
+            <li><b>Trattative</b>: le proposte ricevute, quelle in corso (<b>Ritira</b> per annullarne una tua) e lo storico.</li>
+            {% if trades_need_approval %}
+            <li>Dopo l'accettazione lo scambio aspetta la ratifica dell'admin della lega.</li>
+            {% endif %}
+        </ol>
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Rose e crediti vengono ricontrollati quando lo scambio viene eseguito{% if trades_same_roles %}; regola di lega: stesso numero di giocatori e stessi ruoli da entrambe le parti{% endif %}.</div>
+        {% endif %}
+    </div>
+</details>
+
 {% if not trades_enabled %}
 <div class="a-card"><div class="soon" style="border:none;background:none;padding:24px 10px">
     <b>Scambi non attivi</b>

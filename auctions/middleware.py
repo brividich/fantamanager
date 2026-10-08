@@ -157,3 +157,41 @@ class FriendlyErrorPages:
             if header in response:
                 wrapped[header] = response[header]
         return wrapped
+
+
+class SalaLockGuard:
+    """Una lega bloccata dall'asta in sala (services/sala.py) rifiuta ogni
+    cambio di rose, crediti e listone con ``LeagueLocked``, da qualunque
+    servizio venga. Qui diventa la stessa risposta ovunque: per una pagina un
+    messaggio e il ritorno da dove si era; per l'app e il JavaScript un JSON
+    con l'errore (423)."""
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        return self.get_response(request)
+
+    def process_exception(self, request, exception):
+        from django.contrib import messages
+        from django.http import JsonResponse
+        from django.shortcuts import redirect
+        from django.utils.http import url_has_allowed_host_and_scheme
+        from .services.sala import LeagueLocked
+
+        if not isinstance(exception, LeagueLocked):
+            return None
+        msg = str(exception)
+        wants_json = (request.headers.get("X-Requested-With") == "XMLHttpRequest"
+                      or "application/json" in request.headers.get("Accept", "")
+                      or request.content_type == "application/json"
+                      or not _is_navigation(request) and request.method != "GET")
+        if wants_json:
+            return JsonResponse({"ok": False, "error": msg}, status=423)
+        messages.error(request, msg)
+        for target in (request.POST.get("next") if request.method == "POST" else "",
+                       request.headers.get("Referer", "")):
+            if target and url_has_allowed_host_and_scheme(
+                    target, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+                return redirect(target)
+        return redirect("/")

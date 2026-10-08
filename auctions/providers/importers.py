@@ -11,6 +11,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from .. import mantra
+from ..services.sala import ensure_unlocked as _sala_guard
 
 _SEP = ";"
 
@@ -177,6 +178,7 @@ def sync_players(rows, *, league=None, replace=False, prune=False):
       their roster until released — nor is any player currently on an auction
       block.
     """
+    _sala_guard(league)
     from ..models import Player, Auction
 
     if replace:
@@ -555,6 +557,7 @@ def import_rose_data(teams_data, replace=False, league=None, default_budget=None
     only lists each player's cost, not the budget), ``default_budget`` is used as
     the team's *total* budget so ``remaining_credits = default_budget - spent``.
     """
+    _sala_guard(league)
     from ..models import Participant, Player
 
     existing = list(Player.objects.filter(league=league))

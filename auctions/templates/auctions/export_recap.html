@@ -31,7 +31,7 @@
     .role-C{background:#13b5ff22;color:#13b5ff}.role-A{background:#ff6b7f22;color:#ff6b7f}
 
     @media print {
-        .exp-actions, .exp-header select, nav, .role-edge, .team-sheet-link { display:none !important; }
+        .exp-actions, .exp-header select, nav, .role-edge, .team-sheet-link, .howto { display:none !important; }
         body { background:#fff !important; color:#000 !important; }
         table.recap th { color:#444; }
     }
@@ -69,6 +69,23 @@
         Il file usa l'<b>Id ufficiale</b> del listone per riconoscere i giocatori (le colonne/separatore sono selezionabili nell'importer).
     </p>
 </div>
+
+<details class="howto noprint">
+    <summary><svg class="ic"><use href="#i-shield"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        Il riepilogo di rose e crediti{% if league %} di <b>{{ league.name }}</b>{% endif %}, da scaricare, stampare o caricare su un altro sito.
+        <ol>
+            <li>Premi <b>Excel (.xlsx)</b> o <b>CSV</b> per scaricare classifica e rose.</li>
+            <li>Per portare le rose su Leghe Fantacalcio premi <b>Per Leghe Fantacalcio</b> e segui la nota qui sopra.</li>
+            <li><b>Stampa / PDF</b> stampa questa pagina, senza pulsanti.</li>
+            {% if league %}
+            <li>In <b>Schede squadra</b> scarichi una scheda per squadra in <b>Excel</b> (si modifica e si reimporta da Giocatori)
+                o la stampi; il link <b>Scheda</b> accanto a ogni squadra stampa solo la sua.</li>
+            <li>In <b>Rinnovo contratti</b> trovi il foglio dei rinnovi, in Excel o da stampare.</li>
+            {% endif %}
+        </ol>
+    </div>
+</details>
 
 <h2 style="margin:0 0 10px">Classifica</h2>
 <div class="table-scroll">

@@ -191,6 +191,14 @@ class AuctionConsumer(AsyncWebsocketConsumer):
                     self.participant_id = None
                     self.participant_name = None
 
+        # Raggiungibile da internet (tunnel aperto, sito pubblico): chi non è una
+        # squadra dell'asta entra solo se gestisce la lega o è il maxischermo
+        # aperto col suo codice. In sala senza tunnel resta tutto com'era.
+        if (getattr(settings, "PUBLIC_TOKENS_REQUIRED", False) and self.participant_name is None
+                and not await self._may_watch(auction)):
+            await self.close(code=4403)
+            return
+
         await self.channel_layer.group_add(self.group_name, self.channel_name)
         await self.accept()
         await self.send_json(await self._state())
@@ -235,6 +243,21 @@ class AuctionConsumer(AsyncWebsocketConsumer):
 
         if hasattr(self, "group_name"):
             await self.channel_layer.group_discard(self.group_name, self.channel_name)
+
+    @database_sync_to_async
+    def _may_watch(self, auction):
+        """Chi può guardare l'asta senza essere una squadra: il maxischermo
+        aperto col suo codice (screen.py lo segna nella sessione), lo staff,
+        chi gestisce la lega."""
+        if (self.scope.get("session") or {}).get(f"screen_ok_{auction.id}"):
+            return True
+        user = self.scope.get("user")
+        if user is None or not user.is_authenticated:
+            return False
+        if user.is_staff or user.is_superuser:
+            return True
+        from .views.common import user_can_manage_league
+        return auction.league_id is not None and user_can_manage_league(user, auction.league)
 
     async def receive(self, text_data=None, bytes_data=None):
         # Anything a client sends is untrusted: a frame that is not a JSON
