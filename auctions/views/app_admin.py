@@ -113,7 +113,7 @@ def league_admin_digest(league):
         items.append(_todo(
             "warn", "import", "Carica il listone",
             "Senza listone non c'è niente da mettere all'asta.",
-            reverse("admin_players") + q + "&need_listone=1", "Carica"))
+            reverse("app_regia_players") + q + "&need_listone=1", "Carica"))
     if not teams_n:
         items.append(_todo(
             "warn", "shield", "Aggiungi le squadre",
@@ -130,18 +130,18 @@ def league_admin_digest(league):
         items.append(_todo(
             "info", "plus", "Crea la prima asta",
             "Listone e squadre ci sono: manca solo l'asta.",
-            reverse("admin_auction_wizard") + q, "Crea"))
+            reverse("app_regia_auction_wizard") + q, "Crea"))
     left = Player.objects.filter(owner__league=league, left_serie_a_at__isnull=False).count()
     if left:
         items.append(_todo(
             "warn", "doc", f"{left} giocator{'e' if left == 1 else 'i'} fuori dal listone",
             "In rosa ma non più nel listone ufficiale: conferma destinazione e compenso (5.05).",
-            reverse("admin_contracts") + q, "Gestisci"))
+            reverse("app_regia_contracts") + q, "Gestisci"))
     if league.contracts_enabled and league.renewals_open:
         items.append(_todo(
             "info", "doc", "Finestra rinnovi aperta",
             "Le squadre stanno dichiarando e tirando i dadi dei rinnovi.",
-            reverse("admin_contracts") + q, "Segui"))
+            reverse("app_regia_contracts") + q, "Segui"))
 
     if not items:
         items.append(_todo("ok", "star", "Tutto in ordine",

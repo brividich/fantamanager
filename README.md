@@ -154,10 +154,12 @@ il selettore **Console | App** apre la stessa lega nell'app; nell'app il tasto
 Chi gestisce una lega (proprietario o superadmin) nell'app trova la scheda
 **Regia**: le cose da fare (asta in corso, scambi da ratificare, spoglio delle
 buste, listone o squadre mancanti, squadre senza accesso), i numeri della lega,
-tutte le squadre con la loro rosa, le aste, le buste e i collegamenti agli
-strumenti della console. Gli scambi si ratificano direttamente da lì, e le
-squadre (email e inviti, account del portale, link e QR, scheda) si gestiscono
-da **Squadre** (`/app/regia/squadre/`), la stessa pagina della console.
+tutte le squadre con la loro rosa, le aste, le buste e gli strumenti della
+lega. Gli scambi si ratificano direttamente da lì. Tutte le pagine di gestione
+della console ci sono anche nell'app, uguali, sotto `/app/regia/`: Squadre,
+Giocatori, Contratti, Stagione, Importa, Export, Impostazioni, Competizioni,
+Mercato e Nuova asta. Resta solo in console la Dashboard con l'asta dal vivo
+(il tasto **Console**).
 
 Con **Vedi come** l'admin apre l'app come una qualunque squadra delle sue leghe
 (per controllare cosa vede un allenatore o agire per chi non può): un banner lo

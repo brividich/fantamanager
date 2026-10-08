@@ -42,13 +42,30 @@ stessi testi**.
   (`views/admin_participants.py`). Colonne e schede seguono la larghezza del
   riquadro (container query), non della finestra: la colonna dell'app è più
   stretta della pagina della console.
-- Dove l'app non ha ancora una sua schermata (contratti lato admin, giocatori)
-  apre quella della console: una sola versione.
+- Le altre pagine della console girano anche nell'app con la **stessa view e lo
+  stesso template**: cambia solo la cornice. Il template estende
+  `page_frame|default:"auctions/_frame_console.html"` e riempie il blocco
+  `page`; la view aggiunge `**page_frame(request, league)` al contesto
+  (`views/common.py`), che dall'indirizzo `/app/regia/…` sceglie
+  `_frame_app.html` (guscio dell'app) invece di `_frame_console.html` (testata
+  della console). Sono così Giocatori, Contratti, Stagione, Importa, Export,
+  Impostazioni, Competizioni, Mercato (hub, buste, asta, movimenti) e Nuova
+  asta; la Dashboard della console nell'app è la Regia.
+  - Una pagina nuova: stessa view su due indirizzi (`dashboard/…` e
+    `app/regia/…`), la coppia in `APP_PAGES` e in `FRAMED_PAGES`
+    (`auctions/tests/test_app_pages.py`).
+  - I link fra pagine usano `{% purl 'nome' %}` (`{% load fm_pages %}`): nella
+    console è `{% url %}`, nell'app porta alla pagina dell'app se c'è.
+  - Ogni form manda `next`; la view ci torna con `safe_next` o, se aggiunge
+    la sua query, con `back_to_page`.
+  - Se la pagina mostra già i messaggi: `page_frame(..., own_messages=True)`,
+    così l'app non li ripete.
 - I test di parità confrontano web e app: `MarketWizardParityTests` e
   `MarketManageParityTests` in `auctions/tests/test_market.py`,
   `CompetitionWizardParityTests` in `auctions/tests/test_competitions.py`,
   `FootballersPageTests` in `auctions/tests/test_footballers.py`,
   `TeamsPageTests` in `auctions/tests/test_participant_accounts.py`,
+  `AppPagesParityTests` in `auctions/tests/test_app_pages.py`,
   `GiornatePageTests` e `AdminFormationEditorTests` in `auctions/tests/test_voti.py`.
 
 ## Formazioni: una per giornata
