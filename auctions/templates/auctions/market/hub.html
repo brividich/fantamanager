@@ -24,6 +24,26 @@ of a market's content is on this page: every item opens its own screen.
 {% endblock %}
 
 {% block mk_body %}
+<details class="howto noprint">
+    <summary><svg class="ic"><use href="#i-swap"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        Il punto di partenza del mercato a stagione iniziata: vedi cosa è aperto adesso e apri ogni mercato per gestirlo.
+        <ol>
+            {% if n_live %}
+            <li><b>Adesso:</b> in <b>In corso adesso</b> trovi quello che è aperto ora{% if trades_pending %}, anche gli scambi da ratificare{% endif %}: tocca una scheda per gestirlo.</li>
+            {% else %}
+            <li>Adesso non c'è nessun mercato aperto: le squadre non possono fare offerte né scambi.</li>
+            {% endif %}
+            <li>Per aprirne uno premi <b>Nuovo Mercato</b>: scegli il tipo (buste, mercato libero, waiver, clausole, rinnovi o asta di riparazione),
+                quando si apre e si chiude e le regole.</li>
+            <li>In <b>Mercati</b> apri <b>Sessioni</b> (tutte le sessioni della lega), <b>Scambi</b> (regole, periodi e ratifiche),
+                <b>Asta di riparazione</b> (dal vivo con gli svincolati) o <b>Movimenti</b> (acquisti, svincoli e scambi).</li>
+            <li>In fondo, <b>Vai a</b> porta a squadre, svincolati, contratti, stagione, export e regole della lega.</li>
+        </ol>
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Ogni mercato vale solo per {{ current_league.name }}.</div>
+    </div>
+</details>
+
 <!-- ============================================== MARKETS RUNNING NOW -->
 <div class="fm-section-title"><svg class="ic"><use href="#i-pulse"/></svg> In corso adesso <span class="sep"></span> {{ n_live }}</div>
 {% if n_live %}

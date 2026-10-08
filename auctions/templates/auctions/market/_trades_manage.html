@@ -9,6 +9,28 @@ trades_recent, trade_windows, window_now, window_next,
   mk_back  pagina a cui tornare dopo un'azione (questa)
 {% endcomment %}
 <!-- trades-manage:start -->
+<details class="howto noprint">
+    <summary><svg class="ic"><use href="#i-swap"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        Le squadre si propongono gli scambi dall'app; qui decidi le regole, i periodi e, se serve, li ratifichi.
+        <ol>
+            <li>In <b>Regole degli scambi</b> scegli <b>Scambi attivi</b>, <b>Richiedi la ratifica dell'admin</b> e
+                <b>Stessi giocatori e ruoli per parte</b>, poi premi <b>Salva</b>.{% if not current_league.trades_enabled %} Adesso gli scambi sono spenti.{% endif %}</li>
+            <li>In <b>Periodi scambi</b> scrivi nome, <b>Dal</b> e <b>Al</b> e premi <b>Aggiungi periodo</b>.
+                Senza periodi gli scambi sono aperti tutta la stagione; il cestino elimina un periodo.</li>
+            {% if trades_pending %}
+            <li><b>Adesso:</b> in <b>Da ratificare</b> ci sono {{ trades_pending|length }} scamb{{ trades_pending|length|pluralize:"io,i" }}: premi
+                <b>Ratifica</b> per eseguirlo o <b>Boccia</b> per annullarlo.</li>
+            {% elif current_league.trades_need_approval %}
+            <li>Quando due squadre si accordano, lo scambio compare in <b>Da ratificare</b>: premi <b>Ratifica</b> per eseguirlo o <b>Boccia</b> per annullarlo.</li>
+            {% else %}
+            <li>Senza ratifica, uno scambio accettato da entrambe le squadre diventa subito effettivo.</li>
+            {% endif %}
+            <li>In <b>Ultimi scambi</b> vedi com'è finito ogni scambio.</li>
+        </ol>
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Ogni scambio eseguito compare anche nei Movimenti del Mercato.</div>
+    </div>
+</details>
 <div class="mk-kpis" style="margin-bottom:16px">
     <div class="mk-kpi {% if trades_pending %}warn{% endif %}">
         <div class="k">Da ratificare</div>
