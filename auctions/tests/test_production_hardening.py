@@ -200,7 +200,8 @@ class ThrottleTests(TestCase):
     def test_behind_the_proxy_each_client_has_its_own_count(self):
         """All requests reach Daphne from the proxy's address: counting that
         would lock every user out because of one."""
-        with override_settings(SECURE_PROXY_SSL_HEADER=("HTTP_X_FORWARDED_PROTO", "https")):
+        with override_settings(SECURE_PROXY_SSL_HEADER=("HTTP_X_FORWARDED_PROTO", "https"),
+                               TRUSTED_PROXY_HOPS=1):
             limit, _ = throttle.LIMITS["login"]
             for _ in range(limit):
                 self.client.post(reverse("login"), {"identifier": "mario", "password": "x"},
@@ -208,6 +209,18 @@ class ThrottleTests(TestCase):
             r = self.client.post(reverse("login"), {"identifier": "mario", "password": "giusta"},
                                  HTTP_X_FORWARDED_FOR="198.51.100.2")
             self.assertEqual(r.status_code, 302)
+
+    def test_without_a_declared_proxy_the_header_is_ignored(self):
+        """No proxy in front: X-Forwarded-For is whatever the client wrote, so
+        changing it must not buy a fresh set of guesses."""
+        with override_settings(TRUSTED_PROXY_HOPS=0):
+            limit, _ = throttle.LIMITS["login"]
+            for n in range(limit):
+                self.client.post(reverse("login"), {"identifier": "mario", "password": "x"},
+                                 HTTP_X_FORWARDED_FOR=f"203.0.113.{n}")
+            r = self.client.post(reverse("login"), {"identifier": "mario", "password": "giusta"},
+                                 HTTP_X_FORWARDED_FOR="198.51.100.2")
+            self.assertContains(r, "Troppi tentativi")
 
 
 class LoginBootstrapTests(TestCase):

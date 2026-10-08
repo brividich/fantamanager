@@ -364,7 +364,7 @@ class ParticipantAccountTests(TestCase):
             "league_id": self.league.id,
             "display_name": "Nuovo Team Express",
             "credits": "500",
-            "access_code": "9999",
+            "access_code": "999999",
             "new_user_username": "coach_express",
             "new_user_email": "express@x.local",
             "new_user_password": "express_pass_123",

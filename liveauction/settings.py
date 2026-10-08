@@ -68,9 +68,15 @@ else:
         "http://127.0.0.1:8088",
     ]
 
-# Trust TLS-terminating reverse proxy (e.g. Synology Reverse Proxy, Nginx, Caddy)
-if os.getenv("DJANGO_BEHIND_PROXY", "True").lower() in ("1", "true", "yes"):
+# Trust a TLS-terminating reverse proxy (Synology Reverse Proxy, Nginx, Caddy)
+# only when told so: without a proxy in front, X-Forwarded-* come from the
+# client and would let anyone pick the address the throttle counts against.
+BEHIND_PROXY = os.getenv("DJANGO_BEHIND_PROXY", "False").lower() in ("1", "true", "yes")
+if BEHIND_PROXY:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+# How many proxies append to X-Forwarded-For before the request reaches us:
+# the client's address is that many entries from the right.
+TRUSTED_PROXY_HOPS = int(os.getenv("DJANGO_PROXY_HOPS", "1")) if BEHIND_PROXY else 0
 
 
 # --- Application definition -------------------------------------------------
@@ -360,10 +366,6 @@ if not DEBUG:
     SECURE_HSTS_PRELOAD     = _is_true("DJANGO_HSTS_PRELOAD", "False")
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS         = "DENY"
-
-    # Behind a TLS-terminating proxy (Synology/nginx/Heroku/Render), trust its header.
-    if _is_true("DJANGO_BEHIND_PROXY", "True"):
-        SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 
     # Fail fast if the install forgot to set a real secret in production.

@@ -16,7 +16,6 @@ vede in anteprima è esattamente quello che succederà.
 """
 import io
 import re
-import secrets
 from collections import defaultdict
 from decimal import Decimal, InvalidOperation
 from difflib import SequenceMatcher
@@ -24,6 +23,7 @@ from difflib import SequenceMatcher
 from django.db import transaction
 from django.utils import timezone
 
+from ..models.participant import generate_access_code
 from ..uploads import MAX_IMPORT_ROWS, MAX_PDF_PAGES, UploadRejected, clean_image_bytes
 from .importers import _find_match, _name_parts, _norm, _shorts_compatible, _team_code
 
@@ -1035,7 +1035,7 @@ def _apply_one(sheet, index, choice, league, participants, pool, claimed, *, rep
         base, year = _split_founded(title)
         team = Participant.objects.create(
             league=league, display_name=(_nice_name(base) or f"Squadra {index + 1}")[:80],
-            founded=year, access_code=secrets.token_hex(3), credits=league.budget, is_active=True,
+            founded=year, access_code=generate_access_code(), credits=league.budget, is_active=True,
         )
         participants.append(team)
         entry["created_team"] = True

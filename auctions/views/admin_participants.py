@@ -21,6 +21,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from ..models import Auction, League, ManagedAccount, Participant, Player
+from ..models.participant import custom_code_error, generate_access_code
 from .. import remote, team_sheets
 from ..uploads import UploadRejected, clean_image
 from ..services import mail
@@ -213,6 +214,10 @@ def admin_create_participant(request):
         credits=dec("credits", str(league.budget) if league else "500"),
         is_active=True,
     )
+    code_error = p.access_code and custom_code_error(p.access_code)
+    if code_error:
+        messages.error(request, code_error)
+        return redirect(safe_next(request, fallback))
     if "logo" in request.FILES:
         try:
             p.logo = clean_image(request.FILES["logo"])
@@ -278,8 +283,15 @@ def admin_edit_participant(request, participant_id):
         except (InvalidOperation, ValueError):
             return Decimal(default)
 
+    fallback = f"/dashboard/{p.league_id}/#rose" if p.league_id else "/dashboard/"
     p.display_name = request.POST.get("display_name", p.display_name).strip()[:80]
-    p.access_code  = request.POST.get("access_code", p.access_code).strip()[:20]
+    new_code = request.POST.get("access_code", p.access_code).strip()[:20]
+    if new_code and new_code.lower() != p.access_code.lower():
+        code_error = custom_code_error(new_code, exclude_pk=p.pk)
+        if code_error:
+            messages.error(request, code_error)
+            return redirect(safe_next(request, fallback))
+    p.access_code  = new_code
     p.credits      = dec("credits", str(p.credits))
     p.is_active    = request.POST.get("is_active") == "1"
     
@@ -291,7 +303,6 @@ def admin_edit_participant(request, participant_id):
         if usr:
             p.user = usr
 
-    fallback = f"/dashboard/{p.league_id}/#rose" if p.league_id else "/dashboard/"
     if "logo" in request.FILES:
         try:
             p.logo = clean_image(request.FILES["logo"])
@@ -364,10 +375,17 @@ def admin_reset_team_pin(request, participant_id):
     p, denied = managed_or_403(request, Participant, participant_id)
     if denied:
         return denied
-    pin = request.POST.get("pin", "").strip()
+    pin = request.POST.get("pin", "").strip()[:20]
     if not pin:
-        import random
-        pin = f"{random.randint(1000, 9999)}"
+        pin = generate_access_code()
+    elif pin.lower() != p.access_code.lower():
+        code_error = custom_code_error(pin, exclude_pk=p.pk)
+        if code_error:
+            if request.headers.get("x-requested-with") == "XMLHttpRequest" or request.GET.get("format") == "json":
+                return JsonResponse({"ok": False, "error": code_error}, status=400)
+            messages.error(request, code_error)
+            fallback = f"/dashboard/{p.league_id}/#rose" if p.league_id else "/dashboard/"
+            return redirect(safe_next(request, fallback))
     p.access_code = pin
     if request.POST.get("regenerate_token") == "1":
         from ..models.core import generate_public_token

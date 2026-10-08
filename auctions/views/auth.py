@@ -5,12 +5,12 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
-from django.db.models import Q
 from django.shortcuts import redirect, render
 
 from .. import throttle
 
 from ..models import Auction, League, Participant
+from ..models.participant import AMBIGUOUS_CODE_MESSAGE, find_team_by_code
 from .common import SESSION_LEAGUE_KEY, _session_participant, manageable_leagues, safe_next
 
 logger = logging.getLogger(__name__)
@@ -270,11 +270,10 @@ def onboarding_view(request):
             elif throttle.blocked(request, "code"):
                 error = throttle.MESSAGE
             else:
-                participant = Participant.objects.filter(
-                    Q(access_code__iexact=code) | Q(public_token=code),
-                    is_active=True,
-                ).first()
-                if not participant:
+                participant, ambiguous = find_team_by_code(code)
+                if ambiguous:
+                    error = AMBIGUOUS_CODE_MESSAGE
+                elif not participant:
                     throttle.failure(request, "code")
                     error = "Codice squadra non valido o non riconosciuto."
                 elif participant.user_id is not None and participant.user_id != request.user.id:

@@ -7,7 +7,9 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
+from .. import throttle
 from ..models import Auction, Participant, Player, Watch
+from ..models.participant import AMBIGUOUS_CODE_MESSAGE, find_team_by_code
 from ..providers import importers
 from .. import services
 from .common import (
@@ -122,18 +124,22 @@ def join(request):
         error = None
         participant = None
 
-        if token:
+        if (token or access_code) and throttle.blocked(request, "code"):
+            error = throttle.MESSAGE
+        elif token:
             participant = Participant.objects.filter(
                 public_token=token, is_active=True
             ).first()
             if not participant:
+                throttle.failure(request, "code")
                 error = "Link non valido o scaduto. Contatta l'organizzatore."
         elif access_code:
             # Look up pre-created participant by code.
-            participant = Participant.objects.filter(
-                access_code=access_code, is_active=True
-            ).first()
-            if not participant:
+            participant, ambiguous = find_team_by_code(access_code)
+            if ambiguous:
+                error = AMBIGUOUS_CODE_MESSAGE
+            elif not participant:
+                throttle.failure(request, "code")
                 error = "Codice non riconosciuto. Contatta l'organizzatore."
         elif settings.PUBLIC_TOKENS_REQUIRED:
             # On internet-facing deployments, never mint arbitrary participants

@@ -25,6 +25,7 @@ from ..models import (
     Trade,
 )
 from .. import scoring, services, throttle
+from ..models.participant import AMBIGUOUS_CODE_MESSAGE, find_team_by_code
 from ..services import mail
 from ..services.market import buyout_price, fa_period_start, session_moves, waiver_order
 from .admin_market import rule_choices, session_labels
@@ -35,7 +36,9 @@ from .common import (
     app_admin_leagues,
     _app_ctx,
     _app_standings,
+    _session_participant,
     safe_next,
+    user_can_manage_league,
     user_can_manage_scope,
     visible_leagues,
 )
@@ -1230,11 +1233,10 @@ def app_login(request):
             elif throttle.blocked(request, "code"):
                 error = throttle.MESSAGE
             else:
-                participant = Participant.objects.filter(
-                    Q(access_code__iexact=access_code) | Q(public_token=access_code),
-                    is_active=True,
-                ).first()
-                if not participant:
+                participant, ambiguous = find_team_by_code(access_code)
+                if ambiguous:
+                    error = AMBIGUOUS_CODE_MESSAGE
+                elif not participant:
                     throttle.failure(request, "code")
                     error = "Codice squadra non valido o non riconosciuto."
                 elif participant.user_id is not None and request.user.is_authenticated and request.user.id != participant.user_id:
@@ -1317,9 +1319,16 @@ def app_fixture_detail(request, fixture_id):
     from ..services.competitions import get_fixture_details
 
     fixture = get_object_or_404(
-        Fixture.objects.select_related("giornata", "giornata__season", "home", "away", "competition"),
+        Fixture.objects.select_related("giornata", "giornata__season", "giornata__season__league",
+                                       "home", "away", "competition"),
         id=fixture_id,
     )
+    # Lineups and votes belong to the league: its teams and its admins only.
+    league = fixture.giornata.season.league
+    participant = _session_participant(request)
+    in_league = participant is not None and league is not None and participant.league_id == league.id
+    if not (in_league or user_can_manage_league(request.user, league)):
+        return JsonResponse({"success": False, "error": "Partita non disponibile."}, status=404)
     details = get_fixture_details(fixture)
     return JsonResponse({"success": True, "fixture": details})
 

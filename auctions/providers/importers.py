@@ -5,13 +5,13 @@ in ``base`` (Fantapazz scraping, an uploaded Excel/CSV, a saved session) can be
 imported through here. Keeps DB logic out of both providers and views.
 """
 import re
-import secrets
 import unicodedata
 from decimal import Decimal
 from itertools import islice
 from pathlib import Path
 
 from .. import mantra
+from ..models.participant import generate_access_code
 from ..uploads import MAX_IMPORT_ROWS
 
 _SEP = ";"
@@ -586,7 +586,7 @@ def import_rose_data(teams_data, replace=False, league=None, default_budget=None
             total = spent
 
         defaults = {
-            "access_code": secrets.token_hex(3),
+            "access_code": generate_access_code(),
             "credits": total,
             "spent_credits": spent,
             "is_active": True,

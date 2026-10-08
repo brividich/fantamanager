@@ -114,3 +114,63 @@ class UploadTests(TestCase):
         with override_settings(FM_MAX_REQUEST_BYTES=1000):
             resp = self._post_logo("x.png", b"0" * 5000, "image/png")
         self.assertEqual(resp.status_code, 413)
+
+
+class TeamCodeTests(TestCase):
+    """A team code is looked up across every league: it must point at one
+    team only, and guessing must hit a ceiling at every door."""
+
+    def setUp(self):
+        from django.core.cache import cache
+
+        cache.clear()
+        self.one = League.objects.create(name="Uno")
+        self.two = League.objects.create(name="Due")
+        self.a = Participant.objects.create(league=self.one, display_name="A", access_code="SAME01")
+        self.b = Participant.objects.create(league=self.two, display_name="B", access_code="same01")
+        Auction.objects.create(league=self.one, title="Asta", status=Auction.Status.LIVE)
+
+    def tearDown(self):
+        from django.core.cache import cache
+
+        cache.clear()       # the throttle counts live there: leave none behind
+
+    def test_a_shared_code_lets_nobody_in(self):
+        for path, field in (("/join/", "access_code"), ("/app/login/", "access_code")):
+            resp = self.client.post(path, {field: "SAME01"})
+            self.assertEqual(resp.status_code, 200, path)
+            self.assertContains(resp, "usato da più squadre")
+            self.assertNotIn("participant_id", self.client.session)
+
+    def test_join_guesses_are_throttled(self):
+        for i in range(10):
+            self.client.post("/join/", {"access_code": f"WRONG{i}"})
+        self.a.access_code = "UNIQUE77"
+        self.a.save()
+        resp = self.client.post("/join/", {"access_code": "UNIQUE77"})
+        self.assertContains(resp, "Troppi tentativi")
+        self.assertNotIn("participant_id", self.client.session)
+
+    def test_admins_cannot_reuse_a_code_from_another_league(self):
+        owner = User.objects.create_user("presidente", password="pwd12345", is_staff=True)
+        self.one.owner = owner
+        self.one.save()
+        self.client.force_login(owner)
+        self.client.post(f"/dashboard/participants/{self.a.id}/edit/", {
+            "display_name": "A", "access_code": "TAKEN9", "is_active": "1"})
+        self.a.refresh_from_db()
+        self.assertEqual(self.a.access_code, "TAKEN9")
+        self.b.access_code = "OTHER1"
+        self.b.save()
+        Participant.objects.create(league=self.two, display_name="C", access_code="ZZZZZZ")
+        self.client.post(f"/dashboard/participants/{self.a.id}/edit/", {
+            "display_name": "A", "access_code": "zzzzzz", "is_active": "1"})
+        self.a.refresh_from_db()
+        self.assertEqual(self.a.access_code, "TAKEN9")
+
+    def test_generated_codes_are_long_and_unique(self):
+        from ..models.participant import generate_access_code
+
+        codes = {generate_access_code() for _ in range(50)}
+        self.assertEqual(len(codes), 50)
+        self.assertTrue(all(len(c) == 8 for c in codes))

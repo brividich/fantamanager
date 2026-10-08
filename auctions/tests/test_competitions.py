@@ -296,7 +296,15 @@ class CompetitionsEngineTests(TestCase):
         matched_fx = next(f for f in first_m["fixtures"] if f.id == fx.id)
         self.assertIsNotNone(matched_fx.home_score)
 
-        # Test API endpoint
+        # Test API endpoint: lineups and votes are the league's own business.
+        self.assertEqual(self.client.get(f"/app/fixture/{fx.id}/detail/").status_code, 404)
+        outsider = Participant.objects.create(display_name="Fuori", league=League.objects.create(name="Altra"))
+        session = self.client.session
+        session["participant_id"] = outsider.id
+        session.save()
+        self.assertEqual(self.client.get(f"/app/fixture/{fx.id}/detail/").status_code, 404)
+        session["participant_id"] = fx.away_id
+        session.save()
         resp = self.client.get(f"/app/fixture/{fx.id}/detail/")
         self.assertEqual(resp.status_code, 200)
         json_data = resp.json()
