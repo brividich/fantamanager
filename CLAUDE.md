@@ -115,6 +115,13 @@ algoritmico salva in `PlayerPerformance.vote_detail` anche la riga della
 partita, così `recompute_season` lo rifà senza API. Calibrazione:
 `manage.py calibra_voto_algoritmico --league <id> [--apply]`.
 
+I voti di riferimento di fonti esterne (`AlgoReference`, caricati a mano dal
+superuser nella pagina Supervisor → Voto algoritmico) sono solo materiale di
+taratura: non entrano mai in `PlayerPerformance`, pagine di lega, app, export o
+endpoint non da superuser, e nessun modello di lega li referenzia
+(`IsolationTests` in `test_voto_riferimenti.py`). Nessun download automatico
+né scraping. La taratura (`auctions/voto_taratura.py`) propone, non salva.
+
 ## Punteggi a mano
 
 Una lega che gioca su un altro sito (Fantapazz esporta solo un'immagine della

@@ -156,12 +156,16 @@ def _initials_ok(p_short, f_tokens):
     return any(o.startswith(s) or s.startswith(o) for s in p_short for o in f_tokens)
 
 
-def _score(player, footballer):
-    """Quanto ``footballer`` somiglia a ``player`` (None = non è lui)."""
-    if importers._norm(_ascii(player.name)) == importers._norm(_ascii(footballer.name)):
+def name_match_score(name_a, role_a, name_b, role_b):
+    """Quanto il nome ``name_b`` (fonte ufficiale: API-Football, un campione)
+    somiglia a ``name_a`` (listone, file di voti). None = non è lui.
+
+    Puro: gestisce accenti, iniziali («Martinez L.» contro «L. Martínez») e
+    premia lo stesso ruolo quando ``role_b`` è noto."""
+    if importers._norm(_ascii(name_a)) == importers._norm(_ascii(name_b)):
         return 100
-    p_long, p_short = _name_parts(player.name)
-    f_long, f_short = _name_parts(footballer.name)
+    p_long, p_short = _name_parts(name_a)
+    f_long, f_short = _name_parts(name_b)
     common = p_long & f_long
     if not common:
         return None
@@ -172,9 +176,14 @@ def _score(player, footballer):
     score = 3 * len(common)
     if p_short and (f_long - common) | f_short:
         score += 1
-    if footballer.position and footballer.position == player.role:
+    if role_b and role_b == role_a:
         score += 2
     return score
+
+
+def _score(player, footballer):
+    """Quanto ``footballer`` somiglia a ``player`` (None = non è lui)."""
+    return name_match_score(player.name, player.role, footballer.name, footballer.position)
 
 
 def _best(player, candidates):
