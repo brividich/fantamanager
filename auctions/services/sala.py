@@ -27,6 +27,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from ..models import League, Participant, Player, RosterLog
+from ..models.participant import generate_access_code
 
 logger = logging.getLogger("auctions.sala")
 
@@ -351,7 +352,7 @@ def import_linked_league(snap, *, site, key, lock_id, owner=None):
     team_map = {}
     for t in snap.get("teams") or []:
         team = Participant.objects.create(
-            league=league, access_code=secrets.token_hex(3),
+            league=league, access_code=generate_access_code(),
             **{f: _in(f, t[f]) for f in TEAM_FIELDS if f in t and t[f] is not None},
         )
         team_map[t["id"]] = team

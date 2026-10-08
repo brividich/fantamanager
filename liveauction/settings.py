@@ -70,9 +70,21 @@ else:
         "http://127.0.0.1:8088",
     ]
 
-# Trust TLS-terminating reverse proxy (e.g. Synology Reverse Proxy, Nginx, Caddy)
-if os.getenv("DJANGO_BEHIND_PROXY", "True").lower() in ("1", "true", "yes"):
+# Trust a TLS-terminating reverse proxy (Synology Reverse Proxy, Nginx, Caddy)
+# only when told so: without a proxy in front, X-Forwarded-* come from the
+# client and would let anyone pick the address the throttle counts against.
+BEHIND_PROXY = os.getenv("DJANGO_BEHIND_PROXY", "False").lower() in ("1", "true", "yes")
+if BEHIND_PROXY:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+# How many proxies append to X-Forwarded-For before the request reaches us:
+# the client's address is that many entries from the right.
+TRUSTED_PROXY_HOPS = int(os.getenv("DJANGO_PROXY_HOPS", "1")) if BEHIND_PROXY else 0
+
+
+# Key for the secrets stored encrypted in the database (SMTP password). Unset:
+# derived from SECRET_KEY. Generate one with
+#   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+FM_FIELD_ENCRYPTION_KEY = os.getenv("FM_FIELD_ENCRYPTION_KEY", "")
 
 
 # --- Application definition -------------------------------------------------
@@ -92,6 +104,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # Uploads over FM_MAX_REQUEST_BYTES are refused before anything parses them.
+    "auctions.middleware.UploadSizeLimit",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -257,6 +271,12 @@ if _HAS_WHITENOISE:
 # MEDIA_ROOT is overridable so the packaged (PyInstaller) app can write uploads
 # to a user-writable data folder instead of the read-only bundle.
 MEDIA_URL  = "media/"
+# The league's standings page, read from the URL the admin gives (Fantapazz,
+# Fantacalcio…). It is scraping of a third-party site: a hosted service can
+# switch it off and keep the manual entry.
+FM_REMOTE_STANDINGS = os.getenv("FM_REMOTE_STANDINGS", "True").lower() in ("1", "true", "yes")
+# Largest request body accepted (uploads included): 25 MB by default.
+FM_MAX_REQUEST_BYTES = int(os.getenv("FM_MAX_REQUEST_BYTES", str(25 * 1024 * 1024)))
 MEDIA_ROOT = Path(os.getenv("FANTAMANAGER_MEDIA_ROOT") or (BASE_DIR / "media"))
 
 # PostgreSQL dumps (./backups in docker-compose, shared with its backup service).
@@ -280,6 +300,9 @@ TIMER_SYNC_INTERVAL_SECONDS = float(os.getenv("TIMER_SYNC_INTERVAL_SECONDS", "2"
 # matching unguessable token. Defaults to off for trusted LAN use; turn on for
 # internet-facing deployments. See auctions.views screen()/bid_page()/join().
 PUBLIC_TOKENS_REQUIRED = os.getenv("PUBLIC_TOKENS_REQUIRED", "False").lower() in ("1", "true", "yes")
+# The cloudflared tunnel that puts a LAN/desktop install on the internet for
+# remote bidders. A hosted server (settings_server) has no use for it.
+FM_REMOTE_TUNNEL = os.getenv("FM_REMOTE_TUNNEL", "True").lower() in ("1", "true", "yes")
 
 # --- Dati dei calciatori -----------------------------------------------------
 # Statistiche di stagione applicate da sole a ogni import del listone: un file
@@ -360,10 +383,6 @@ if not DEBUG:
     SECURE_HSTS_PRELOAD     = _is_true("DJANGO_HSTS_PRELOAD", "False")
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS         = "DENY"
-
-    # Behind a TLS-terminating proxy (Synology/nginx/Heroku/Render), trust its header.
-    if _is_true("DJANGO_BEHIND_PROXY", "True"):
-        SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 
     # Fail fast if the install forgot to set a real secret in production.

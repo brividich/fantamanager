@@ -156,6 +156,7 @@
 {% endblock %}
 
 {% block scripts %}
+{{ remote_data|json_script:"fm-remote-data" }}
 <script>
     let rmPoll = null, rmUrl = "";
     function rmCsrf() {
@@ -238,7 +239,7 @@
             () => showToast("Indirizzo copiato", "ok"),
             () => showToast("Copia manualmente l'indirizzo", "bad"));
     }
-    rmRender({{ remote_json|safe }});
+    rmRender(JSON.parse(document.getElementById("fm-remote-data").textContent));
     // Uptime ticks locally; the server figure re-syncs it on every refresh.
     setInterval(() => {
         const el = document.getElementById("rmp-t-uptime");

@@ -1,7 +1,7 @@
 """Automated tests for SaaS RBAC architecture, Auth Gateway, Supervisor, and Tenant Governance."""
 from decimal import Decimal
 from django.contrib.auth.models import User
-from django.test import Client, TestCase
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
 from ..models import Auction, League, Participant
@@ -85,8 +85,9 @@ class SaasRbacTests(TestCase):
         self.assertIn("Lega Alfa", resp_leagues.content.decode())
         self.assertIn("Lega Beta", resp_leagues.content.decode())
 
+    @override_settings(DESKTOP_APP=True)
     def test_registration_bootstrap_and_onboarding(self):
-        """First registered user becomes superadmin; subsequent users get onboarding."""
+        """Desktop app: first registered user becomes superadmin; subsequent users get onboarding."""
         User.objects.all().delete()
 
         # Register first user
@@ -110,6 +111,24 @@ class SaasRbacTests(TestCase):
         self.assertRedirects(resp2, reverse("onboarding"))
         second_u = User.objects.get(username="second_user")
         self.assertFalse(second_u.is_superuser)
+
+    def test_on_a_server_the_first_registration_is_an_ordinary_user(self):
+        User.objects.all().delete()
+        resp = self.client.post(reverse("register"), {
+            "username": "first_user",
+            "password": "securepassword123",
+            "password_confirm": "securepassword123",
+        })
+        self.assertRedirects(resp, reverse("onboarding"))
+        self.assertFalse(User.objects.get(username="first_user").is_superuser)
+
+    def test_registration_refuses_a_weak_password(self):
+        for weak in ("abc123", "12345678901", "password123"):
+            resp = self.client.post(reverse("register"), {
+                "username": "debole", "password": weak, "password_confirm": weak,
+            })
+            self.assertEqual(resp.status_code, 200, weak)
+            self.assertFalse(User.objects.filter(username="debole").exists(), weak)
 
     def test_onboarding_create_league(self):
         """A user in onboarding can create a league and become its owner/admin."""

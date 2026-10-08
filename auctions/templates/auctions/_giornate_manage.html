@@ -115,6 +115,7 @@ partono, così l'azione torna lì; ``gv_base``/``gv_back`` arrivano dalla view.
         </div>
         <div class="muted" style="font-size:12px">
             Formazioni {% if lineups_editable %}salvate per questa giornata{% else %}bloccate{% endif %}: <b>{{ lineups_saved }}/{{ teams_count }}</b>
+            {% if lineups_editable and current_giornata.starts_at %}· si bloccano da sole il <b>{{ current_giornata.starts_at|date:"d/m H:i" }}</b>{% endif %}
             · Totale calciatori a referto: <b>{{ performances_count }}</b>
             {% if live_sync_status.is_enabled %}
                 · Sync automatico attivo (ogni {{ live_sync_status.interval_seconds }}s)
@@ -129,7 +130,21 @@ partono, così l'azione torna lì; ``gv_base``/``gv_back`` arrivano dalla view.
             <input type="hidden" name="next" value="{{ gv_back }}">
             <span style="font-size:11px;font-weight:700;color:var(--muted);white-space:nowrap;">= Serie A:</span>
             <input type="number" name="serie_a_matchday" min="1" max="38" value="{{ current_giornata.serie_a_matchday|default:current_giornata.number }}" style="width:50px;background:transparent;border:none;color:#fff;font-size:12px;font-weight:700;text-align:center;">
+            {% if lineups_editable %}
+            <span style="font-size:11px;font-weight:700;color:var(--muted);white-space:nowrap;" title="Le formazioni si bloccano da sole a quest'ora. Vuoto = solo a mano.">Scadenza:</span>
+            <input type="datetime-local" name="starts_at" value="{{ current_giornata.starts_at|date:'Y-m-d\TH:i' }}" style="background:transparent;border:none;color:#fff;font-size:12px;font-weight:700;color-scheme:dark;">
+            {% endif %}
             <button type="submit" class="fm-btn fm-btn-ghost fm-btn-sm" style="padding:2px 6px;color:var(--accent);">Salva</button>
+        </form>
+
+        <form method="post" action="{{ gv_base }}" style="display:inline">
+            {% csrf_token %}
+            <input type="hidden" name="giornata" value="{{ current_giornata.number }}">
+            <input type="hidden" name="next" value="{{ gv_back }}">
+            <input type="hidden" name="action" value="deadlines_from_calendar">
+            <button type="submit" class="fm-btn fm-btn-ghost fm-btn-sm" title="Ogni giornata ancora da giocare scade al primo calcio d'inizio del suo turno di Serie A (API-Football)">
+                🗓️ Scadenze dal calendario
+            </button>
         </form>
 
         <!-- Live Sync Now -->

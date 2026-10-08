@@ -1,0 +1,62 @@
+{% comment %}
+Storico della lega (albo d'oro per stagione e classifica di sempre): lo
+stesso nella console (admin_storico.html) e nell'app (app_storico.html).
+Dati da ``services.history.league_history``.
+{% endcomment %}
+<style>
+    .sh-grid { display:grid; grid-template-columns:minmax(0,1fr); gap:14px; }
+    @media (min-width:1000px) { .sh-grid { grid-template-columns:minmax(0,1.2fr) minmax(0,1fr); } }
+    .sh-card { background:var(--panel, var(--fm-card)); border:1px solid var(--line, var(--fm-border)); border-radius:14px; padding:14px 16px; min-width:0; }
+    .sh-card h2 { margin:0 0 10px; font-size:16px; }
+    .sh-season { padding:10px 0; border-top:1px solid var(--line, var(--fm-border)); }
+    .sh-season:first-of-type { border-top:none; }
+    .sh-season h3 { margin:0 0 6px; font-size:14px; display:flex; gap:8px; align-items:center; }
+    .sh-row { display:flex; justify-content:space-between; gap:10px; font-size:13px; padding:3px 0; }
+    .sh-row span:first-child { color:var(--muted, var(--fm-text-secondary)); min-width:0; overflow:hidden; text-overflow:ellipsis; }
+    .sh-table { width:100%; border-collapse:collapse; font-size:13px; }
+    .sh-table th, .sh-table td { padding:6px 4px; text-align:right; border-bottom:1px solid var(--line, var(--fm-border)); }
+    .sh-table th:first-child, .sh-table td:first-child { text-align:left; }
+    .sh-badge { font-size:10px; font-weight:800; padding:2px 7px; border-radius:6px; background:rgba(250,204,21,.15); color:#facc15; }
+</style>
+<!-- season-history:start -->
+<div class="sh-grid">
+    <section class="sh-card">
+        <h2>🏆 Albo d'oro</h2>
+        {% for s in history.seasons %}
+        <div class="sh-season">
+            <h3>{{ s.season.name }}{% if s.season.is_current %} <span class="sh-badge">in corso</span>{% endif %}</h3>
+            {% if not s.played %}
+                <div class="sh-row"><span>Nessuna giornata giocata.</span></div>
+            {% else %}
+                {% for row in s.competitions %}
+                <div class="sh-row">
+                    <span>{{ row.competition.name }}</span>
+                    <b>{% if row.winner %}{% if s.season.is_current %}in testa: {% endif %}{{ row.winner.display_name }}{% else %}—{% endif %}</b>
+                </div>
+                {% empty %}
+                <div class="sh-row"><span>Nessuna competizione.</span></div>
+                {% endfor %}
+            {% endif %}
+        </div>
+        {% empty %}
+        <p class="muted">Ancora nessuna stagione.</p>
+        {% endfor %}
+    </section>
+    <section class="sh-card">
+        <h2>📈 Classifica di sempre</h2>
+        {% if history.alltime %}
+        <table class="sh-table">
+            <thead><tr><th>Squadra</th><th title="Competizioni vinte nelle stagioni concluse">Titoli</th><th>Giornate</th><th>Fantapunti</th><th>Media</th></tr></thead>
+            <tbody>
+            {% for r in history.alltime %}
+            <tr><td>{{ r.team.display_name }}</td><td>{{ r.titles }}</td><td>{{ r.giornate }}</td>
+                <td>{{ r.fantapunti|floatformat:1 }}</td><td>{{ r.media|floatformat:2 }}</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="muted">Ancora nessuna giornata giocata.</p>
+        {% endif %}
+    </section>
+</div>
+<!-- season-history:end -->

@@ -2,6 +2,8 @@
 from django.conf import settings
 from django.db import models
 
+from ..crypto import EncryptedTextField
+
 
 class MailSettings(models.Model):
     """The one SMTP provider of the platform (a singleton, ``pk=1``).
@@ -33,7 +35,8 @@ class MailSettings(models.Model):
     port      = models.PositiveIntegerField(default=587)
     security  = models.CharField(max_length=10, choices=Security.choices, default=Security.STARTTLS)
     username  = models.CharField(max_length=200, blank=True)
-    password  = models.CharField(max_length=300, blank=True)
+    # Encrypted in the database (see ``crypto``); the page never shows it.
+    password  = EncryptedTextField(blank=True)
     from_email = models.EmailField(blank=True)
     from_name = models.CharField(max_length=80, blank=True, default="FantaManager")
     reply_to  = models.EmailField(blank=True)

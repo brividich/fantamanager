@@ -1,10 +1,60 @@
 """Participant (team) and watchlist models."""
+import secrets
 from decimal import Decimal
 
 from django.conf import settings
 from django.db import models
+from django.db.models import Q
 
 from .core import generate_public_token
+
+# Team codes are typed by hand, so no 0/O or 1/I/L to confuse.
+ACCESS_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+ACCESS_CODE_LENGTH = 8
+MIN_CUSTOM_CODE_LENGTH = 6
+AMBIGUOUS_CODE_MESSAGE = ("Questo codice è usato da più squadre: entra con il link della tua squadra "
+                          "o chiedi all'organizzatore un codice nuovo.")
+
+
+def access_code_taken(code, exclude_pk=None):
+    """True when another team, in any league, already answers to ``code``: the
+    login looks codes up across leagues, so two equal ones would be a coin toss."""
+    qs = Participant.objects.filter(access_code__iexact=code)
+    if exclude_pk is not None:
+        qs = qs.exclude(pk=exclude_pk)
+    return qs.exists()
+
+
+def generate_access_code():
+    """A fresh random team code, unique across every league."""
+    while True:
+        code = "".join(secrets.choice(ACCESS_CODE_ALPHABET) for _ in range(ACCESS_CODE_LENGTH))
+        if not access_code_taken(code):
+            return code
+
+
+def custom_code_error(code, exclude_pk=None):
+    """Why a code chosen by an admin can't be used ("" when it can)."""
+    if len(code) < MIN_CUSTOM_CODE_LENGTH:
+        return f"Il codice squadra deve avere almeno {MIN_CUSTOM_CODE_LENGTH} caratteri."
+    if access_code_taken(code, exclude_pk):
+        return "Questo codice squadra è già usato da un'altra squadra: scegline un altro."
+    return ""
+
+
+def find_team_by_code(code):
+    """``(team, ambiguous)`` for a typed code or a join token. Codes chosen
+    before they were unique may repeat across leagues: then nobody gets in on
+    the code alone (``ambiguous``), never a team picked at random."""
+    code = (code or "").strip()
+    if not code:
+        return None, False
+    matches = list(Participant.objects.filter(
+        Q(access_code__iexact=code) | Q(public_token=code), is_active=True,
+    )[:2])
+    if len(matches) > 1:
+        return None, True
+    return (matches[0] if matches else None), False
 
 
 class Participant(models.Model):

@@ -6,12 +6,16 @@ compaiono è la classifica. Se qualcosa non torna (pagina irraggiungibile, nomi
 non riconosciuti, squadre mancanti) si restituisce None e l'admin la inserisce a
 mano: meglio nessuna classifica che una sbagliata.
 """
+import ipaddress
 import logging
 import re
+import socket
 import unicodedata
+from urllib.parse import urljoin, urlsplit
 
 import requests
 from bs4 import BeautifulSoup
+from django.conf import settings
 
 from ..models import Participant
 
@@ -56,13 +60,47 @@ def parse_ranking(html, teams):
     return None
 
 
-def fetch_remote_ranking(league, *, get=requests.get):
+MAX_REDIRECTS = 3
+
+
+def _public_host(host, resolve=socket.getaddrinfo):
+    """True when every address ``host`` resolves to is on the public internet.
+    The link is typed by a league admin and fetched by the server: without
+    this it could point at the server's own network (the database container,
+    a router, a cloud metadata address)."""
+    try:
+        infos = resolve(host, None)
+    except (socket.gaierror, UnicodeError, ValueError):
+        return False
+    addresses = {info[4][0] for info in infos}
+    return bool(addresses) and all(ipaddress.ip_address(a.split("%")[0]).is_global for a in addresses)
+
+
+def url_is_fetchable(url, resolve=socket.getaddrinfo):
+    parts = urlsplit(url or "")
+    return parts.scheme in ("http", "https") and bool(parts.hostname) and _public_host(parts.hostname, resolve)
+
+
+def _safe_get(url, get, resolve):
+    """GET that refuses non-public addresses, also after each redirect."""
+    for _ in range(MAX_REDIRECTS + 1):
+        if not url_is_fetchable(url, resolve):
+            raise requests.RequestException(f"indirizzo non consentito: {url}")
+        resp = get(url, timeout=15, headers={"User-Agent": "FantaManager/1.0"}, allow_redirects=False)
+        location = getattr(resp, "headers", {}).get("Location") if 300 <= getattr(resp, "status_code", 200) < 400 else None
+        if not location:
+            return resp
+        url = urljoin(url, location)
+    raise requests.RequestException("troppi reindirizzamenti")
+
+
+def fetch_remote_ranking(league, *, get=requests.get, resolve=socket.getaddrinfo):
     url = getattr(league, "standings_url", "")
-    if not url:
+    if not url or not getattr(settings, "FM_REMOTE_STANDINGS", True):
         return None
     teams = dict(Participant.objects.filter(league=league, is_active=True).values_list("id", "display_name"))
     try:
-        resp = get(url, timeout=15, headers={"User-Agent": "FantaManager/1.0"})
+        resp = _safe_get(url, get, resolve)
         resp.raise_for_status()
     except requests.RequestException as exc:
         logger.warning("Classifica remota non raggiungibile (%s): %s", url, exc)

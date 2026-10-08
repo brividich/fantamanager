@@ -9,6 +9,7 @@ from django.views.decorators.http import require_POST
 from .. import team_sheets
 from ..models import Participant
 from ..providers import team_sheet_import
+from ..uploads import UploadRejected, clean_image
 from .common import (
     FORBIDDEN_LEAGUE_MSG,
     league_scope_or_403,
@@ -169,14 +170,18 @@ def admin_participant_profile(request, participant_id):
         if label:
             honours.append([label, _positive(count) or 0])
     p.honours = honours
+    fallback = f"/dashboard/participants/?league={p.league_id}" if p.league_id else "/dashboard/participants/"
     for key in ("logo", "kit_home", "kit_away"):
         if key in request.FILES:
-            setattr(p, key, request.FILES[key])
+            try:
+                setattr(p, key, clean_image(request.FILES[key]))
+            except UploadRejected as exc:
+                messages.error(request, str(exc))
+                return redirect(safe_next(request, fallback))
         elif post.get(f"clear_{key}") == "1":
             setattr(p, key, None)
     p.save()
     messages.success(request, f"Scheda di «{p.display_name}» aggiornata.")
-    fallback = f"/dashboard/participants/?league={p.league_id}" if p.league_id else "/dashboard/participants/"
     return redirect(safe_next(request, fallback))
 
 

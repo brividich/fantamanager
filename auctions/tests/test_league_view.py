@@ -141,10 +141,18 @@ class SingleLeagueViewTests(TestCase):
     def test_reset_team_pin(self):
         """Team PIN can be customized or regenerated."""
         url = reverse("admin_reset_team_pin", args=[self.team_1.id])
-        resp = self.client.post(url, {"pin": "9999"})
+        resp = self.client.post(url, {"pin": "999999"})
         self.assertEqual(resp.status_code, 302)
         self.team_1.refresh_from_db()
-        self.assertEqual(self.team_1.access_code, "9999")
+        self.assertEqual(self.team_1.access_code, "999999")
+        # Too short to resist guessing: refused, the old code stays.
+        self.client.post(url, {"pin": "9999"})
+        self.team_1.refresh_from_db()
+        self.assertEqual(self.team_1.access_code, "999999")
+        # Empty: a fresh random code, 8 characters from secrets.
+        self.client.post(url, {"pin": ""})
+        self.team_1.refresh_from_db()
+        self.assertEqual(len(self.team_1.access_code), 8)
 
     def test_quick_assign_player(self):
         """Free player can be directly assigned to a team."""

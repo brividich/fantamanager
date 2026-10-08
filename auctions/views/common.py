@@ -458,7 +458,10 @@ def _session_participant(request):
             return p
     user = getattr(request, "user", None)
     if user and user.is_authenticated:
-        p = Participant.objects.filter(user=user, is_active=True).first()
+        # Only an account with a single team gets it by default: with teams in
+        # several leagues the login asks which one (never the database order).
+        mine = list(Participant.objects.filter(user=user, is_active=True)[:2])
+        p = mine[0] if len(mine) == 1 else None
         if p:
             request.session["participant_id"] = p.id
             request.session["display_name"] = p.display_name
@@ -657,3 +660,17 @@ def version_status_api(request):
             "postgresql_support",
         ],
     })
+
+
+def password_problem(password, user=None):
+    """Django's password validators (length, common, all digits, too close to
+    the account's name), as one Italian sentence; "" when it is fine. Every
+    form that sets a password chosen by a person goes through this."""
+    from django.contrib.auth.password_validation import validate_password
+    from django.core.exceptions import ValidationError
+
+    try:
+        validate_password(password, user)
+    except ValidationError as exc:
+        return " ".join(exc.messages)
+    return ""

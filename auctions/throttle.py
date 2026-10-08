@@ -21,12 +21,15 @@ LIMITS = {
 
 def client_ip(request):
     """The client's address. Behind the reverse proxy the socket peer is the
-    proxy itself, so the address it appended to X-Forwarded-For is used (the
-    right-most entry: the ones before it come from the client and can lie)."""
-    if getattr(settings, "SECURE_PROXY_SSL_HEADER", None):
+    proxy itself, so the address the trusted proxies appended to
+    X-Forwarded-For is used: ``TRUSTED_PROXY_HOPS`` entries from the right
+    (the ones before come from the client and can lie). Without a declared
+    proxy the header is ignored: anybody could write it."""
+    hops = getattr(settings, "TRUSTED_PROXY_HOPS", 0)
+    if hops > 0:
         forwarded = [a.strip() for a in request.META.get("HTTP_X_FORWARDED_FOR", "").split(",") if a.strip()]
-        if forwarded:
-            return forwarded[-1]
+        if len(forwarded) >= hops:
+            return forwarded[-hops]
     return request.META.get("REMOTE_ADDR", "") or "unknown"
 
 

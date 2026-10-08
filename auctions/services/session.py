@@ -1,5 +1,4 @@
 """Session snapshot, restore, and maintenance operations."""
-import secrets as _sec
 from decimal import Decimal, InvalidOperation
 
 from django.db import transaction
@@ -7,6 +6,7 @@ from django.db import transaction
 from ..models import (
     Auction, AuctionCycleResult, AuctionSession, League, Participant, Player,
 )
+from ..models.participant import generate_access_code
 from .sala import ensure_unlocked as _sala_guard
 
 
@@ -307,7 +307,7 @@ def resume_session(session_id, *, created_by="", owner=None):
             league=league,
             display_name=(ps.get("display_name") or "Squadra")[:80],
             external_team_id=ps.get("external_team_id", ""),
-            access_code=_sec.token_hex(4),
+            access_code=generate_access_code(),
             credits=_dec(ps.get("credits"), "500"),
             spent_credits=_dec(ps.get("spent_credits"), "0"),
             is_active=ps.get("is_active", True),

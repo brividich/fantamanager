@@ -14,7 +14,7 @@ from django.db import transaction
 
 from ..models import Competition, Fixture, Giornata, GiornataScore, Player, PlayerPerformance, Season
 from .. import scoring
-from .scoring import lineup_io, giornata_perf_map
+from .scoring import lineup_captains, lineup_io, giornata_perf_map
 from .voti import compute_coppa_italia_battle_royale
 
 
@@ -470,10 +470,10 @@ def _compute_groups_standings(competition):
         a["goals_against"] += f.home_goals
         h["points"] += f.home_points
         a["points"] += f.away_points
-        if f.home_points > f.away_points:
+        if f.home_goals > f.away_goals:
             h["won"] += 1
             a["lost"] += 1
-        elif f.home_points < f.away_points:
+        elif f.home_goals < f.away_goals:
             a["won"] += 1
             h["lost"] += 1
         else:
@@ -534,10 +534,10 @@ def _compute_round_robin_standings(competition):
         h["points"] += f.home_points
         a["points"] += f.away_points
 
-        if f.home_points > f.away_points:
+        if f.home_goals > f.away_goals:
             h["won"] += 1
             a["lost"] += 1
-        elif f.home_points < f.away_points:
+        elif f.home_goals < f.away_goals:
             a["won"] += 1
             h["lost"] += 1
         else:
@@ -629,6 +629,59 @@ def season_name(today=None):
     return f"Stagione {start}/{(start + 1) % 100:02d}"
 
 
+def next_season_name(name, today=None):
+    """«Stagione 2026/27» → «Stagione 2027/28»; any other name gets the
+    football season running ``today``."""
+    import re
+    m = re.search(r"(\d{4})/(\d{2})\s*$", name or "")
+    if m:
+        start = int(m.group(1)) + 1
+        return f"{name[:m.start()]}{start}/{(start + 1) % 100:02d}"
+    return season_name(today)
+
+
+def build_schedule(competition):
+    """The calendar of a competition from its own settings (start/end
+    giornata, andata e ritorno). Formats without a calendar (total points,
+    Formula 1, …) and a Supercoppa without its two teams get none."""
+    s = competition.settings or {}
+    start = int(s.get("start_giornata") or 1)
+    end = s.get("end_giornata") or None
+    kind = competition.kind
+    if kind in (Competition.Type.ROUND_ROBIN, Competition.Type.SEASON_SPLIT):
+        return setup_round_robin_competition(competition, start_giornata=start, end_giornata=end)
+    if kind == Competition.Type.KNOCKOUT:
+        return setup_knockout_competition(competition, start_giornata=start, two_legged=bool(s.get("two_legged")))
+    if kind == Competition.Type.GROUPS_KNOCKOUT:
+        return setup_groups_knockout_competition(competition, start_giornata=start, end_giornata=end)
+    return []
+
+
+@transaction.atomic
+def roll_season(league):
+    """Close the league's current Season and open the next one.
+
+    The old season stays as it is — giornate, scores, fixtures, standings —
+    and becomes the league's history. The new one has fresh giornate, the same
+    scoring rules and the same competitions (same names, formats and
+    settings), their calendars drawn again for the teams active now.
+    Returns the new Season (None when the league had none yet)."""
+    old = Season.objects.select_for_update().filter(league=league, is_current=True).order_by("-id").first()
+    if old is None:
+        return None
+    Season.objects.filter(league=league, is_current=True).update(is_current=False)
+    new = Season.objects.create(
+        league=league, name=next_season_name(old.name), matchdays=old.matchdays or 38,
+        rules=dict(old.rules or {}), is_current=True,
+    )
+    Giornata.objects.bulk_create([Giornata(season=new, number=n) for n in range(1, new.matchdays + 1)])
+    for comp in old.competitions.filter(is_active=True).order_by("id"):
+        clone = Competition.objects.create(season=new, name=comp.name, kind=comp.kind,
+                                           settings=dict(comp.settings or {}))
+        build_schedule(clone)
+    return new
+
+
 @transaction.atomic
 def ensure_league_season_and_competitions(league):
     """Ensure active Season, matchdays (1..38), and standard competitions exist for a league."""
@@ -671,12 +724,19 @@ def get_fixture_details(fixture):
     season = giornata.season
     rules = scoring.effective_rules(season.rules if season else None)
     perf_map = giornata_perf_map(giornata)
+    settings = (fixture.competition.settings or {}) if fixture.competition_id else {}
+    try:
+        home_bonus = float(settings.get("home_bonus") or 0)
+    except (TypeError, ValueError):
+        home_bonus = 0.0
 
-    def _team_detail(part):
+    def _team_detail(part, fx_total=None, fx_goals=None, bonus=0.0):
         if not part:
             return None
         starters, bench = lineup_io(part, giornata=giornata)
-        res = scoring.score_lineup(starters, bench, perf_map, rules)
+        captain_id, vice_id = lineup_captains(part, giornata)
+        res = scoring.score_lineup(starters, bench, perf_map, rules,
+                                   captain_id=captain_id, vice_id=vice_id)
 
         player_ids = set()
         for l in res["lines"]:
@@ -757,6 +817,9 @@ def get_fixture_details(fixture):
         gs = GiornataScore.objects.filter(giornata=giornata, participant=part).first()
         total_val = float(gs.total) if gs else float(res["total"])
         goals_val = gs.goals if gs else res["goals"]
+        # The match itself: the total with the home bonus and the goals it gave.
+        if fixture.computed and fx_total is not None:
+            total_val, goals_val = float(fx_total), fx_goals
         mod_val = float(gs.modificatore) if gs else float(res["modificatore"])
 
         return {
@@ -765,6 +828,9 @@ def get_fixture_details(fixture):
             "total": total_val,
             "goals": goals_val,
             "modificatore": mod_val,
+            "home_bonus": bonus,
+            "captain_id": res["captain"]["id"],
+            "captain_bonus": float(res["captain"]["bonus"]),
             "subs_count": res["subs"],
             "scorers": scorers,
             "assists": assists,
@@ -781,8 +847,9 @@ def get_fixture_details(fixture):
         "is_computed": fixture.computed,
         "status": giornata.status,
         "status_display": giornata.get_status_display(),
-        "home": _team_detail(fixture.home),
-        "away": _team_detail(fixture.away) if fixture.away else None,
+        "home": _team_detail(fixture.home, fixture.home_total, fixture.home_goals, home_bonus),
+        "away": (_team_detail(fixture.away, fixture.away_total, fixture.away_goals)
+                 if fixture.away else None),
     }
 
 

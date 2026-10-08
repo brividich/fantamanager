@@ -159,6 +159,28 @@ class FriendlyErrorPages:
         return wrapped
 
 
+class UploadSizeLimit:
+    """Refuses a request body larger than ``FM_MAX_REQUEST_BYTES`` before any
+    view parses it: Django caps form fields, not uploaded files, and one huge
+    spreadsheet would hold the single server process."""
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        from django.conf import settings
+        limit = getattr(settings, "FM_MAX_REQUEST_BYTES", 0)
+        try:
+            length = int(request.META.get("CONTENT_LENGTH") or 0)
+        except ValueError:
+            length = 0
+        if limit and length > limit:
+            mb = limit // (1024 * 1024)
+            return HttpResponse(f"File troppo grande: il massimo è {mb} MB.", status=413,
+                                content_type="text/plain; charset=utf-8")
+        return self.get_response(request)
+
+
 class SalaLockGuard:
     """Una lega bloccata dall'asta in sala (services/sala.py) rifiuta ogni
     cambio di rose, crediti e listone con ``LeagueLocked``, da qualunque

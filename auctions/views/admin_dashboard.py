@@ -1,5 +1,4 @@
 """Admin dashboard and real-time auction control views."""
-import json
 from decimal import Decimal, InvalidOperation
 from itertools import groupby as _groupby
 
@@ -111,7 +110,7 @@ def admin_dashboard(request, league_id=None, hub=False, auction_id=None):
     selected_id = auction_id or request.GET.get("auction")
     selected = None
     bids_by_cycle = []
-    state_json = "null"
+    state_data = None
 
     if selected_id:
         selected = get_object_or_404(Auction, pk=selected_id)
@@ -126,7 +125,7 @@ def admin_dashboard(request, league_id=None, hub=False, auction_id=None):
             {"cycle": k, "bids": list(v)}
             for k, v in _groupby(bids_qs, key=lambda b: b.cycle)
         ]
-        state_json = json.dumps(services.serialize_state(selected))
+        state_data = services.serialize_state(selected)
 
     # No explicit ?auction=: stay on the auction this console was running, so a
     # trip to Giocatori/Squadre and back never dumps you on the start screen.
@@ -330,7 +329,7 @@ def admin_dashboard(request, league_id=None, hub=False, auction_id=None):
         "assigned_count": assigned_count,
         "avg_spent":    avg_spent,
         "bids_by_cycle": bids_by_cycle,
-        "state_json":   state_json,
+        "state_data":   state_data,
         "participants": participants,
         "players":      players,
         "free_count":   free_count,
@@ -346,9 +345,9 @@ def admin_dashboard(request, league_id=None, hub=False, auction_id=None):
         "account_secret": request.session.pop(SESSION_ACCOUNT_SECRET_KEY, None) if can_manage_accounts(user, current_league) else None,
         "can_manage_accounts": can_manage_accounts(user, current_league),
         "league_admin_ids": league_admin_ids,
-        "error_labels_json": json.dumps(services.ERROR_LABELS),
+        "error_labels": services.ERROR_LABELS,
         # The tunnel status carries the regia PIN: superadmin only.
-        "remote_json": json.dumps(remote.status()) if user.is_superuser else "null",
+        "remote_data": remote.status() if user.is_superuser else None,
         "lan_url": remote.lan_url(request),
     })
 

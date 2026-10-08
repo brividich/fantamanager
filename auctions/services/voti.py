@@ -7,12 +7,14 @@ import csv
 import io
 import logging
 from decimal import Decimal
+from itertools import islice
 from typing import Any, Dict, List, Optional
 
 from django.db import transaction
 
 from ..models import Giornata, GiornataScore, League, Player, PlayerPerformance
 from ..providers.importers import _find_match
+from ..uploads import MAX_IMPORT_ROWS
 from .scoring import compute_giornata
 
 logger = logging.getLogger(__name__)
@@ -53,11 +55,13 @@ def _sheet_rows(file_bytes: bytes, fname: str) -> List[tuple]:
     if fname.endswith((".xlsx", ".xlsm")):
         import openpyxl
         wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True, read_only=True)
-        return [tuple(r) for r in wb.worksheets[0].iter_rows(values_only=True)]
+        rows = [tuple(r) for r in islice(wb.worksheets[0].iter_rows(values_only=True), MAX_IMPORT_ROWS)]
+        wb.close()
+        return rows
     if fname.endswith(".xls"):
         import xlrd
         sheet = xlrd.open_workbook(file_contents=file_bytes).sheet_by_index(0)
-        return [tuple(sheet.row_values(i)) for i in range(sheet.nrows)]
+        return [tuple(sheet.row_values(i)) for i in range(min(sheet.nrows, MAX_IMPORT_ROWS))]
     if fname.endswith(".csv"):
         text = file_bytes.decode("utf-8-sig", errors="replace")
         try:

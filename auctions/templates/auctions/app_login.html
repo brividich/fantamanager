@@ -228,6 +228,24 @@
         </div>
         {% endif %}
 
+        {% if user.is_authenticated and user_teams|length > 1 %}
+        {# An account with teams in more than one league picks which one to play. #}
+        <div id="team-picker" style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);border-radius:12px;padding:12px;margin-bottom:14px">
+            <div style="font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:800;margin-bottom:8px">Con quale squadra entri?</div>
+            {% for t in user_teams %}
+            <form method="post" action="{% url 'app_login' %}" style="margin:0 0 6px">
+                {% csrf_token %}
+                <input type="hidden" name="login_mode" value="select">
+                <input type="hidden" name="participant_id" value="{{ t.id }}">
+                {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+                <button type="submit" class="btn-submit" style="width:100%;text-align:left;display:flex;justify-content:space-between;gap:8px">
+                    <span>{{ t.display_name }}</span><small style="opacity:.75">{{ t.league.name|default:"" }}</small>
+                </button>
+            </form>
+            {% endfor %}
+        </div>
+        {% endif %}
+
         <div class="tab-switch">
             <button type="button" class="tab-btn {% if active_mode == 'account' %}is-active{% endif %}" id="tab-btn-account" onclick="switchLoginMode('account')">
                 <svg class="ic" style="width:13px;height:13px;vertical-align:-1px"><use href="#i-user"/></svg> Account
@@ -287,6 +305,9 @@
             <div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;font-size:12px">
                 <a href="{% url 'register' %}" style="color:var(--accent);text-decoration:none;font-weight:600">
                     Crea account
+                </a>
+                <a href="{% url 'password_reset' %}" style="color:var(--muted);text-decoration:none">
+                    Password dimenticata?
                 </a>
                 <a href="{% url 'home' %}" style="color:var(--muted);text-decoration:none">
                     Portale generale &rarr;

@@ -2,7 +2,6 @@
 from datetime import datetime, timedelta, timezone as dt_timezone
 from decimal import Decimal
 from functools import wraps
-import json
 import logging
 import os
 import platform
@@ -37,7 +36,7 @@ from ..models import Auction, Bid, League, MailSettings, Participant, Player
 from ..consumers import _ROOM_TICKERS
 from ..services import mail
 from ..services.voti_live import LiveSyncManager, normalize_provider
-from .common import form_int
+from .common import form_int, password_problem
 
 logger = logging.getLogger(__name__)
 
@@ -443,8 +442,8 @@ def supervisor_dashboard(request):
 
             password_changed = False
             if new_password:
-                if len(new_password) < 4:
-                    messages.error(request, "La password deve contenere almeno 4 caratteri.")
+                if (weak := password_problem(new_password, user_obj)):
+                    messages.error(request, weak)
                     return redirect(f"{reverse('supervisor_dashboard')}?tab=users")
                 user_obj.set_password(new_password)
                 password_changed = True
@@ -752,7 +751,6 @@ def supervisor_dashboard(request):
         ]
         for lg in leagues
     }
-    league_teams_json = json.dumps(league_teams_map)
 
     # Enrich leagues with active auction status
     for lg in leagues:
@@ -799,7 +797,7 @@ def supervisor_dashboard(request):
             "metrics": metrics,
             "users": users,
             "leagues": leagues,
-            "league_teams_json": league_teams_json,
+            "league_teams_data": league_teams_map,
             "recent_logs": recent_logs,
             "log_filename": log_filename,
             "level_filter": level_filter,

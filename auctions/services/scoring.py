@@ -1,4 +1,6 @@
 """Season play: scoring a giornata and resolving fixtures."""
+from decimal import Decimal, InvalidOperation
+
 from django.utils import timezone
 
 from .. import scoring
@@ -43,6 +45,12 @@ def lineup_io(participant, giornata=None):
     return starters, bench
 
 
+def lineup_captains(participant, giornata=None):
+    """``(captain_id, vice_id)`` of the lineup ``lineup_io`` plays."""
+    saved = _saved_lineup(participant, giornata)
+    return saved["captain_id"], saved["vice_id"]
+
+
 def giornata_perf_map(giornata):
     """player id → performance dict for one giornata (engine input)."""
     return {pp.player_id: pp.as_perf()
@@ -57,6 +65,7 @@ def _serialisable_lines(res):
         "subs": res["subs"],
         "modificatore": f(res["modificatore"]),
         "fair_play": f(res.get("fair_play")),
+        "captain": {"id": res["captain"]["id"], "bonus": f(res["captain"]["bonus"])} if res.get("captain") else None,
         "lines": [{
             "id": l["id"], "role": l["role"], "vote": f(l["vote"]),
             "fantavoto": f(l["fantavoto"]), "has_vote": l["has_vote"], "sub_in": l["sub_in"],
@@ -69,7 +78,9 @@ def score_participant_giornata(participant, giornata, *, persist=True):
     performances. Returns the engine result; persists a GiornataScore when asked."""
     starters, bench = lineup_io(participant, giornata=giornata)
     rules = (giornata.season.rules or {}) if giornata.season_id else {}
-    res = scoring.score_lineup(starters, bench, giornata_perf_map(giornata), rules)
+    captain_id, vice_id = lineup_captains(participant, giornata)
+    res = scoring.score_lineup(starters, bench, giornata_perf_map(giornata), rules,
+                               captain_id=captain_id, vice_id=vice_id)
     if persist:
         GiornataScore.objects.update_or_create(
             giornata=giornata, participant=participant,
@@ -108,19 +119,47 @@ def compute_giornata(giornata, mark_scored: bool = True):
 
 
 def _resolve_fixtures(giornata):
-    """Head-to-head results of the giornata's fixtures from its GiornataScores."""
-    goals_by_team = {gs.participant_id: gs.goals
-                     for gs in GiornataScore.objects.filter(giornata=giornata)}
-    for fx in giornata.fixtures.all():
-        hg = goals_by_team.get(fx.home_id, 0)
+    """Head-to-head results of the giornata's fixtures from its GiornataScores,
+    with each competition's own rules: the home bonus (fantapunti added to the
+    home side before the goals are counted) and the points for a win, a draw
+    and a defeat. Goals typed in by hand stay as typed."""
+    rules = scoring.effective_rules(giornata.season.rules if giornata.season_id else None)
+    scores = {gs.participant_id: gs for gs in GiornataScore.objects.filter(giornata=giornata)}
+
+    def side(team_id, bonus):
+        gs = scores.get(team_id)
+        if gs is None:
+            return None, 0
+        total = gs.total + bonus
+        typed = (gs.breakdown or {}).get("goals_typed")
+        goals = gs.goals if (typed or not bonus) else scoring.goals_from_total(total, rules)
+        return total, goals
+
+    fields = ["home_goals", "away_goals", "home_points", "away_points",
+              "home_total", "away_total", "computed"]
+    for fx in giornata.fixtures.select_related("competition"):
+        settings = (fx.competition.settings or {}) if fx.competition_id else {}
+        try:
+            bonus = Decimal(str(settings.get("home_bonus") or 0))
+        except (InvalidOperation, ValueError):
+            bonus = Decimal("0")
+        fx.home_total, fx.home_goals = side(fx.home_id, bonus)
         if fx.away_id is None:                       # bye — no match
-            fx.home_goals, fx.home_points, fx.computed = hg, 0, True
-            fx.save(update_fields=["home_goals", "home_points", "computed"])
-            continue
-        ag = goals_by_team.get(fx.away_id, 0)
-        hp, ap = scoring.fixture_outcome(hg, ag)
-        fx.home_goals, fx.away_goals, fx.home_points, fx.away_points, fx.computed = hg, ag, hp, ap, True
-        fx.save(update_fields=["home_goals", "away_goals", "home_points", "away_points", "computed"])
+            fx.away_total, fx.away_goals, fx.home_points, fx.away_points = None, 0, 0, 0
+        else:
+            fx.away_total, fx.away_goals = side(fx.away_id, Decimal("0"))
+            fx.home_points, fx.away_points = scoring.fixture_outcome(fx.home_goals, fx.away_goals, settings)
+        fx.computed = True
+        fx.save(update_fields=fields)
+
+    # Cups move on: a round just completed draws the next one. A round that
+    # lands on a giornata already scored gets its results straight away.
+    if giornata.season_id:
+        from .knockout import advance_season_cups
+        drawn = advance_season_cups(giornata.season)
+        for later in {fx.giornata for fx in drawn if fx.giornata_id != giornata.id}:
+            if GiornataScore.objects.filter(giornata=later).exists():
+                _resolve_fixtures(later)
 
 
 def set_manual_scores(giornata, entries):

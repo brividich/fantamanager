@@ -1,6 +1,5 @@
 """Setup and creation wizards for leagues and auctions."""
 import json
-import secrets as _sec
 from decimal import Decimal, InvalidOperation
 
 from django.core.exceptions import ValidationError
@@ -12,6 +11,7 @@ from django.views.decorators.http import require_POST
 
 from .. import services
 from ..models import Auction, League, LeagueConfig, Participant, Player
+from ..models.participant import generate_access_code
 from ..providers import importers
 from ..services import mail
 from .admin_dashboard import _pint
@@ -264,7 +264,7 @@ def _create_manual_teams(request, league, budget):
             email = ""  # the wizard checks it too; a bad one is simply left out
         Participant.objects.create(
             league=league, display_name=name, email=email,
-            access_code=_sec.token_hex(4), credits=max(Decimal("0"), credits), is_active=True,
+            access_code=generate_access_code(), credits=max(Decimal("0"), credits), is_active=True,
         )
 
 

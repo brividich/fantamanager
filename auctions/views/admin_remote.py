@@ -1,6 +1,5 @@
 """Remote access management: Cloudflare quick tunnel, remote PIN gate, and shutdown."""
 import io
-import json
 
 try:
     import qrcode
@@ -60,7 +59,7 @@ def admin_remote_page(request):
         "selected": live,
         "console_section": "Accesso remoto",
         "console_active": "remote",
-        "remote_json": json.dumps(remote.status()),
+        "remote_data": remote.status(),
         "lan_url": remote.lan_url(request),
     })
 
@@ -108,6 +107,8 @@ def admin_remote_start(request):
     """Open the public tunnel. The URL lands a few seconds later — poll status."""
     if not request.user.is_superuser:
         return forbidden_json()
+    if not settings.FM_REMOTE_TUNNEL:      # a hosted server is already on the internet
+        return JsonResponse({"ok": False, "error": "not_available"}, status=404)
     if remote.is_on():
         return JsonResponse({"ok": True, "remote": remote.status()})
     # Never tunnel to the tunnel: when the request already came in through the

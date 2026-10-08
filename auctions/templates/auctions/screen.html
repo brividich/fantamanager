@@ -457,11 +457,12 @@
 {% endblock %}
 
 {% block scripts %}
+{{ state|json_script:"fm-state-data" }}
 <script>
     const AUCTION_ID = {{ auction.id }};
     // Durata piena di uno scrutinio, per disegnare il cerchio in proporzione.
     const SEALED_TOTAL = {{ auction.sealed_seconds }};
-    let state = {{ state|safe }};
+    let state = JSON.parse(document.getElementById("fm-state-data").textContent);
     let timerBase = { remaining: state.remaining_seconds, at: performance.now() };
     let live = null;   // la connessione all'asta (fmLiveSocket, base.html)
     let lastPrice = null;

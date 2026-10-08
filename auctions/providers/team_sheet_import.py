@@ -16,16 +16,15 @@ vede in anteprima è esattamente quello che succederà.
 """
 import io
 import re
-import secrets
 from collections import defaultdict
 from decimal import Decimal, InvalidOperation
 from difflib import SequenceMatcher
 
-from django.core.files.base import ContentFile
 from django.db import transaction
 from django.utils import timezone
-from django.utils.text import slugify
 
+from ..models.participant import generate_access_code
+from ..uploads import MAX_IMPORT_ROWS, MAX_PDF_PAGES, UploadRejected, clean_image_bytes
 from .importers import _find_match, _name_parts, _norm, _shorts_compatible, _team_code
 
 ROLE_BY_TITLE = {"PORTIERI": "P", "DIFENSORI": "D", "CENTROCAMPISTI": "C", "ATTACCANTI": "A"}
@@ -246,6 +245,8 @@ def parse_team_sheet_xlsx(data, filename=""):
         raise SheetError(f"{filename}: file Excel non leggibile ({exc}).")
     sheets = []
     for ws in wb.worksheets:
+        if (ws.max_row or 0) > MAX_IMPORT_ROWS:
+            raise SheetError(f"{filename}: foglio «{ws.title}» troppo lungo.")
         sheet = _parse_worksheet(ws, f"{filename} · {ws.title}" if len(wb.worksheets) > 1 else filename)
         if sheet is not None:
             sheets.append(sheet)
@@ -539,6 +540,8 @@ def parse_team_sheet_pdf(data, filename=""):
     sheets = []
     try:
         with pdfplumber.open(io.BytesIO(data)) as pdf:
+            if len(pdf.pages) > MAX_PDF_PAGES:
+                raise SheetError(f"{filename}: troppe pagine (massimo {MAX_PDF_PAGES}).")
             for i, page in enumerate(pdf.pages):
                 source = f"{filename} · pag. {i + 1}" if len(pdf.pages) > 1 else filename
                 pdfium_page = images_doc[i] if images_doc is not None else None
@@ -1034,7 +1037,7 @@ def _apply_one(sheet, index, choice, league, participants, pool, claimed, *, rep
         base, year = _split_founded(title)
         team = Participant.objects.create(
             league=league, display_name=(_nice_name(base) or f"Squadra {index + 1}")[:80],
-            founded=year, access_code=secrets.token_hex(3), credits=league.budget, is_active=True,
+            founded=year, access_code=generate_access_code(), credits=league.budget, is_active=True,
         )
         participants.append(team)
         entry["created_team"] = True
@@ -1186,8 +1189,11 @@ def _save_images(team, images, overwrite, entry):
         data = images.get(key)
         if not data or (getattr(team, key) and not overwrite):
             continue
-        name = f"{slugify(team.display_name) or 'squadra'}-{key.replace('_', '-')}.png"
-        getattr(team, key).save(name, ContentFile(data), save=False)
+        try:
+            image = clean_image_bytes(data)
+        except UploadRejected:
+            continue
+        getattr(team, key).save(image.name, image, save=False)
         changed.append(key)
     if changed:
         team.save(update_fields=changed)

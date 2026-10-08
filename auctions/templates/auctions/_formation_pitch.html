@@ -104,6 +104,11 @@ app_regia_formazione.html nell'app). Dati da ``formation_state``; il form manda
     .fm-save:active { transform: scale(0.97); }
     .fm-save .ic { width: 18px; height: 18px; }
 
+    .fz-armband { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+    .fz-armband label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; font-weight: 800;
+                        text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+    .fz-armband select { width: 100%; padding: 9px 8px; border-radius: 10px; border: 1px solid var(--line);
+                         background: var(--panel-2); color: var(--ink); font-weight: 700; font-size: 13px; }
     .bench-badge { min-width: 20px; text-align: center; }
     .fz-note { font-size: 12px; color: var(--muted); margin-top: 4px; }
     .bench-move { display: flex; gap: 4px; flex-shrink: 0; margin-left: 8px; }
@@ -168,6 +173,24 @@ app_regia_formazione.html nell'app). Dati da ``formation_state``; il form manda
         {% endfor %}
     </div>
 
+    {% if captain_enabled %}
+    <div class="fz-armband">
+        <label>Capitano
+            <select name="captain" data-armband="captain">
+                <option value="">—</option>
+                {% for p in starters %}<option value="{{ p.id }}" {% if p.id == captain_id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+            </select>
+        </label>
+        <label>Vice
+            <select name="vice" data-armband="vice">
+                <option value="">—</option>
+                {% for p in starters %}<option value="{{ p.id }}" {% if p.id == vice_id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+            </select>
+        </label>
+    </div>
+    <p class="fz-note" style="margin:6px 0 0">Il capitano prende il bonus o il malus della lega sul suo voto; se non gioca, lo prende il vice.</p>
+    {% endif %}
+
     <button type="submit" name="save" value="1" class="fm-save" style="margin-top:14px">
         <svg class="ic" style="width:18px;height:18px"><use href="#i-save"/></svg> Salva formazione
     </button>
@@ -211,7 +234,21 @@ app_regia_formazione.html nell'app). Dati da ``formation_state``; il form manda
                 if (o.value) o.disabled = o.value !== s.value && chosen.includes(o.value);
             }));
         }
-        sels.forEach(s => s.addEventListener('change', refresh));
+        // Capitano e vice si scelgono fra i titolari in campo adesso.
+        const armbands = Array.from(document.querySelectorAll('select[data-armband]'));
+        function refreshArmbands() {
+            const onPitch = sels.filter(s => s.value).map(s => [s.value, s.options[s.selectedIndex].text]);
+            armbands.forEach(a => {
+                const keep = a.value;
+                a.innerHTML = '<option value="">—</option>';
+                onPitch.forEach(([id, name]) => {
+                    const o = document.createElement('option');
+                    o.value = id; o.textContent = name; if (id === keep) o.selected = true;
+                    a.appendChild(o);
+                });
+            });
+        }
+        sels.forEach(s => s.addEventListener('change', () => { refresh(); refreshArmbands(); }));
         refresh();
 
         // Ordine della panchina: frecce su/giù, e al salvataggio la form manda

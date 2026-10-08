@@ -144,6 +144,7 @@ from .scoring import (
     recompute_season,
     set_manual_scores,
     giornata_perf_map,
+    lineup_captains,
     lineup_io,
     score_participant_giornata,
 )
@@ -320,6 +321,7 @@ __all__ = [
     "target_giornata",
     "save_formation",
     # scoring
+    "lineup_captains",
     "lineup_io",
     "giornata_perf_map",
     "_serialisable_lines",

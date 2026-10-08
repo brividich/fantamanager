@@ -235,6 +235,8 @@ from .auth import (
     portal_view,
     register_view,
 )
+from .history import admin_storico, app_storico
+from .password_reset import password_reset_confirm, password_reset_request
 from .supervisor import (
     supervisor_backup_download,
     supervisor_dashboard,
@@ -247,6 +249,10 @@ __all__ = [
     # auth & onboarding
     "portal_view",
     "login_view",
+    "admin_storico",
+    "app_storico",
+    "password_reset_confirm",
+    "password_reset_request",
     "register_view",
     "logout_view",
     "onboarding_view",

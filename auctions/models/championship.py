@@ -20,6 +20,10 @@ class Formation(models.Model):
     module      = models.CharField(max_length=10, default="4-3-3")
     starter_ids = models.JSONField(default=list, blank=True)
     bench_ids   = models.JSONField(default=list, blank=True)
+    # Captain and vice: Player ids among the starters (the vice takes the
+    # armband when the captain gets no vote). Null = none chosen.
+    captain_id  = models.PositiveIntegerField(null=True, blank=True)
+    vice_id     = models.PositiveIntegerField(null=True, blank=True)
     updated_at  = models.DateTimeField(auto_now=True)
 
     def __str__(self):
@@ -90,6 +94,9 @@ class Giornata(models.Model):
     number     = models.PositiveIntegerField()
     serie_a_matchday = models.PositiveIntegerField(null=True, blank=True)
     status     = models.CharField(max_length=10, choices=Status.choices, default=Status.SCHEDULED)
+    # Deadline for the lineups: the scheduler locks them when it passes (the
+    # first Serie A kick-off of the round, or a time the admin chose).
+    starts_at  = models.DateTimeField(null=True, blank=True)
     locked_at  = models.DateTimeField(null=True, blank=True)
     scored_at  = models.DateTimeField(null=True, blank=True)
 
@@ -177,6 +184,10 @@ class Fixture(models.Model):
     away_goals  = models.PositiveSmallIntegerField(default=0)
     home_points = models.PositiveSmallIntegerField(default=0)
     away_points = models.PositiveSmallIntegerField(default=0)
+    # Fantapunti each side played the match with: the team's giornata total
+    # plus the competition's home bonus for the home side.
+    home_total  = models.DecimalField(max_digits=7, decimal_places=2, null=True, blank=True)
+    away_total  = models.DecimalField(max_digits=7, decimal_places=2, null=True, blank=True)
     computed    = models.BooleanField(default=False)
 
     class Meta:
@@ -196,6 +207,8 @@ class MatchdayFormation(models.Model):
     module      = models.CharField(max_length=10, default="4-3-3")
     starter_ids = models.JSONField(default=list, blank=True)
     bench_ids   = models.JSONField(default=list, blank=True)
+    captain_id  = models.PositiveIntegerField(null=True, blank=True)
+    vice_id     = models.PositiveIntegerField(null=True, blank=True)
     updated_at  = models.DateTimeField(auto_now=True)
 
     class Meta:

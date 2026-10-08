@@ -114,3 +114,41 @@ docker compose run --rm app python manage.py <comando>
 - **PIN Regia Predefinito**: `123456` (configurabile o generato dal tunnel Cloudflare per proteggere la regia quando esposta su internet).
 - **Partecipanti all'Asta**: Area libera, non richiede credenziali per fare rilanci o aprire il maxischermo su HDMI.
 - **Porta personalizzata**: Puoi avviare su una porta differente (es. 8080) specificando `PORT=8080 docker compose up -d`.
+
+---
+
+## ⏱️ Scheduler
+
+Il servizio `scheduler` (stessa immagine, comando `python manage.py run_scheduler`)
+fa quello che prima aspettava una pagina aperta:
+
+- chiude i lotti dell'asta scaduti e passa al successivo anche se nessuno è collegato;
+- apre e chiude le sessioni di mercato alle loro date;
+- blocca le formazioni alla **scadenza della giornata** (pagina Giornate → «Scadenza», oppure
+  «🗓️ Scadenze dal calendario» che prende il primo calcio d'inizio di ogni turno da API-Football).
+
+Senza scheduler l'app funziona come prima: una scadenza passata si applica alla prima visita
+della pagina Formazione o Giornate. Un giro solo: `docker compose exec app python manage.py run_scheduler --once`.
+
+## 🔐 Variabili di sicurezza
+
+| Variabile | Default | A cosa serve |
+| --- | --- | --- |
+| `DJANGO_BEHIND_PROXY` | `False` (il compose la mette a `True`) | Fidarsi di `X-Forwarded-*` dal reverse proxy |
+| `DJANGO_PROXY_HOPS` | `1` | Quanti proxy aggiungono un indirizzo a `X-Forwarded-For` |
+| `FM_MAX_REQUEST_BYTES` | 25 MB | Dimensione massima di una richiesta (upload compresi) |
+| `FM_FIELD_ENCRYPTION_KEY` | derivata dalla `SECRET_KEY` | Chiave Fernet per i segreti salvati nel DB (password SMTP) |
+| `FM_REMOTE_STANDINGS` | `True` | Lettura della classifica dal link della lega (solo indirizzi pubblici) |
+
+Il container gira come utente `app` (uid 1000): all'avvio l'entrypoint passa a quell'utente le
+cartelle `data`, `media`, `logs`, `backups`. Se il NAS non lo permette resta root e lo scrive nel log
+(`FM_RUN_AS_ROOT=1` per restare root di proposito). Dopo questo aggiornamento serve
+`docker compose build` (o il pull dell'immagine), non solo il riavvio.
+
+## 🌐 Servizio pubblico (profilo server)
+
+Per un servizio su internet aperto a più leghe (non il NAS di casa) avvia con
+`DJANGO_SETTINGS_MODULE=liveauction.settings_server`. Il profilo si rifiuta di partire con DEBUG
+acceso, `DJANGO_ALLOWED_HOSTS=*`, senza PostgreSQL o con la password d'esempio del database; forza
+link squadra con token, cookie solo HTTPS, log su stdout, cache su Redis se c'è `REDIS_URL`, e
+spegne il tunnel cloudflared e la lettura delle classifiche da siti terzi.

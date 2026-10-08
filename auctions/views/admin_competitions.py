@@ -116,9 +116,8 @@ def admin_competition_create(request):
             "win_points": int(request.POST.get("win_points") or 3),
             "draw_points": int(request.POST.get("draw_points") or 1),
             "loss_points": int(request.POST.get("loss_points") or 0),
-            "goal_threshold": float(request.POST.get("goal_threshold") or 66.0),
-            "goal_step": float(request.POST.get("goal_step") or 6.0),
             "home_bonus": float(request.POST.get("home_bonus") or 0.0),
+            "knockout_tiebreak": "casa" if request.POST.get("knockout_tiebreak") == "casa" else "fantapunti",
             "description": (request.POST.get("description") or "").strip(),
         }
 

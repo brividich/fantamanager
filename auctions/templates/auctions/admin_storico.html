@@ -1,0 +1,17 @@
+{% extends "auctions/base.html" %}
+{% comment %}
+Storico della lega nella console. Il contenuto è lo stesso partial dell'app
+(_season_history.html): qui c'è solo la cornice.
+{% endcomment %}
+{% block title %}Storico — FantaManager{% endblock %}
+{% block bodyclass %}role-admin{% endblock %}
+{% block wrapclass %}wrap-wide{% endblock %}
+
+{% block content %}
+{% include "auctions/_console_head.html" %}
+<div style="margin:6px 0 14px">
+    <h1 style="margin:0;font-size:26px">Storico</h1>
+    <div style="font-size:12.5px;color:var(--fm-text-secondary)">Albo d'oro e classifica di sempre di {{ current_league.name }}</div>
+</div>
+{% include "auctions/_season_history.html" %}
+{% endblock %}

@@ -332,3 +332,37 @@ class LoginIdentifierTests(TestCase):
         twin = User.objects.create_user("Lazze85", password="altra")
         self.assertEqual(self._app("Lazze85", "altra"), str(twin.id))
         self.assertEqual(self._app("lazze85", "segreta1"), str(self.user.id))
+
+
+class MultiTeamAccountTests(TestCase):
+    """Un account con squadre in due leghe sceglie con quale entrare: mai la
+    prima che capita nel database."""
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+        from ..models import League
+        self.user = User.objects.create_user("doppio", password="Pw-doppio-2026")
+        self.one = Participant.objects.create(display_name="Squadra Uno", user=self.user,
+                                              league=League.objects.create(name="Lega Uno"), access_code="UNO111")
+        self.two = Participant.objects.create(display_name="Squadra Due", user=self.user,
+                                              league=League.objects.create(name="Lega Due"), access_code="DUE222")
+
+    def test_login_asks_which_team(self):
+        resp = self.client.post(reverse("app_login"), {"login_mode": "account", "identifier": "doppio",
+                                                      "password": "Pw-doppio-2026"})
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("switch=1", resp["Location"])
+        self.assertIsNone(self.client.session.get("participant_id"))
+        page = self.client.get(resp["Location"])
+        self.assertContains(page, "Con quale squadra entri?")
+        self.assertContains(page, "Lega Due")
+
+    def test_picking_one_of_your_teams_needs_no_code(self):
+        self.client.force_login(self.user)
+        resp = self.client.post(reverse("app_login"), {"login_mode": "select", "participant_id": self.two.id})
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(self.client.session["participant_id"], self.two.id)
+        # Back on the app later: still the team picked, not the first one.
+        self.assertRedirects(self.client.get(reverse("app_login")), reverse("app_home"),
+                             fetch_redirect_response=False)
+        self.assertEqual(self.client.session["participant_id"], self.two.id)

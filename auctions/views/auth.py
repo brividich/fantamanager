@@ -5,12 +5,12 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
-from django.db.models import Q
 from django.shortcuts import redirect, render
 
 from .. import throttle
 
 from ..models import Auction, League, Participant
+from ..models.participant import AMBIGUOUS_CODE_MESSAGE, find_team_by_code
 from .common import SESSION_LEAGUE_KEY, _session_participant, manageable_leagues, safe_next
 
 logger = logging.getLogger(__name__)
@@ -163,10 +163,25 @@ def login_view(request):
     )
 
 
+def _password_problem(password, username="", email="", first_name=""):
+    """Django's password validators (length, common, numeric, too close to
+    the name), as one Italian sentence; "" when the password is fine."""
+    from django.contrib.auth.password_validation import validate_password
+    from django.core.exceptions import ValidationError
+
+    try:
+        validate_password(password, User(username=username, email=email, first_name=first_name))
+    except ValidationError as exc:
+        return " ".join(exc.messages)
+    return ""
+
+
 def register_view(request):
     """Handle new user registration.
 
-    First registered user on an empty platform automatically becomes Superadmin.
+    In the desktop app the first registered user on an empty platform becomes
+    Superadmin. On a server the superadmin comes from the install (entrypoint,
+    ``createsuperuser``): whoever reached the page first must not get it.
     """
     if request.user.is_authenticated:
         return redirect("home")
@@ -183,18 +198,18 @@ def register_view(request):
             error = "Nome utente e password sono obbligatori."
         elif len(username) < 3:
             error = "Il nome utente deve contenere almeno 3 caratteri."
-        elif len(password) < 6:
-            error = "La password deve contenere almeno 6 caratteri."
         elif password != password_confirm:
             error = "Le due password non coincidono."
+        elif (weak := _password_problem(password, username, email, first_name)):
+            error = weak
         elif User.objects.filter(username__iexact=username).exists():
             error = "Questo nome utente è già in uso. Scegline un altro."
         elif email and User.objects.filter(email__iexact=email).exists():
             error = "Questa email è già associata a un account."
         else:
             try:
-                # First user becomes Superadmin
-                is_first = User.objects.count() == 0
+                # First user becomes Superadmin (desktop app only).
+                is_first = settings.DESKTOP_APP and User.objects.count() == 0
                 user = User.objects.create_user(
                     username=username,
                     email=email,
@@ -270,11 +285,10 @@ def onboarding_view(request):
             elif throttle.blocked(request, "code"):
                 error = throttle.MESSAGE
             else:
-                participant = Participant.objects.filter(
-                    Q(access_code__iexact=code) | Q(public_token=code),
-                    is_active=True,
-                ).first()
-                if not participant:
+                participant, ambiguous = find_team_by_code(code)
+                if ambiguous:
+                    error = AMBIGUOUS_CODE_MESSAGE
+                elif not participant:
                     throttle.failure(request, "code")
                     error = "Codice squadra non valido o non riconosciuto."
                 elif participant.user_id is not None and participant.user_id != request.user.id:

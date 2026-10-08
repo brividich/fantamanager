@@ -478,20 +478,19 @@ Apertura dalla pagina: openCompWizard() / closeCompWizard().
                     </div>
                 </div>
 
+                <div class="cwz-field-box" style="font-size:12px;color:var(--muted);line-height:1.5;">
+                    <b style="color:var(--ink)">Soglie gol:</b> quelle della lega (pagina Giornate → Regole di punteggio),
+                    uguali per tutte le competizioni. Il fattore campo si somma al totale della squadra di casa prima di contare i gol.
+                </div>
+
                 <div class="cwz-field-box">
-                    <label>Soglie Gol Fantavoto</label>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-                        <div>
-                            <span style="font-size:11px;color:var(--muted);font-weight:700;">Soglia 1° Gol (pt):</span>
-                            <input type="number" name="goal_threshold" value="66.0" step="0.5" min="50" max="100">
-                        </div>
-                        <div>
-                            <span style="font-size:11px;color:var(--muted);font-weight:700;">Fascia Gol Succ. (pt):</span>
-                            <input type="number" name="goal_step" value="6.0" step="0.5" min="1" max="20">
-                        </div>
-                    </div>
+                    <label>Spareggio a eliminazione (pari gol)</label>
+                    <select name="knockout_tiebreak">
+                        <option value="fantapunti">Passa chi ha fatto più fantapunti</option>
+                        <option value="casa">Passa la testa di serie (in casa all'andata)</option>
+                    </select>
                     <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.4;">
-                        Default standard: 66 pt = 1 gol, 72 pt = 2 gol, 78 pt = 3 gol (+6 punti per ogni gol aggiuntivo).
+                        Per le coppe a tabellone: a fine turno si sorteggia da solo il turno dopo, fino alla finale.
                     </div>
                 </div>
 
@@ -539,7 +538,7 @@ Apertura dalla pagina: openCompWizard() / closeCompWizard().
                     </div>
                     <div style="display:flex;justify-content:space-between;">
                         <span style="color:var(--muted)">Punteggi:</span>
-                        <b style="color:var(--ink)" id="cwz-sum-rules">3-1-0 pt · Soglia 66+6 pt</b>
+                        <b style="color:var(--ink)" id="cwz-sum-rules">Punti e fattore campo del passo 4 · soglie gol della lega</b>
                     </div>
                 </div>
 
@@ -612,13 +611,13 @@ Apertura dalla pagina: openCompWizard() / closeCompWizard().
             } else if (kind === 'SURVIVAL') {
                 noticeEl.innerHTML = "💀 <b>Survival Cup:</b> A ogni turno l'ultima squadra in graduatoria viene eliminata senza pietà fino alla finale. La classifica premia i superstiti.";
             } else if (kind === 'SWISS_LEAGUE') {
-                noticeEl.innerHTML = "🌐 <b>Girone Svizzero:</b> Si applicano i punti vittoria/pareggio e le soglie gol sottostanti. Le prime 8 vanno agli Ottavi, dal 9° al 24° posto ai Play-off.";
+                noticeEl.innerHTML = "🌐 <b>Girone Svizzero:</b> Si applicano i punti vittoria/pareggio qui sotto e le soglie gol della lega. Le prime 8 vanno agli Ottavi, dal 9° al 24° posto ai Play-off.";
             } else if (kind === 'FANTA_DAVIS') {
                 noticeEl.innerHTML = "🎾 <b>Fanta-Davis:</b> Le partite tra le coppie sommano le prestazioni dei singoli componenti per determinare la squadra vincitrice.";
             } else if (kind === 'TOTAL_POINTS') {
                 noticeEl.innerHTML = "🎯 <b>Somma Punti:</b> Classifica aritmetica pura determinata dalla somma di tutti i voti stagionali senza scontri diretti.";
             } else {
-                noticeEl.innerHTML = "🏆 <b>Scontri Diretti 1vs1:</b> Configura i punti per vittoria (3), pareggio (1), sconfitta (0), soglie gol e bonus fattore campo.";
+                noticeEl.innerHTML = "🏆 <b>Scontri Diretti 1vs1:</b> Configura i punti per vittoria (3), pareggio (1), sconfitta (0) e il bonus fattore campo; le soglie gol sono quelle della lega.";
             }
         }
 

@@ -21,13 +21,16 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from ..models import Auction, League, ManagedAccount, Participant, Player
+from ..models.participant import custom_code_error, generate_access_code
 from .. import remote, team_sheets
+from ..uploads import UploadRejected, clean_image
 from ..services import mail
 from ..services.sala import ensure_unlocked as _sala_guard
 from .common import (
     FORBIDDEN_LEAGUE_MSG,
     current_auction,
     linkable_users,
+    password_problem,
     manageable_leagues,
     league_scope_or_403,
     managed_or_403,
@@ -226,8 +229,16 @@ def admin_create_participant(request):
         credits=dec("credits", str(league.budget) if league else "500"),
         is_active=True,
     )
+    code_error = p.access_code and custom_code_error(p.access_code)
+    if code_error:
+        messages.error(request, code_error)
+        return redirect(safe_next(request, fallback))
     if "logo" in request.FILES:
-        p.logo = request.FILES["logo"]
+        try:
+            p.logo = clean_image(request.FILES["logo"])
+        except UploadRejected as exc:
+            messages.error(request, str(exc))
+            return redirect(safe_next(request, fallback))
 
     new_user_username = (request.POST.get("new_user_username") or "").strip()
     if new_user_username and can_manage_accounts(request.user, league):
@@ -243,8 +254,8 @@ def admin_create_participant(request):
         generated = not password
         if generated:
             password = generate_password()
-        elif len(password) < MIN_PASSWORD_LENGTH:
-            messages.error(request, f"La password deve contenere almeno {MIN_PASSWORD_LENGTH} caratteri.")
+        elif (weak := password_problem(password)):
+            messages.error(request, weak)
             return redirect(safe_next(request, fallback))
 
         User = get_user_model()
@@ -287,8 +298,15 @@ def admin_edit_participant(request, participant_id):
         except (InvalidOperation, ValueError):
             return Decimal(default)
 
+    fallback = f"/dashboard/{p.league_id}/#rose" if p.league_id else "/dashboard/"
     p.display_name = request.POST.get("display_name", p.display_name).strip()[:80]
-    p.access_code  = request.POST.get("access_code", p.access_code).strip()[:20]
+    new_code = request.POST.get("access_code", p.access_code).strip()[:20]
+    if new_code and new_code.lower() != p.access_code.lower():
+        code_error = custom_code_error(new_code, exclude_pk=p.pk)
+        if code_error:
+            messages.error(request, code_error)
+            return redirect(safe_next(request, fallback))
+    p.access_code  = new_code
     credits = dec("credits", str(p.credits))
     if credits != p.credits:
         _sala_guard(p.league_id)
@@ -304,12 +322,15 @@ def admin_edit_participant(request, participant_id):
             p.user = usr
 
     if "logo" in request.FILES:
-        p.logo = request.FILES["logo"]
+        try:
+            p.logo = clean_image(request.FILES["logo"])
+        except UploadRejected as exc:
+            messages.error(request, str(exc))
+            return redirect(safe_next(request, fallback))
     elif request.POST.get("clear_logo") == "1":
         p.logo = None
     p.save()
     messages.success(request, f"Squadra «{p.display_name}» aggiornata con successo.")
-    fallback = f"/dashboard/{p.league_id}/#rose" if p.league_id else "/dashboard/"
     return redirect(safe_next(request, fallback))
 
 
@@ -374,10 +395,17 @@ def admin_reset_team_pin(request, participant_id):
     p, denied = managed_or_403(request, Participant, participant_id)
     if denied:
         return denied
-    pin = request.POST.get("pin", "").strip()
+    pin = request.POST.get("pin", "").strip()[:20]
     if not pin:
-        import random
-        pin = f"{random.randint(1000, 9999)}"
+        pin = generate_access_code()
+    elif pin.lower() != p.access_code.lower():
+        code_error = custom_code_error(pin, exclude_pk=p.pk)
+        if code_error:
+            if request.headers.get("x-requested-with") == "XMLHttpRequest" or request.GET.get("format") == "json":
+                return JsonResponse({"ok": False, "error": code_error}, status=400)
+            messages.error(request, code_error)
+            fallback = f"/dashboard/{p.league_id}/#rose" if p.league_id else "/dashboard/"
+            return redirect(safe_next(request, fallback))
     p.access_code = pin
     if request.POST.get("regenerate_token") == "1":
         from ..models.core import generate_public_token
@@ -511,7 +539,6 @@ def admin_participant_roster(request, participant_id):
 # one the coach already has, reset a forgotten password, switch it off.
 
 SESSION_ACCOUNT_SECRET_KEY = "fm_account_secret"
-MIN_PASSWORD_LENGTH = 6          # the same floor the registration form asks for
 ACCOUNTS_FORBIDDEN_MSG = (
     "Gli account degli allenatori li gestisce il presidente della lega (o il superadmin)."
 )
@@ -684,8 +711,8 @@ def admin_participant_account(request, participant_id):
         generated = not password
         if generated:
             password = generate_password()
-        elif len(password) < MIN_PASSWORD_LENGTH:
-            return fail(f"La password deve contenere almeno {MIN_PASSWORD_LENGTH} caratteri.")
+        elif (weak := password_problem(password)):
+            return fail(weak)
         with transaction.atomic():
             account = User.objects.create_user(
                 username=username, email=email, password=password,
@@ -755,8 +782,8 @@ def admin_participant_account(request, participant_id):
                 gen_pwd = (request.POST.get("generate_password") == "1") or not password
                 if gen_pwd and not password:
                     password = generate_password()
-                elif len(password) < MIN_PASSWORD_LENGTH:
-                    return fail(f"La password deve contenere almeno {MIN_PASSWORD_LENGTH} caratteri.")
+                elif (weak := password_problem(password)):
+                    return fail(weak)
                 with transaction.atomic():
                     account = User.objects.create_user(
                         username=username,
@@ -812,8 +839,8 @@ def admin_participant_account(request, participant_id):
         if gen_pwd and not new_password:
             new_password = generate_password()
         if new_password:
-            if len(new_password) < MIN_PASSWORD_LENGTH:
-                return fail(f"La password deve contenere almeno {MIN_PASSWORD_LENGTH} caratteri.")
+            if (weak := password_problem(new_password, account)):
+                return fail(weak)
             account.set_password(new_password)
             pwd_reset_done = True
             if account.pk == request.user.pk:
@@ -880,8 +907,8 @@ def admin_participant_account(request, participant_id):
         generated = not password
         if generated:
             password = generate_password()
-        elif len(password) < MIN_PASSWORD_LENGTH:
-            return fail(f"La password deve contenere almeno {MIN_PASSWORD_LENGTH} caratteri.")
+        elif (weak := password_problem(password)):
+            return fail(weak)
         account.set_password(password)
         account.save(update_fields=["password"])
         if account.pk == request.user.pk:
