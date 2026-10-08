@@ -169,6 +169,52 @@ class BusyDatabaseSocketTests(TransactionTestCase):
         await comm.disconnect()
 
 
+class BusyPhoneTests(TransactionTestCase):
+    """Mentre l'offerta di un telefono aspetta il database (tante offerte
+    insieme), quel telefono continua a ricevere quello che succede in sala."""
+
+    async def test_the_room_keeps_flowing_while_an_offer_waits(self):
+        import asyncio
+        import threading
+        from channels.layers import get_channel_layer
+        auction = await Auction.objects.acreate(
+            title="WS", starting_price=Decimal("100"), current_price=Decimal("100"),
+            min_increment=Decimal("10"), duration_seconds=60,
+            status=Auction.Status.LIVE, starts_at=timezone.now(),
+            ends_at=timezone.now() + timedelta(seconds=60),
+        )
+        team = await Participant.objects.acreate(display_name="Eve", credits=Decimal("1000"))
+        comm = WebsocketCommunicator(URLRouter(websocket_urlpatterns), f"/ws/auction/{auction.id}/")
+        comm.scope["session"] = {"participant_id": team.id}
+        self.assertTrue((await comm.connect())[0])
+        while (await comm.receive_json_from()).get("type") != "state":
+            pass
+        release = threading.Event()
+        real = services.place_bid
+
+        def slow_bid(*args, **kwargs):
+            release.wait(5)        # il database è in coda
+            return real(*args, **kwargs)
+
+        with mock.patch.object(services, "place_bid", side_effect=slow_bid):
+            await comm.send_json_to({"action": "bid", "increment": 10})
+            # Uno in corso, uno in attesa: il terzo tocco torna subito indietro.
+            await comm.send_json_to({"action": "bid", "increment": 10})
+            await comm.send_json_to({"action": "bid", "increment": 10})
+            await asyncio.sleep(0.1)
+            await get_channel_layer().group_send(
+                f"auction_{auction.id}", {"type": "announcement", "text": "Pausa caffè"})
+            seen = []
+            while not seen or seen[-1].get("type") != "announcement":
+                seen.append(await comm.receive_json_from(timeout=2))
+            self.assertNotIn("bid_accepted", [m.get("type") for m in seen])
+            self.assertIn({"type": "bid_rejected", "reason": services.Reject.BID_PENDING}, seen)
+            release.set()
+            while (await comm.receive_json_from(timeout=5)).get("type") != "bid_accepted":
+                pass
+        await comm.disconnect()
+
+
 class RepairAtStartupTests(TestCase):
     """All'avvio dell'app del PC: database rovinato → l'ultima copia integra."""
 

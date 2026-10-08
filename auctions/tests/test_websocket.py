@@ -82,7 +82,10 @@ class WebSocketFlowTests(TransactionTestCase):
         rejected = 0
         while not await comm.receive_nothing(timeout=0.5):
             msg = await comm.receive_json_from()
-            if msg["type"] == "bid_rejected" and msg["reason"] == services.Reject.RATE_LIMITED:
+            # Fermati prima del database: troppi tocchi, o già uno in corso e
+            # uno in attesa (consumers.BID_QUEUE).
+            if msg["type"] == "bid_rejected" and msg["reason"] in (
+                    services.Reject.RATE_LIMITED, services.Reject.BID_PENDING):
                 rejected += 1
         self.assertGreaterEqual(rejected, 6)
         self.assertLessEqual(await Bid.objects.filter(participant=p).acount(), BID_BURST)

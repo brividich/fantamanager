@@ -172,8 +172,12 @@ if _REDIS_URL:
             "Run: pip install channels-redis"
         )
 else:
+    # capacity: i messaggi che un telefono può avere in attesa (offerte degli
+    # altri, stati). Il default (100) si riempie in una raffica di offerte su
+    # un telefono lento, e oltre quello il canale scarta.
     CHANNEL_LAYERS = {
-        "default": {"BACKEND": "channels.layers.InMemoryChannelLayer"},
+        "default": {"BACKEND": "channels.layers.InMemoryChannelLayer",
+                    "CONFIG": {"capacity": 1000}},
     }
 
 # --- Database ---------------------------------------------------------------

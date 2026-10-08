@@ -35,6 +35,8 @@ class Reject:
     GK_CLUBS              = "gk_clubs"
     # Il database non ha risposto in tempo (consumers.receive).
     SERVER_BUSY           = "server_busy"
+    # Il telefono ha già un'offerta in corso e una in attesa (consumers.BID_QUEUE).
+    BID_PENDING           = "bid_pending"
 
 
 # Italian labels for every code the UI can receive — rejected bids plus the
@@ -63,6 +65,7 @@ ERROR_LABELS = {
     Reject.SEALED_TOO_LOW:        "Offerta sotto il minimo di questo scrutinio",
     Reject.SEALED_NOT_CONTENDER:  "Allo spareggio partecipa solo chi ha pareggiato",
     Reject.SERVER_BUSY:           "Il server era occupato e l'offerta non è passata: rilancia di nuovo",
+    Reject.BID_PENDING:           "La tua offerta di prima è ancora in corso: aspetta la risposta",
     # View-level errors.
     "no_session":         "Sessione scaduta, rientra",
     "no_participant":     "Nessuna squadra selezionata",

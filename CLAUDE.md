@@ -101,6 +101,15 @@ offerte e ticker insieme.
   guarda il tempo riceve quando è partita e passa da `stall.give_back`.**
 - Un errore del database non chiude la connessione: l'offerta torna indietro
   con `server_busy` («rilancia di nuovo»).
+- Tante offerte insieme (`consumers.py`): offerte, buste e sync girano a parte
+  (`_spawn`), così il telefono continua a ricevere la sala mentre la sua
+  offerta aspetta; per telefono una in corso e una in attesa (`BID_QUEUE`), il
+  tocco in più torna subito con `bid_pending`. Lo stato dopo i rilanci parte
+  una volta per raffica (`_request_state`, 50 ms). `dispatch` salta
+  `aclose_old_connections` di channels, che passava dal thread del database
+  per ogni messaggio: **nel consumer il database si tocca solo con
+  `database_sync_to_async`**. Prova: 30 squadre che premono insieme ogni
+  300 ms, risposta in 0,4 s (al peggio 1,3 s), conti giusti.
 - SQLite: WAL, `BEGIN IMMEDIATE`, attesa fino a 30 s, `synchronous=FULL` (un
   calo di corrente non perde un giocatore aggiudicato). All'avvio dell'app del
   PC `backup.repair_at_startup` mette da parte un database rovinato e rimette
