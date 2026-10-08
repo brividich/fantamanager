@@ -127,7 +127,10 @@ class SyncPerLeagueTests(LeagueMixin, TestCase):
         algo = self.make_league("Sim", source="algoritmico_provvisorio")
         mgr = LiveSyncManager.get_instance()
         mgr.provider = "simulation"
-        with mock.patch("random.random", return_value=0.5):
+        # Simulazione deterministica: gioca (0,5 > 0,15) e prende il primo valore di
+        # ogni scelta (90', 2-0); con minuti a caso poteva restare senza voto.
+        with mock.patch("random.random", return_value=0.5), \
+                mock.patch("random.choice", side_effect=lambda seq: seq[0]):
             res = mgr.sync_now(giornata_num=5, is_provisional=True, leagues=[algo["league"]])
         self.assertEqual(res["status"], "SUCCESS")
         perf = PlayerPerformance.objects.get(player=algo["lautaro"])
