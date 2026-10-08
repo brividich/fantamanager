@@ -484,6 +484,17 @@ Apertura dalla pagina: openCompWizard() / closeCompWizard().
                 </div>
 
                 <div class="cwz-field-box">
+                    <label>Spareggio a eliminazione (pari gol)</label>
+                    <select name="knockout_tiebreak">
+                        <option value="fantapunti">Passa chi ha fatto più fantapunti</option>
+                        <option value="casa">Passa la testa di serie (in casa all'andata)</option>
+                    </select>
+                    <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.4;">
+                        Per le coppe a tabellone: a fine turno si sorteggia da solo il turno dopo, fino alla finale.
+                    </div>
+                </div>
+
+                <div class="cwz-field-box">
                     <label>Fattore Campo (Bonus Squadra Casa)</label>
                     <select name="home_bonus" id="cwz-home-bonus">
                         <option value="0.0">Nessun bonus casa (Campo neutro 0.0 pt)</option>

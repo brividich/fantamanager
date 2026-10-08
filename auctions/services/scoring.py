@@ -152,6 +152,15 @@ def _resolve_fixtures(giornata):
         fx.computed = True
         fx.save(update_fields=fields)
 
+    # Cups move on: a round just completed draws the next one. A round that
+    # lands on a giornata already scored gets its results straight away.
+    if giornata.season_id:
+        from .knockout import advance_season_cups
+        drawn = advance_season_cups(giornata.season)
+        for later in {fx.giornata for fx in drawn if fx.giornata_id != giornata.id}:
+            if GiornataScore.objects.filter(giornata=later).exists():
+                _resolve_fixtures(later)
+
 
 def set_manual_scores(giornata, entries):
     """The giornata's result typed in by the league admin: each team's total

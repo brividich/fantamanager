@@ -457,3 +457,79 @@ class NewSeasonTests(TestCase):
         # Last year's results are still there.
         self.assertEqual(GiornataScore.objects.filter(giornata__season=self.old).count(), self.old_scores)
         self.assertTrue(self.comp.fixtures.filter(computed=True).exists())
+
+
+class KnockoutAdvanceTests(TestCase):
+    """Il tabellone avanza da solo: a fine turno si sorteggia il successivo,
+    la finale nomina la vincitrice."""
+
+    def setUp(self):
+        self.league = League.objects.create(name="Lega Coppa")
+        self.season = Season.objects.create(league=self.league, name="2026/27", matchdays=10)
+        for n in range(1, 11):
+            Giornata.objects.create(season=self.season, number=n)
+        self.teams = [Participant.objects.create(display_name=f"T{i}", league=self.league) for i in range(4)]
+
+    def _cup(self, **settings):
+        comp = Competition.objects.create(season=self.season, name="Coppa", kind=Competition.Type.KNOCKOUT,
+                                          settings={"start_giornata": 1, **settings})
+        setup_knockout_competition(comp, team_ids=[t.id for t in self.teams], start_giornata=1,
+                                   two_legged=bool(settings.get("two_legged")))
+        return comp
+
+    def _play(self, number, totals):
+        from auctions.services.scoring import set_manual_scores
+        g = self.season.giornate.get(number=number)
+        set_manual_scores(g, {t: (Decimal(str(totals.get(t.id, 60))), None) for t in self.teams})
+
+    def test_semifinals_then_final_then_winner(self):
+        comp = self._cup()
+        t0, t1, t2, t3 = (t.id for t in self.teams)
+        self.assertEqual(sorted((f.home_id, f.away_id) for f in comp.fixtures.all()), [(t0, t3), (t1, t2)])
+        self._play(1, {t0: 72, t3: 60, t1: 60, t2: 78})          # T0 and T2 go through
+        final = comp.fixtures.get(giornata__number=2)
+        self.assertEqual((final.stage, final.home_id, final.away_id), ("Finale", t0, t2))
+        self._play(2, {t0: 60, t2: 66})
+        comp.refresh_from_db()
+        self.assertEqual(comp.settings["winner_id"], t2)
+
+    def test_a_draw_goes_to_the_fantapunti_or_to_the_seed(self):
+        comp = self._cup()
+        t0, t1, t2, t3 = (t.id for t in self.teams)
+        self._play(1, {t0: 60, t3: 64, t1: 70, t2: 68})          # 0-0 and 1-1: decided on fantapunti
+        final = comp.fixtures.get(giornata__number=2)
+        self.assertEqual({final.home_id, final.away_id}, {t3, t1})
+
+    def test_the_seed_rule(self):
+        comp = self._cup(knockout_tiebreak="casa")
+        t0, t1, t2, t3 = (t.id for t in self.teams)
+        self._play(1, {t0: 60, t3: 64, t1: 70, t2: 68})
+        final = comp.fixtures.get(giornata__number=2)
+        self.assertEqual({final.home_id, final.away_id}, {t0, t1})
+
+    def test_two_legs_add_up_and_a_corrected_result_redraws(self):
+        comp = self._cup(two_legged=True)
+        t0, t1, t2, t3 = (t.id for t in self.teams)
+        self._play(1, {t0: 66, t3: 60, t1: 60, t2: 60})          # andata: T0 1-0, T1-T2 0-0
+        self.assertFalse(comp.fixtures.filter(stage__startswith="Finale").exists())
+        self._play(2, {t0: 60, t3: 72, t1: 60, t2: 66})          # ritorno: T3 2-0 (agg. 1-2), T2 1-0
+        finals = comp.fixtures.filter(stage__startswith="Finale").order_by("giornata__number")
+        self.assertEqual([f.giornata.number for f in finals], [3, 4])
+        self.assertEqual({finals[0].home_id, finals[0].away_id}, {t3, t2})
+        # The admin corrects the ritorno: T3 doesn't score, T0 goes through.
+        self._play(2, {t0: 60, t3: 60, t1: 60, t2: 66})
+        finals = comp.fixtures.filter(stage__startswith="Finale")
+        self.assertEqual({finals[0].home_id, finals[0].away_id}, {t0, t2})
+
+    def test_groups_then_semifinals(self):
+        from auctions.services.competitions import setup_groups_knockout_competition
+        comp = Competition.objects.create(season=self.season, name="Champions", kind=Competition.Type.GROUPS_KNOCKOUT,
+                                          settings={"start_giornata": 1, "end_giornata": 2})
+        setup_groups_knockout_competition(comp, team_ids=[t.id for t in self.teams], start_giornata=1, end_giornata=2)
+        t0, t1, t2, t3 = (t.id for t in self.teams)              # Girone A: T0, T1 · Girone B: T2, T3
+        self._play(1, {t0: 72, t2: 72})
+        self.assertFalse(comp.fixtures.exclude(stage__startswith="Girone").exists())
+        self._play(2, {t0: 72, t2: 72})
+        semis = comp.fixtures.exclude(stage__startswith="Girone")
+        self.assertEqual(sorted((f.home_id, f.away_id) for f in semis), [(t0, t3), (t2, t1)])
+        self.assertTrue(all(f.giornata.number == 3 and f.stage == "Semifinale" for f in semis))
