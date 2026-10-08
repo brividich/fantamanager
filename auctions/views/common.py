@@ -551,6 +551,15 @@ APP_PAGES = {
     "admin_fantapazz": "app_regia_import",
     "admin_export": "app_regia_export",
     "admin_config": "app_regia_config",
+    "admin_competitions": "app_regia_competitions",
+    "admin_market_dashboard": "app_regia_market",
+    "admin_market_buste": "app_regia_buste",
+    "admin_market_repair": "app_regia_market_auction",
+    "admin_market_moves": "app_regia_moves",
+    "admin_market_session": "app_regia_market_session",
+    "admin_auction_wizard": "app_regia_auction_wizard",
+    # La Dashboard della console nell'app è la Regia.
+    "admin_dashboard": "app_regia",
 }
 
 
@@ -565,6 +574,14 @@ def app_page_url(request, name, *args):
     if in_app(request) and name in APP_PAGES:
         return reverse(APP_PAGES[name], args=args)
     return reverse(name, args=args)
+
+
+def back_to_page(request, console_name, query=""):
+    """Dove torna un form dopo l'azione: la pagina da cui parte (``next``,
+    console o app, solo indirizzi del sito) senza la sua query, più ``query``;
+    senza ``next`` la pagina ``console_name`` della console."""
+    base = safe_next(request, "").split("#")[0].split("?")[0] or reverse(console_name)
+    return base + query
 
 
 def page_frame(request, league, own_messages=False):

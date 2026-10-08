@@ -1,4 +1,4 @@
-{% extends "auctions/market/base.html" %}
+{% extends "auctions/market/base.html" %}{% load fm_pages %}
 {% block mk_title %}Asta di riparazione · Mercato{% endblock %}
 {% block mk_color %}c-green{% endblock %}
 {% block mk_crumbs %}<span class="sep">›</span> <span aria-current="page">Asta di riparazione</span>{% endblock %}
@@ -10,7 +10,7 @@
     <div class="sub">Un'asta dal vivo sulle rose attuali: ogni squadra completa la rosa con gli svincolati usando i crediti che le restano. Si crea dal wizard e si conduce dalla regia, come l'asta iniziale.</div>
 </div>
 <span class="spacer"></span>
-{% if current_league %}<a class="fm-btn fm-btn-primary" href="{% url 'admin_auction_wizard' %}?league={{ current_league.id }}&mode=REPAIR_AUCTION">
+{% if current_league %}<a class="fm-btn fm-btn-primary" href="{% purl 'admin_auction_wizard' %}?league={{ current_league.id }}&mode=REPAIR_AUCTION">
     <svg class="ic"><use href="#i-plus"/></svg> Nuova asta di riparazione</a>{% endif %}
 {% endblock %}
 
@@ -56,7 +56,7 @@
             <h3 class="mk-card-t"><svg class="ic"><use href="#i-users"/></svg> Svincolati disponibili <span class="cnt">{{ free_total }}</span></h3>
             <div class="mk-free">
                 {% for r, n in free_by_role %}
-                <a href="{% url 'admin_players' %}?league={{ current_league.id }}&status=free&role={{ r }}" title="Apri gli svincolati di questo ruolo">
+                <a href="{% purl 'admin_players' %}?league={{ current_league.id }}&status=free&role={{ r }}" title="Apri gli svincolati di questo ruolo">
                     <span class="role-badge role-{{ r }}">{{ r }}</span>
                     <span><b>{{ n }}</b><small>{% if r == "P" %}Portieri{% elif r == "D" %}Difensori{% elif r == "C" %}Centrocampisti{% else %}Attaccanti{% endif %}</small></span>
                 </a>
@@ -66,9 +66,9 @@
         <div class="fm-card">
             <h3 class="mk-card-t"><svg class="ic"><use href="#i-bulb"/></svg> Prima di iniziare</h3>
             <ul class="mk-hist">
-                <li><span>Le rose sono aggiornate?</span> <a class="when" href="{% url 'admin_participants' %}?league={{ current_league.id }}">Squadre →</a></li>
-                <li><span>Serve importarle da un file?</span> <a class="when" href="{% url 'admin_fantapazz' %}?league={{ current_league.id }}">Importa →</a></li>
-                <li><span>Listone e quotazioni aggiornati?</span> <a class="when" href="{% url 'admin_players' %}?league={{ current_league.id }}">Giocatori →</a></li>
+                <li><span>Le rose sono aggiornate?</span> <a class="when" href="{% purl 'admin_participants' %}?league={{ current_league.id }}">Squadre →</a></li>
+                <li><span>Serve importarle da un file?</span> <a class="when" href="{% purl 'admin_fantapazz' %}?league={{ current_league.id }}">Importa →</a></li>
+                <li><span>Listone e quotazioni aggiornati?</span> <a class="when" href="{% purl 'admin_players' %}?league={{ current_league.id }}">Giocatori →</a></li>
             </ul>
         </div>
     </div>

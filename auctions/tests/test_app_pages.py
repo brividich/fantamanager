@@ -22,6 +22,12 @@ FRAMED_PAGES = [
     ("admin_fantapazz", "app_regia_import"),
     ("admin_export", "app_regia_export"),
     ("admin_config", "app_regia_config"),
+    ("admin_competitions", "app_regia_competitions"),
+    ("admin_market_dashboard", "app_regia_market"),
+    ("admin_market_buste", "app_regia_buste"),
+    ("admin_market_repair", "app_regia_market_auction"),
+    ("admin_market_moves", "app_regia_moves"),
+    ("admin_auction_wizard", "app_regia_auction_wizard"),
 ]
 
 
@@ -40,18 +46,19 @@ class AppPagesParityTests(TestCase):
 
     @staticmethod
     def _page(html):
+        """Il contenuto della pagina, con i link fra pagine in forma canonica
+        (``PAGE:nome``, che sia l'indirizzo della console o dell'app) e senza
+        i campi che dicono da dove parte il form (next, from dei wizard)."""
         part = html[html.index("<!-- page:start -->"):html.index("<!-- page:end -->")]
-        return re.sub(r'name="(next|csrfmiddlewaretoken)" value="[^"]*"', "", part)
-
-    @staticmethod
-    def _as_console(html):
-        """I link dell'app riportati a quelli della console, per il confronto."""
+        part = re.sub(r'name="(next|from|csrfmiddlewaretoken)" value="[^"]*"', "", part)
         for console_name, app_name in APP_PAGES.items():
             try:
-                html = html.replace(f'"{reverse(app_name)}', f'"{reverse(console_name)}')
+                urls = (reverse(console_name), reverse(app_name))
             except Exception:  # noqa: BLE001 — pagine con argomenti
-                pass
-        return html
+                continue
+            for url in urls:
+                part = re.sub('"' + re.escape(url) + r'(?=["?#])', f'"PAGE:{console_name}', part)
+        return part
 
     def test_same_page_in_console_and_app(self):
         self.client.force_login(self.owner)
@@ -64,8 +71,7 @@ class AppPagesParityTests(TestCase):
                 self.assertEqual(app.status_code, 200)
                 self.assertIn("app-nav", app.content.decode())          # cornice dell'app
                 self.assertNotIn("app-nav", console.content.decode())
-                self.assertEqual(self._page(console.content.decode()),
-                                 self._as_console(self._page(app.content.decode())))
+                self.assertEqual(self._page(console.content.decode()), self._page(app.content.decode()))
 
     def test_app_pages_stay_in_the_app(self):
         """Dall'app i link verso pagine che l'app ha restano nell'app."""
@@ -111,3 +117,13 @@ class AppPagesParityTests(TestCase):
             with self.subTest(next=nxt):
                 resp = self.client.post(reverse("admin_config_action"), {**data, "next": nxt})
                 self.assertEqual(resp["Location"], base + "#manut")
+
+    def test_competition_actions_return_to_the_app(self):
+        from ..models import Competition, Season
+        self.client.force_login(self.owner)
+        season = Season.objects.create(league=self.league, name="2026/27", is_current=True)
+        comp = Competition.objects.create(season=season, name="Coppa", kind=Competition.Type.KNOCKOUT)
+        back = reverse("app_regia_competitions") + f"?league={self.league.id}&comp={comp.id}"
+        resp = self.client.post(reverse("admin_competition_delete", args=[comp.id]), {"next": back})
+        self.assertEqual(resp["Location"], reverse("app_regia_competitions") + f"?league={self.league.id}")
+        self.assertFalse(Competition.objects.filter(pk=comp.id).exists())

@@ -1,9 +1,7 @@
-{% extends "auctions/base.html" %}
+{% extends page_frame|default:"auctions/_frame_console.html" %}{% load fm_pages %}
 {% block title %}Competizioni & Calendari — FantaManager{% endblock %}
-{% block bodyclass %}role-admin{% endblock %}
-{% block wrapclass %}wrap-wide{% endblock %}
 
-{% block content %}
+{% block page %}
 <style>
     .comp-header {
         display: flex; align-items: flex-end; justify-content: space-between;
@@ -91,7 +89,6 @@
     .fix-score { font-weight: 900; font-variant-numeric: tabular-nums; }
 </style>
 
-{% include "auctions/_console_head.html" %}
 
 <div class="comp-header">
     <div>
@@ -103,7 +100,7 @@
         </div>
     </div>
     <div class="fm-onerow" style="gap:8px">
-        <a class="fm-btn fm-btn-secondary" href="{% url 'admin_giornate' %}?league={{ current_league.id }}">
+        <a class="fm-btn fm-btn-secondary" href="{% purl 'admin_giornate' %}?league={{ current_league.id }}">
             <svg class="ic"><use href="#i-pulse"/></svg> Giornate & Voti
         </a>
         <button type="button" class="fm-btn fm-btn-primary" onclick="openCompWizard()">
@@ -150,14 +147,14 @@
         <div class="fm-onerow" style="gap:8px">
             {% if selected_competition.kind in "ROUND_ROBIN KNOCKOUT SEASON_SPLIT" %}
             <form method="post" action="{% url 'admin_competition_regenerate' selected_competition.id %}" onsubmit="return confirm('Rigenerare gli accoppiamenti cancellerà le partite correnti di questo torneo. Continuare?');" style="margin:0">
-                {% csrf_token %}
+                {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
                 <button type="submit" class="fm-btn fm-btn-secondary fm-btn-sm" title="Rigenera calendario con le squadre correnti">
                     <svg class="ic"><use href="#i-refresh"/></svg> Rigenera Calendario
                 </button>
             </form>
             {% endif %}
             <form method="post" action="{% url 'admin_competition_delete' selected_competition.id %}" onsubmit="return confirm('Sei sicuro di voler eliminare la competizione «{{ selected_competition.name }}»?');" style="margin:0">
-                {% csrf_token %}
+                {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
                 <button type="submit" class="fm-btn fm-btn-ghost fm-btn-sm" style="color:#ef4444;" title="Elimina competizione">
                     <svg class="ic"><use href="#i-trash"/></svg> Elimina
                 </button>
@@ -399,7 +396,7 @@
 
 {# Lo stesso wizard «Nuova Competizione» dell'app mobile: un solo file per web e app. #}
 {% if current_league %}
-{% include "auctions/_competition_wizard.html" with wz_league=current_league wz_from="console" %}
+{% include "auctions/_competition_wizard.html" with wz_league=current_league wz_from=wz_from|default:"console" %}
 {% endif %}
 
 <!-- MATCH DETAILS MODAL (Pop-up tabellino formazioni e pagelle) -->

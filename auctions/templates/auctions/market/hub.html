@@ -1,4 +1,4 @@
-{% extends "auctions/market/base.html" %}
+{% extends "auctions/market/base.html" %}{% load fm_pages %}
 {% comment %}
 The Mercato hub: at a glance which markets are running now (open buste
 sessions, trades, a live repair auction), then one card per market. Nothing
@@ -29,7 +29,7 @@ of a market's content is on this page: every item opens its own screen.
 {% if n_live %}
 <div class="mk-live">
     {% for s in live_sessions %}
-    <a class="mk-live-item c-amber" href="{% url 'admin_market_session' s.id %}">
+    <a class="mk-live-item c-amber" href="{% purl 'admin_market_session' s.id %}">
         <span class="mk-live-top">
             <span class="kind"><svg class="ic"><use href="#{{ s.mk_labels.icon }}"/></svg> {{ s.mk_labels.kind }}</span>
             {% if s.status == "open" %}<span class="tag t-live">{{ s.mk_labels.open }}</span>
@@ -47,7 +47,7 @@ of a market's content is on this page: every item opens its own screen.
     {% endfor %}
 
     {% if trades_open or trades_pending %}
-    <a class="mk-live-item c-blue" href="{% url 'admin_market_trades' %}?league={{ current_league.id }}">
+    <a class="mk-live-item c-blue" href="{% purl 'admin_market_trades' %}?league={{ current_league.id }}">
         <span class="mk-live-top">
             <span class="kind"><svg class="ic"><use href="#i-swap"/></svg> Scambi</span>
             {% if trades_pending %}<span class="tag t-warn">Da ratificare</span>{% else %}<span class="tag t-live">Aperti</span>{% endif %}
@@ -62,7 +62,7 @@ of a market's content is on this page: every item opens its own screen.
     {% endif %}
 
     {% if active_auction %}
-    <a class="mk-live-item c-green" href="{% url 'admin_market_repair' %}?league={{ current_league.id }}">
+    <a class="mk-live-item c-green" href="{% purl 'admin_market_repair' %}?league={{ current_league.id }}">
         <span class="mk-live-top">
             <span class="kind"><svg class="ic"><use href="#i-gavel"/></svg> Asta</span>
             {% if active_auction.status == "LIVE" %}<span class="tag t-live">In corso</span>{% else %}<span class="tag t-warn">In pausa</span>{% endif %}
@@ -85,7 +85,7 @@ of a market's content is on this page: every item opens its own screen.
 <!-- ============================================================ MARKETS -->
 <div class="fm-section-title"><svg class="ic"><use href="#i-folder"/></svg> Mercati <span class="sep"></span></div>
 <div class="mk-types">
-    <a class="mk-type c-amber" href="{% url 'admin_market_buste' %}?league={{ current_league.id }}">
+    <a class="mk-type c-amber" href="{% purl 'admin_market_buste' %}?league={{ current_league.id }}">
         <div class="mk-type-top">
             <span class="mk-type-ic"><svg class="ic"><use href="#i-mail"/></svg></span>
             <div class="mk-type-name">
@@ -101,7 +101,7 @@ of a market's content is on this page: every item opens its own screen.
         </div>
     </a>
 
-    <a class="mk-type c-blue" href="{% url 'admin_market_trades' %}?league={{ current_league.id }}">
+    <a class="mk-type c-blue" href="{% purl 'admin_market_trades' %}?league={{ current_league.id }}">
         <div class="mk-type-top">
             <span class="mk-type-ic"><svg class="ic"><use href="#i-swap"/></svg></span>
             <div class="mk-type-name">
@@ -120,7 +120,7 @@ of a market's content is on this page: every item opens its own screen.
         </div>
     </a>
 
-    <a class="mk-type c-green" href="{% url 'admin_market_repair' %}?league={{ current_league.id }}">
+    <a class="mk-type c-green" href="{% purl 'admin_market_repair' %}?league={{ current_league.id }}">
         <div class="mk-type-top">
             <span class="mk-type-ic"><svg class="ic"><use href="#i-gavel"/></svg></span>
             <div class="mk-type-name">
@@ -139,7 +139,7 @@ of a market's content is on this page: every item opens its own screen.
         </div>
     </a>
 
-    <a class="mk-type c-violet" href="{% url 'admin_market_moves' %}?league={{ current_league.id }}">
+    <a class="mk-type c-violet" href="{% purl 'admin_market_moves' %}?league={{ current_league.id }}">
         <div class="mk-type-top">
             <span class="mk-type-ic"><svg class="ic"><use href="#i-list"/></svg></span>
             <div class="mk-type-name">
@@ -160,18 +160,18 @@ of a market's content is on this page: every item opens its own screen.
 <!-- ======================================================= QUICK LINKS -->
 <nav class="mk-links fm-onerow" aria-label="Pagine collegate" style="margin-top:10px">
     <span class="lbl">Vai a</span>
-    <a class="mk-link" href="{% url 'admin_participants' %}?league={{ current_league.id }}"><svg class="ic"><use href="#i-shield"/></svg> Squadre e rose</a>
-    <a class="mk-link" href="{% url 'admin_players' %}?league={{ current_league.id }}&status=free"><svg class="ic"><use href="#i-users"/></svg> Svincolati <span class="n">{{ free_total }}</span></a>
-    <a class="mk-link" href="{% url 'admin_contracts' %}?league={{ current_league.id }}"><svg class="ic"><use href="#i-doc"/></svg> Contratti</a>
-    <a class="mk-link" href="{% url 'admin_season' %}?league={{ current_league.id }}"><svg class="ic"><use href="#i-trophy"/></svg> Stagione</a>
-    <a class="mk-link" href="{% url 'admin_export' %}?league={{ current_league.id }}"><svg class="ic"><use href="#i-export"/></svg> Export rose</a>
-    <a class="mk-link" href="{% url 'admin_config' %}#lg-{{ current_league.id }}"><svg class="ic"><use href="#i-gear"/></svg> Regole della lega</a>
+    <a class="mk-link" href="{% purl 'admin_participants' %}?league={{ current_league.id }}"><svg class="ic"><use href="#i-shield"/></svg> Squadre e rose</a>
+    <a class="mk-link" href="{% purl 'admin_players' %}?league={{ current_league.id }}&status=free"><svg class="ic"><use href="#i-users"/></svg> Svincolati <span class="n">{{ free_total }}</span></a>
+    <a class="mk-link" href="{% purl 'admin_contracts' %}?league={{ current_league.id }}"><svg class="ic"><use href="#i-doc"/></svg> Contratti</a>
+    <a class="mk-link" href="{% purl 'admin_season' %}?league={{ current_league.id }}"><svg class="ic"><use href="#i-trophy"/></svg> Stagione</a>
+    <a class="mk-link" href="{% purl 'admin_export' %}?league={{ current_league.id }}"><svg class="ic"><use href="#i-export"/></svg> Export rose</a>
+    <a class="mk-link" href="{% purl 'admin_config' %}#lg-{{ current_league.id }}"><svg class="ic"><use href="#i-gear"/></svg> Regole della lega</a>
 </nav>
 {% endblock %}
 
 {% block mk_after %}
 {% if current_league %}
 {# Lo stesso wizard «Nuovo Mercato» dell'app mobile: un solo file per web e app. #}
-{% include "auctions/_market_wizard.html" with wz_league=current_league wz_from="console" wz_mail_ready=mail_ready wz_autoopen=open_wizard %}
+{% include "auctions/_market_wizard.html" with wz_league=current_league wz_from=wz_from|default:"console" wz_mail_ready=mail_ready wz_autoopen=open_wizard %}
 {% endif %}
 {% endblock %}

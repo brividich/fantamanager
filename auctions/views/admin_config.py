@@ -14,8 +14,8 @@ from .admin_wizards import _game_mode
 from .common import (
     current_auction,
     manageable_leagues,
+    back_to_page,
     page_frame,
-    safe_next,
     managed_or_403,
     staff_member_required,
     target_league,
@@ -90,12 +90,8 @@ def admin_config(request):
 
 def _config_back(request, league_id=None):
     """Back to the config page, on the tab/league the form came from."""
-    # La pagina da cui arriva il form (console o app); lega e scheda le
-    # rimette questa funzione.
-    url = safe_next(request, "").split("#")[0].split("?")[0] or reverse("admin_config")
     tab = request.POST.get("tab") or ""
-    if league_id:
-        url += f"?league={league_id}"
+    url = back_to_page(request, "admin_config", f"?league={league_id}" if league_id else "")
     return redirect(url + (f"#{tab}" if tab else (f"#lg-{league_id}" if league_id else "")))
 
 

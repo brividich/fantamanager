@@ -6,6 +6,6 @@ la pagina estende {{ page_frame }} e riempie il blocco «page».
 {% block bodyclass %}role-admin{% endblock %}
 {% block wrapclass %}wrap-wide{% endblock %}
 {% block content %}
-{% include "auctions/_console_head.html" %}
+{% block console_head %}{% include "auctions/_console_head.html" %}{% endblock %}
 <!-- page:start -->{% block page %}{% endblock %}<!-- page:end -->
 {% endblock %}
