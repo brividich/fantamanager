@@ -226,7 +226,14 @@ def main() -> None:
     import django
     django.setup()
     from django.core.management import call_command
-    from auctions.backup import backup_database
+    from auctions.backup import backup_database, repair_at_startup
+
+    # Un database rovinato (spegnimento brusco, disco) non deve fermare la
+    # serata: va da parte e torna l'ultima copia integra, con un avviso.
+    repaired = repair_at_startup()
+    if repaired:
+        print(repaired, flush=True)
+        _message_box(repaired, "FantaManager", 48)
 
     # Before the migration below (or anything else) touches the database,
     # keep a known-good snapshot of last night's state.

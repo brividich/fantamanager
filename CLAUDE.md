@@ -91,6 +91,35 @@ connessione senza risposta per 10 s chiusa e riaperta. Il timer parte da
 `performance.now() - live.lagMs()`: lo stato è partito dal server un attimo
 prima. Mai un `new WebSocket` in una pagina.
 
+## Asta live: il database che si ferma
+
+Sul PC tutte le chiamate al database passano da una coda sola e SQLite ha un
+solo scrittore: un import pesante o l'antivirus che blocca il file fermano
+offerte e ticker insieme.
+
+- Un'offerta conta da quando arriva al server (`received_at`, timbrato in
+  `AuctionConsumer.receive`), non da quando il database la scrive; il ticker
+  chiude il lotto solo se era scaduto quando ha chiesto (`as_of`).
+- Dopo un fermo di almeno 1,5 s la prima chiamata restituisce al timer del
+  lotto e delle buste i secondi persi, una volta sola (`services/stall.py`);
+  la regia lo vede nell'avviso del ticker. **Una nuova chiamata del live che
+  guarda il tempo riceve quando è partita e passa da `stall.give_back`.**
+- Un errore del database non chiude la connessione: l'offerta torna indietro
+  con `server_busy` («rilancia di nuovo»).
+- Tante offerte insieme (`consumers.py`): offerte, buste e sync girano a parte
+  (`_spawn`), così il telefono continua a ricevere la sala mentre la sua
+  offerta aspetta; per telefono una in corso e una in attesa (`BID_QUEUE`), il
+  tocco in più torna subito con `bid_pending`. Lo stato dopo i rilanci parte
+  una volta per raffica (`_request_state`, 50 ms). `dispatch` salta
+  `aclose_old_connections` di channels, che passava dal thread del database
+  per ogni messaggio: **nel consumer il database si tocca solo con
+  `database_sync_to_async`**. Prova: 30 squadre che premono insieme ogni
+  300 ms, risposta in 0,4 s (al peggio 1,3 s), conti giusti.
+- SQLite: WAL, `BEGIN IMMEDIATE`, attesa fino a 30 s, `synchronous=FULL` (un
+  calo di corrente non perde un giocatore aggiudicato). All'avvio dell'app del
+  PC `backup.repair_at_startup` mette da parte un database rovinato e rimette
+  l'ultima copia integra.
+
 ## Asta in sala: la lega va dal sito al PC e torna
 
 FantaManager gira sul sito (NAS, VPS: la lega tutto l'anno) e sul PC in sala

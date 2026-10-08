@@ -6,6 +6,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from ..models import Auction, Bid, Participant, SealedBid
+from . import stall
 from .common import (
     Reject, SealedResult, _credits_str, _check_roster_limits, participates_in,
 )
@@ -88,18 +89,24 @@ def _sealed_rule_reject(auction, participant, value):
 
 
 @transaction.atomic
-def place_sealed_bid(auction_id, participant_id, amount):
+def place_sealed_bid(auction_id, participant_id, amount, *, received_at=None):
     """Consegna (o riscrivi) la busta di una squadra per il giro in corso.
 
     Le stesse verifiche di un rilancio - crediti, slot di reparto, riserva per
     gli slot vuoti - piu' il minimo del giro. Finche' il tempo non scade si puo'
-    riscrivere: vale l'ultima consegnata.
+    riscrivere: vale l'ultima consegnata. Il tempo si guarda all'arrivo della
+    busta (``received_at``), non a quando il database riesce a scriverla.
     """
     now = timezone.now()
     try:
         auction = Auction.objects.select_for_update(of=("self",)).select_related("player").get(pk=auction_id)
     except Auction.DoesNotExist:
         return SealedResult(False, Reject.AUCTION_NOT_FOUND)
+    moved = stall.give_back(auction, received_at, now)
+    if moved:
+        auction.save(update_fields=moved)
+    if received_at is not None:
+        now = min(received_at, now)
     try:
         participant = Participant.objects.select_for_update().get(pk=participant_id)
     except Participant.DoesNotExist:
@@ -210,10 +217,23 @@ def resolve_sealed(auction_id, *, force=False):
     return auction
 
 
-def sealed_tick(auction_id):
-    """Chiamata dal ticker: apri le buste se il tempo del giro e' finito."""
+def sealed_tick(auction_id, as_of=None):
+    """Chiamata dal ticker: apri le buste se il tempo del giro e' finito.
+
+    ``as_of`` e' quando il ticker ha chiesto: conta il tempo di allora, non
+    quello dopo un'attesa in coda (vedi stall.py), e un fermo lungo restituisce
+    prima i suoi secondi alle buste."""
+    now = timezone.now()
+    as_of = as_of or now
+    if stall.stalled(as_of, now):
+        with transaction.atomic():
+            auction = Auction.objects.select_for_update(of=("self",)).filter(pk=auction_id).first()
+            # L'ora dopo aver preso il database: il fermo finisce qui.
+            moved = stall.give_back(auction, as_of, timezone.now()) if auction else []
+            if moved:
+                auction.save(update_fields=moved)
     pending = Auction.objects.filter(
-        pk=auction_id, sealed_round__gt=0, sealed_ends_at__lte=timezone.now()
+        pk=auction_id, sealed_round__gt=0, sealed_ends_at__lte=as_of
     ).exists()
     if not pending:
         return None

@@ -99,6 +99,10 @@ def _ticker_warning(auction):
     """
     if health.ticker_error(auction.id) is not None:
         return "Il ticker ha incontrato un errore — verifica che l'asta avanzi regolarmente."
+    stall = health.recent_stall(auction.id)
+    if stall is not None:
+        return (f"Il database è rimasto fermo {stall['seconds']:.0f} s e quei secondi sono tornati al timer. "
+                "Durante l'asta evita import ed export; se succede ancora, controlla l'antivirus sulla cartella dei dati.")
     if stuck_closed_lot(auction.id) is not None:
         return "Un lotto è chiuso da un po' senza avanzare — ricarica la pagina o controlla la connessione."
     return None

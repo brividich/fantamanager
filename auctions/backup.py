@@ -266,6 +266,69 @@ def backup_file(name):
     return path if path.is_file() else None
 
 
+def _intact(path):
+    """Un file SQLite di FantaManager che si apre e passa il controllo veloce."""
+    import sqlite3
+    try:
+        con = sqlite3.connect(str(path), timeout=30)
+        try:
+            ok = con.execute("PRAGMA quick_check").fetchone()[0] == "ok"
+            return ok and con.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='django_migrations'"
+            ).fetchone() is not None
+        finally:
+            con.close()
+    except sqlite3.Error:
+        return False
+
+
+def repair_at_startup():
+    """All'avvio dell'app del PC, prima di tutto il resto: il database è integro?
+
+    Uno spegnimento brusco, un disco che si guasta o un programma che tocca il
+    file possono rovinarlo, e l'asta non partirebbe. Se è rovinato lo mette da
+    parte nella cartella dei salvataggi (``danneggiato-<data>.sqlite3``, mai
+    cancellato) e rimette l'ultima copia integra. Ritorna il messaggio per chi
+    apre l'app, o None se era tutto a posto (o non è SQLite).
+    """
+    import shutil
+    import sqlite3
+    src = _db_path()
+    if src is None or not src.exists() or _intact(src):
+        return None
+    folder = src.parent / "backups"
+    try:
+        copies = sorted(folder.glob("db-*.sqlite3"), key=lambda p: p.stat().st_mtime, reverse=True)
+    except OSError:
+        copies = []
+    good = next((c for c in copies if _intact(c)), None)
+    if good is None:
+        logger.error("database danneggiato e nessuna copia integra in %s", folder)
+        return ("Il database di FantaManager risulta danneggiato e non c'è una copia integra "
+                f"da rimettere. Non ho toccato niente: il file è {src}. "
+                "Se l'app non funziona, scrivi a chi te l'ha installata.")
+    folder.mkdir(parents=True, exist_ok=True)
+    aside = folder / f"danneggiato-{time.strftime('%Y%m%d-%H%M%S')}.sqlite3"
+    for suffix in ("", "-wal", "-shm"):
+        part = src.with_name(src.name + suffix)
+        if part.exists():
+            shutil.move(str(part), str(aside.with_name(aside.name + suffix)))
+    con = sqlite3.connect(str(good))
+    try:
+        dst = sqlite3.connect(str(src))
+        try:
+            con.backup(dst)
+        finally:
+            dst.close()
+    finally:
+        con.close()
+    when = datetime.fromtimestamp(good.stat().st_mtime).strftime("%d/%m/%Y alle %H:%M")
+    logger.warning("database danneggiato: messo da parte in %s, rimessa la copia %s", aside.name, good.name)
+    return ("Il database di FantaManager era danneggiato (succede dopo uno spegnimento brusco). "
+            f"Ho rimesso l'ultima copia integra, del {when}: controlla nella regia le ultime "
+            f"aggiudicazioni dopo quell'ora. Il file danneggiato è conservato in {aside}.")
+
+
 class RestoreError(Exception):
     """Why a snapshot was not restored (the message is shown to the admin)."""
 

@@ -14,6 +14,7 @@ from ..models import (
 from .queue import (
     _next_pending, _set_on_block, _role_jump_target, enqueue_released_player,
 )
+from . import stall
 from .sealed import _clear_sealed
 from .sala import ensure_unlocked as _sala_guard
 
@@ -256,13 +257,23 @@ def close_auction(auction_id):
     return auction
 
 
-def close_if_expired(auction_id):
+def close_if_expired(auction_id, as_of=None):
+    """Chiude il lotto se il suo tempo era finito quando il ticker ha chiesto
+    (``as_of``). Le offerte arrivate prima di quel momento sono in coda davanti
+    a questa chiamata e passano prima; un fermo lungo restituisce prima i suoi
+    secondi al timer (vedi stall.py)."""
     now = timezone.now()
-    updated = (
-        Auction.objects.filter(
-            pk=auction_id, status=Auction.Status.LIVE, ends_at__lte=now
-        ).update(status=Auction.Status.CLOSED, remaining_seconds=0, updated_at=now)
-    )
+    as_of = as_of or now
+    live = Auction.objects.filter(pk=auction_id, status=Auction.Status.LIVE)
+    if stall.stalled(as_of, now):
+        with transaction.atomic():
+            auction = live.select_for_update().first()
+            # L'ora dopo aver preso il database: il fermo finisce qui.
+            moved = stall.give_back(auction, as_of, timezone.now()) if auction else []
+            if moved:
+                auction.save(update_fields=moved)
+    updated = live.filter(ends_at__lte=as_of).update(
+        status=Auction.Status.CLOSED, remaining_seconds=0, updated_at=now)
     if updated:
         return Auction.objects.get(pk=auction_id)
     return None

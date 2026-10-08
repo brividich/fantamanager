@@ -186,8 +186,12 @@ if _REDIS_URL:
             "Run: pip install channels-redis"
         )
 else:
+    # capacity: i messaggi che un telefono può avere in attesa (offerte degli
+    # altri, stati). Il default (100) si riempie in una raffica di offerte su
+    # un telefono lento, e oltre quello il canale scarta.
     CHANNEL_LAYERS = {
-        "default": {"BACKEND": "channels.layers.InMemoryChannelLayer"},
+        "default": {"BACKEND": "channels.layers.InMemoryChannelLayer",
+                    "CONFIG": {"capacity": 1000}},
     }
 
 # --- Database ---------------------------------------------------------------
@@ -219,12 +223,16 @@ else:
             #   busy timeout   -> wait for the lock instead of failing at once
             #   IMMEDIATE      -> take the write lock at BEGIN, so a read-then-
             #                     write transaction cannot deadlock on upgrade
+            #   synchronous FULL -> every commit is on disk before the answer:
+            #                     a power cut in the sala never loses a player
+            #                     already knocked down (NORMAL could lose the last
+            #                     commits). About 1-2 ms per bid on an SSD.
             "OPTIONS": {
                 "timeout": 30,
                 "transaction_mode": "IMMEDIATE",
                 "init_command": (
                     "PRAGMA journal_mode=WAL;"
-                    "PRAGMA synchronous=NORMAL;"
+                    "PRAGMA synchronous=FULL;"
                     "PRAGMA busy_timeout=30000;"
                 ),
             },
