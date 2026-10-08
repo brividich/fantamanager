@@ -1,9 +1,7 @@
-{% extends "auctions/base.html" %}
+{% extends page_frame|default:"auctions/_frame_console.html" %}{% load fm_pages %}
 {% block title %}Importa rose — FantaManager{% endblock %}
-{% block bodyclass %}role-admin{% endblock %}
-{% block wrapclass %}wrap-wide{% endblock %}
 
-{% block content %}
+{% block page %}
 <style>
     code { background:rgba(255,255,255,.07); padding:2px 8px; border-radius:5px; font-size:13px; font-family:monospace; }
     .fp-target {
@@ -25,7 +23,6 @@
     }
 </style>
 
-{% include "auctions/_console_head.html" %}
 
 <div class="pg-head">
     <div>

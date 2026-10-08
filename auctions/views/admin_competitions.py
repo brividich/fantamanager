@@ -15,8 +15,8 @@ from ..services.competitions import (
     setup_round_robin_competition,
     setup_supercoppa,
 )
-from .common import (current_league, form_int, manageable_leagues, staff_member_required,
-                     user_can_manage_league)
+from .common import (back_to_page, current_league, form_int, in_app, manageable_leagues, page_frame,
+                     staff_member_required, user_can_manage_league)
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +65,9 @@ def admin_competitions(request):
     giornate = list(season.giornate.all().order_by("number")) if season else []
 
     return render(request, "auctions/admin_competitions.html", {
+        **page_frame(request, league, own_messages=True),
+        # «Nuova Competizione» dall'app torna alle competizioni dell'app.
+        "wz_from": "app" if in_app(request) else "console",
         "current_league": league,
         "leagues": manageable_leagues(request.user),
         "season": season,
@@ -191,7 +194,7 @@ def admin_competition_regenerate(request, comp_id):
         logger.exception("Errore rigenerazione calendario: %s", e)
         messages.error(request, f"Errore durante la rigenerazione: {e}")
 
-    return redirect(f"{reverse('admin_competitions')}?league={league.id}&comp={comp.id}")
+    return redirect(back_to_page(request, "admin_competitions", f"?league={league.id}&comp={comp.id}"))
 
 
 @staff_member_required
@@ -206,4 +209,4 @@ def admin_competition_delete(request, comp_id):
     name = comp.name
     comp.delete()
     messages.success(request, f"Competizione «{name}» eliminata.")
-    return redirect(f"{reverse('admin_competitions')}?league={league.id}")
+    return redirect(back_to_page(request, "admin_competitions", f"?league={league.id}"))

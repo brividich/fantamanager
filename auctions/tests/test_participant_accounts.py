@@ -6,6 +6,7 @@ owner (or a superuser) may, and a president never gets to change the password
 of a login they did not hand out: linking somebody's account to a team and
 then resetting it would be a way to steal it.
 """
+import re
 from decimal import Decimal
 
 from django.contrib.auth.models import User
@@ -411,3 +412,70 @@ class ParticipantAccountTests(TestCase):
         self.team.refresh_from_db()
         self.assertIsNone(self.team.user)
 
+
+
+class TeamsPageTests(TestCase):
+    """La stessa pagina Squadre in console e nell'app (Regia)."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user("presidente_sq", password="pw")
+        self.foreign_admin = User.objects.create_user("admin_sq", password="pw")
+        self.league = League.objects.create(name="Lega Squadre", owner=self.owner)
+        self.other_league = League.objects.create(name="Lega Altrui", owner=self.foreign_admin)
+        self.team = Participant.objects.create(league=self.league, display_name="Alfa Real",
+                                               email="alfa@x.local", credits=Decimal("500"))
+        Participant.objects.create(league=self.other_league, display_name="Beta United", credits=Decimal("500"))
+
+    @staticmethod
+    def _part(resp):
+        html = resp.content.decode()
+        part = html[html.index("<!-- teams:start -->"):html.index("<!-- teams:end -->")]
+        return re.sub(r'name="(next|csrfmiddlewaretoken)" value="[^"]*"', "", part)
+
+    def test_same_screen_in_console_and_app(self):
+        self.client.force_login(self.owner)
+        q = f"?league={self.league.id}"
+        console = self.client.get(reverse("admin_participants") + q)
+        app = self.client.get(reverse("app_regia_teams") + q)
+        self.assertEqual(console.status_code, 200)
+        self.assertEqual(app.status_code, 200)
+        self.assertEqual(self._part(console), self._part(app))
+        self.assertContains(app, "Alfa Real")
+        self.assertContains(app, "Crea account")
+
+    def test_app_shows_only_leagues_you_manage(self):
+        self.client.force_login(self.foreign_admin)
+        resp = self.client.get(reverse("app_regia_teams") + f"?league={self.league.id}")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Beta United")
+        self.assertNotContains(resp, "Alfa Real")
+
+    def test_app_is_for_league_admins(self):
+        User.objects.create_user("nessuno_sq", password="pw")
+        self.client.force_login(User.objects.get(username="nessuno_sq"))
+        resp = self.client.get(reverse("app_regia_teams"))
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(resp["Location"].startswith(reverse("app_login")))
+
+    def test_actions_from_the_app_return_to_the_app(self):
+        self.client.force_login(self.owner)
+        back = reverse("app_regia_teams") + f"?league={self.league.id}"
+        resp = self.client.post(reverse("admin_participant_account", args=[self.team.id]), {
+            "action": "create", "username": "alfa-coach", "password": "", "next": back})
+        self.assertRedirects(resp, back, fetch_redirect_response=False)
+        page = self.client.get(back)
+        self.assertContains(page, "Credenziali per «Alfa Real»")
+        self.assertContains(page, "alfa-coach")
+        # La password generata si vede una volta sola.
+        self.assertNotContains(self.client.get(back), "Credenziali per «Alfa Real»")
+
+        resp = self.client.post(reverse("admin_participant_email", args=[self.team.id]),
+                                {"email": "nuova@x.local", "next": back})
+        self.assertRedirects(resp, back, fetch_redirect_response=False)
+        self.team.refresh_from_db()
+        self.assertEqual(self.team.email, "nuova@x.local")
+
+    def test_regia_opens_the_app_page(self):
+        self.client.force_login(self.owner)
+        resp = self.client.get(reverse("app_regia") + f"?league={self.league.id}")
+        self.assertContains(resp, reverse("app_regia_teams"))

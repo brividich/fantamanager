@@ -1,9 +1,8 @@
-{% extends "auctions/base.html" %}
+{% extends page_frame|default:"auctions/_frame_console.html" %}{% load fm_pages %}
 {% block title %}Nuova asta{% endblock %}
-{% block bodyclass %}role-admin{% endblock %}
-{% block wrapclass %}wrap-wide{% endblock %}
 
-{% block content %}
+{% block console_head %}{% endblock %}
+{% block page %}
 <style>
     /* .wiz-head / .wnav / .sumtable / .opt base — shared with the other
        wizards, see static/css/console.css. Only .opt-t (below) stays local:
@@ -58,7 +57,7 @@
         <div class="brand-icon"><svg class="ic" style="width:28px;height:28px"><use href="#i-shield"/></svg></div>
         <div class="brand-text"><div class="top">NUOVA</div><div class="bottom">ASTA</div><div class="sub">Su una lega esistente</div></div>
     </div>
-    <a class="btn btn-ghost" href="{% url 'admin_dashboard' %}">← Dashboard</a>
+    <a class="btn btn-ghost" href="{% purl 'admin_dashboard' %}">← Dashboard</a>
 </div>
 
 {% if not leagues %}
@@ -112,12 +111,12 @@
         <div class="lg-meta" id="lg-meta"></div>
         <div id="no-listone" class="hint" style="display:none; color:var(--closed); font-weight:700">
             Questa lega non ha ancora il listone: caricalo da
-            <a href="{% url 'admin_players' %}" target="_blank">Listone &amp; giocatori</a> prima di creare l'asta.
+            <a href="{% purl 'admin_players' %}" target="_blank">Listone &amp; giocatori</a> prima di creare l'asta.
         </div>
         <div class="hint">
             Manca qualcosa? <a href="{% url 'admin_setup' %}">＋ Nuova lega</a> ·
-            <a href="{% url 'admin_players' %}" target="_blank">Listone &amp; giocatori →</a> ·
-            <a href="{% url 'admin_fantapazz' %}" target="_blank">Importa rose →</a>
+            <a href="{% purl 'admin_players' %}" target="_blank">Listone &amp; giocatori →</a> ·
+            <a href="{% purl 'admin_fantapazz' %}" target="_blank">Importa rose →</a>
         </div>
 
         <div class="sec-title">Tipo di asta</div>
@@ -136,7 +135,7 @@
         </div>
 
         <div class="wnav">
-            <a class="btn btn-ghost" href="{% url 'admin_dashboard' %}">Annulla</a>
+            <a class="btn btn-ghost" href="{% purl 'admin_dashboard' %}">Annulla</a>
             <button type="button" class="btn-ok" onclick="wiz.next()">Avanti →</button>
         </div>
     </div>

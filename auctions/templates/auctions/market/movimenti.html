@@ -1,4 +1,4 @@
-{% extends "auctions/market/base.html" %}
+{% extends "auctions/market/base.html" %}{% load fm_pages %}
 {% block mk_title %}Movimenti · Mercato{% endblock %}
 {% block mk_color %}c-violet{% endblock %}
 {% block mk_crumbs %}<span class="sep">›</span> <span aria-current="page">Movimenti</span>{% endblock %}
@@ -10,7 +10,7 @@
     <div class="sub">Ogni acquisto, svincolo e scambio delle squadre della lega — dall'asta, dalle buste, dall'app o fatto a mano dalla regia.</div>
 </div>
 <span class="spacer"></span>
-{% if current_league %}<a class="fm-btn fm-btn-secondary" href="{% url 'admin_export' %}?league={{ current_league.id }}"><svg class="ic"><use href="#i-export"/></svg> Export rose</a>{% endif %}
+{% if current_league %}<a class="fm-btn fm-btn-secondary" href="{% purl 'admin_export' %}?league={{ current_league.id }}"><svg class="ic"><use href="#i-export"/></svg> Export rose</a>{% endif %}
 {% endblock %}
 
 {% block mk_body %}

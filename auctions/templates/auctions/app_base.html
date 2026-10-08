@@ -329,6 +329,9 @@ app through one of their teams — a banner with the way back.
             display: flex; flex-direction: column;
             padding: 20px 28px;
         }
+        /* Le pagine della console aperte dall'app (_frame_app.html) sono
+           pensate per lo schermo largo: niente tetto alla larghezza. */
+        .app-main.console-page { max-width: none; }
         .app-main.fit > * + * { margin-top: 12px; }
         .app-main.fit .fit-body { flex: 1; min-height: 0; }
         .app-main.fit .fit-scroll { min-height: 0; overflow-y: auto; }
@@ -635,7 +638,7 @@ window.toggleFmTheme = function(e) {
 };
 </script>
 <main class="app-main {% block mainclass %}{% endblock %}">
-    {% if messages %}
+    {% if messages and not page_messages %}
     <div style="margin-bottom:14px">
         {% for msg in messages %}
         <div role="status" style="padding:10px 14px;border-radius:8px;font-size:13px;font-weight:700;margin-bottom:6px;

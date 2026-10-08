@@ -1,9 +1,7 @@
-{% extends "auctions/base.html" %}
+{% extends page_frame|default:"auctions/_frame_console.html" %}{% load fm_pages %}
 {% block title %}Stagione — FantaManager{% endblock %}
-{% block bodyclass %}role-admin{% endblock %}
-{% block wrapclass %}wrap-wide{% endblock %}
 
-{% block content %}
+{% block page %}
 <style>
     .ss-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
     .ss-step { padding: 14px 16px; }
@@ -29,7 +27,6 @@
     @media (max-width: 1100px) { .ss-steps, .ss-grid { grid-template-columns: minmax(0, 1fr); } }
 </style>
 
-{% include "auctions/_console_head.html" %}
 
 <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap">
     <div>
@@ -51,13 +48,13 @@
 {% else %}
 
 <form id="f-new" method="post" action="{% url 'admin_season_action' %}" onsubmit="return confirm('Chiudere la stagione {{ current_league.season_number }} e iniziare la successiva? Verranno assegnati il Decreto di fine stagione, scalati i contratti e aperti i rinnovi.');">
-    {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="new_season">
+    {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="new_season">
 </form>
 <form id="f-mid" method="post" action="{% url 'admin_season_action' %}" onsubmit="return confirm('Applicare il passaggio di metà stagione? Decreto di metà stagione e fondi invernali del tetto.');">
-    {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="midseason">
+    {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="midseason">
 </form>
 <form id="f-prev" method="post" action="{% url 'admin_season_action' %}">
-    {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="previous_ranking">
+    {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="previous_ranking">
 </form>
 
 <div class="ss-steps">
@@ -71,7 +68,7 @@
         <h3><span class="ss-num">2</span> Chiudi rinnovi</h3>
         <p>Quando le squadre hanno dichiarato i rinnovi e tirato i dadi: apre la fase estiva e calcola i tetti (base per classifica + giocatori persi + rinnovi mancati).</p>
         <form method="post" action="{% url 'admin_season_action' %}">
-            {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="close_renewals">
+            {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="close_renewals">
             <button type="submit" class="ss-btn"{% if not current_league.renewals_open %} disabled title="I rinnovi non sono aperti"{% endif %}>Chiudi rinnovi</button>
         </form>
     </section>
@@ -119,14 +116,14 @@
             <span class="muted">Serve solo alla prima stagione gestita qui. Le posizioni «Fine» e «Metà» si usano solo se non c'è una fonte automatica.</span>
             {% if not phases and current_league.salary_cap_enabled %}
             <form method="post" action="{% url 'admin_season_action' %}" style="margin-left:auto">
-                {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="open_summer">
+                {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="open_summer">
                 <button type="submit" class="ss-btn ghost">Apri ora la fase estiva</button>
             </form>
             {% endif %}
         </div>
         {% if phases %}
         <form method="post" action="{% url 'admin_season_action' %}" style="display:flex;gap:6px;align-items:center;margin-top:12px;font-size:12px;flex-wrap:wrap">
-            {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="adjust">
+            {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="adjust">
             Rettifica tetto (es. multa modulo asta −200):
             <select name="participant_id" class="ss-in" style="width:auto">{% for t in teams %}<option value="{{ t.id }}">{{ t.display_name }}</option>{% endfor %}</select>
             <input class="ss-in" name="amount" placeholder="±FM" style="width:70px">
@@ -149,14 +146,14 @@
 
         {% if current_league.standings_url %}
         <form method="post" action="{% url 'admin_season_action' %}" style="margin-top:12px">
-            {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="test_standings">
+            {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="test_standings">
             <button type="submit" class="ss-btn ghost">Prova lettura classifica dal sito</button>
         </form>
         {% endif %}
         <details style="margin-top:14px"{% if not current_league.salary_cap_enabled %} open{% endif %}>
             <summary style="cursor:pointer;font-weight:800;font-size:13px">Impostazioni economia (comma 3)</summary>
             <form method="post" action="{% url 'admin_season_action' %}" class="ss-set" style="margin-top:10px">
-                {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="settings">
+                {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="settings">
                 <span>Tetto salariale e Decreto</span><label><input type="checkbox" name="salary_cap_enabled" value="1"{% if current_league.salary_cap_enabled %} checked{% endif %}> attivi</label>
                 <span>Spesa conteggiata</span><select name="salary_cap_spend" class="ss-in ss-wide">{% for v, l in spend_modes %}<option value="{{ v }}"{% if current_league.salary_cap_spend == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>
                 <span>Pagina classifica di lega</span><input class="ss-in ss-wide" name="standings_url" value="{{ current_league.standings_url }}" placeholder="https://www.fantapazz.com/fantacalcio/fantaclassifiche-competizione/…">

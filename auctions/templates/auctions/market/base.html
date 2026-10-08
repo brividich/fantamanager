@@ -1,4 +1,4 @@
-{% extends "auctions/base.html" %}
+{% extends page_frame|default:"auctions/_frame_console.html" %}{% load fm_pages %}
 {% comment %}
 Mercato — everything that changes the rosters once the season has started.
 The hub (market/hub.html) only says which markets are running and opens
@@ -8,17 +8,14 @@ movimenti. A screen fills ``mk_head`` and ``mk_body``; dialogs and scripts
 go in ``mk_after``.
 {% endcomment %}
 {% block title %}{% block mk_title %}Mercato{% endblock %} — FantaManager{% endblock %}
-{% block bodyclass %}role-admin{% endblock %}
-{% block wrapclass %}wrap-wide{% endblock %}
 
-{% block content %}
+{% block page %}
 {% include "auctions/market/_styles.html" %}
-{% include "auctions/_console_head.html" %}
 
 <div class="mk {% block mk_color %}{% endblock %}">
 {% if current_league and market_active != "hub" %}
 <nav class="mk-crumbs fm-onerow" aria-label="Percorso">
-    <a href="{% url 'admin_market_dashboard' %}?league={{ current_league.id }}">Mercato</a>
+    <a href="{% purl 'admin_market_dashboard' %}?league={{ current_league.id }}">Mercato</a>
     {% block mk_crumbs %}{% endblock %}
 </nav>
 {% endif %}
@@ -45,13 +42,13 @@ go in ``mk_after``.
 {% else %}
 {% if market_active != "hub" %}
 <nav class="mk-switch fm-onerow" aria-label="Mercati">
-    <a class="c-amber" href="{% url 'admin_market_buste' %}?league={{ current_league.id }}"{% if market_active == "buste" %} aria-current="page"{% endif %}>
+    <a class="c-amber" href="{% purl 'admin_market_buste' %}?league={{ current_league.id }}"{% if market_active == "buste" %} aria-current="page"{% endif %}>
         <svg class="ic"><use href="#i-mail"/></svg> Sessioni</a>
-    <a class="c-blue" href="{% url 'admin_market_trades' %}?league={{ current_league.id }}"{% if market_active == "scambi" %} aria-current="page"{% endif %}>
+    <a class="c-blue" href="{% purl 'admin_market_trades' %}?league={{ current_league.id }}"{% if market_active == "scambi" %} aria-current="page"{% endif %}>
         <svg class="ic"><use href="#i-swap"/></svg> Scambi</a>
-    <a class="c-green" href="{% url 'admin_market_repair' %}?league={{ current_league.id }}"{% if market_active == "asta" %} aria-current="page"{% endif %}>
+    <a class="c-green" href="{% purl 'admin_market_repair' %}?league={{ current_league.id }}"{% if market_active == "asta" %} aria-current="page"{% endif %}>
         <svg class="ic"><use href="#i-gavel"/></svg> Asta</a>
-    <a class="c-violet" href="{% url 'admin_market_moves' %}?league={{ current_league.id }}"{% if market_active == "movimenti" %} aria-current="page"{% endif %}>
+    <a class="c-violet" href="{% purl 'admin_market_moves' %}?league={{ current_league.id }}"{% if market_active == "movimenti" %} aria-current="page"{% endif %}>
         <svg class="ic"><use href="#i-list"/></svg> Movimenti</a>
 </nav>
 {% endif %}

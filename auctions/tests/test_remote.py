@@ -159,6 +159,16 @@ class RemoteAccessTests(TestCase):
         self.assertEqual(r.status_code, 302)
         self.assertIn("/regia/unlock/", r["Location"])
 
+    def test_app_teams_page_is_gated_through_the_tunnel_too(self):
+        """The app's Squadre shows the same join links and accounts."""
+        self._open()
+        r = self.client.get(f"/app/regia/squadre/?league={self.league.id}",
+                            HTTP_HOST="abc-def.trycloudflare.com")
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("/regia/unlock/", r["Location"])
+        self.assertIn(f"league%3D{self.league.id}", r["Location"])     # back to the same league
+        self.assertEqual(self.client.get(f"/app/regia/squadre/?league={self.league.id}").status_code, 200)
+
 
 class RemoteErrorShieldTests(TestCase):
     """Tracebacks must not leave the building through the public URL."""
@@ -174,6 +184,29 @@ class RemoteErrorShieldTests(TestCase):
         shield = RemoteErrorShield(lambda r: None)
         request = RequestFactory().get("/")
         self.assertIsNone(shield.process_exception(request, ValueError("boom")))
+
+    def test_shield_hides_the_debug_404_page_from_the_tunnel(self):
+        """Con DEBUG acceso (app desktop) il 404 di Django elenca tutti gli
+        indirizzi del sito: dal tunnel esce una pagina semplice, in rete
+        locale resta quella di debug."""
+        host = "abc-def.trycloudflare.com"
+        self.remote._harden(host, f"https://{host}")
+        self.remote._set(status="on", url=f"https://{host}", host=host, pin="123456")
+        with override_settings(DEBUG=True):
+            remote = self.client.get("/non-esiste/", HTTP_HOST=host)
+            local = self.client.get("/non-esiste/", HTTP_HOST="192.168.1.10:8000")
+        self.assertEqual(remote.status_code, 404)
+        self.assertContains(remote, "Pagina non trovata", status_code=404)
+        self.assertNotContains(remote, "dashboard/", status_code=404)
+        self.assertEqual(local.status_code, 404)
+        self.assertContains(local, "dashboard/", status_code=404)
+
+    def test_shield_leaves_404s_alone_without_debug(self):
+        host = "abc-def.trycloudflare.com"
+        self.remote._harden(host, f"https://{host}")
+        self.remote._set(status="on", url=f"https://{host}", host=host, pin="123456")
+        resp = self.client.get("/non-esiste/", HTTP_HOST=host)
+        self.assertEqual(resp.status_code, 404)
 
     def test_shield_returns_a_generic_500_for_tunnel_requests(self):
         from ..middleware import RemoteErrorShield

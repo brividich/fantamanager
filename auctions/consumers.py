@@ -252,7 +252,13 @@ class AuctionConsumer(AsyncWebsocketConsumer):
         elif action == "sealed_bid":
             await self._handle_sealed_bid(data)
         elif action == "sync":
-            await self.send_json(await self._state())
+            state = await self._state()
+            # The client numbers its syncs to time the round trip (and correct
+            # its countdown by it): the answer carries the number back.
+            sync_id = data.get("sync_id")
+            if isinstance(sync_id, int) and not isinstance(sync_id, bool):
+                state = {**state, "sync_id": sync_id}
+            await self.send_json(state)
             await self._send_sealed_me()
         elif action == "latency_warning":
             await self._handle_latency_warning(data)

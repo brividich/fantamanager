@@ -13,7 +13,8 @@ page when a person, not a script, is on the other end.
 """
 import re
 
-from django.http import HttpResponse
+from django.conf import settings
+from django.http import HttpResponse, HttpResponseNotFound
 from django.template.loader import render_to_string
 
 from . import remote
@@ -70,14 +71,32 @@ _PLAIN_500 = (
 )
 
 
+_PLAIN_404 = _PLAIN_500.replace(
+    "<title>Errore</title>", "<title>Pagina non trovata</title>").replace(
+    "Qualcosa è andato storto", "Pagina non trovata").replace(
+    "La regia sul PC che ospita l'asta vede il dettaglio dell'errore. "
+    "Riprova, o chiedi a chi conduce l'asta.",
+    "L'indirizzo non esiste o la pagina è stata spostata.")
+
+
 class RemoteErrorShield:
-    """Generic 500 for tunnel requests; untouched behaviour locally."""
+    """Generic 500 for tunnel requests; untouched behaviour locally.
+
+    With DEBUG on (the desktop app) Django's 404 page lists every address of
+    the site: through the tunnel that map goes to anybody on the internet, so
+    an HTML 404 becomes a plain one there too.
+    """
 
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
-        return self.get_response(request)
+        response = self.get_response(request)
+        if (settings.DEBUG and response.status_code == 404
+                and response.get("Content-Type", "").startswith("text/html")
+                and remote.request_is_remote(request)):
+            return HttpResponseNotFound(_PLAIN_404, content_type="text/html; charset=utf-8")
+        return response
 
     def process_exception(self, request, exception):
         if not remote.request_is_remote(request):

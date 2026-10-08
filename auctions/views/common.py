@@ -537,6 +537,73 @@ def app_admin_league(request, admin_leagues, participant=None):
     return admin_leagues[0]
 
 
+# Pagine della console che l'app (Regia) apre nella sua cornice: nome della
+# pagina in console -> nome della stessa pagina nell'app. Stessa view, stesso
+# template; cambia solo la cornice (``page_frame``).
+APP_PAGES = {
+    "admin_participants": "app_regia_teams",
+    "admin_footballers": "app_footballers",
+    "admin_giornate": "app_giornate",
+    "admin_market_trades": "app_regia_trades",
+    "admin_players": "app_regia_players",
+    "admin_contracts": "app_regia_contracts",
+    "admin_season": "app_regia_season",
+    "admin_fantapazz": "app_regia_import",
+    "admin_export": "app_regia_export",
+    "admin_config": "app_regia_config",
+    "admin_competitions": "app_regia_competitions",
+    "admin_market_dashboard": "app_regia_market",
+    "admin_market_buste": "app_regia_buste",
+    "admin_market_repair": "app_regia_market_auction",
+    "admin_market_moves": "app_regia_moves",
+    "admin_market_session": "app_regia_market_session",
+    "admin_auction_wizard": "app_regia_auction_wizard",
+    # La Dashboard della console nell'app è la Regia.
+    "admin_dashboard": "app_regia",
+}
+
+
+def in_app(request):
+    """La richiesta arriva dall'app (/app/…), non dalla console."""
+    return request is not None and request.path.startswith("/app/")
+
+
+def app_page_url(request, name, *args):
+    """L'indirizzo della pagina ``name``: quello dell'app se la richiesta
+    viene dall'app e la pagina ce l'ha, altrimenti quello della console."""
+    if in_app(request) and name in APP_PAGES:
+        return reverse(APP_PAGES[name], args=args)
+    return reverse(name, args=args)
+
+
+def back_to_page(request, console_name, query=""):
+    """Dove torna un form dopo l'azione: la pagina da cui parte (``next``,
+    console o app, solo indirizzi del sito) senza la sua query, più ``query``;
+    senza ``next`` la pagina ``console_name`` della console."""
+    base = safe_next(request, "").split("#")[0].split("?")[0] or reverse(console_name)
+    return base + query
+
+
+def page_frame(request, league, own_messages=False):
+    """La cornice di una pagina della console: la console stessa, o l'app
+    (Regia) quando la pagina è aperta da /app/regia/….
+
+    ``own_messages``: la pagina mostra già i messaggi, l'app non li ripete.
+    """
+    if not in_app(request):
+        return {"page_frame": "auctions/_frame_console.html"}
+    _participant, ctx = _app_ctx(request, "regia")
+    ctx = dict(ctx or {})
+    ctx.update({
+        "page_frame": "auctions/_frame_app.html",
+        "app_league": league,
+        "active_auction": _app_active_auction(league),
+        "manages_app_league": league is not None,
+        "page_messages": own_messages,
+    })
+    return ctx
+
+
 def _app_ctx(request, active_tab):
     """Shared shell context. Returns (participant, ctx).
 
