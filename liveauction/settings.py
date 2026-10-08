@@ -90,6 +90,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # Uploads over FM_MAX_REQUEST_BYTES are refused before anything parses them.
+    "auctions.middleware.UploadSizeLimit",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -253,6 +255,8 @@ if _HAS_WHITENOISE:
 # MEDIA_ROOT is overridable so the packaged (PyInstaller) app can write uploads
 # to a user-writable data folder instead of the read-only bundle.
 MEDIA_URL  = "media/"
+# Largest request body accepted (uploads included): 25 MB by default.
+FM_MAX_REQUEST_BYTES = int(os.getenv("FM_MAX_REQUEST_BYTES", str(25 * 1024 * 1024)))
 MEDIA_ROOT = Path(os.getenv("FANTAMANAGER_MEDIA_ROOT") or (BASE_DIR / "media"))
 
 # PostgreSQL dumps (./backups in docker-compose, shared with its backup service).

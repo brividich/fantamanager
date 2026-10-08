@@ -10,12 +10,25 @@ from django.views.static import serve
 from auctions import throttle
 
 
+MEDIA_IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp", ".gif")
+
+
 def media(request, path):
     """Uploaded team logos. ``static()`` only serves them with DEBUG on, which is
     why deployments used to keep DEBUG on; a NAS has no separate web server in
     front of Daphne, so the app serves them itself. ``serve`` resolves the path
-    safely under MEDIA_ROOT and never lists directories."""
-    return serve(request, path, document_root=settings.MEDIA_ROOT)
+    safely under MEDIA_ROOT and never lists directories.
+
+    Uploads share the site's address, so they are served as inert as possible:
+    no type sniffing, a sandbox that runs no script even if a page slipped in,
+    and anything that isn't a picture comes down as a download."""
+    response = serve(request, path, document_root=settings.MEDIA_ROOT)
+    response["X-Content-Type-Options"] = "nosniff"
+    response["Content-Security-Policy"] = "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox"
+    if not path.lower().endswith(MEDIA_IMAGE_EXTENSIONS):
+        response["Content-Type"] = "application/octet-stream"
+        response["Content-Disposition"] = "attachment"
+    return response
 
 
 _admin_login = admin.site.login

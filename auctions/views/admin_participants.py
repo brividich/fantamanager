@@ -22,6 +22,7 @@ from django.views.decorators.http import require_POST
 
 from ..models import Auction, League, ManagedAccount, Participant, Player
 from .. import remote, team_sheets
+from ..uploads import UploadRejected, clean_image
 from ..services import mail
 from .common import (
     FORBIDDEN_LEAGUE_MSG,
@@ -213,7 +214,11 @@ def admin_create_participant(request):
         is_active=True,
     )
     if "logo" in request.FILES:
-        p.logo = request.FILES["logo"]
+        try:
+            p.logo = clean_image(request.FILES["logo"])
+        except UploadRejected as exc:
+            messages.error(request, str(exc))
+            return redirect(safe_next(request, fallback))
 
     new_user_username = (request.POST.get("new_user_username") or "").strip()
     if new_user_username and can_manage_accounts(request.user, league):
@@ -286,13 +291,17 @@ def admin_edit_participant(request, participant_id):
         if usr:
             p.user = usr
 
+    fallback = f"/dashboard/{p.league_id}/#rose" if p.league_id else "/dashboard/"
     if "logo" in request.FILES:
-        p.logo = request.FILES["logo"]
+        try:
+            p.logo = clean_image(request.FILES["logo"])
+        except UploadRejected as exc:
+            messages.error(request, str(exc))
+            return redirect(safe_next(request, fallback))
     elif request.POST.get("clear_logo") == "1":
         p.logo = None
     p.save()
     messages.success(request, f"Squadra «{p.display_name}» aggiornata con successo.")
-    fallback = f"/dashboard/{p.league_id}/#rose" if p.league_id else "/dashboard/"
     return redirect(safe_next(request, fallback))
 
 

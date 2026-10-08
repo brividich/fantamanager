@@ -8,9 +8,11 @@ import re
 import secrets
 import unicodedata
 from decimal import Decimal
+from itertools import islice
 from pathlib import Path
 
 from .. import mantra
+from ..uploads import MAX_IMPORT_ROWS
 
 _SEP = ";"
 
@@ -725,9 +727,10 @@ def parse_listone_file(file_obj, filename):
         if name.endswith(".xlsx") or name.endswith(".xls"):
             import openpyxl
             raw = file_obj.read()
-            wb = openpyxl.load_workbook(io.BytesIO(raw), data_only=True)
+            wb = openpyxl.load_workbook(io.BytesIO(raw), data_only=True, read_only=True)
             ws = wb.active
-            rows = list(ws.iter_rows(values_only=True))
+            rows = list(islice(ws.iter_rows(values_only=True), MAX_IMPORT_ROWS))
+            wb.close()
             if not rows:
                 return
             header_idx = 0
@@ -841,16 +844,17 @@ def _tabular_rows(file_obj, filename):
     name = (filename or "").lower()
     if name.endswith(".xlsx"):
         import openpyxl
-        wb = openpyxl.load_workbook(io.BytesIO(file_obj.read()), data_only=True)
+        wb = openpyxl.load_workbook(io.BytesIO(file_obj.read()), data_only=True, read_only=True)
         ws = wb.active
-        for row in ws.iter_rows(values_only=True):
+        for row in islice(ws.iter_rows(values_only=True), MAX_IMPORT_ROWS):
             yield ["" if c is None else c for c in row]
+        wb.close()
     elif name.endswith(".xls"):
         import xlrd
         wb = xlrd.open_workbook(file_contents=file_obj.read(),
                                 ignore_workbook_corruption=True)
         sh = wb.sheets()[0]
-        for r in range(sh.nrows):
+        for r in range(min(sh.nrows, MAX_IMPORT_ROWS)):
             yield [sh.cell_value(r, c) for c in range(sh.ncols)]
     else:
         text = file_obj.read().decode("utf-8-sig", errors="replace")
