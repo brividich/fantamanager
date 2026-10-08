@@ -122,6 +122,11 @@ class PlayerPerformance(models.Model):
     is_live         = models.BooleanField(default=False)
     live_source     = models.CharField(max_length=40, blank=True, default="")
     live_updated_at = models.DateTimeField(null=True, blank=True)
+    # Voto algoritmico: {"source", "raw", "breakdown", "input"}. ``input`` è la
+    # riga minima della partita (minuti, risultato, eventi, statistiche): basta
+    # per rigenerare il voto con parametri nuovi senza richiamare l'API. Null
+    # per le altre fonti (rating API-Football, file ufficiale).
+    vote_detail     = models.JSONField(null=True, blank=True)
 
     class Meta:
         constraints = [

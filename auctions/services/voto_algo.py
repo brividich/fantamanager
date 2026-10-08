@@ -132,6 +132,165 @@ def rules_for_league(league_overrides=None):
     return effective_algo_rules(merge_overrides(platform_overrides(), league_overrides))
 
 
+# --------------------------------------------------------------------------
+# Fonte del voto base di una lega
+# --------------------------------------------------------------------------
+
+# (valore, etichetta, spiegazione): ``Season.rules["vote_source"]``. I testi
+# sono gli stessi in console e app (``_scoring_rules.html``).
+VOTE_SOURCES = [
+    ("rating", "Rating API-Football, poi file ufficiale",
+     "In diretta il rating di API-Football arrotondato al mezzo punto; "
+     "il file dei voti caricato dalla lega lo sostituisce."),
+    ("algoritmico", "Voto algoritmico definitivo",
+     "Il voto calcolato da FantaManager dai fatti della partita, in diretta e a fine giornata. "
+     "Un file dei voti lo sostituisce solo se lo importi apposta."),
+    ("algoritmico_provvisorio", "Voto algoritmico, poi file ufficiale",
+     "In diretta il voto calcolato da FantaManager; il file dei voti caricato dalla lega lo sostituisce."),
+]
+DEFAULT_VOTE_SOURCE = "rating"
+ALGO_SOURCES = ("algoritmico", "algoritmico_provvisorio")
+# ``live_source`` di un PlayerPerformance con il voto dell'algoritmo.
+ALGO_LIVE_SOURCE = "algoritmico"
+
+# Parametri che una lega può ritoccare sopra quelli di piattaforma; tabelle di
+# pesi e medie restano solo di piattaforma.
+LEAGUE_FIELDS = ("win", "loss", "clean_sheet_P", "clean_sheet_D", "goal", "assist", "min_minutes")
+
+
+def vote_source_for(season):
+    """La fonte del voto base della lega di ``season`` (``rating`` se non scelta)."""
+    value = ((season.rules or {}) if season is not None else {}).get("vote_source")
+    return value if value in {v for v, *_ in VOTE_SOURCES} else DEFAULT_VOTE_SOURCE
+
+
+def is_algo_source(source):
+    return source in ALGO_SOURCES
+
+
+def algo_rules_for(season):
+    """Regole dell'algoritmo con cui gioca la lega di ``season``: piattaforma
+    più i ritocchi della lega (``Season.rules["algo"]``)."""
+    return rules_for_league(((season.rules or {}) if season is not None else {}).get("algo"))
+
+
+def field_meta(key):
+    """(etichetta, aiuto, passo, minimo, massimo) di un parametro, come nella
+    pagina del Supervisor."""
+    for _title, items in FIELD_GROUPS:
+        for k, label, hint, step, lo, hi in items:
+            if k == key:
+                return label, hint, step, lo, hi
+    raise KeyError(key)
+
+
+def league_algo_fields(season):
+    """I parametri ritoccabili dalla lega, per il form: valore di piattaforma
+    accanto e l'eventuale ritocco della lega."""
+    platform = platform_rules()
+    own = dict(((season.rules or {}) if season is not None else {}).get("algo") or {})
+    fields = []
+    for key in LEAGUE_FIELDS:
+        label, hint, step, lo, hi = field_meta(key)
+        fields.append({
+            "key": key, "label": label, "hint": hint, "step": step, "min": lo, "max": hi,
+            "platform": _fmt(platform[key]),
+            "value": _fmt(own[key]) if key in own else "",
+            "overridden": key in own,
+        })
+    return fields
+
+
+def clean_league_algo(existing, values):
+    """Valida i ritocchi della lega. ``existing`` = ``Season.rules["algo"]``
+    attuale; ``values`` = {chiave: testo, o None per «usa quello della
+    piattaforma»}. Ritorna ``(nuovi_ritocchi, errori)``: le chiavi fuori da
+    ``LEAGUE_FIELDS`` (es. la calibrazione del comando) restano com'erano."""
+    overrides = {k: v for k, v in dict(existing or {}).items() if k not in LEAGUE_FIELDS}
+    for key in LEAGUE_FIELDS:
+        raw = values.get(key)
+        if raw is None or str(raw).strip() == "":
+            continue
+        overrides[key] = str(raw).strip().replace(",", ".")
+    candidate = {k: v for k, v in platform_rules().items() if not k.startswith("_")}
+    candidate = merge_overrides(candidate, overrides)
+    full, errors = clean_rules(candidate)
+    for key in LEAGUE_FIELDS:
+        if key in overrides and key not in errors:
+            overrides[key] = full[key]
+    return overrides, errors
+
+
+# --------------------------------------------------------------------------
+# Voto di una partita salvato con il suo dettaglio
+# --------------------------------------------------------------------------
+
+# La riga minima che basta per rigenerare il voto senza richiamare l'API.
+INPUT_KEYS = ("minutes", "team_goals_for", "team_goals_against", "goals", "assists",
+              "own_goals", "pen_scored", "pen_missed", "pen_saved", "pen_won",
+              "pen_committed", "goals_conceded", "yellow", "red") + STAT_KEYS
+
+
+def _plain_value(v):
+    if isinstance(v, bool) or v is None:
+        return v
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def input_row(row):
+    """Le sole voci di ``row`` che servono all'algoritmo, in forma JSON."""
+    return {k: _plain_value(row.get(k)) for k in INPUT_KEYS if k in row}
+
+
+def algo_vote(row, role, rules):
+    """``(voto, vote_detail)`` del voto algoritmico di una riga di partita."""
+    inp = input_row(row)
+    res = player_vote(inp, role, rules)
+    return res["vote"], {"source": ALGO_LIVE_SOURCE, "raw": res["raw"],
+                         "breakdown": res["breakdown"], "input": inp}
+
+
+def regenerate_votes(giornata, rules):
+    """Rifà il voto algoritmico delle performance di ``giornata`` dalla riga
+    salvata in ``vote_detail``, senza chiamate all'API. Un voto importato da
+    file resta del file. Ritorna ``(rigenerati, senza_riga)``: chi non ha la
+    riga d'ingresso tiene il voto che aveva."""
+    done = missing = 0
+    for perf in giornata.performances.select_related("player"):
+        if perf.live_source == "official_upload":
+            continue
+        inp = (perf.vote_detail or {}).get("input")
+        if not inp:
+            missing += 1
+            continue
+        perf.vote, perf.vote_detail = algo_vote(inp, perf.player.role, rules)
+        perf.save(update_fields=["vote", "vote_detail"])
+        done += 1
+    return done, missing
+
+
+WHY_LABELS = (("base", "Base"), ("risultato", "Risultato"), ("reparto", "Reparto"),
+              ("eventi", "Eventi"), ("rendimento", "Rendimento"), ("calibrazione", "Calibrazione"))
+
+
+def vote_why(detail, vote):
+    """«Perché questo voto»: le voci del calcolo, pronte per il pannello.
+    None se il voto non viene dall'algoritmo (o è un senza voto)."""
+    if not detail or detail.get("source") != ALGO_LIVE_SOURCE or detail.get("raw") is None or vote is None:
+        return None
+    breakdown = detail.get("breakdown") or {}
+    parts = [{"key": k, "label": label, "value": round(float(breakdown[k]), 2)}
+             for k, label in WHY_LABELS if k in breakdown]
+    total = sum(float(breakdown[k]) for k, _ in WHY_LABELS if k in breakdown)
+    rounding = round(float(vote) - total, 2)
+    if rounding:
+        parts.append({"key": "arrotondamento", "label": "Arrotondamento e limiti", "value": rounding})
+    return {"vote": float(vote), "parts": parts}
+
+
 def _same(a, b):
     if isinstance(a, bool) or isinstance(b, bool):
         return bool(a) == bool(b)

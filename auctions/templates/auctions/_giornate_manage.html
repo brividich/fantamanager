@@ -301,6 +301,13 @@ partono, così l'azione torna lì; ``gv_base``/``gv_back`` arrivano dalla view.
                    onchange="if(this.files[0]) document.getElementById('file-name-display').textContent = this.files[0].name + ' (' + (this.files[0].size/1024).toFixed(1) + ' KB)'">
         </div>
 
+        {% if vote_source == "algoritmico" %}
+        <label style="margin-top:12px;font-size:13px;display:flex;gap:8px;align-items:center;">
+            <input type="checkbox" name="replace_algo" value="1">
+            Sostituisci i voti algoritmici con quelli del file
+        </label>
+        <div class="muted" style="font-size:12px;margin-top:4px;">La lega usa il voto algoritmico come definitivo: il file lo sostituisce solo con questa spunta.</div>
+        {% endif %}
         <div style="margin-top:16px;display:flex;justify-content:flex-end;">
             <button type="submit" class="fm-btn fm-btn-primary fm-glow-btn">
                 ⚡ Importa Voti e Calcola Giornata {{ current_giornata.number }}

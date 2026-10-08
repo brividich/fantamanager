@@ -1017,6 +1017,14 @@
             if (p.yellow) bonuses.push('<span title="Ammonito">🟨</span>');
             if (p.red) bonuses.push('<span title="Espulso">🟥</span>');
 
+            // Voto algoritmico: un tocco sul voto apre «Perché questo voto» (_vote_why.html).
+            let whyAttr = '';
+            if (p.why && window.fmVoteWhy) {
+                window.fmVoteWhy.register({[p.id]: p.why});
+                const safeName = String(p.name || '').replace(/[&"<>]/g, c => ({'&': '&amp;', '"': '&quot;', '<': '&lt;', '>': '&gt;'}[c]));
+                whyAttr = ' data-why-pid="' + p.id + '" data-why-name="' + safeName + '" role="button" tabindex="0" title="Perché questo voto"';
+            }
+
             return '<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:var(--panel-2);border:1px solid var(--line-soft, rgba(255,255,255,0.04));border-radius:8px;">' +
                 '<div style="display:flex;align-items:center;gap:8px;min-width:0;flex:1;">' +
                     '<span class="' + roleCls + '" style="font-size:10px;padding:2px 6px;">' + p.role + '</span>' +
@@ -1028,11 +1036,12 @@
                     '</div>' +
                 '</div>' +
                 '<div style="text-align:right;min-width:54px;">' +
-                    '<div style="font-family:var(--display);font-weight:900;font-size:15px;color:var(--ink);">' + voteStr + '</div>' +
+                    '<div style="font-family:var(--display);font-weight:900;font-size:15px;color:var(--ink);"' + whyAttr + '>' + voteStr + '</div>' +
                     (fvStr ? '<div style="font-size:10px;font-weight:800;color:var(--accent);">' + fvStr + '</div>' : '') +
                 '</div>' +
             '</div>';
         }).join('');
     }
 </script>
+{% include "auctions/_vote_why.html" %}
 {% endblock %}

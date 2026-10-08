@@ -15,6 +15,17 @@ dentro _giornate_manage.html: uguale in console e app. Dati da _rules_form
     .sr-modif { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:8px; margin-top:8px; }
     @media (max-width:560px) { .sr-modif { grid-template-columns:repeat(2, minmax(0,1fr)); } }
     .sr-actions { margin-top:14px; display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between; }
+    .sr-sources { display:grid; gap:6px; margin-top:8px; }
+    .sr-source { display:grid; grid-template-columns:22px minmax(0,1fr); gap:8px; align-items:start;
+                 padding:8px 10px; border:1px solid var(--line); border-radius:8px; cursor:pointer; }
+    .sr-source input { width:18px; height:18px; margin-top:2px; accent-color:var(--accent); }
+    .sr-source b { font-size:13px; color:var(--ink); }
+    .sr-source small { display:block; color:var(--muted); font-size:11px; font-weight:500; }
+    .sr-algo .sr-row { grid-template-columns:minmax(0,1fr) 88px; }
+    .sr-algo .sr-plat { grid-column:1 / -1; display:flex; gap:10px; align-items:center; justify-content:space-between;
+                        font-size:11px; color:var(--muted); }
+    .sr-algo .sr-plat label { font-size:11px; font-weight:600; color:var(--muted); display:flex; gap:6px; align-items:center; }
+    .sr-algo .sr-plat input { width:14px; height:14px; }
 </style>
 <details id="rules-section" class="upload-card" style="margin-top:16px;">
     <summary style="cursor:pointer;font-size:18px;font-weight:800;">⚙️ Regole di punteggio della lega {% if rules_custom %}<span class="badge blue" style="vertical-align:middle">personalizzate</span>{% else %}<span class="badge" style="vertical-align:middle">classiche</span>{% endif %}</summary>
@@ -22,7 +33,7 @@ dentro _giornate_manage.html: uguale in console e app. Dati da _rules_form
         Valgono per tutta la stagione di {{ current_league.name }}: soglie dei gol, bonus e malus di ogni evento.
         Togli la spunta per non contare una voce. I numeri con la virgola vanno bene (es. -0,5).
     </div>
-    <form method="post" action="{% url 'app_scoring_rules' %}">
+    <form method="post" action="{% url 'app_scoring_rules' %}" data-sr-form>
         {% csrf_token %}
         <input type="hidden" name="league_id" value="{{ current_league.id }}">
         <input type="hidden" name="next" value="{{ gv_back }}">
@@ -38,6 +49,36 @@ dentro _giornate_manage.html: uguale in console e app. Dati da _rules_form
             {% endfor %}
         </div>
         {% endfor %}
+
+        <div class="sr-group">Voto base</div>
+        <input type="hidden" name="vote_base_form" value="1">
+        <div class="muted" style="font-size:12px;margin-top:4px;">Da dove viene il voto in pagella su cui si sommano bonus e malus.</div>
+        <div class="sr-sources" data-sr-initial="{{ vote_source }}">
+            {% for v in vote_sources %}
+            <label class="sr-source">
+                <input type="radio" name="vote_source" value="{{ v.value }}" {% if v.checked %}checked{% endif %}>
+                <span><b>{{ v.label }}</b><small>{{ v.help }}</small></span>
+            </label>
+            {% endfor %}
+        </div>
+        <div class="sr-algo" data-sr-algo {% if not vote_source_algo %}hidden{% endif %}>
+            <div class="muted" style="font-size:12px;margin-top:10px;">
+                Ritocchi della lega al voto algoritmico, sopra i valori della piattaforma. Pesi e medie del rendimento restano quelli della piattaforma.
+            </div>
+            <div class="sr-grid">
+                {% for f in algo_fields %}
+                <div class="sr-row">
+                    <label for="algo-{{ f.key }}">{{ f.label }}{% if f.hint %}<small>{{ f.hint }}</small>{% endif %}</label>
+                    <input id="algo-{{ f.key }}" name="algo_{{ f.key }}" value="{{ f.value }}" placeholder="{{ f.platform }}"
+                           inputmode="decimal" class="gv-num" data-sr-initial="{{ f.value }}">
+                    <div class="sr-plat">
+                        <span>Piattaforma: {{ f.platform }}</span>
+                        <label><input type="checkbox" name="algo_platform_{{ f.key }}" value="1" {% if not f.overridden %}checked{% endif %} data-sr-initial="{% if f.overridden %}0{% else %}1{% endif %}"> usa quello della piattaforma</label>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
 
         <div class="sr-group">Modificatore difesa</div>
         <div class="sr-row" style="grid-template-columns:22px minmax(0,1fr)">
@@ -63,3 +104,45 @@ dentro _giornate_manage.html: uguale in console e app. Dati da _rules_form
         </div>
     </form>
 </details>
+<script>
+(function () {
+    // «Voto base»: i ritocchi si vedono solo con il voto algoritmico; cambiare
+    // fonte o parametri ricalcola le giornate giocate, quindi si chiede conferma.
+    var form = document.querySelector('[data-sr-form]');
+    if (!form) return;
+    var algo = form.querySelector('[data-sr-algo]');
+    var initialSource = form.querySelector('.sr-sources').getAttribute('data-sr-initial');
+    function source() {
+        var r = form.querySelector('input[name="vote_source"]:checked');
+        return r ? r.value : initialSource;
+    }
+    function sync() { if (algo) algo.hidden = source().indexOf('algoritmico') !== 0; }
+    form.querySelectorAll('input[name="vote_source"]').forEach(function (r) { r.addEventListener('change', sync); });
+    form.querySelectorAll('input[name^="algo_"]:not([type=checkbox])').forEach(function (inp) {
+        inp.addEventListener('input', function () {
+            var box = form.querySelector('input[name="algo_platform_' + inp.name.slice(5) + '"]');
+            if (box) box.checked = inp.value.trim() === '';
+        });
+    });
+    form.querySelectorAll('input[name^="algo_platform_"]').forEach(function (box) {
+        box.addEventListener('change', function () {
+            var inp = form.querySelector('input[name="algo_' + box.name.slice(14) + '"]');
+            if (inp && box.checked) inp.value = '';
+        });
+    });
+    function voteBaseChanged() {
+        if (source() !== initialSource) return true;
+        return Array.prototype.some.call(form.querySelectorAll('[data-sr-algo] [data-sr-initial]'), function (el) {
+            var now = el.type === 'checkbox' ? (el.checked ? '1' : '0') : el.value.trim();
+            return now !== el.getAttribute('data-sr-initial');
+        });
+    }
+    form.addEventListener('submit', function (ev) {
+        var btn = ev.submitter;
+        if (btn && btn.name === 'reset') return;
+        if (voteBaseChanged() && !confirm('Il voto base cambia: le giornate già giocate verranno ricalcolate. Continuare?')) {
+            ev.preventDefault();
+        }
+    });
+})();
+</script>

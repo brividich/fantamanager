@@ -102,6 +102,19 @@ view `admin_scoring_rules`); `recompute_season` le applica alle giornate già
 giocate. Un nuovo bonus si aggiunge a `DEFAULTS`, al motore e a `RULE_GROUPS`
 (`views/admin_voti.py`).
 
+## Voto base: rating o voto algoritmico
+
+Ogni lega sceglie da dove viene il voto in pagella (`Season.rules["vote_source"]`:
+`rating`, `algoritmico`, `algoritmico_provvisorio`), dalla sezione «Voto base»
+di `_scoring_rules.html`. Fonte e regole dell'algoritmo si leggono solo con
+`voto_algo.vote_source_for(season)` / `voto_algo.algo_rules_for(season)`
+(`services/voto_algo.py`: default → piattaforma del Supervisor → ritocchi della
+lega in `Season.rules["algo"]`), mai `ALGO_DEFAULTS` direttamente. Il sync live
+fa una sola chiamata API per giornata e sceglie il voto lega per lega; il voto
+algoritmico salva in `PlayerPerformance.vote_detail` anche la riga della
+partita, così `recompute_season` lo rifà senza API. Calibrazione:
+`manage.py calibra_voto_algoritmico --league <id> [--apply]`.
+
 ## Punteggi a mano
 
 Una lega che gioca su un altro sito (Fantapazz esporta solo un'immagine della

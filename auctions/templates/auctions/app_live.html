@@ -322,7 +322,7 @@
 
                 <div class="perf-vote-badge">
                     {% if item.has_vote %}
-                        <span class="perf-vote {% if item.vote >= 6.5 %}high{% elif item.vote < 5.5 %}low{% endif %}">
+                        <span class="perf-vote {% if item.vote >= 6.5 %}high{% elif item.vote < 5.5 %}low{% endif %}"{% if item.player.id in vote_why_map %} data-why-pid="{{ item.player.id }}" data-why-name="{{ item.player.name }}" role="button" tabindex="0" title="Perché questo voto"{% endif %}>
                             {{ item.vote|floatformat:1 }}
                         </span>
                         {% if item.fantavoto and item.fantavoto != item.vote %}
@@ -359,7 +359,7 @@
                     </div>
                     <div class="perf-vote-badge">
                         {% if b.has_vote %}
-                            <span class="perf-vote {% if b.vote >= 6.5 %}high{% elif b.vote < 5.5 %}low{% endif %}" style="font-size:16px">{{ b.vote|floatformat:1 }}</span>
+                            <span class="perf-vote {% if b.vote >= 6.5 %}high{% elif b.vote < 5.5 %}low{% endif %}" style="font-size:16px"{% if b.player.id in vote_why_map %} data-why-pid="{{ b.player.id }}" data-why-name="{{ b.player.name }}" role="button" tabindex="0" title="Perché questo voto"{% endif %}>{{ b.vote|floatformat:1 }}</span>
                         {% else %}
                             <span class="perf-vote sv" style="font-size:12px">s.v.</span>
                         {% endif %}
@@ -409,7 +409,7 @@
 
                 <div class="perf-vote-badge">
                     {% if item.has_vote %}
-                        <span class="perf-vote {% if item.vote >= 6.5 %}high{% elif item.vote < 5.5 %}low{% endif %}">
+                        <span class="perf-vote {% if item.vote >= 6.5 %}high{% elif item.vote < 5.5 %}low{% endif %}"{% if item.player.id in vote_why_map %} data-why-pid="{{ item.player.id }}" data-why-name="{{ item.player.name }}" role="button" tabindex="0" title="Perché questo voto"{% endif %}>
                             {{ item.vote|floatformat:1 }}
                         </span>
                         {% if item.fantavoto and item.fantavoto != item.vote %}
@@ -446,7 +446,7 @@
                     </div>
                     <div class="perf-vote-badge">
                         {% if b.has_vote %}
-                            <span class="perf-vote {% if b.vote >= 6.5 %}high{% elif b.vote < 5.5 %}low{% endif %}" style="font-size:16px">{{ b.vote|floatformat:1 }}</span>
+                            <span class="perf-vote {% if b.vote >= 6.5 %}high{% elif b.vote < 5.5 %}low{% endif %}" style="font-size:16px"{% if b.player.id in vote_why_map %} data-why-pid="{{ b.player.id }}" data-why-name="{{ b.player.name }}" role="button" tabindex="0" title="Perché questo voto"{% endif %}>{{ b.vote|floatformat:1 }}</span>
                         {% else %}
                             <span class="perf-vote sv" style="font-size:12px">s.v.</span>
                         {% endif %}
@@ -509,6 +509,7 @@ function switchLiveTeamTab(tab) {
     }
 }
 </script>
+{% include "auctions/_vote_why.html" with why_map=vote_why_map %}
 
 {% else %}
 <div class="soon">

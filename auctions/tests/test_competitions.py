@@ -296,7 +296,10 @@ class CompetitionsEngineTests(TestCase):
         matched_fx = next(f for f in first_m["fixtures"] if f.id == fx.id)
         self.assertIsNotNone(matched_fx.home_score)
 
-        # Test API endpoint
+        # Test API endpoint (a team of the league, logged in on the app)
+        session = self.client.session
+        session["participant_id"] = fx.home_id
+        session.save()
         resp = self.client.get(f"/app/fixture/{fx.id}/detail/")
         self.assertEqual(resp.status_code, 200)
         json_data = resp.json()

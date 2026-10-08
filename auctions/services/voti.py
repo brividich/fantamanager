@@ -201,6 +201,8 @@ def import_voti_giornata(
                     "goals_conceded": row.get("goals_conceded", 0),
                     "yellow": row.get("yellow", False),
                     "red": row.get("red", False),
+                    # Il voto ora è quello del file: niente più dettaglio dell'algoritmo.
+                    "vote_detail": None,
                 }
             )
             if created:

@@ -17,6 +17,7 @@ from django.utils import timezone
 from ..models import Giornata, Player, PlayerPerformance, Season
 from ..providers import apifootball
 from ..providers.importers import _find_match
+from . import voto_algo
 from .scoring import compute_giornata
 
 logger = logging.getLogger("auctions.voti_live")
@@ -80,15 +81,31 @@ def fetch_apifootball_live(giornata_num: int) -> List[Dict[str, Any]]:
 
 
 def fetch_simulation_live(giornata_num: int) -> List[Dict[str, Any]]:
-    """Generate realistic live provisional ratings for testing and off-hours demonstration."""
+    """Generate realistic live provisional ratings for testing and off-hours demonstration.
+
+    Le squadre di Serie A dei giocatori si affrontano a coppie: ogni riga ha
+    minuti e risultato della squadra (``team_goals_for``/``team_goals_against``),
+    così anche il voto algoritmico si prova senza chiave API."""
     import random
-    rows = []
     sample_players = list(Player.objects.filter(abroad_list=False).values("name", "team", "role")[:80])
+    clubs = sorted({p["team"] or "" for p in sample_players})
+    # Coppie di club; un club spaiato gioca contro un avversario fuori elenco.
+    result = {}
+    for i in range(0, len(clubs), 2):
+        home = clubs[i]
+        away = clubs[i + 1] if i + 1 < len(clubs) else None
+        gh, ga = random.choice([0, 1, 1, 2, 2, 3]), random.choice([0, 0, 1, 1, 2])
+        result[home] = (gh, ga)
+        if away is not None:
+            result[away] = (ga, gh)
+    rows = []
     for p in sample_players:
         has_played = random.random() > 0.15
         role = p.get("role") or "A"
+        gf, gc = result.get(p["team"] or "", (0, 0))
         if not has_played:
             vote = None
+            minutes = 0
             goals = 0
             assists = 0
             yellow = False
@@ -96,8 +113,9 @@ def fetch_simulation_live(giornata_num: int) -> List[Dict[str, Any]]:
         else:
             base = Decimal(random.choice(["5.5", "6.0", "6.0", "6.5", "6.5", "7.0", "7.5", "5.0"]))
             vote = base
-            goals = 1 if role in ("A", "C") and random.random() < 0.20 else 0
-            assists = 1 if role in ("C", "D") and random.random() < 0.15 else 0
+            minutes = 90 if role == "P" else random.choice([90, 90, 90, 90, 80, 70, 60, 30, 15])
+            goals = 1 if role in ("A", "C") and gf and random.random() < 0.20 else 0
+            assists = 1 if role in ("C", "D") and gf and random.random() < 0.15 else 0
             yellow = random.random() < 0.18
             red = random.random() < 0.02
         rows.append({
@@ -105,8 +123,11 @@ def fetch_simulation_live(giornata_num: int) -> List[Dict[str, Any]]:
             "team": p["team"],
             "role": role,
             "vote": vote,
+            "minutes": minutes,
+            "team_goals_for": gf,
+            "team_goals_against": gc,
             "goals": goals,
-            "goals_conceded": 1 if role == "P" and random.random() < 0.5 else 0,
+            "goals_conceded": gc if role == "P" and minutes else 0,
             "own_goals": 0,
             "pen_scored": 0,
             "pen_missed": 0,
@@ -264,6 +285,10 @@ class LiveSyncManager:
 
         with transaction.atomic():
             for season in seasons:
+                # Una sola chiamata API per giornata: il voto si sceglie qui,
+                # lega per lega, secondo la sua fonte del voto base.
+                algo_rules = (voto_algo.algo_rules_for(season)
+                              if voto_algo.is_algo_source(voto_algo.vote_source_for(season)) else None)
                 giornata, _ = Giornata.objects.get_or_create(
                     season=season, number=target_num,
                     defaults={"status": Giornata.Status.LIVE}
@@ -290,8 +315,14 @@ class LiveSyncManager:
                         continue
                     claimed_ids.add(p.pk)
 
-                    raw_vote = r.get("vote")
-                    final_vote = round_live_vote(raw_vote) if (is_provisional and raw_vote is not None) else raw_vote
+                    if algo_rules is not None:
+                        # Il ruolo è quello della lega (P/D/C/A, anche in Mantra), non dell'API.
+                        final_vote, detail = voto_algo.algo_vote(r, p.role, algo_rules)
+                        source = voto_algo.ALGO_LIVE_SOURCE
+                    else:
+                        raw_vote = r.get("vote")
+                        final_vote = round_live_vote(raw_vote) if (is_provisional and raw_vote is not None) else raw_vote
+                        detail, source = None, self.provider
 
                     perf, _ = PlayerPerformance.objects.update_or_create(
                         giornata=giornata,
@@ -308,8 +339,9 @@ class LiveSyncManager:
                             "yellow": r.get("yellow", False),
                             "red": r.get("red", False),
                             "is_live": is_provisional,
-                            "live_source": self.provider,
+                            "live_source": source,
                             "live_updated_at": now,
+                            "vote_detail": detail,
                         }
                     )
                     total_updated += 1
@@ -338,14 +370,22 @@ class LiveSyncManager:
 
         ``leagues`` limits it to those leagues: a matchday number is not the
         same weekend everywhere, so one league closing its giornata 5 must not
-        close everybody else's. None = every league (Supervisor)."""
-        giornate = Giornata.objects.filter(number=giornata_num)
+        close everybody else's. None = every league (Supervisor).
+
+        Una lega con il voto algoritmico definitivo chiude sui voti
+        dell'algoritmo così come sono (restano ``live_source="algoritmico"``),
+        senza aspettare un file."""
+        giornate = Giornata.objects.filter(number=giornata_num).select_related("season")
         if leagues is not None:
             giornate = giornate.filter(season__league__in=leagues)
         count = 0
         with transaction.atomic():
             for g in giornate:
-                PlayerPerformance.objects.filter(giornata=g).update(
+                perfs = PlayerPerformance.objects.filter(giornata=g)
+                if voto_algo.vote_source_for(g.season) == "algoritmico":
+                    perfs.filter(live_source=voto_algo.ALGO_LIVE_SOURCE).update(is_live=False)
+                    perfs = perfs.exclude(live_source=voto_algo.ALGO_LIVE_SOURCE)
+                perfs.update(
                     is_live=False,
                     live_source="official_consolidated"
                 )
