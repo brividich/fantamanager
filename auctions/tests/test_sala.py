@@ -9,7 +9,7 @@ from decimal import Decimal
 from unittest import mock
 
 from django.contrib.auth.models import User
-from django.test import Client, TestCase
+from django.test import Client, TestCase, TransactionTestCase
 from django.urls import reverse
 
 from ..models import League, Participant, Player, RosterLog
@@ -412,7 +412,7 @@ class TunnelRestartTests(TestCase):
         again.assert_not_called()
 
 
-class LiveSocketAccessTests(TestCase):
+class LiveSocketAccessTests(TransactionTestCase):
     """Con l'asta raggiungibile da internet la connessione in tempo reale
     accetta solo squadre dell'asta, chi gestisce la lega e il maxischermo."""
 
