@@ -58,6 +58,8 @@ Serve solo al pulsante «Rileva» dei giocatori usciti dalla Serie A (pagina Con
    APIFOOTBALL_KEY=la_tua_chiave
    ```
    La chiave la trovi nella dashboard di api-sports.io (*Account → My Access*).
+   Se il `.env` ha una riga `DJANGO_SECRET_KEY=` con un valore d'esempio, lasciala
+   vuota: la chiave vera la genera il container e la tiene in `data/.secret_key`.
 4. In **Container Manager → Progetto → fantasy-contracts** premi **Azione → Compila**
    (o *Arresta* e poi *Avvia*): Docker rilegge il `.env` solo ricreando il container.
 

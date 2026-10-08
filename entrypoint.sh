@@ -12,7 +12,16 @@ export PUBLIC_TOKENS_REQUIRED="${PUBLIC_TOKENS_REQUIRED:-True}"
 
 # The secret key signs sessions and password-reset links: it must be secret
 # and stable across restarts. Without one from the environment, generate it
-# once and keep it in the persistent data volume.
+# once and keep it in the persistent data volume. A key copied from one of the
+# repository's example files is public: it counts as no key at all.
+case "$DJANGO_SECRET_KEY" in
+    change-this-to-a-secure-random-key-in-production|dev-insecure-change-me|\
+    dev-insecure-change-me-before-anything-public|fantamanager-secret-key-production-change-me)
+        echo "[Entrypoint] ATTENZIONE: DJANGO_SECRET_KEY e' un valore d'esempio del repository pubblico."
+        echo "[Entrypoint] La ignoro e uso una chiave generata (./data/.secret_key). Toglila dal file .env."
+        DJANGO_SECRET_KEY=""
+        ;;
+esac
 if [ -z "$DJANGO_SECRET_KEY" ]; then
     KEY_FILE=/app/data/.secret_key
     if [ ! -s "$KEY_FILE" ]; then
