@@ -261,6 +261,10 @@ if _HAS_WHITENOISE:
 # MEDIA_ROOT is overridable so the packaged (PyInstaller) app can write uploads
 # to a user-writable data folder instead of the read-only bundle.
 MEDIA_URL  = "media/"
+# The league's standings page, read from the URL the admin gives (Fantapazz,
+# Fantacalcio…). It is scraping of a third-party site: a hosted service can
+# switch it off and keep the manual entry.
+FM_REMOTE_STANDINGS = os.getenv("FM_REMOTE_STANDINGS", "True").lower() in ("1", "true", "yes")
 # Largest request body accepted (uploads included): 25 MB by default.
 FM_MAX_REQUEST_BYTES = int(os.getenv("FM_MAX_REQUEST_BYTES", str(25 * 1024 * 1024)))
 MEDIA_ROOT = Path(os.getenv("FANTAMANAGER_MEDIA_ROOT") or (BASE_DIR / "media"))

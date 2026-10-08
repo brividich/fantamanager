@@ -174,3 +174,50 @@ class TeamCodeTests(TestCase):
         codes = {generate_access_code() for _ in range(50)}
         self.assertEqual(len(codes), 50)
         self.assertTrue(all(len(c) == 8 for c in codes))
+
+
+class StandingsUrlTests(TestCase):
+    """The standings link is typed by an admin and fetched by the server: it
+    must never reach the server's own network."""
+
+    def setUp(self):
+        self.league = League.objects.create(name="Lega")
+        Participant.objects.create(league=self.league, display_name="Alfa")
+        self.fetched = []
+
+    def _get(self, url, **kwargs):
+        self.fetched.append(url)
+
+        class Resp:
+            status_code = 200
+            headers = {}
+            text = "<table><tr><td>Alfa</td></tr></table>"
+
+            def raise_for_status(self):
+                pass
+
+        return Resp()
+
+    @staticmethod
+    def _resolve(table):
+        def resolve(host, port):
+            return [(None, None, None, "", (table[host], 0))]
+        return resolve
+
+    def _fetch(self, url, table):
+        from ..providers.standings import fetch_remote_ranking
+
+        self.league.standings_url = url
+        return fetch_remote_ranking(self.league, get=self._get, resolve=self._resolve(table))
+
+    def test_private_and_metadata_addresses_are_refused(self):
+        for url, ip in (("http://db:5432/", "172.18.0.2"), ("http://meta/latest", "169.254.169.254"),
+                        ("http://local/", "127.0.0.1"), ("file:///etc/passwd", "8.8.8.8")):
+            from urllib.parse import urlsplit
+
+            host = urlsplit(url).hostname or "x"
+            self.assertIsNone(self._fetch(url, {host: ip, "x": ip}), url)
+        self.assertEqual(self.fetched, [])
+
+    def test_a_public_page_is_read(self):
+        self.assertEqual(len(self._fetch("https://example.com/classifica", {"example.com": "93.184.216.34"})), 1)
