@@ -92,6 +92,10 @@ def target_giornata(league):
     la 5, la 3 non si schiera piu'. None se la lega non ha calendario."""
     if league is None:
         return None
+    # A deadline passed while nobody ran the scheduler: lock it now, as it
+    # would have been, before deciding which giornata is open.
+    from .scheduler import lock_due_giornate
+    lock_due_giornate(league=league)
     giornate = Giornata.objects.filter(season__league=league, season__is_current=True)
     started = giornate.exclude(status__in=EDITABLE).order_by("-number").values_list("number", flat=True).first()
     upcoming = giornate.filter(status__in=EDITABLE)

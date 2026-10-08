@@ -7,7 +7,25 @@
     <h1>Formazione</h1>
     <p>{% if giornata %}<b>Giornata {{ giornata.number }}</b> · {% endif %}{% if is_mantra %}Mantra · {% endif %}Modulo {{ module }} ·
        {{ starters_count }}/{{ starters_target }} titolari schierati</p>
+    {% if giornata.starts_at %}<p class="fz-note" id="fz-deadline" data-deadline="{{ giornata.starts_at|date:'c' }}">⏰ Si blocca il <b>{{ giornata.starts_at|date:"l j F, H:i" }}</b> <span id="fz-countdown"></span></p>{% endif %}
     {% if giornata %}<p class="fz-note">Vale per la Giornata {{ giornata.number }} e resta per le successive finché non la cambi. Quando la giornata parte la formazione si blocca.</p>{% endif %}
 </div>
 {% include "auctions/_formation_pitch.html" %}
+{% if giornata.starts_at %}
+<script>
+    // Quanto manca alla scadenza: aggiornato ogni minuto.
+    (function () {
+        const box = document.getElementById('fz-deadline'), out = document.getElementById('fz-countdown');
+        if (!box || !out) return;
+        const at = new Date(box.dataset.deadline).getTime();
+        function tick() {
+            const left = Math.floor((at - Date.now()) / 60000);
+            if (left <= 0) { out.textContent = '· scaduta: ricarica la pagina'; return; }
+            const d = Math.floor(left / 1440), h = Math.floor(left % 1440 / 60), m = left % 60;
+            out.textContent = '· mancano ' + (d ? d + 'g ' : '') + (d || h ? h + 'h ' : '') + m + 'm';
+        }
+        tick(); setInterval(tick, 60000);
+    })();
+</script>
+{% endif %}
 {% endblock %}

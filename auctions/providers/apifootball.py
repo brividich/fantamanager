@@ -450,6 +450,29 @@ def _num(value):
         return 0
 
 
+def round_kickoffs(*, season=None, get=requests.get):
+    """{numero giornata di Serie A: calcio d'inizio della sua prima partita}
+    per tutta la stagione, con una sola richiesta."""
+    from datetime import datetime
+
+    season = season or _season()
+    first = {}
+    for f in _get("/fixtures", {"league": SERIE_A, "season": season}, get=get):
+        raw_round = ((f.get("league") or {}).get("round") or "")
+        number = raw_round.rsplit("-", 1)[-1].strip()
+        when = (f.get("fixture") or {}).get("date")
+        if not number.isdigit() or not when:
+            continue
+        try:
+            kickoff = datetime.fromisoformat(when)
+        except ValueError:
+            continue
+        n = int(number)
+        if n not in first or kickoff < first[n]:
+            first[n] = kickoff
+    return first
+
+
 def matchday_fixtures(round_number, *, season=None, get=requests.get):
     """[(fixture_id, status)] delle partite della giornata ``round_number``."""
     season = season or _season()

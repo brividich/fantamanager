@@ -79,6 +79,13 @@ elif [ -n "$DJANGO_DB_PATH" ] && [ ! -f "$DJANGO_DB_PATH" ] && [ -f "/app/db.sql
     cp /app/db.sqlite3 "$DJANGO_DB_PATH"
 fi
 
+# The scheduler container shares the image and the database: the app's
+# container migrates, creates the superadmin and collects the static files.
+if [ -n "$FM_SCHEDULER_ONLY" ]; then
+    echo "[Entrypoint] Avvio dello scheduler..."
+    exec "$@"
+fi
+
 # Run database migrations
 echo "[Entrypoint] Applying database migrations..."
 python manage.py migrate --noinput

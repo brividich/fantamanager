@@ -94,6 +94,9 @@ class Giornata(models.Model):
     number     = models.PositiveIntegerField()
     serie_a_matchday = models.PositiveIntegerField(null=True, blank=True)
     status     = models.CharField(max_length=10, choices=Status.choices, default=Status.SCHEDULED)
+    # Deadline for the lineups: the scheduler locks them when it passes (the
+    # first Serie A kick-off of the round, or a time the admin chose).
+    starts_at  = models.DateTimeField(null=True, blank=True)
     locked_at  = models.DateTimeField(null=True, blank=True)
     scored_at  = models.DateTimeField(null=True, blank=True)
 

@@ -68,6 +68,35 @@ services:
       retries: 3
       start_period: 20s
 
+  # Scheduler: chiude i lotti dell'asta anche senza nessuno collegato, apre e
+  # chiude le sessioni di mercato alle loro date e blocca le formazioni alla
+  # scadenza della giornata. Stessa immagine e stesso database dell'app.
+  scheduler:
+    container_name: fantamanager-scheduler
+    image: ${DOCKER_IMAGE:-ghcr.io/brividich/fantamanager:latest}
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-}
+      - DJANGO_DEBUG=${DJANGO_DEBUG:-False}
+      - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS:-*}
+      - POSTGRES_DB=${POSTGRES_DB:-fantamanager}
+      - POSTGRES_USER=${POSTGRES_USER:-fantamanager}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-fantamanager_secret_pass}
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - APIFOOTBALL_KEY=${APIFOOTBALL_KEY:-}
+      # Niente migrazioni, superadmin o static: li fa il container dell'app.
+      - FM_SCHEDULER_ONLY=1
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    command: ["python", "manage.py", "run_scheduler"]
+    healthcheck:
+      disable: true
+
   # Backup del database: pg_dump della stessa versione del server, all'avvio,
   # ogni BACKUP_EVERY_HOURS ore e entro un minuto da quando l'app lo chiede
   # (fine asta). File pg-AAAAMMGG-HHMMSS.sql.gz (ora UTC) in ./backups; tiene i
