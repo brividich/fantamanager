@@ -33,6 +33,8 @@ class Reject:
     SALARY_CAP            = "salary_cap"
     # Portieri di troppe squadre di Serie A (regolamento 2.02).
     GK_CLUBS              = "gk_clubs"
+    # Il database non ha risposto in tempo (consumers.receive).
+    SERVER_BUSY           = "server_busy"
 
 
 # Italian labels for every code the UI can receive — rejected bids plus the
@@ -60,6 +62,7 @@ ERROR_LABELS = {
     Reject.SEALED_CLOSED:         "Buste chiuse, tempo scaduto",
     Reject.SEALED_TOO_LOW:        "Offerta sotto il minimo di questo scrutinio",
     Reject.SEALED_NOT_CONTENDER:  "Allo spareggio partecipa solo chi ha pareggiato",
+    Reject.SERVER_BUSY:           "Il server era occupato e l'offerta non è passata: rilancia di nuovo",
     # View-level errors.
     "no_session":         "Sessione scaduta, rientra",
     "no_participant":     "Nessuna squadra selezionata",

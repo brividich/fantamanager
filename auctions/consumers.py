@@ -6,6 +6,8 @@ import logging
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 from django.conf import settings
+from django.db import DatabaseError
+from django.utils import timezone
 
 from . import backup, health, services
 from .models import Auction, Participant
@@ -119,12 +121,16 @@ class RoomTicker:
         backup.backup_database_async(
             reason=backup.PERIODIC, min_interval=self._BACKUP_INTERVAL_SECONDS,
         )
-        sealed = await database_sync_to_async(services.sealed_tick)(self.auction_id)
+        # Ogni chiamata dice quando il ticker ha chiesto: un'attesa in coda
+        # dietro al database fermo non deve far scadere il lotto (stall.py).
+        sealed = await database_sync_to_async(services.sealed_tick)(
+            self.auction_id, as_of=timezone.now(),
+        )
         if sealed is not None:
             await self._broadcast_state()
 
         closed = await database_sync_to_async(services.close_if_expired)(
-            self.auction_id
+            self.auction_id, as_of=timezone.now(),
         )
         if closed is not None:
             await self._broadcast_state()
@@ -260,6 +266,9 @@ class AuctionConsumer(AsyncWebsocketConsumer):
         return auction.league_id is not None and user_can_manage_league(user, auction.league)
 
     async def receive(self, text_data=None, bytes_data=None):
+        # Quando il messaggio è arrivato: un'offerta conta da qui, anche se il
+        # database la scrive più tardi (services/stall.py).
+        received_at = timezone.now()
         # Anything a client sends is untrusted: a frame that is not a JSON
         # object is ignored instead of raising and dropping the connection.
         try:
@@ -269,11 +278,24 @@ class AuctionConsumer(AsyncWebsocketConsumer):
         if not isinstance(data, dict):
             return
         action = data.get("action")
+        try:
+            await self._dispatch(action, data, received_at)
+        except DatabaseError as exc:
+            # Il database non ha risposto (bloccato oltre l'attesa, disco
+            # pieno...): la connessione resta su e la squadra sa cosa fare,
+            # invece di vedersi cadere il telefono a metà lotto.
+            logger.exception("auction %s: %s non riuscito sul database", self.auction_id, action)
+            health.record_ticker_error(self.auction_id, exc)
+            if action == "bid":
+                await self.send_json({"type": "bid_rejected", "reason": services.Reject.SERVER_BUSY})
+            elif action == "sealed_bid":
+                await self.send_json({"type": "sealed_rejected", "reason": services.Reject.SERVER_BUSY})
 
+    async def _dispatch(self, action, data, received_at):
         if action == "bid":
-            await self._handle_bid(data)
+            await self._handle_bid(data, received_at)
         elif action == "sealed_bid":
-            await self._handle_sealed_bid(data)
+            await self._handle_sealed_bid(data, received_at)
         elif action == "sync":
             state = await self._state()
             # The client numbers its syncs to time the round trip (and correct
@@ -293,7 +315,7 @@ class AuctionConsumer(AsyncWebsocketConsumer):
     def _bid_allowed(self):
         return self._bid_bucket.take(asyncio.get_event_loop().time())
 
-    async def _handle_bid(self, data):
+    async def _handle_bid(self, data, received_at=None):
         if not self.participant_id:
             await self.send_json({"type": "bid_rejected", "reason": "no_session"})
             return
@@ -314,7 +336,7 @@ class AuctionConsumer(AsyncWebsocketConsumer):
 
         result = await database_sync_to_async(services.place_bid)(
             self.auction_id, self.participant_id, increment,
-            user_agent=user_agent, ip_address=ip,
+            user_agent=user_agent, ip_address=ip, received_at=received_at,
         )
 
         if result.accepted:
@@ -337,7 +359,7 @@ class AuctionConsumer(AsyncWebsocketConsumer):
 
     # --- Asta alle buste ----------------------------------------------------
 
-    async def _handle_sealed_bid(self, data):
+    async def _handle_sealed_bid(self, data, received_at=None):
         """La busta di questa squadra per il giro in corso.
 
         Passa dalla stessa socket dei rilanci, ma la risposta è personale: la
@@ -353,6 +375,7 @@ class AuctionConsumer(AsyncWebsocketConsumer):
             return
         result = await database_sync_to_async(services.place_sealed_bid)(
             self.auction_id, self.participant_id, data.get("amount"),
+            received_at=received_at,
         )
         if result.accepted:
             await self.send_json(

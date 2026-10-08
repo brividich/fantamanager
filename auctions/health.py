@@ -12,6 +12,7 @@ import time
 
 _LOCK = threading.Lock()
 _TICKER_ERRORS = {}  # auction_id -> {"at": epoch seconds, "message": str}
+_STALLS = {}         # auction_id -> {"at": epoch seconds, "seconds": float}
 
 # How long a logged tick failure keeps showing as a live warning on the
 # dashboard. Long enough that a regia glancing over a minute later still
@@ -27,6 +28,22 @@ def record_ticker_error(auction_id, message):
 def clear_ticker_error(auction_id):
     with _LOCK:
         _TICKER_ERRORS.pop(int(auction_id), None)
+
+
+def record_stall(auction_id, seconds):
+    """Il database è rimasto fermo e i secondi persi sono tornati al timer
+    (services/stall.py): la regia lo vede per un po' e sa cosa evitare."""
+    with _LOCK:
+        _STALLS[int(auction_id)] = {"at": time.time(), "seconds": float(seconds)}
+
+
+def recent_stall(auction_id):
+    """L'ultimo fermo di questa asta, se è di meno di ERROR_TTL_SECONDS fa."""
+    with _LOCK:
+        entry = _STALLS.get(int(auction_id))
+    if entry is None or time.time() - entry["at"] > ERROR_TTL_SECONDS:
+        return None
+    return entry
 
 
 def live_ticker_errors():

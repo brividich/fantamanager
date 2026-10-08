@@ -11,6 +11,7 @@ from ..models import Auction, Bid, Participant, Player
 from .common import (
     Reject, BidResult, _normalize_increment, _check_roster_limits, participates_in,
 )
+from . import stall
 from .sealed import _SEALED_FIELDS, _sealed_triggered, _open_sealed
 
 logger = logging.getLogger("auctions.bidding")
@@ -39,15 +40,28 @@ def rescinded_rebuy_blocked(auction, participant):
 
 
 @transaction.atomic
-def place_bid(auction_id, participant_id, increment, *, user_agent="", ip_address=None):
-    """Register a rilancio, or reject it with a single, predictable reason."""
+def place_bid(auction_id, participant_id, increment, *, user_agent="", ip_address=None,
+              received_at=None):
+    """Register a rilancio, or reject it with a single, predictable reason.
+
+    ``received_at`` is when the offer reached the server (the live socket
+    stamps it on arrival). On the PC every database call waits in one queue:
+    an import or an antivirus holding the file can keep a bid waiting for
+    seconds, and the timer must not run out on it meanwhile. An offer that
+    arrived in time counts; the anti-snipe then gives the others their
+    seconds back from now, as if the wait had not happened.
+    """
     now = timezone.now()
+    arrived = min(received_at, now) if received_at is not None else now
 
     try:
         auction = Auction.objects.select_for_update().get(pk=auction_id)
     except Auction.DoesNotExist:
         logger.warning("Rilancio rifiutato: asta #%s non trovata", auction_id)
         return BidResult(False, bid=None, reason=Reject.AUCTION_NOT_FOUND)
+    moved = stall.give_back(auction, received_at, now)
+    if moved:
+        auction.save(update_fields=moved)
 
     try:
         participant = Participant.objects.select_for_update().get(pk=participant_id)
@@ -84,7 +98,7 @@ def place_bid(auction_id, participant_id, increment, *, user_agent="", ip_addres
     if auction.status != Auction.Status.LIVE:
         return _reject(Reject.NOT_LIVE)
 
-    if auction.ends_at is not None and auction.is_expired(now):
+    if auction.ends_at is not None and auction.is_expired(arrived):
         return _reject(Reject.EXPIRED)
 
     # Alle buste non si grida più: il lotto è passato allo scrutinio segreto e
@@ -132,12 +146,12 @@ def place_bid(auction_id, participant_id, increment, *, user_agent="", ip_addres
     if auction.ends_at is None:
         remaining_at_bid = None
     else:
-        remaining_at_bid = max(0.0, round((auction.ends_at - now).total_seconds(), 3))
+        remaining_at_bid = max(0.0, round((auction.ends_at - arrived).total_seconds(), 3))
 
     bid = Bid.objects.create(
         auction=auction, participant=participant,
         amount=new_amount, increment=inc,
-        server_received_at=now, accepted=True,
+        server_received_at=arrived, accepted=True,
         cycle=auction.current_cycle,
         remaining_at_bid=remaining_at_bid,
         user_agent=(user_agent or "")[:300], ip_address=ip_address,
@@ -172,7 +186,8 @@ def place_bid(auction_id, participant_id, increment, *, user_agent="", ip_addres
     extended = False
     if auction.antisnipe_seconds and auction.ends_at is not None:
         remaining = (auction.ends_at - now).total_seconds()
-        if 0 < remaining < auction.antisnipe_seconds:
+        # remaining <= 0: arrived in time but reached only now (see above).
+        if remaining < auction.antisnipe_seconds:
             auction.ends_at = now + timedelta(seconds=auction.antisnipe_seconds)
             if "ends_at" not in fields:
                 fields.append("ends_at")

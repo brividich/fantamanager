@@ -205,12 +205,16 @@ else:
             #   busy timeout   -> wait for the lock instead of failing at once
             #   IMMEDIATE      -> take the write lock at BEGIN, so a read-then-
             #                     write transaction cannot deadlock on upgrade
+            #   synchronous FULL -> every commit is on disk before the answer:
+            #                     a power cut in the sala never loses a player
+            #                     already knocked down (NORMAL could lose the last
+            #                     commits). About 1-2 ms per bid on an SSD.
             "OPTIONS": {
                 "timeout": 30,
                 "transaction_mode": "IMMEDIATE",
                 "init_command": (
                     "PRAGMA journal_mode=WAL;"
-                    "PRAGMA synchronous=NORMAL;"
+                    "PRAGMA synchronous=FULL;"
                     "PRAGMA busy_timeout=30000;"
                 ),
             },
