@@ -69,6 +69,6 @@ and envelopes open in its own screen (market/session.html).
 {% block mk_after %}
 {% if current_league %}
 {# Lo stesso wizard «Nuovo Mercato» dell'app mobile: un solo file per web e app. #}
-{% include "auctions/_market_wizard.html" with wz_league=current_league wz_from="console" wz_mail_ready=mail_ready wz_autoopen=open_wizard %}
+{% include "auctions/_market_wizard.html" with wz_league=current_league wz_from=wz_from|default:"console" wz_mail_ready=mail_ready wz_autoopen=open_wizard %}
 {% endif %}
 {% endblock %}

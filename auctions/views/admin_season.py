@@ -9,7 +9,10 @@ from django.views.decorators.http import require_POST
 
 from ..models import CapPhase, DecreeAward, League, LeagueRanking, Participant
 from ..services import salary, season
-from .common import current_league, manageable_leagues, staff_member_required, target_league, user_can_manage_league
+from .common import (
+    current_league, manageable_leagues, page_frame, safe_next, staff_member_required, target_league,
+    user_can_manage_league,
+)
 
 _FORBIDDEN = "Non hai i permessi per gestire la stagione di questa lega."
 _TABLES = ("base_by_rank", "winter_by_rank", "decree_mid", "decree_final")
@@ -45,6 +48,7 @@ def admin_season(request):
         "current_league": league,
         "console_section": "Stagione",
         "console_active": "season",
+        **page_frame(request, league, own_messages=True),
     }
     if league is not None:
         teams = list(Participant.objects.filter(league=league, is_active=True).order_by("display_name"))
@@ -169,4 +173,4 @@ def admin_season_action(request):
             messages.error(request, "Azione non riconosciuta.")
     except (ValueError, StopIteration, json.JSONDecodeError) as exc:
         messages.error(request, str(exc) or "Dati non validi.")
-    return redirect(_url(league))
+    return redirect(safe_next(request, _url(league)))

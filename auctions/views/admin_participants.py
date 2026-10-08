@@ -48,10 +48,9 @@ from .common import (
 def admin_participants(request):
     """Teams of one league: credits, roster size and the join link/QR to hand out.
 
-    Every row carries the team's tokenised join link, which signs whoever
-    opens it in as that team: only a user who manages the league sees them.
+    The screen is ``_teams_manage.html``, the same partial the app's Regia
+    shows (``app_regia_teams``); the data comes from ``teams_manage_context``.
     """
-    leagues = manageable_leagues(request.user)
     current_league = None
     raw = (request.GET.get("league") or "").strip()
     if raw.isdigit():
@@ -61,6 +60,23 @@ def admin_participants(request):
     if current_league is None:
         current_league = target_league(request)
 
+    ctx = teams_manage_context(request, current_league)
+    ctx.update({
+        "leagues": manageable_leagues(request.user),
+        "console_section": "Squadre",
+        "console_active": "teams",
+        "selected": current_auction(request, current_league),
+    })
+    return render(request, "auctions/admin_participants.html", ctx)
+
+
+def teams_manage_context(request, current_league):
+    """Everything ``_teams_manage.html`` shows, for the console and the app.
+
+    Every row carries the team's tokenised join link, which signs whoever
+    opens it in as that team: the callers only pass a league the user manages
+    (``None`` lists every team, and only a superuser gets that far).
+    """
     participants = Participant.objects.all().order_by("display_name")
     auctions = Auction.objects.exclude(status=Auction.Status.DRAFT)
     if current_league is not None:
@@ -111,8 +127,7 @@ def admin_participants(request):
     # lands on, and then forgotten: only the login's hash is stored.
     secret = request.session.pop(SESSION_ACCOUNT_SECRET_KEY, None) if accounts_ok else None
 
-    return render(request, "auctions/admin_participants.html", {
-        "leagues": leagues,
+    return {
         "current_league": current_league,
         "rows": rows,
         "accounts_ok": accounts_ok,
@@ -120,12 +135,9 @@ def admin_participants(request):
         "portal_login_url": remote.best_base_url(request).rstrip("/") + reverse("app_login"),
         "target_auction": target,
         "remote_on": live and remote.is_on(),
-        "console_section": "Squadre",
-        "console_active": "teams",
-        "selected": current_auction(request, current_league),
         "mail_ready": mail.is_ready(),
         "reachable": sum(1 for r in rows if r["p"].contact_email and r["p"].is_active),
-    })
+    }
 
 
 @staff_member_required

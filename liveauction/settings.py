@@ -29,6 +29,8 @@ _PUBLIC_PLACEHOLDER_KEYS = {
     "",
     "dev-insecure-change-me-before-anything-public",
     "fantamanager-secret-key-production-change-me",
+    "dev-insecure-change-me",                                 # .env.example
+    "change-this-to-a-secure-random-key-in-production",       # vecchio .env.docker.example
 }
 if not DEBUG and SECRET_KEY in _PUBLIC_PLACEHOLDER_KEYS:
     from django.core.exceptions import ImproperlyConfigured

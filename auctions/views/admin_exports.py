@@ -3,7 +3,7 @@ from django.http import HttpResponse, HttpResponseForbidden
 from django.shortcuts import render
 
 from .. import exporters
-from .common import current_auction, manageable_leagues, staff_member_required, target_league
+from .common import current_auction, manageable_leagues, page_frame, staff_member_required, target_league
 
 
 def _export_league(request):
@@ -33,6 +33,7 @@ def admin_export(request):
     league = _export_league(request)
     standings = exporters.build_standings(league) if _all_leagues_allowed(request, league) else []
     return render(request, "auctions/export_recap.html", {
+        **page_frame(request, league),
         "league": league,
         "leagues": list(manageable_leagues(request.user)),
         "current_league": league,

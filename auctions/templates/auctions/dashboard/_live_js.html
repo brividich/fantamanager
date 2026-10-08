@@ -4,6 +4,7 @@
     const AUCTION_ID = {{ selected.id }};
     let state = JSON.parse(document.getElementById("fm-state-data").textContent);
     let timerBase = { remaining: state ? state.remaining_seconds : 0, at: performance.now() };
+    let live = null;   // la connessione all'asta (fmLiveSocket, base.html)
     let lastPrice = state ? state.current_price : null;
     // The live websocket state never carries per-team credit/roster figures
     // (broadcasting the whole league's standings to every phone in the room
@@ -58,7 +59,8 @@
         if (wasStatus === "CLOSED" && s.status === "LIVE") soundReset();
         if (wasStatus === "LIVE" && s.status === "CLOSED" && s.best_bidder) soundSold();
         state = s;
-        timerBase = { remaining: s.remaining_seconds, at: performance.now() };
+        // Lo stato è partito dal server un attimo fa: il timer parte da allora.
+        timerBase = { remaining: s.remaining_seconds, at: performance.now() - (live ? live.lagMs() : 0) };
         renderTurn(s);
         $priceVal.textContent = money(s.current_price);
         if (prev !== null && prev !== s.current_price) {
@@ -835,22 +837,17 @@
             `<td class="col-ua"><span style="color:var(--live)">accettata</span></td><td></td>`;
         tbody.prepend(tr);
     }
-    function connect() {
-        const socket = new WebSocket(auctionSocketUrl(AUCTION_ID));
-        socket.onmessage = (e) => {
-            const msg = JSON.parse(e.data);
-            if (msg.type === "state") applyState(msg);
-            else if (msg.type === "bid_new") { addBidRow(msg.bid); if (msg.extended) flashExtended(); }
-            else if (msg.type === "participant_offline")
-                showAlert("📡", `${msg.participant} si è disconnesso`, 7000);
-            else if (msg.type === "participant_warning" && msg.kind === "latency")
-                showAlert("⚠️", `${msg.participant} — latenza alta (${msg.ping} ms)`, 6000);
-            else if (msg.type === "reaction") spawnReaction(msg.emoji);
-        };
-        socket.onclose = () => setTimeout(connect, 1500);
+    function onLiveMessage(msg) {
+        if (msg.type === "state") applyState(msg);
+        else if (msg.type === "bid_new") { addBidRow(msg.bid); if (msg.extended) flashExtended(); }
+        else if (msg.type === "participant_offline")
+            showAlert("📡", `${msg.participant} si è disconnesso`, 7000);
+        else if (msg.type === "participant_warning" && msg.kind === "latency")
+            showAlert("⚠️", `${msg.participant} — latenza alta (${msg.ping} ms)`, 6000);
+        else if (msg.type === "reaction") spawnReaction(msg.emoji);
     }
     if (state) applyState(state);
-    connect();
+    live = fmLiveSocket(AUCTION_ID, { onMessage: onLiveMessage });
     requestAnimationFrame(tick);
 
     // Auction settings modal

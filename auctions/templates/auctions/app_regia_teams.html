@@ -1,0 +1,13 @@
+{% extends "auctions/app_base.html" %}
+{% comment %}
+Le squadre della lega gestite dall'app (Regia). Il contenuto è lo stesso
+partial della console (_teams_manage.html): qui c'è solo la cornice.
+{% endcomment %}
+{% block title %}Squadre — Regia{% endblock %}
+{% block mainclass %}wide{% endblock %}
+{% block app %}
+<div class="fm-onerow noprint" style="margin-bottom:6px">
+    <a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% url 'app_regia' %}?league={{ current_league.id }}"><svg class="ic"><use href="#i-arrow-left"/></svg> Regia</a>
+</div>
+{% include "auctions/_teams_manage.html" %}
+{% endblock %}

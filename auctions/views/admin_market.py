@@ -31,7 +31,9 @@ from ..services.market import (
 from .common import (
     SESSION_LEAGUE_KEY,
     current_league,
+    in_app,
     manageable_leagues,
+    page_frame,
     staff_member_required,
     target_league,
     user_can_manage_league,
@@ -219,6 +221,9 @@ def _market_page(request, template, active, league, extra):
         "open_wizard": request.GET.get("new") == "1" or request.GET.get("open_wizard") == "1",
         # Choices of the session rules (wizard and _market_rules_fields.html).
         **rule_choices(),
+        **page_frame(request, league, own_messages=True),
+        # «Nuovo Mercato» dall'app torna alla Regia, come quello della Regia.
+        "wz_from": "regia" if in_app(request) else "console",
     }
     ctx.update(extra)
     return render(request, template, ctx)

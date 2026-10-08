@@ -31,6 +31,10 @@ cp .env.docker.example .env
 ```
 *(Se non crei il file, verranno usati i valori predefiniti sicuri con porta 8000).*
 
+Lascia **vuota** la riga `DJANGO_SECRET_KEY=`: al primo avvio il container genera
+una chiave vera e la conserva in `./data/.secret_key`. Un valore copiato da un file
+del repository è pubblico: il container lo ignora e lo segnala nel log.
+
 ### 3. Compila e avvia il container
 ```bash
 docker compose up -d --build

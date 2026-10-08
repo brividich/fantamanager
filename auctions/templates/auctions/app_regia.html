@@ -528,14 +528,14 @@ the same league.
 
     <section class="a-card" aria-labelledby="rg-auctions-h" data-asec="overview">
         <div class="a-label" id="rg-auctions-h"><svg class="ic"><use href="#i-gavel"/></svg> Aste
-            <a href="{% url 'admin_auction_wizard' %}{{ league_q }}" style="margin-left:auto;font-size:11px;letter-spacing:.06em">+ Nuova</a></div>
+            <a href="{% url 'app_regia_auction_wizard' %}{{ league_q }}" style="margin-left:auto;font-size:11px;letter-spacing:.06em">+ Nuova</a></div>
         {% for a in auctions %}
         <a class="a-row" href="{% url 'regia_auction' a.id %}" style="text-decoration:none;color:inherit">
             <span class="nm">{{ a.title }}<small>{{ a.get_flow_mode_display }} · {{ a.created_at|date:"d/m/Y" }}</small></span>
             <span class="status-pill s-{{ a.status }}" style="font-size:9px;padding:4px 9px">{{ a.get_status_display }}</span>
         </a>
         {% empty %}
-        <p class="muted" style="font-size:13px;padding:4px 0">Nessuna asta. <a href="{% url 'admin_auction_wizard' %}{{ league_q }}">Creane una</a>.</p>
+        <p class="muted" style="font-size:13px;padding:4px 0">Nessuna asta. <a href="{% url 'app_regia_auction_wizard' %}{{ league_q }}">Creane una</a>.</p>
         {% endfor %}
         {% if active_auction %}
         <div class="fm-onerow" style="gap:8px;margin-top:10px">
@@ -547,7 +547,7 @@ the same league.
 
     <section class="a-card" aria-labelledby="rg-market-h" data-asec="overview">
         <div class="a-label" id="rg-market-h"><svg class="ic"><use href="#i-mail"/></svg> Mercato
-            <a href="{% url 'admin_market_dashboard' %}{{ league_q }}" style="margin-left:auto;font-size:11px;letter-spacing:.06em">Gestisci</a></div>
+            <a href="{% url 'app_regia_market' %}{{ league_q }}" style="margin-left:auto;font-size:11px;letter-spacing:.06em">Gestisci</a></div>
         {% for s in market_sessions %}
         <a class="a-row" href="{% url 'app_regia_market_session' s.id %}" style="text-decoration:none;color:inherit">
             <span class="nm">{{ s.title }}<small>{{ s.mk_labels.kind }} · {% if s.status == "open" %}{{ s.mk_labels.open }}{% elif s.status == "closed" %}{{ s.mk_labels.todo }}{% elif s.status == "draft" %}Programmata{% else %}{{ s.mk_labels.resolved }}{% endif %}</small></span>
@@ -558,7 +558,7 @@ the same league.
         {% endfor %}
         <div class="fm-onerow" style="gap:8px;margin-top:10px">
             <button type="button" class="fm-btn fm-btn-primary fm-btn-sm" onclick="openMarketWizard()"><svg class="ic"><use href="#i-plus"/></svg> Nuovo Mercato</button>
-            <a class="fm-btn fm-btn-outline fm-btn-sm" href="{% url 'admin_market_buste' %}{{ league_q }}"><svg class="ic"><use href="#i-mail"/></svg> Sessioni in console</a>
+            <a class="fm-btn fm-btn-outline fm-btn-sm" href="{% url 'app_regia_buste' %}{{ league_q }}"><svg class="ic"><use href="#i-mail"/></svg> Tutte le sessioni</a>
         </div>
     </section>
 
@@ -576,7 +576,7 @@ the same league.
 
     <section class="a-card" aria-labelledby="rg-comp-h" data-asec="overview">
         <div class="a-label" id="rg-comp-h"><svg class="ic"><use href="#i-trophy"/></svg> Competizioni & Calendari
-            <a href="{% url 'admin_competitions' %}{{ league_q }}" style="margin-left:auto;font-size:11px;letter-spacing:.06em">Gestisci</a></div>
+            <a href="{% url 'app_regia_competitions' %}{{ league_q }}" style="margin-left:auto;font-size:11px;letter-spacing:.06em">Gestisci</a></div>
         {% for c in competitions %}
         <a class="a-row" href="{% url 'app_lega' %}?comp={{ c.id }}&tab=competizioni" style="text-decoration:none;color:inherit">
             <span class="nm">{{ c.name }}<small>{{ c.get_kind_display }}</small></span>
@@ -587,23 +587,23 @@ the same league.
         {% endfor %}
         <div class="fm-onerow" style="gap:8px;margin-top:10px">
             <a class="fm-btn fm-btn-primary fm-btn-sm" href="{% url 'app_lega' %}?open_comp_wizard=1&tab=competizioni"><svg class="ic"><use href="#i-plus"/></svg> Nuova Competizione</a>
-            <a class="fm-btn fm-btn-outline fm-btn-sm" href="{% url 'admin_competitions' %}{{ league_q }}"><svg class="ic"><use href="#i-table"/></svg> Tabelloni & Calendari</a>
+            <a class="fm-btn fm-btn-outline fm-btn-sm" href="{% url 'app_regia_competitions' %}{{ league_q }}"><svg class="ic"><use href="#i-table"/></svg> Tabelloni & Calendari</a>
         </div>
     </section>
 
     <section class="a-card" aria-labelledby="rg-tools-h" data-asec="tools">
-        <div class="a-label" id="rg-tools-h"><svg class="ic"><use href="#i-gear"/></svg> Strumenti della console</div>
+        <div class="a-label" id="rg-tools-h"><svg class="ic"><use href="#i-gear"/></svg> Strumenti della lega</div>
         <div class="rg-tools">
-            <a class="rg-tool primary" href="{% url 'dashboard_league' app_league.id %}"><svg class="ic"><use href="#i-table"/></svg>Dashboard<small>Rose, crediti, assegnazioni</small></a>
-            <a class="rg-tool" href="{% url 'admin_players' %}{{ league_q }}"><svg class="ic"><use href="#i-users"/></svg>Giocatori<small>Listone e svincolati</small></a>
-            <a class="rg-tool" href="{% url 'admin_competitions' %}{{ league_q }}"><svg class="ic"><use href="#i-trophy"/></svg>Competizioni<small>1vs1, coppe, calendari</small></a>
+            <a class="rg-tool primary" href="{% url 'dashboard_league' app_league.id %}"><svg class="ic"><use href="#i-table"/></svg>Console<small>Dashboard e asta dal vivo</small></a>
+            <a class="rg-tool" href="{% url 'app_regia_players' %}{{ league_q }}"><svg class="ic"><use href="#i-users"/></svg>Giocatori<small>Listone e svincolati</small></a>
+            <a class="rg-tool" href="{% url 'app_regia_competitions' %}{{ league_q }}"><svg class="ic"><use href="#i-trophy"/></svg>Competizioni<small>1vs1, coppe, calendari</small></a>
             <a class="rg-tool" href="{% url 'app_giornate' %}{{ league_q }}"><svg class="ic"><use href="#i-pulse"/></svg>Giornate & Voti<small>Formazioni, voti e calcolo</small></a>
-            <a class="rg-tool" href="{% url 'admin_participants' %}{{ league_q }}"><svg class="ic"><use href="#i-shield"/></svg>Squadre<small>PIN, inviti, loghi</small></a>
-            <a class="rg-tool" href="{% url 'admin_contracts' %}{{ league_q }}"><svg class="ic"><use href="#i-doc"/></svg>Contratti<small>Dadi e rinnovi</small></a>
-            <a class="rg-tool" href="{% url 'admin_season' %}{{ league_q }}"><svg class="ic"><use href="#i-trophy"/></svg>Stagione<small>Economia e passaggi</small></a>
-            <a class="rg-tool" href="{% url 'admin_fantapazz' %}{{ league_q }}"><svg class="ic"><use href="#i-import"/></svg>Importa<small>Rose da file</small></a>
-            <a class="rg-tool" href="{% url 'admin_export' %}{{ league_q }}"><svg class="ic"><use href="#i-export"/></svg>Export<small>Rose in Excel/CSV</small></a>
-            <a class="rg-tool" href="{% url 'admin_config' %}{{ league_q }}"><svg class="ic"><use href="#i-gear"/></svg>Impostazioni<small>Regole della lega</small></a>
+            <a class="rg-tool" href="{% url 'app_regia_teams' %}{{ league_q }}"><svg class="ic"><use href="#i-shield"/></svg>Squadre<small>PIN, inviti, loghi</small></a>
+            <a class="rg-tool" href="{% url 'app_regia_contracts' %}{{ league_q }}"><svg class="ic"><use href="#i-doc"/></svg>Contratti<small>Dadi e rinnovi</small></a>
+            <a class="rg-tool" href="{% url 'app_regia_season' %}{{ league_q }}"><svg class="ic"><use href="#i-trophy"/></svg>Stagione<small>Economia e passaggi</small></a>
+            <a class="rg-tool" href="{% url 'app_regia_import' %}{{ league_q }}"><svg class="ic"><use href="#i-import"/></svg>Importa<small>Rose da file</small></a>
+            <a class="rg-tool" href="{% url 'app_regia_export' %}{{ league_q }}"><svg class="ic"><use href="#i-export"/></svg>Export<small>Rose in Excel/CSV</small></a>
+            <a class="rg-tool" href="{% url 'app_regia_config' %}{{ league_q }}"><svg class="ic"><use href="#i-gear"/></svg>Impostazioni<small>Regole della lega</small></a>
         </div>
     </section>
 </div>

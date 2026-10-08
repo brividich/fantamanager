@@ -45,6 +45,14 @@ class AuctionTickTests(TestCase):
         self.assertEqual(self.auction.status, Auction.Status.LIVE)
 
     def test_the_command_runs_one_pass(self):
+        import time
+
+        from django.db import connection
+
+        # A connection past CONN_MAX_AGE (Postgres keeps them 60 s): one pass
+        # must still run on it, not close it under the caller's transaction.
+        connection.ensure_connection()
+        connection.close_at = time.monotonic() - 1
         out = StringIO()
         call_command("run_scheduler", "--once", stdout=out)
         self.assertIn("auctions", out.getvalue())

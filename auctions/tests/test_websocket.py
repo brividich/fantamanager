@@ -103,6 +103,21 @@ class WebSocketFlowTests(TransactionTestCase):
         self.assertEqual(state["current_price"], "100.00")
         await comm.disconnect()
 
+    async def test_sync_carries_its_number_back(self):
+        """Il client numera i sync per misurare il ritardo: la risposta lo
+        riporta; un numero non intero viene ignorato."""
+        auction = await self._live_auction("Sync")
+        comm = await self._connect(auction.id)
+        await comm.receive_json_from()  # initial state
+        await comm.send_json_to({"action": "sync", "sync_id": 7})
+        state = await self._await_type(comm, "state")
+        self.assertEqual(state["sync_id"], 7)
+        for junk in ("7", True, None, 1.5):
+            await comm.send_json_to({"action": "sync", "sync_id": junk})
+            state = await self._await_type(comm, "state")
+            self.assertNotIn("sync_id", state)
+        await comm.disconnect()
+
     async def test_bid_without_session_is_rejected(self):
         auction = await Auction.objects.acreate(
             title="WS2", starting_price=Decimal("100"), current_price=Decimal("100"),

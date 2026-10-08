@@ -15,6 +15,7 @@ import time
 from pathlib import Path
 
 from django.conf import settings
+from liveauction import settings as settings_module
 from django.contrib import messages
 from django.contrib.auth import login, update_session_auth_hash
 from django.contrib.auth.models import User
@@ -200,7 +201,7 @@ def _get_system_settings_info():
     db_cfg = settings.DATABASES.get("default", {})
     return {
         "debug": settings.DEBUG,
-        "secret_key_safe": settings.SECRET_KEY != "dev-insecure-change-me-before-anything-public",
+        "secret_key_safe": settings.SECRET_KEY not in settings_module._PUBLIC_PLACEHOLDER_KEYS,
         "allowed_hosts": list(settings.ALLOWED_HOSTS),
         "csrf_trusted_origins": getattr(settings, "CSRF_TRUSTED_ORIGINS", []),
         "session_engine": getattr(settings, "SESSION_ENGINE", "django.contrib.sessions.backends.db").split(".")[-1],

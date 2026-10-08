@@ -35,7 +35,6 @@ class Command(BaseCommand):
         if not once:
             self.stdout.write(f"Scheduler avviato (ogni {interval}s).")
         while True:
-            close_old_connections()
             try:
                 summary = scheduler.run_once(broadcast=scheduler.channel_broadcast)
             except Exception:
@@ -46,5 +45,9 @@ class Command(BaseCommand):
             if once or stop["now"]:
                 break
             time.sleep(interval)
+            # Between passes, like between two requests: drop a connection
+            # past CONN_MAX_AGE or broken. Never inside a pass (or --once,
+            # which may run inside the caller's transaction).
+            close_old_connections()
         if once and summary is not None:
             self.stdout.write(str(summary))

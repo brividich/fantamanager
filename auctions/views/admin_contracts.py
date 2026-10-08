@@ -11,7 +11,10 @@ from ..models import ContractEvent, Participant, Player
 from ..providers.apifootball import is_configured as apifootball_configured
 from ..providers.uefa import RANKING_PAGE as UEFA_RANKING_PAGE
 from ..services.abroad import UEFA_MAX_AGE_DAYS, roster_check_state, uefa_ranking_date, uefa_ranking_stale
-from .common import current_league, manageable_leagues, staff_member_required, target_league, user_can_manage_league
+from .common import (
+    current_league, manageable_leagues, page_frame, safe_next, staff_member_required, target_league,
+    user_can_manage_league,
+)
 
 _FORBIDDEN = "Non hai i permessi per gestire i contratti di questa lega."
 
@@ -67,6 +70,7 @@ def admin_contracts(request):
         flaggable = list(Player.objects.filter(owner__league=league, abroad_list=False, left_serie_a_at__isnull=True)
                          .select_related("owner").order_by("owner__display_name", "role", "name"))
     return render(request, "auctions/admin_contracts.html", {
+        **page_frame(request, league, own_messages=True),
         "leagues": manageable_leagues(request.user),
         "current_league": league,
         "teams": teams,
@@ -128,7 +132,7 @@ def admin_contracts_action(request):
         league.contract_rules = rules
         league.save(update_fields=["contracts_enabled", "contract_rules", "updated_at"])
         messages.success(request, "Impostazioni contratti salvate.")
-        return redirect(_url(league))
+        return redirect(safe_next(request, _url(league)))
 
     if action == "left_check_all":
         from ..services import abroad
@@ -139,7 +143,7 @@ def admin_contracts_action(request):
                                       "la pagina si aggiorna da sola.")
         else:
             messages.warning(request, "Il controllo delle rose è già in corso.")
-        return redirect(_url(league))
+        return redirect(safe_next(request, _url(league)))
 
     if action == "left_resolve_priced":
         from ..services import abroad
@@ -154,7 +158,7 @@ def admin_contracts_action(request):
                              + ", ".join(f"{team} +{amount}" for team, amount in teams.items()) + ").")
         else:
             messages.error(request, "Nessuna uscita con il compenso calcolato da confermare.")
-        return redirect(_url(league))
+        return redirect(safe_next(request, _url(league)))
 
     if action in ("left_flag", "left_detect", "left_detect_all", "left_resolve", "list_release",
                   "uefa_fetch", "uefa_paste"):
@@ -201,7 +205,7 @@ def admin_contracts_action(request):
             messages.success(request, ok)
         else:
             messages.error(request, res.get("message") or "Operazione non riuscita.")
-        return redirect(_url(league))
+        return redirect(safe_next(request, _url(league)))
 
     if action in ("new_season", "close_renewals"):
         # Passano dall'orchestratore di stagione (Decreto, tetto salariale…).
@@ -211,7 +215,7 @@ def admin_contracts_action(request):
             messages.success(request, step)
         for warning in report.get("warnings", []):
             messages.warning(request, warning)
-        return redirect(_url(league))
+        return redirect(safe_next(request, _url(league)))
     elif action == "set":
         res = services.set_contract(player_id, request.POST.get("years"), note="Impostato dall'admin")
         ok = f"Contratto impostato a {res.get('years')} anni."
@@ -242,4 +246,4 @@ def admin_contracts_action(request):
         # Il dado animato della pagina: l'esito arriva qui, il messaggio resta
         # anche dopo il ricaricamento.
         return JsonResponse({**res, "feedback_message": ok if res.get("ok") else res.get("message")})
-    return redirect(_url(league))
+    return redirect(safe_next(request, _url(league)))

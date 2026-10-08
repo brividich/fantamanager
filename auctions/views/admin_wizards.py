@@ -24,6 +24,7 @@ from .common import (
     _within_role,
     FORBIDDEN_LEAGUE_MSG,
     manageable_leagues,
+    page_frame,
     staff_member_required,
     user_can_manage_league,
 )
@@ -111,6 +112,7 @@ def admin_auction_wizard(request):
     if preselect_mode not in {v for v, _ in modes}:
         preselect_mode = modes[0][0]
     return render(request, "auctions/auction_wizard.html", {
+        **page_frame(request, next((lg for lg in leagues if lg.id == preselect), None)),
         "modes": modes,
         "leagues": leagues,
         "preselect": preselect,

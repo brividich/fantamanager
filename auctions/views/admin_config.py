@@ -14,6 +14,8 @@ from .admin_wizards import _game_mode
 from .common import (
     current_auction,
     manageable_leagues,
+    back_to_page,
+    page_frame,
     managed_or_403,
     staff_member_required,
     target_league,
@@ -72,6 +74,7 @@ def admin_config(request):
     empties = [r["league"].id for r in rows if not r["pool"] and not r["auctions"] and r["can_delete"]]
 
     return render(request, "auctions/admin_config.html", {
+        **page_frame(request, current_league, own_messages=True),
         "leagues": leagues,
         "current_league": current_league,
         "rows": rows,
@@ -87,10 +90,8 @@ def admin_config(request):
 
 def _config_back(request, league_id=None):
     """Back to the config page, on the tab/league the form came from."""
-    url = reverse("admin_config")
     tab = request.POST.get("tab") or ""
-    if league_id:
-        url += f"?league={league_id}"
+    url = back_to_page(request, "admin_config", f"?league={league_id}" if league_id else "")
     return redirect(url + (f"#{tab}" if tab else (f"#lg-{league_id}" if league_id else "")))
 
 

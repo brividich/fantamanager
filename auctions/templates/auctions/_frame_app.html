@@ -1,0 +1,13 @@
+{% extends "auctions/app_base.html" %}
+{% comment %}
+Cornice app (Regia) delle pagine della console: la stessa pagina, lo stesso
+contenuto (blocco «page»), dentro l'app invece che nella console. La sceglie
+views/common.py:page_frame dall'indirizzo (/app/regia/…).
+{% endcomment %}
+{% block mainclass %}console-page{% endblock %}
+{% block app %}
+<div class="fm-onerow noprint" style="margin-bottom:6px">
+    <a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% url 'app_regia' %}{% if app_league %}?league={{ app_league.id }}{% endif %}"><svg class="ic"><use href="#i-arrow-left"/></svg> Regia</a>
+</div>
+<!-- page:start -->{% block page %}{% endblock %}<!-- page:end -->
+{% endblock %}

@@ -464,6 +464,7 @@
     const SEALED_TOTAL = {{ auction.sealed_seconds }};
     let state = JSON.parse(document.getElementById("fm-state-data").textContent);
     let timerBase = { remaining: state.remaining_seconds, at: performance.now() };
+    let live = null;   // la connessione all'asta (fmLiveSocket, base.html)
     let lastPrice = null;
 
     /* ---- Annuncio vocale del giocatore (XTTS pre-generato) --------------- */
@@ -596,7 +597,8 @@
         const prev = lastPrice;
         const wasLive = state && state.status === "LIVE";
         state = s;
-        timerBase = { remaining: s.remaining_seconds, at: performance.now() };
+        // Lo stato è partito dal server un attimo fa: il timer parte da allora.
+        timerBase = { remaining: s.remaining_seconds, at: performance.now() - (live ? live.lagMs() : 0) };
 
         $priceVal.textContent = money(s.current_price);
         if (prev !== null && prev !== s.current_price) {
@@ -823,20 +825,15 @@
         while ($log.children.length > 12) $log.removeChild($log.lastChild);
     }
 
-    function connect() {
-        const socket = new WebSocket(auctionSocketUrl(AUCTION_ID));
-        socket.onmessage = (e) => {
-            const msg = JSON.parse(e.data);
-            if (msg.type === "state") applyState(msg);
-            else if (msg.type === "bid_new") { soundBid(); addLogRow(msg.bid); if (msg.extended) flashExtended(); }
-            else if (msg.type === "participant_offline")
-                showAlert("📡", `${msg.participant} si è disconnesso`, 7000);
-            else if (msg.type === "participant_warning" && msg.kind === "latency")
-                showAlert("⚠️", `${msg.participant} — latenza alta (${msg.ping} ms)`, 6000);
-            else if (msg.type === "reaction") spawnReaction(msg.emoji);
-            else if (msg.type === "announcement") showAnnouncement(msg.text, msg.level);
-        };
-        socket.onclose = () => setTimeout(connect, 1500);
+    function onLiveMessage(msg) {
+        if (msg.type === "state") applyState(msg);
+        else if (msg.type === "bid_new") { soundBid(); addLogRow(msg.bid); if (msg.extended) flashExtended(); }
+        else if (msg.type === "participant_offline")
+            showAlert("📡", `${msg.participant} si è disconnesso`, 7000);
+        else if (msg.type === "participant_warning" && msg.kind === "latency")
+            showAlert("⚠️", `${msg.participant} — latenza alta (${msg.ping} ms)`, 6000);
+        else if (msg.type === "reaction") spawnReaction(msg.emoji);
+        else if (msg.type === "announcement") showAnnouncement(msg.text, msg.level);
     }
 
     function spawnReaction(emoji) {
@@ -862,7 +859,7 @@
     }
 
     applyState(state);
-    connect();
+    live = fmLiveSocket(AUCTION_ID, { onMessage: onLiveMessage });
     requestAnimationFrame(tick);
 
     // --- Iscrizioni (QR) overlay -------------------------------------------

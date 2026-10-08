@@ -1,4 +1,4 @@
-<a class="mk-scard{% if s.status == 'open' %} is-live{% endif %}" href="{% url 'admin_market_session' s.id %}">
+{% load fm_pages %}<a class="mk-scard{% if s.status == 'open' %} is-live{% endif %}" href="{% purl 'admin_market_session' s.id %}">
     <span class="top">
         <b>{{ s.title }}<small class="muted" style="display:block;font-size:11px;font-weight:600">{{ s.get_session_type_display }}</small></b>
         {% if s.status == "open" %}<span class="tag t-live">Aperta</span>
