@@ -3,9 +3,11 @@ giocatore rientra da solo alla squadra che ha il cartellino."""
 from django.db import transaction
 
 from ..models import Player, RosterLog
+from .sala import ensure_unlocked as _sala_guard
 
 
 def return_loan(player, note="Fine prestito"):
+    _sala_guard(player.league_id)
     lender = player.loan_from
     borrower = player.owner
     if lender is None:

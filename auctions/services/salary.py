@@ -29,6 +29,7 @@ from ..models import (
     Participant,
     RosterLog,
 )
+from .sala import ensure_unlocked as _sala_guard
 
 DEFAULT_RULES = {
     # Posizione 1..10 (oltre l'ultima vale l'ultimo valore).
@@ -79,6 +80,7 @@ def lost_bonus(table, points):
 def add_credits(participant, amount, note, *, budget_max=None):
     """Accredita fantamilioni; la parte oltre il budget massimo si brucia (3.01)."""
     participant.refresh_from_db()
+    _sala_guard(participant.league_id)
     amount = Decimal(amount)
     limit = Decimal(budget_max if budget_max is not None else rules(participant.league)["budget_max"] or 0)
     burned = Decimal("0")
@@ -294,6 +296,7 @@ def extra_cap_locked(league):
 def convert_budget(participant_id, blocks):
     participant = Participant.objects.select_for_update(of=("self",)).select_related("league").get(pk=participant_id)
     league = participant.league
+    _sala_guard(league)
     if league is None or not league.salary_cap_enabled:
         return {"ok": False, "message": "Il tetto salariale non è attivo."}
     try:

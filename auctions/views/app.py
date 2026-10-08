@@ -26,7 +26,7 @@ from ..models import (
 )
 from .. import scoring, services, throttle
 from ..models.participant import AMBIGUOUS_CODE_MESSAGE, find_team_by_code
-from ..services import mail
+from ..services import mail, sala
 from ..services.market import buyout_price, fa_period_start, session_moves, waiver_order
 from .admin_market import rule_choices, session_labels
 from .auth import authenticate_identifier
@@ -113,6 +113,10 @@ def app_home(request):
         "my_open_bids": MarketBid.objects.filter(session=open_market, participant=participant).count() if open_market else 0,
         "incoming_trades": Trade.objects.filter(receiver=participant, status=Trade.Status.PENDING).count(),
         "cap": _cap_ctx(participant),
+        # Asta in sala sul PC: da qui si entra (se il PC ha aperto l'accesso
+        # da internet), altrimenti la home dice cosa aspettare.
+        "sala_entry": bool(sala.live_entry_url(participant)),
+        "sala_locked": sala.is_locked(league),
     })
     if ctx.get("manages_app_league"):
         # The admin's own team lives in a league they run: the home also says
@@ -121,6 +125,20 @@ def app_home(request):
 
         ctx["admin_todo"] = [t for t in league_admin_digest(league) if t["level"] != "ok"]
     return render(request, "auctions/app_home.html", ctx)
+
+
+def app_sala_enter(request):
+    """Entra nell'asta che si gioca sul PC in sala: il PC ha dato al sito il suo
+    indirizzo e il codice di questa squadra, si arriva già riconosciuti."""
+    participant, ctx = _app_ctx(request, "home")
+    if participant is None:
+        return _redirect_login(request, ctx)
+    url = sala.live_entry_url(participant)
+    if not url:
+        messages.info(request, "L'asta in sala non è raggiungibile da internet in questo momento: "
+                               "riprova tra poco o chiedi a chi la conduce di attivare l'accesso da internet.")
+        return redirect("app_home")
+    return redirect(url)
 
 
 def app_rosa(request):

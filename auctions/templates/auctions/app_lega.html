@@ -6,6 +6,24 @@
     <p>{{ standings|length }} squadre · <a href="{% url 'app_storico' %}">🏆 Storico e albo d'oro</a></p>
 </div>
 
+<details class="howto noprint">
+    <summary><svg class="ic"><use href="#i-trophy"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        Tutta la lega in due schede: le rose delle squadre e le competizioni con classifiche e calendario.
+        <ol>
+            <li><b>Classifica</b>: per ogni squadra giocatori in rosa, crediti spesi e crediti rimasti{% if auctions %}; sotto, le <b>Aste</b> della lega: toccane una per aprirla{% endif %}.</li>
+            <li><b>Competizioni</b>: {% if competitions %}scegli la competizione dai pulsanti col suo nome, poi passa fra <b>Classifica</b> e <b>Tutte le Giornate</b>.{% else %}qui compariranno campionato, coppe e tornei della lega quando verranno creati.{% endif %}</li>
+            {% if competitions %}
+            <li>In <b>Tutte le Giornate</b> filtra con i chip delle giornate; su una partita tocca <b>📋 Dettagli Partita</b> per le formazioni o <b>📺 Live</b> per seguirla nel Live.</li>
+            {% endif %}
+            {% if manages_app_league or is_app_admin %}
+            <li>Da admin: <b>Nuova Competizione</b> apre il wizard per crearne una{% if competitions %}, <b>Voti &amp; Giornate</b> porta a voti e calcolo delle giornate{% endif %}.</li>
+            {% endif %}
+        </ol>
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> La tua squadra è segnata con <b>· tu</b>.</div>
+    </div>
+</details>
+
 <div class="a-seg" data-asec-default="classifica" style="margin-bottom:14px;">
     <button type="button" data-asec-go="classifica">Classifica</button>
     <button type="button" data-asec-go="competizioni">Competizioni</button>

@@ -15,6 +15,25 @@
 {% endblock %}
 
 {% block mk_body %}
+<details class="howto noprint">
+    <summary><svg class="ic"><use href="#i-gavel"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        Un'asta dal vivo in cui ogni squadra completa la rosa con gli svincolati, usando i crediti che le restano.
+        <ol>
+            <li>Prima di iniziare guarda <b>Prima di iniziare</b>: rose aggiornate, eventuale import da file, listone e quotazioni.</li>
+            {% if active_auction %}
+            <li><b>Adesso:</b> l'asta <b>{{ active_auction.title }}</b> è {% if active_auction.status == "LIVE" %}in corso{% else %}in pausa{% endif %}:
+                premi <b>Vai alla regia</b> per condurla e <b>Maxischermo</b> per lo schermo della sala.</li>
+            {% else %}
+            <li>Premi <b>Nuova asta di riparazione</b>: il wizard la prepara con le rose e i crediti di adesso.</li>
+            <li>Poi conducila dalla regia, come l'asta iniziale: in <b>Aste della lega</b> il tasto <b>Regia</b> la apre.</li>
+            {% endif %}
+            <li>In <b>Svincolati disponibili</b> tocca un ruolo per vedere chi è ancora libero.</li>
+        </ol>
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Gli acquisti dell'asta finiscono nelle rose e nei Movimenti del Mercato.</div>
+    </div>
+</details>
+
 {% if active_auction %}
 <div class="mk-banner live">
     <span class="tag {% if active_auction.status == 'LIVE' %}t-live{% else %}t-warn{% endif %}">{% if active_auction.status == "LIVE" %}In corso{% else %}In pausa{% endif %}</span>

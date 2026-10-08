@@ -19,6 +19,7 @@ from django.utils import timezone
 from ..models import Footballer, Player
 from ..providers.apifootball import _ascii
 from ..providers import importers
+from .sala import ensure_unlocked as _sala_guard
 
 logger = logging.getLogger("auctions.footballers")
 
@@ -239,6 +240,7 @@ def apply_default_listone(league):
     come per un listone caricato (5.05). Ritorna None se non c'è niente da
     fare, altrimenti ``{"created", "updated", "removed"}``.
     """
+    _sala_guard(league)
     from ..models import Auction
     from .abroad import flag_missing
 
@@ -276,7 +278,10 @@ def apply_default_listoni():
     from ..models import League
 
     done = 0
+    from .sala import is_locked
     for league in League.objects.filter(own_listone=False):
+        if is_locked(league):      # asta in sala: il listone si aggiorna dopo
+            continue
         if apply_default_listone(league) is not None:
             done += 1
     return done

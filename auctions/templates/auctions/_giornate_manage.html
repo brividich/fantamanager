@@ -45,6 +45,41 @@ partono, così l'azione torna lì; ``gv_base``/``gv_back`` arrivano dalla view.
     .drop-zone:hover { border-color:var(--accent); background:var(--accent-soft); }
 </style>
 
+<details class="howto noprint">
+    <summary><svg class="ic"><use href="#i-calendar"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        Qui porti avanti ogni giornata della lega: formazioni, voti e punteggi.
+        <ol>
+            <li>Scegli la giornata dalla fila in alto (<b>G1</b>, <b>G2</b>…): il pallino verde vuol dire già calcolata,
+                quello giallo voti live in corso. Ora sei sulla <b>Giornata {{ current_giornata.number }}</b>.</li>
+            <li>Controlla che accanto a <b>= Serie A</b> ci sia la giornata di Serie A giusta; se no correggila e premi <b>Salva</b>.</li>
+            {% if lineups_editable %}
+            <li>Guarda chi ha schierato in <b>Formazioni Giornata {{ current_giornata.number }}</b>
+                ({{ lineups_saved }}/{{ teams_count }}): chi non lo fa gioca con l'ultima formazione salvata.
+                Con <b>Schiera</b> la prepari tu per una squadra.</li>
+            <li>Quando la giornata inizia premi <b>Blocca formazioni</b>: da lì non cambiano più.
+                Si bloccano comunque da sole al primo sync o al primo import dei voti.</li>
+            {% else %}
+            <li>Le formazioni sono bloccate: con <b>Correggi</b> sistemi quella di una squadra solo per questa giornata{% if scores %}, e i punteggi si ricalcolano{% endif %}.</li>
+            {% endif %}
+            <li>Porta i voti in uno di questi modi:
+                <ul>
+                    <li><b>Sincronizza Live</b> scarica voti e bonus/malus da API-Football mentre si gioca: i punteggi sono provvisori.</li>
+                    {% if is_live %}
+                    <li>A partite finite premi <b>Consolida Ufficiale</b>: i voti live diventano definitivi.</li>
+                    {% endif %}
+                    <li><b>Importa File Excel / CSV</b> ti porta al caricamento: scegli il file dei voti e premi
+                        <b>Importa Voti e Calcola Giornata {{ current_giornata.number }}</b>.</li>
+                    <li>Se la lega gioca su un altro sito, apri <b>Punteggi a mano</b>, scrivi il totale di ogni squadra e premi
+                        <b>Salva punteggi della Giornata {{ current_giornata.number }}</b>.</li>
+                </ul>
+            </li>
+            <li>Controlla l'esito in <b>Punteggi Fantacampionato G{{ current_giornata.number }}</b> e nella Coppa Italia accanto.</li>
+        </ol>
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Soglie dei gol, bonus e malus si cambiano da <b>Regole</b>: con <b>Ricalcola le giornate già giocate</b> spuntato valgono anche per quelle.</div>
+    </div>
+</details>
+
 <!-- Matchdays Strip -->
 <div class="giornate-strip fm-onerow">
     {% for g in giornate %}

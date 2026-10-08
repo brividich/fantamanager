@@ -9,6 +9,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from .. import services
+from ..services import sala
 from ..models import Auction, AuctionSession, League
 from .admin_wizards import _game_mode
 from .common import (
@@ -56,6 +57,7 @@ def admin_config(request):
     for r in rows:
         r["can_delete"] = _can_delete_league(user, r["league"])
         r["is_current"] = current_league is not None and r["league"].id == current_league.id
+        r["sala"] = sala.view_info(r["league"])
     # The league the user came from goes first: it's the one they want to edit.
     rows.sort(key=lambda r: (not r["is_current"], r["league"].name.lower()))
 
@@ -85,6 +87,10 @@ def admin_config(request):
         "console_section": "Impostazioni",
         "console_active": "config",
         "selected": current_auction(request, current_league),
+        # Asta in sala: la chiave appena generata si mostra una volta sola,
+        # con l'indirizzo del sito da scrivere sul PC.
+        "sala_new_key": request.session.pop(SALA_KEY_SESSION, None),
+        "sala_site_url": request.build_absolute_uri("/").rstrip("/"),
     })
 
 
@@ -203,8 +209,69 @@ def admin_config_action(request):
         messages.success(request, f"Lega «{league.name}» aggiornata.")
         return _config_back(request, league.id)
 
+    if action.startswith("sala_"):
+        return _sala_action(request, action)
+
     messages.error(request, "Azione sconosciuta.")
     return _config_back(request)
+
+
+SALA_KEY_SESSION = "fm_sala_new_key"
+
+
+def _sala_action(request, action):
+    """L'asta in sala dalla pagina Impostazioni (services/sala.py).
+
+    Sul sito: chiave del PC (``sala_key``, ``sala_key_revoke``) e sblocco a
+    mano (``sala_unlock``). Sul PC: scaricare una lega (``sala_connect``),
+    rimandare i risultati (``sala_send``) o lasciar perdere (``sala_release``).
+    """
+    user = request.user
+    if action == "sala_connect":
+        site = (request.POST.get("site") or "").strip()
+        key = (request.POST.get("key") or "").strip()
+        if not site or not key:
+            messages.error(request, "Scrivi l'indirizzo del sito e la chiave della lega.")
+            return _config_back(request)
+        try:
+            league = sala.connect(site, key, owner=user if user.is_authenticated else None,
+                                  force=request.POST.get("force") == "1")
+        except sala.SalaError as exc:
+            messages.error(request, str(exc))
+            return _config_back(request)
+        messages.success(request, f"Lega «{league.name}» scaricata da {site}: sul sito rose, crediti e "
+                                  "listone restano bloccati finché non rimandi i risultati.")
+        return _config_back(request, league.id)
+
+    league = League.objects.filter(pk=request.POST.get("league_id")).first()
+    if league is None or not user_can_manage_league(user, league):
+        messages.error(request, "Non hai i permessi per questa lega.")
+        return _config_back(request)
+    try:
+        if action == "sala_key":
+            request.session[SALA_KEY_SESSION] = {"league_id": league.id,
+                                                 "key": sala.make_key(league, by=user.get_username())}
+            messages.success(request, "Nuova chiave per il PC della sala: copiala adesso, non verrà più mostrata.")
+        elif action == "sala_key_revoke":
+            sala.revoke_key(league)
+            messages.success(request, "Chiave revocata: il PC della sala non può più collegarsi a questa lega.")
+        elif action == "sala_unlock":
+            sala.unlock(league)
+            messages.success(request, "Lega sbloccata. I risultati dal PC della sala non saranno più accettati.")
+        elif action == "sala_send":
+            report = sala.send_results(league)
+            n_p, n_t = report.get("players", 0), report.get("teams", 0)
+            messages.success(request, f"Risultati inviati al sito: {n_p} giocator{'e' if n_p == 1 else 'i'} e "
+                                      f"{n_t} squadr{'a' if n_t == 1 else 'e'} aggiornat{'e' if n_t != 1 or n_p != 1 else 'i'}. "
+                                      "La lega sul sito è sbloccata.")
+        elif action == "sala_release":
+            sala.release(league)
+            messages.success(request, "Lega sul sito sbloccata senza cambiare niente.")
+        else:
+            messages.error(request, "Azione sconosciuta.")
+    except sala.SalaError as exc:
+        messages.error(request, str(exc))
+    return _config_back(request, league.id)
 
 
 def _manageable_sessions(user):

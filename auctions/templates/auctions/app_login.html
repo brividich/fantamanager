@@ -259,6 +259,12 @@
             </button>
             {% endif %}
         </div>
+        <p class="muted" style="font-size:12px;line-height:1.5;margin:-10px 0 18px;text-align:center">
+            Hai nome utente e password? Usa <b>Account</b>.
+            Hai solo il codice della tua squadra? Usa <b>Codice Squadra</b>{% if leagues %}
+            oppure sceglila da <b>Seleziona Squadra</b>{% endif %}.
+            Con il link o il QR della tua squadra entri già, senza scrivere niente.
+        </p>
 
         <!-- Opzione 1: Account (Username / Email + Password) -->
         <form method="post" id="form-account" action="{% url 'app_login' %}" style="{% if active_mode != 'account' %}display:none{% endif %}">

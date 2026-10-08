@@ -8,6 +8,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from ..models import Participant, Player, RosterLog, Trade, TradeWindow
+from .sala import ensure_unlocked as _sala_guard
 
 logger = logging.getLogger("auctions.trade")
 
@@ -202,6 +203,7 @@ def _execute(trade):
     trade = Trade.objects.select_for_update().select_related(
         "league", "proposer", "receiver"
     ).get(pk=trade.pk)
+    _sala_guard(trade.league_id)
     proposer = Participant.objects.select_for_update().get(pk=trade.proposer_id)
     receiver = Participant.objects.select_for_update().get(pk=trade.receiver_id)
     trade.proposer, trade.receiver = proposer, receiver

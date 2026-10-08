@@ -161,6 +161,13 @@ Giocatori, Contratti, Stagione, Importa, Export, Impostazioni, Competizioni,
 Mercato e Nuova asta. Resta solo in console la Dashboard con l'asta dal vivo
 (il tasto **Console**).
 
+**Asta in sala.** Una lega che vive sul sito (NAS o server) può fare l'asta su un
+PC in sala con l'app desktop, anche senza internet: in **Impostazioni** sul sito si
+genera la chiave della lega, sul PC si scarica la lega con indirizzo del sito e
+chiave. Durante l'asta il sito blocca rose, crediti e listone di quella lega;
+alla fine dal PC si rimandano i risultati e il sito si sblocca. Chi usa il PC da
+solo, senza sito, non deve fare niente di diverso.
+
 Con **Vedi come** l'admin apre l'app come una qualunque squadra delle sue leghe
 (per controllare cosa vede un allenatore o agire per chi non può): un banner lo
 ricorda sempre e riporta alla Regia. Un admin senza squadra propria non passa

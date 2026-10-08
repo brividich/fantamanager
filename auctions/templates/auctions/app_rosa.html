@@ -129,6 +129,28 @@
     </div>
 </div>
 
+<details class="howto noprint">
+    <summary><svg class="ic"><use href="#i-shirt"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        {% if is_mine %}La tua rosa divisa per ruolo, con costo{% if contracts_on %}, fantamedia e anni di contratto{% else %} e fantamedia{% endif %}.{% else %}Stai guardando la rosa di <b>{{ viewed_participant.display_name }}</b>: qui puoi solo consultarla.{% endif %}
+        <ol>
+            <li>Usa i chip in alto (<b>Tutti</b>, <b>P</b>, <b>D</b>…) per vedere un ruolo alla volta; tocca il nome di un giocatore per la sua scheda (fantamedia, gol, assist, quotazione).</li>
+            {% if league_teams|length > 1 %}
+            <li>Dal menu accanto al titolo scegli un'altra squadra della lega per vedere la sua rosa{% if not is_mine %}; <b>← Torna alla mia rosa</b> per tornare alla tua{% endif %}.</li>
+            {% endif %}
+            {% if is_mine %}
+            <li>Tocca <b>Formazione</b> per schierare i titolari della prossima giornata.</li>
+            <li>Per svincolare un giocatore tocca <b>✕</b> sulla sua riga e conferma: i crediti recuperati tornano nel tuo budget.</li>
+            {% if abroad_listed %}
+            <li>Nella <b>Lista ceduti temporanei</b> tocca <b>Svincola e incassa</b> per liberare un giocatore andato all'estero e incassare l'indennizzo.</li>
+            {% endif %}
+            {% endif %}
+            <li><b>Scheda Squadra (PDF)</b> apre il foglio della squadra da stampare o salvare.</li>
+        </ol>
+        {% if contracts_on %}<div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Il badge a destra è la durata del contratto: <b>1a</b> in giallo è l'ultimo anno, <b>scad.</b> in rosso è scaduto, <b>da tirare</b> vuol dire durata ancora da assegnare.</div>{% endif %}
+    </div>
+</details>
+
 {% if loaned_out %}
 <div class="a-card" style="padding:10px 14px;font-size:13px">
     <b>Prestati:</b> {% for p in loaned_out %}{{ p.name }} → {{ p.owner.display_name }} ({{ p.loan_sessions_left }} sess.){% if not forloop.last %} · {% endif %}{% endfor %}

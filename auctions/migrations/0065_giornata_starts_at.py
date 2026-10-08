@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("auctions", "0063_formation_captain"),
+        ("auctions", "0064_formation_captain"),
     ]
 
     operations = [

@@ -94,6 +94,34 @@
     </div>
 </div>
 
+<details class="howto noprint">
+    <summary><svg class="ic"><use href="#i-shield"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        La tua squadra a colpo d'occhio: budget, rosa, formazione e quello che c'è da fare adesso.
+        <ol>
+            {% if lineup_incomplete %}
+            <li><b>Adesso:</b> tocca <b>Formazione</b> e schiera i titolari{% if next_giornata %} della giornata {{ next_giornata.number }}{% endif %}: ne hai {{ lineup_done }} su {{ lineup_target }}.</li>
+            {% elif roster_count %}
+            <li>Formazione a posto ✓{% if next_giornata %} per la giornata {{ next_giornata.number }}{% endif %}: puoi ancora cambiarla da <b>Formazione</b> finché la giornata non parte.</li>
+            {% else %}
+            <li>La tua rosa è ancora vuota: i giocatori arrivano dall'asta e dal <b>Mercato</b>. Quando ne avrai, da <b>Formazione</b> schieri i titolari.</li>
+            {% endif %}
+            {% if sala_entry or active_auction %}
+            <li><b>Asta in corso:</b> tocca il riquadro rosso <b>Asta in corso</b> per entrare nella sala offerte come {{ participant.display_name }}.</li>
+            {% endif %}
+            {% if open_market %}
+            <li>Mercato aperto, <b>{{ open_market.title }}</b>: tocca il suo riquadro per fare le tue mosse{% if open_market.closes_at %} entro il {{ open_market.closes_at|date:"d/m H:i" }}{% endif %}.</li>
+            {% endif %}
+            {% if incoming_trades %}
+            <li>Hai proposte di scambio da altre squadre: tocca il riquadro arancione per accettarle o rifiutarle.</li>
+            {% endif %}
+            <li>Dai riquadri: <b>La mia Rosa</b> (giocatori e contratti), <b>Mercato</b> (offerte e svincoli), <b>Risultati Live</b> (voti e punti della giornata).</li>
+            <li>In fondo, <b>Classifica lampo</b>: tocca <b>Vedi tutta</b> per classifiche e calendario della lega.</li>
+        </ol>
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> <b>Budget Libero</b> è quanto puoi ancora spendere tra asta e mercato.</div>
+    </div>
+</details>
+
 <!-- Quick Action Grid -->
 <div class="quick-grid">
     <a href="{% url 'app_formazione' %}" class="qa-card">
@@ -145,6 +173,28 @@
     </span>
     <span class="go" style="color:var(--paused)">›</span>
 </a>
+{% endif %}
+
+{% if sala_entry %}
+<a class="a-cta" href="{% url 'app_sala_enter' %}" style="background:linear-gradient(135deg,rgba(239,68,68,0.15),rgba(19,181,255,0.08));border-color:rgba(239,68,68,0.4);margin-bottom:12px">
+    <svg class="ic" style="color:#ef4444"><use href="#i-gavel"/></svg>
+    <span class="t">
+        <b style="display:flex;align-items:center;gap:6px;">
+            <span style="width:8px;height:8px;border-radius:50%;background:#ef4444;box-shadow:0 0 8px #ef4444;display:inline-block;animation:pulse-dot 1.2s infinite;"></span>
+            Asta in corso in sala
+        </b>
+        <span>Tocca per entrare: arrivi nella sala offerte già come {{ participant.display_name }}</span>
+    </span>
+    <span class="go" style="color:#ef4444">›</span>
+</a>
+{% elif sala_locked %}
+<div class="a-cta" style="background:rgba(255,181,38,.08);border-color:rgba(255,181,38,.35);margin-bottom:12px;cursor:default">
+    <svg class="ic" style="color:#ffb526"><use href="#i-clock"/></svg>
+    <span class="t">
+        <b>Asta in corso in sala</b>
+        <span>Se sei lì, entra dal wifi della sala. Da fuori: il tasto per entrare compare qui appena la regia attiva l'accesso da internet.</span>
+    </span>
+</div>
 {% endif %}
 
 {% if active_auction %}

@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("auctions", "0061_mail_password_encrypted"),
+        ("auctions", "0062_mail_password_encrypted"),
     ]
 
     operations = [

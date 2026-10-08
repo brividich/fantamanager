@@ -94,6 +94,22 @@ write-only. Only superusers reach this page.
     <a class="fm-btn fm-btn-ghost" href="{% url 'admin_config' %}"><svg class="ic"><use href="#i-gear"/></svg> Configurazione</a>
 </div>
 
+<details class="howto noprint">
+    <summary><svg class="ic"><use href="#i-mail"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        Qui scegli da dove partono le email della piattaforma: inviti alle squadre e avvisi del mercato.
+        <ol>
+            <li>Accendi <b>Invia le email con queste impostazioni</b>.</li>
+            <li>In <b>Provider</b> scegli il tuo servizio di posta: server, porta e sicurezza si compilano da soli
+                (con <b>SMTP personalizzato</b> li scrivi tu).</li>
+            <li>In <b>Server e account</b> scrivi <b>Utente</b> e <b>Password / chiave</b>. Con Google serve una password per le app.</li>
+            <li>In <b>Mittente</b> scrivi indirizzo e nome che le squadre vedranno, poi premi <b>Salva</b>.</li>
+            <li>In <b>Email di prova</b> premi <b>Invia prova</b> e controlla che il messaggio arrivi.</li>
+        </ol>
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> <b>Solo log (non invia)</b> serve per le prove: le email finiscono nel log del server invece di partire.</div>
+    </div>
+</details>
+
 {% for m in messages %}
 <div class="msg {% if m.tags %}{{ m.tags }}{% endif %}" role="status">{{ m }}</div>
 {% endfor %}

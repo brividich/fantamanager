@@ -16,6 +16,7 @@ from ..models import (
     Player,
     RosterLog,
 )
+from .sala import ensure_unlocked as _sala_guard
 
 logger = logging.getLogger("auctions.market")
 
@@ -128,6 +129,7 @@ def place_market_bid(
         session = MarketSession.objects.select_for_update().get(pk=session_id)
     except MarketSession.DoesNotExist:
         return {"ok": False, "error": "session_not_found", "message": "Sessione non trovata."}
+    _sala_guard(session.league_id)
 
     if not session.is_open:
         return {"ok": False, "error": "session_closed", "message": "La sessione di mercato è chiusa."}
@@ -760,6 +762,7 @@ def resolve_market_session(session_id):
         .select_related("league")
         .get(pk=session_id)
     )
+    _sala_guard(session.league_id)
 
     if session.status == MarketSession.Status.RESOLVED:
         return session.results_summary
@@ -930,6 +933,7 @@ def settle_market_tie(session_id, player_id, winner_id=None, rng=None, rebids=No
     session = (
         MarketSession.objects.select_for_update().select_related("league").get(pk=session_id)
     )
+    _sala_guard(session.league_id)
     if session.status != MarketSession.Status.RESOLVED:
         return {"ok": False, "message": "Lo spoglio non è ancora stato eseguito."}
 
@@ -1054,6 +1058,7 @@ def undo_market_resolution(session_id):
     session = MarketSession.objects.select_for_update().get(pk=session_id)
     if session.status != MarketSession.Status.RESOLVED:
         return {"ok": False, "message": "La sessione non risulta scrutinata."}
+    _sala_guard(session.league_id)
     if session.session_type == MarketSession.SessionType.RENEWALS:
         # Dadi tirati e contratti svincolati non si riavvolgono in blocco.
         return {"ok": False, "message": "La chiusura dei rinnovi non si annulla: correggi i singoli contratti dalla pagina Contratti."}
@@ -1193,6 +1198,7 @@ def acquire_free_agent(session_id, participant_id, player_id, release_player_id=
         session = MarketSession.objects.select_for_update().get(pk=session_id)
     except MarketSession.DoesNotExist:
         return {"ok": False, "error": "session_not_found", "message": "Sessione non trovata."}
+    _sala_guard(session.league_id)
 
     if not session.is_open:
         return {"ok": False, "error": "session_closed", "message": "La finestra di mercato è chiusa."}
@@ -1355,6 +1361,7 @@ def execute_buyout(session_id, buyer_id, player_id, release_player_id=None):
         session = MarketSession.objects.select_for_update().get(pk=session_id)
     except MarketSession.DoesNotExist:
         return {"ok": False, "error": "session_not_found", "message": "Sessione non trovata."}
+    _sala_guard(session.league_id)
 
     if not session.is_open:
         return {"ok": False, "error": "session_closed", "message": "La finestra di mercato è chiusa."}
@@ -1546,6 +1553,7 @@ def place_waiver_claim(session_id, participant_id, player_id, priority=1, releas
         session = MarketSession.objects.select_for_update().get(pk=session_id)
     except MarketSession.DoesNotExist:
         return {"ok": False, "error": "session_not_found", "message": "Sessione non trovata."}
+    _sala_guard(session.league_id)
 
     if not session.is_open:
         return {"ok": False, "error": "session_closed", "message": "La finestra waiver è chiusa."}

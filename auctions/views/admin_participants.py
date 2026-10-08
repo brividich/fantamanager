@@ -25,6 +25,7 @@ from ..models.participant import custom_code_error, generate_access_code
 from .. import remote, team_sheets
 from ..uploads import UploadRejected, clean_image
 from ..services import mail
+from ..services.sala import ensure_unlocked as _sala_guard
 from .common import (
     FORBIDDEN_LEAGUE_MSG,
     current_auction,
@@ -219,6 +220,7 @@ def admin_create_participant(request):
         return redirect(safe_next(request, fallback))
     if not user_can_manage_scope(request.user, league):     # the global pool: superadmin only
         return HttpResponseForbidden(FORBIDDEN_LEAGUE_MSG)
+    _sala_guard(league)
 
     p = Participant(
         league=league,
@@ -305,7 +307,10 @@ def admin_edit_participant(request, participant_id):
             messages.error(request, code_error)
             return redirect(safe_next(request, fallback))
     p.access_code  = new_code
-    p.credits      = dec("credits", str(p.credits))
+    credits = dec("credits", str(p.credits))
+    if credits != p.credits:
+        _sala_guard(p.league_id)
+    p.credits      = credits
     p.is_active    = request.POST.get("is_active") == "1"
     
     user_id = request.POST.get("user_id")
@@ -335,6 +340,7 @@ def admin_delete_participant(request, participant_id):
     p, denied = managed_or_403(request, Participant, participant_id)
     if denied:
         return denied
+    _sala_guard(p.league_id)
     league_id = p.league_id
     team_name = p.display_name
     p.delete()
@@ -350,6 +356,7 @@ def admin_adjust_team_credits(request, participant_id):
     p, denied = managed_or_403(request, Participant, participant_id)
     if denied:
         return denied
+    _sala_guard(p.league_id)
     mode = request.POST.get("mode", "add")  # "add", "sub", "set"
     raw_amount = request.POST.get("amount", "0")
     try:

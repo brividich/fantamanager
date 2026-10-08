@@ -1,0 +1,131 @@
+{% load fm_pages %}{% comment %}
+L'asta in sala per una lega (services/sala.py), nella sua scheda della pagina
+Impostazioni (console e app: stessa pagina). ``r.sala`` = sala.view_info.
+
+Una guida a passi: fatto (✓), da fare adesso (evidenziato, col suo tasto), dopo.
+Sul sito: chiave → il PC scarica → asta in sala (e chi gioca da fuori) → risultati.
+Sul PC: lega scaricata → accesso da internet (facoltativo) → asta → invia.
+{% endcomment %}
+{% with s=r.sala %}
+<details class="lg-sala"{% if s.locked or s.link_open or sala_new_key.league_id == lg.id %} open{% endif %}>
+    <summary>
+        <svg class="ic"><use href="#i-globe"/></svg> Asta in sala
+        {% if s.locked %}<span class="tag live">In corso</span>
+        {% elif s.link_open %}<span class="tag live">Da rimandare al sito</span>
+        {% elif s.link %}<span class="tag ok">Risultati inviati</span>
+        {% elif s.has_key %}<span class="tag ok">Chiave attiva</span>{% endif %}
+    </summary>
+
+    {% if s.link %}
+    {# ============================ Sul PC: la copia di una lega del sito #}
+    <ol class="sala-steps">
+        <li class="done"><span class="n">✓</span><div>
+            <b>Lega scaricata</b>
+            <span>Da {{ s.link_site }}{% if s.link_downloaded_at %} il {{ s.link_downloaded_at|date:"d/m/Y H:i" }}{% endif %}. Sul sito rose, crediti e listone restano bloccati fino al passo 4.</span>
+        </div></li>
+
+        <li class="{% if not s.link_open %}done{% elif s.link_live_url and not s.link_live_error %}done{% else %}opt{% endif %}">
+            <span class="n">{% if s.link_open and s.link_live_url and not s.link_live_error %}✓{% elif not s.link_open %}✓{% else %}2{% endif %}</span><div>
+            <b>Chi gioca da fuori sala <small>(facoltativo)</small></b>
+            {% if not s.link_open %}<span>Asta chiusa.</span>
+            {% elif s.link_live_error %}<span class="warn">Il sito non ha ricevuto l'indirizzo dell'asta: {{ s.link_live_error }} Il PC riprova da solo quando il tunnel riparte.</span>
+            {% elif s.link_live_url %}<span>Accesso da internet attivo: chi gioca da fuori entra dall'app del sito, tasto «Asta in corso in sala»{% if s.link_live_at %} (indirizzo inviato alle {{ s.link_live_at|date:"H:i" }}){% endif %}.</span>
+            {% else %}<span>Attiva l'accesso da internet: il PC manda da solo al sito l'indirizzo dell'asta, e chi è fuori entra dall'app del sito senza codici da scrivere.</span>
+            <a class="fm-btn fm-btn-secondary fm-btn-sm" href="{% url 'admin_remote_page' %}"><svg class="ic"><use href="#i-globe"/></svg> Accesso da internet</a>{% endif %}
+        </div></li>
+
+        <li class="{% if s.link_open %}now{% else %}done{% endif %}"><span class="n">{% if s.link_open %}3{% else %}✓{% endif %}</span><div>
+            <b>Fai l'asta</b>
+            {% if s.link_open %}<span>Su questa lega, come sempre: crea l'asta e conducila dalla regia.</span>
+            <a class="fm-btn fm-btn-secondary fm-btn-sm" href="{% purl 'admin_auction_wizard' %}?league={{ lg.id }}"><svg class="ic"><use href="#i-gavel"/></svg> Nuova asta</a>
+            {% else %}<span>Fatta.</span>{% endif %}
+        </div></li>
+
+        <li class="{% if s.link_open %}now{% else %}done{% endif %}"><span class="n">{% if s.link_open %}4{% else %}✓{% endif %}</span><div>
+            <b>Rimanda i risultati al sito</b>
+            {% if s.link_open %}<span>A fine asta: il sito prende rose e crediti come sono qui e si sblocca.</span>
+            <div class="fm-onerow">
+                <form method="post" action="{% url 'admin_config_action' %}"
+                      onsubmit="return confirm('Inviare al sito rose e crediti di «{{ lg.name|escapejs }}» come sono adesso? Il sito li prende così e si sblocca.');">
+                    {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    <input type="hidden" name="action" value="sala_send"><input type="hidden" name="league_id" value="{{ lg.id }}">
+                    <button type="submit" class="fm-btn fm-btn-primary fm-btn-sm"><svg class="ic"><use href="#i-cloud-up"/></svg> Invia i risultati al sito</button>
+                </form>
+                <form method="post" action="{% url 'admin_config_action' %}"
+                      onsubmit="return confirm('Sbloccare la lega sul sito senza cambiare niente? Quello che è successo qui non arriva al sito.');">
+                    {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    <input type="hidden" name="action" value="sala_release"><input type="hidden" name="league_id" value="{{ lg.id }}">
+                    <button type="submit" class="fm-btn fm-btn-ghost fm-btn-sm">Annulla e sblocca il sito</button>
+                </form>
+            </div>
+            {% else %}<span>Inviati{% if s.link_sent_at %} il {{ s.link_sent_at|date:"d/m/Y H:i" }}{% endif %}{% if "players" in s.link_report %}: {{ s.link_report.players }} giocator{{ s.link_report.players|pluralize:"e,i" }} e {{ s.link_report.teams }} squadr{{ s.link_report.teams|pluralize:"a,e" }} aggiornat{{ s.link_report.teams|pluralize:"a,e" }}{% elif s.link_report.released %}: sito sbloccato senza cambiare niente{% endif %}.</span>{% endif %}
+        </div></li>
+    </ol>
+
+    {% else %}
+    {# ================================ Sul sito: la lega e il PC della sala #}
+    <p class="sala-intro">Per fare l'asta su un PC in sala, anche senza internet. Mentre si gioca là, qui rose,
+        crediti e listone sono bloccati; formazioni, voti e il resto no.</p>
+    <ol class="sala-steps">
+        <li class="{% if s.has_key %}done{% else %}now{% endif %}"><span class="n">{% if s.has_key %}✓{% else %}1{% endif %}</span><div>
+            <b>Genera la chiave per il PC</b>
+            {% if sala_new_key.league_id == lg.id %}
+            <div class="lg-sala-key">
+                <div class="k">Scrivi questi due dati sul PC della sala (passo 2):</div>
+                <div><span class="lbl">Sito</span> <code>{{ sala_site_url }}</code></div>
+                <div><span class="lbl">Chiave</span> <code class="sel">{{ sala_new_key.key }}</code>
+                    <button type="button" class="fm-btn fm-btn-ghost fm-btn-sm" data-copy-text="{{ sala_new_key.key }}"><svg class="ic"><use href="#i-copy"/></svg> Copia</button></div>
+                <div class="muted">Copiala adesso: non verrà più mostrata.</div>
+            </div>
+            {% elif s.has_key %}<span>Chiave attiva (…{{ s.key_hint }}){% if s.key_at %}, creata il {{ s.key_at|date:"d/m/Y" }}{% endif %}. Persa? Generane una nuova: quella di prima smette di funzionare.</span>
+            {% else %}<span>Il PC la usa per scaricare questa lega. Si mostra una volta sola.</span>{% endif %}
+            <div class="fm-onerow">
+                <form method="post" action="{% url 'admin_config_action' %}"
+                      {% if s.has_key %}onsubmit="return confirm('Generare una nuova chiave? Quella di prima smette di funzionare.');"{% endif %}>
+                    {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    <input type="hidden" name="action" value="sala_key"><input type="hidden" name="league_id" value="{{ lg.id }}">
+                    <button type="submit" class="fm-btn {% if s.has_key %}fm-btn-ghost{% else %}fm-btn-primary{% endif %} fm-btn-sm"><svg class="ic"><use href="#i-link"/></svg> {% if s.has_key %}Nuova chiave{% else %}Genera la chiave{% endif %}</button>
+                </form>
+                {% if s.has_key %}
+                <form method="post" action="{% url 'admin_config_action' %}" onsubmit="return confirm('Revocare la chiave? Il PC della sala non potrà più collegarsi.');">
+                    {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    <input type="hidden" name="action" value="sala_key_revoke"><input type="hidden" name="league_id" value="{{ lg.id }}">
+                    <button type="submit" class="fm-btn fm-btn-ghost fm-btn-sm">Revoca</button>
+                </form>
+                {% endif %}
+            </div>
+        </div></li>
+
+        <li class="{% if s.locked %}done{% elif s.has_key %}now{% endif %}"><span class="n">{% if s.locked %}✓{% else %}2{% endif %}</span><div>
+            <b>Sul PC: scarica la lega</b>
+            <span>Nell'app FantaManager del PC: Impostazioni → «Asta in sala: scarica una lega dal sito», con sito e chiave.
+                {% if s.locked %}Fatto{% if s.lock_at %} il {{ s.lock_at|date:"d/m/Y H:i" }}{% endif %}.{% endif %}</span>
+        </div></li>
+
+        <li class="{% if s.locked %}now{% endif %}"><span class="n">3</span><div>
+            <b>L'asta si gioca in sala</b>
+            {% if s.locked %}
+            <p class="lg-sala-lock"><svg class="ic"><use href="#i-lock"/></svg>
+                <span>In corso: rose, crediti e listone di questa lega sono bloccati fino al passo 4.</span></p>
+            <span>{% if s.live %}Chi gioca da fuori entra dall'app, tasto «Asta in corso in sala» ({{ s.live_teams }} squadr{{ s.live_teams|pluralize:"a,e" }} collegat{{ s.live_teams|pluralize:"a,e" }}{% if s.live_at %}, indirizzo aggiornato alle {{ s.live_at|date:"H:i" }}{% endif %}).
+                {% else %}Chi gioca da fuori: il tasto per entrare compare nella sua app appena sul PC si attiva l'accesso da internet.{% endif %}</span>
+            {% else %}<span>Sul PC, come una lega qualunque. Chi è fuori sala entra dall'app di questo sito.</span>{% endif %}
+        </div></li>
+
+        <li class="{% if s.last_results_at and not s.locked %}done{% endif %}"><span class="n">{% if s.last_results_at and not s.locked %}✓{% else %}4{% endif %}</span><div>
+            <b>Il PC rimanda i risultati</b>
+            {% if s.last_results_at and not s.locked %}<span>Ultimi risultati arrivati il {{ s.last_results_at|date:"d/m/Y H:i" }}: la lega è sbloccata.</span>
+            {% else %}<span>Dalla scheda della lega sul PC, «Invia i risultati al sito»: rose e crediti arrivano qui e la lega si sblocca.</span>{% endif %}
+            {% if s.locked %}
+            <form method="post" action="{% url 'admin_config_action' %}"
+                  onsubmit="return confirm('Sbloccare a mano? Usalo solo se il PC della sala si è perso: i suoi risultati non saranno più accettati.');">
+                {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <input type="hidden" name="action" value="sala_unlock"><input type="hidden" name="league_id" value="{{ lg.id }}">
+                <button type="submit" class="fm-btn btn-warn fm-btn-sm"><svg class="ic"><use href="#i-lock"/></svg> Il PC si è perso: sblocca a mano</button>
+            </form>
+            {% endif %}
+        </div></li>
+    </ol>
+    {% endif %}
+</details>
+{% endwith %}

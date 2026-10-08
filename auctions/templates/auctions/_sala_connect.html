@@ -1,0 +1,82 @@
+{% comment %}
+Asta in sala, in cima alla pagina Impostazioni (console e app): sul PC della
+sala si scarica una lega da un sito con indirizzo e chiave. Qui anche gli
+stili e il tasto «Copia» delle schede (_sala_card.html).
+{% endcomment %}
+<style>
+    .lg-sala { margin-top:12px; border:1px solid var(--fm-border); border-radius:var(--fm-radius-sm); padding:8px 12px; }
+    .lg-sala > summary { cursor:pointer; font-weight:700; font-size:13px; display:flex; align-items:center; gap:8px; list-style:none; }
+    .lg-sala > summary::-webkit-details-marker { display:none; }
+    .lg-sala > summary .ic { width:16px; height:16px; color:var(--fm-primary-light); }
+    .lg-sala p { font-size:12.5px; color:var(--fm-text-secondary); margin:10px 0; line-height:1.5; }
+    .lg-sala .fm-onerow { gap:8px; }
+    .lg-sala form { margin:0; }
+    .lg-sala-lock { display:flex; gap:8px; align-items:flex-start; padding:8px 10px; border-radius:var(--fm-radius-sm);
+        background:rgba(255,181,38,.08); border:1px solid rgba(255,181,38,.35); }
+    .lg-sala-lock .ic { width:16px; height:16px; color:var(--fm-warning); flex:0 0 auto; margin-top:2px; }
+    .lg-sala-key { display:grid; gap:6px; margin:10px 0; padding:10px 12px; border-radius:var(--fm-radius-sm);
+        border:1px solid rgba(22,217,104,.45); background:rgba(22,217,104,.07); font-size:12.5px; min-width:0; }
+    .lg-sala-key .k { font-weight:700; }
+    .lg-sala-key .lbl { display:inline-block; min-width:52px; color:var(--fm-text-muted); font-size:11px; text-transform:uppercase; letter-spacing:.08em; }
+    .lg-sala-key code { word-break:break-all; user-select:all; }
+    .sala-intro { margin:10px 0 4px !important; }
+    .sala-steps { list-style:none; margin:10px 0 0; padding:0; display:grid; gap:8px; }
+    .sala-steps li { display:grid; grid-template-columns:24px minmax(0,1fr); gap:10px; align-items:start;
+        padding:8px 10px; border-radius:var(--fm-radius-sm); border:1px solid transparent; min-width:0; }
+    .sala-steps li > div { display:grid; gap:6px; min-width:0; }
+    .sala-steps .n { width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+        font-size:12px; font-weight:800; background:rgba(255,255,255,.06); color:var(--fm-text-muted); }
+    .sala-steps b { font-size:13px; }
+    .sala-steps b small { font-weight:500; color:var(--fm-text-muted); }
+    .sala-steps span { font-size:12.5px; color:var(--fm-text-secondary); line-height:1.5; }
+    .sala-steps span.warn { color:var(--fm-warning); }
+    .sala-steps li.done .n { background:rgba(22,217,104,.15); color:var(--fm-success); }
+    .sala-steps li.done b { color:var(--fm-text-secondary); }
+    .sala-steps li.now { border-color:var(--fm-border-active); background:rgba(8,124,240,.06); }
+    .sala-steps li.now .n { background:var(--fm-primary); color:#fff; }
+    .sala-steps li.opt .n { border:1px dashed var(--fm-border); background:none; }
+    .sala-steps .fm-btn, .sala-steps form { justify-self:start; }
+    .sala-steps .lg-sala-lock, .sala-steps .lg-sala-key { margin:0; }
+    .sala-connect { margin:0 0 14px; }
+    .sala-connect form { display:grid; gap:8px; margin-top:10px; grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto; align-items:end; }
+    .sala-connect label { margin:0; }
+    .sala-connect .force { grid-column:1 / -1; display:flex; gap:6px; align-items:center; font-size:12px; text-transform:none; letter-spacing:0; }
+    .sala-connect .force input { width:auto; margin:0; }
+    @media (max-width:700px) { .sala-connect form { grid-template-columns:1fr; } }
+</style>
+
+<details class="fm-card sala-connect">
+    <summary class="lg-sala" style="border:0;padding:0;margin:0"><svg class="ic"><use href="#i-download"/></svg> Asta in sala: scarica una lega dal sito</summary>
+    <ol class="sala-steps" style="margin-top:12px">
+        <li class="done"><span class="n">1</span><div><b>Sul sito, genera la chiave</b>
+            <span>Impostazioni → scheda della lega → «Asta in sala» → «Genera la chiave»: ti dà l'indirizzo del sito e la chiave.</span></div></li>
+        <li class="now"><span class="n">2</span><div><b>Qui: scrivili e scarica</b>
+            <span>La lega arriva su questo PC e il sito la blocca. Poi segui i passi nella sua scheda qui sotto: asta, e alla fine «Invia i risultati al sito».</span></div></li>
+    </ol>
+    <form method="post" action="{% url 'admin_config_action' %}">
+        {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <input type="hidden" name="action" value="sala_connect">
+        <div><label for="sala-site">Sito</label>
+            <input id="sala-site" name="site" type="url" placeholder="https://…" required autocomplete="url"></div>
+        <div><label for="sala-key">Chiave</label>
+            <input id="sala-key" name="key" required autocomplete="off" placeholder="fmsala_…"></div>
+        <button type="submit" class="fm-btn fm-btn-primary"><svg class="ic"><use href="#i-download"/></svg> Scarica</button>
+        <label class="force"><input type="checkbox" name="force" value="1">
+            Riscarica anche se è già bloccata (il PC di prima si è perso: i suoi risultati non varranno più)</label>
+    </form>
+</details>
+
+<script>
+// Il tasto «Copia» delle chiavi: le schede vengono dopo, quindi un solo ascolto sulla pagina.
+document.addEventListener("click", function (e) {
+    var btn = e.target.closest && e.target.closest("[data-copy-text]");
+    if (!btn) return;
+    var text = btn.getAttribute("data-copy-text");
+    var done = function () { if (window.showToast) showToast("Chiave copiata", "info"); };
+    if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(text).then(done); return; }
+    var ta = document.createElement("textarea");
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); done(); } catch (err) {}
+    ta.remove();
+});
+</script>

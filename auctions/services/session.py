@@ -7,6 +7,7 @@ from ..models import (
     Auction, AuctionCycleResult, AuctionSession, League, Participant, Player,
 )
 from ..models.participant import generate_access_code
+from .sala import ensure_unlocked as _sala_guard
 
 
 def league_overview(leagues=None):
@@ -51,6 +52,7 @@ def delete_league(league_id):
     league = League.objects.filter(pk=league_id).first()
     if league is None:
         return None
+    _sala_guard(league)
     report = {
         "name": league.name,
         "players": Player.objects.filter(league=league).count(),

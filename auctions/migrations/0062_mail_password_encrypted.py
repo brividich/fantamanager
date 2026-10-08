@@ -14,7 +14,7 @@ def encrypt_existing(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("auctions", "0060_alter_marketsession_budget_rule_and_more"),
+        ("auctions", "0061_league_sala"),
     ]
 
     operations = [

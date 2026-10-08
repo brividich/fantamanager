@@ -753,6 +753,14 @@ class JoinPathTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(self.client.session["participant_id"], p.id)
 
+    def test_access_code_ignores_case(self):
+        """Il campo mostra il codice in maiuscolo ma il telefono lo scrive com'è."""
+        auction = make_live_auction()
+        p = Participant.objects.create(display_name="Coded", access_code="DRAGO23", is_active=True)
+        resp = self.client.post("/join/", {"access_code": "drago23", "auction_id": auction.id})
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(self.client.session["participant_id"], p.id)
+
     def test_join_via_token_in_query_string(self):
         """The shareable link form: POST to /join/?t=<token>."""
         auction = make_live_auction()

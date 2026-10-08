@@ -457,6 +457,38 @@
     </a>
 </div>
 
+<details class="howto noprint">
+    <summary><svg class="ic"><use href="#i-shield"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        Il pannello di chi gestisce il server: stato della macchina, utenti e leghe di tutta la piattaforma, posta, manutenzione e voti live.
+        <ol>
+            {% if tab == 'health' %}
+            <li>Controlla che server, database, disco e <b>Ultimo backup</b> siano a posto: se l'ultimo backup è in rosso, controlla il servizio di backup.</li>
+            {% if stalled_auctions %}
+            <li>In <b>Aste rimaste a metà</b> premi <b>Riprendi</b> per far avanzare un'asta che nessun dispositivo sta seguendo.</li>
+            {% endif %}
+            {% elif tab == 'users' %}
+            <li>Cerca un utente o filtra per ruolo e stato; <b>+ Crea Nuovo Utente</b> ne aggiunge uno.</li>
+            <li><b>Gestisci</b> cambia dati, email, password e ruolo; <b>Accedi come</b> ti fa vedere la piattaforma con il suo account;
+                <b>Disattiva</b> gli blocca l'accesso; 🗑️ lo elimina.</li>
+            {% elif tab == 'leagues' %}
+            <li><b>Gestisci</b> apre la console di una lega, <b>+ Nuova Lega</b> ne crea una, <b>Elimina</b> la cancella con tutti i suoi dati.</li>
+            {% elif tab == 'mail' %}
+            <li>Scegli il provider, compila server, account e mittente e premi <b>Salva Configurazione SMTP</b>.</li>
+            <li>Poi premi <b>Invia Email di Test</b> e controlla che il messaggio arrivi.</li>
+            {% elif tab == 'reports' %}
+            <li>Prima di un intervento premi <b>Crea Snapshot</b> (o <b>Scarica Ora</b>) per avere una copia del database{% if is_sqlite %}: da <b>Snapshot di Backup su Disco</b> la rimetti con <b>Ripristina</b>{% endif %}.</li>
+            <li><b>Svuota Cache Ora</b>, <b>Esegui VACUUM</b> ed <b>Elimina Sessioni</b> fanno pulizia: usali se il sito rallenta o il database cresce troppo.</li>
+            {% elif tab == 'logs' %}
+            <li>Scegli il livello o scrivi una parola e premi <b>Filtra</b>; ↻ ricarica il log.</li>
+            {% elif tab == 'live_sync' %}
+            <li>{% if live_sync.is_enabled %}La sincronizzazione è attiva: <b>Arresta Sincronizzazione Background</b> la ferma.{% else %}Scegli frequenza, provider e giornata e premi <b>Avvia Background Sync</b>: i voti live si aggiornano da soli.{% endif %}</li>
+            <li><b>Esegui Ora</b> aggiorna subito una giornata; a giornata finita <b>Consolida Definitivo</b> rende ufficiali i voti per tutte le leghe.</li>
+            {% endif %}
+        </ol>
+    </div>
+</details>
+
 <!-- 1. TAB: SERVER HEALTH -->
 {% if tab == 'health' %}
 {% if stalled_auctions %}
