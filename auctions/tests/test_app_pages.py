@@ -18,6 +18,10 @@ from ..views.common import APP_PAGES
 FRAMED_PAGES = [
     ("admin_players", "app_regia_players"),
     ("admin_contracts", "app_regia_contracts"),
+    ("admin_season", "app_regia_season"),
+    ("admin_fantapazz", "app_regia_import"),
+    ("admin_export", "app_regia_export"),
+    ("admin_config", "app_regia_config"),
 ]
 
 
@@ -95,3 +99,15 @@ class AppPagesParityTests(TestCase):
         resp = self.client.post(reverse("admin_contracts_action"), {**data, "next": "https://evil.example/"})
         self.assertRedirects(resp, reverse("admin_contracts") + f"?league={self.league.id}",
                              fetch_redirect_response=False)
+
+    def test_config_returns_to_its_page_and_tab(self):
+        """Impostazioni: torna alla pagina da cui parte (console o app), sulla
+        scheda del form; un next fuori dal sito vale come nessun next."""
+        self.client.force_login(self.owner)
+        data = {"action": "delete_auction", "auction_id": "999999", "tab": "manut"}
+        for nxt, base in ((reverse("app_regia_config") + f"?league={self.league.id}", reverse("app_regia_config")),
+                          ("https://evil.example/x", reverse("admin_config")),
+                          ("", reverse("admin_config"))):
+            with self.subTest(next=nxt):
+                resp = self.client.post(reverse("admin_config_action"), {**data, "next": nxt})
+                self.assertEqual(resp["Location"], base + "#manut")

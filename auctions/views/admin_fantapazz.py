@@ -15,6 +15,7 @@ from .common import (
     current_auction,
     current_league,
     manageable_leagues,
+    page_frame,
     staff_member_required,
     target_league,
     user_can_manage_scope,
@@ -52,6 +53,7 @@ def _import_league_or_403(request):
 def admin_fantapazz(request):
     league = current_league(request)
     return render(request, "auctions/admin_fantapazz.html", {
+        **page_frame(request, league),
         "leagues": list(manageable_leagues(request.user)),
         "current_league": league,
         "console_section": "Importa",

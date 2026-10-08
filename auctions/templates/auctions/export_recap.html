@@ -1,9 +1,7 @@
-{% extends "auctions/base.html" %}
+{% extends page_frame|default:"auctions/_frame_console.html" %}{% load fm_pages %}
 {% block title %}Riepilogo rose — FantaManager{% endblock %}
-{% block bodyclass %}role-admin{% endblock %}
-{% block wrapclass %}wrap-wide{% endblock %}
 
-{% block content %}
+{% block page %}
 <style>
     .exp-header { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:18px; }
     .exp-header .brand { flex:1 1 auto; }
@@ -39,7 +37,6 @@
     }
 </style>
 
-{% include "auctions/_console_head.html" %}
 
 <div class="exp-header">
     <div class="brand">

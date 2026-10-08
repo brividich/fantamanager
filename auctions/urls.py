@@ -313,6 +313,10 @@ urlpatterns = [
     # Pagine della console nella cornice dell'app: stessa view, stesso template.
     path("app/regia/giocatori/", views.admin_players, name="app_regia_players"),
     path("app/regia/contratti/", views.admin_contracts, name="app_regia_contracts"),
+    path("app/regia/stagione/", views.admin_season, name="app_regia_season"),
+    path("app/regia/importa/", views.admin_fantapazz, name="app_regia_import"),
+    path("app/regia/export/", views.admin_export, name="app_regia_export"),
+    path("app/regia/impostazioni/", views.admin_config, name="app_regia_config"),
     path("app/regia/vedi/<int:participant_id>/", views.app_view_as, name="app_view_as"),
     path("app/regia/vedi/esci/", views.app_view_as_exit, name="app_view_as_exit"),
     path("app/altro/pin/", views.app_update_pin, name="app_update_pin"),

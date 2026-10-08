@@ -1,4 +1,4 @@
-{% extends "auctions/base.html" %}
+{% extends page_frame|default:"auctions/_frame_console.html" %}{% load fm_pages %}
 {% comment %}
 Impostazioni — every league the user runs, as a card with its health
 checklist (what is missing before the next auction, with the link that fixes
@@ -8,10 +8,8 @@ clean-up of empty leagues sit in their own tabs. Deleting a league asks for
 its name to be typed: it takes teams, listone, auctions and sessions with it.
 {% endcomment %}
 {% block title %}Impostazioni — FantaManager{% endblock %}
-{% block bodyclass %}role-admin{% endblock %}
-{% block wrapclass %}wrap-wide{% endblock %}
 
-{% block content %}
+{% block page %}
 <style>
     .cf { max-width: 1280px; margin: 0 auto; }
     .cf-head { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin: 8px 0 14px; }
@@ -151,7 +149,6 @@ its name to be typed: it takes teams, listone, auctions and sessions with it.
     .cf-dlg .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
 </style>
 
-{% include "auctions/_console_head.html" %}
 
 <div class="cf">
 <div class="cf-head">
@@ -215,18 +212,18 @@ its name to be typed: it takes teams, listone, auctions and sessions with it.
         <ul class="lg-check" aria-label="Stato della lega">
             <li class="{% if r.pool %}ok{% else %}todo{% endif %}"><span class="dot">{% if r.pool %}✓{% else %}!{% endif %}</span>
                 <span>{% if r.pool %}Listone caricato{% else %}Manca il listone{% endif %}</span>
-                {% if not r.pool %}<a href="{% url 'admin_players' %}?league={{ lg.id }}&need_listone=1">Carica</a>{% endif %}</li>
+                {% if not r.pool %}<a href="{% purl 'admin_players' %}?league={{ lg.id }}&need_listone=1">Carica</a>{% endif %}</li>
             <li class="{% if r.teams %}ok{% else %}todo{% endif %}"><span class="dot">{% if r.teams %}✓{% else %}!{% endif %}</span>
                 <span>{% if r.teams %}{{ r.teams }} squadr{{ r.teams|pluralize:"a,e" }} iscritt{{ r.teams|pluralize:"a,e" }}{% else %}Nessuna squadra{% endif %}</span>
-                {% if not r.teams %}<a href="{% url 'admin_participants' %}?league={{ lg.id }}">Aggiungi</a>{% endif %}</li>
+                {% if not r.teams %}<a href="{% purl 'admin_participants' %}?league={{ lg.id }}">Aggiungi</a>{% endif %}</li>
             {% if r.teams %}
             <li class="{% if r.locked_out %}todo{% else %}ok{% endif %}"><span class="dot">{% if r.locked_out %}!{% else %}✓{% endif %}</span>
                 <span>{% if r.locked_out %}{{ r.locked_out }} senza accesso{% else %}Accessi a posto{% endif %}</span>
-                {% if r.locked_out %}<a href="{% url 'admin_participants' %}?league={{ lg.id }}">Sistema</a>{% endif %}</li>
+                {% if r.locked_out %}<a href="{% purl 'admin_participants' %}?league={{ lg.id }}">Sistema</a>{% endif %}</li>
             {% endif %}
             <li class="{% if r.auctions %}ok{% else %}todo{% endif %}"><span class="dot">{% if r.auctions %}✓{% else %}•{% endif %}</span>
                 <span>{% if r.auctions %}{{ r.auctions }} ast{{ r.auctions|pluralize:"a,e" }}{% else %}Nessuna asta{% endif %}</span>
-                {% if not r.auctions and r.pool %}<a href="{% url 'admin_auction_wizard' %}?league={{ lg.id }}">Crea</a>{% endif %}</li>
+                {% if not r.auctions and r.pool %}<a href="{% purl 'admin_auction_wizard' %}?league={{ lg.id }}">Crea</a>{% endif %}</li>
         </ul>
 
         <div class="lg-actions fm-onerow">
@@ -242,7 +239,7 @@ its name to be typed: it takes teams, listone, auctions and sessions with it.
         </div>
 
         <form class="lg-edit" id="ed-{{ lg.id }}" method="post" action="{% url 'admin_config_action' %}" hidden data-league="{{ lg.id }}">
-            {% csrf_token %}
+            {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
             <input type="hidden" name="action" value="update_league">
             <input type="hidden" name="league_id" value="{{ lg.id }}">
             <input type="hidden" name="rules_present" value="1">
@@ -315,13 +312,13 @@ its name to be typed: it takes teams, listone, auctions and sessions with it.
                 </label>
                 <label class="sw-row">
                     <span class="sw"><input type="checkbox" name="contracts_enabled" value="1" {% if lg.contracts_enabled %}checked{% endif %}><i></i></span>
-                    <span class="txt"><b>Contratti di permanenza</b><span>Dadi dei contratti e rinnovi a fine stagione. <a href="{% url 'admin_contracts' %}?league={{ lg.id }}">Dadi e soglie ›</a></span></span>
+                    <span class="txt"><b>Contratti di permanenza</b><span>Dadi dei contratti e rinnovi a fine stagione. <a href="{% purl 'admin_contracts' %}?league={{ lg.id }}">Dadi e soglie ›</a></span></span>
                 </label>
                 <label class="sw-row">
                     <span class="sw"><input type="checkbox" name="salary_cap_enabled" value="1" {% if lg.salary_cap_enabled %}checked{% endif %}><i></i></span>
-                    <span class="txt"><b>Tetto salariale e Decreto</b><span>Limite di spesa per stagione. <a href="{% url 'admin_season' %}?league={{ lg.id }}">Tabelle ›</a></span></span>
+                    <span class="txt"><b>Tetto salariale e Decreto</b><span>Limite di spesa per stagione. <a href="{% purl 'admin_season' %}?league={{ lg.id }}">Tabelle ›</a></span></span>
                 </label>
-                <p class="hint">Regole delle buste e finestre degli scambi: <a href="{% url 'admin_market_dashboard' %}?league={{ lg.id }}">Mercato ›</a></p>
+                <p class="hint">Regole delle buste e finestre degli scambi: <a href="{% purl 'admin_market_dashboard' %}?league={{ lg.id }}">Mercato ›</a></p>
             </div>
 
             <div class="ed-foot">
@@ -366,7 +363,7 @@ its name to be typed: it takes teams, listone, auctions and sessions with it.
                 <a class="fm-btn fm-btn-secondary" href="{% url 'regia_auction' a.id %}">Apri</a>
                 <form method="post" action="{% url 'admin_config_action' %}"
                       onsubmit="return confirm('Eliminare l\'asta «{{ a.title|escapejs }}» e le sue {{ a.bid_count }} offerte?\n\nLega, squadre e listone restano.')">
-                    {% csrf_token %}
+                    {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
                     <input type="hidden" name="action" value="delete_auction">
                     <input type="hidden" name="auction_id" value="{{ a.id }}">
                     <input type="hidden" name="tab" value="aste">
@@ -399,7 +396,7 @@ its name to be typed: it takes teams, listone, auctions and sessions with it.
                 </form>
                 <form method="post" action="{% url 'admin_config_action' %}"
                       onsubmit="return confirm('Eliminare il salvataggio «{{ s.name|escapejs }}»?')">
-                    {% csrf_token %}
+                    {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
                     <input type="hidden" name="action" value="delete_session">
                     <input type="hidden" name="session_id" value="{{ s.id }}">
                     <input type="hidden" name="tab" value="sessioni">
@@ -424,7 +421,7 @@ its name to be typed: it takes teams, listone, auctions and sessions with it.
         </ul>
         <form method="post" action="{% url 'admin_config_action' %}"
               onsubmit="return confirm('Eliminare {{ empties|length }} leghe senza listone e senza aste?')">
-            {% csrf_token %}
+            {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
             <input type="hidden" name="action" value="clean_empty">
             <input type="hidden" name="tab" value="pulizia">
             <button type="submit" class="fm-btn fm-btn-danger"><svg class="ic"><use href="#i-trash"/></svg> Ripulisci leghe vuote</button>
@@ -438,7 +435,7 @@ its name to be typed: it takes teams, listone, auctions and sessions with it.
 
 <dialog class="cf-dlg" id="del-dlg" aria-labelledby="del-h">
     <form method="post" action="{% url 'admin_config_action' %}" class="in">
-        {% csrf_token %}
+        {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
         <input type="hidden" name="action" value="delete_league">
         <input type="hidden" name="league_id" id="del-id">
         <h3 id="del-h">Eliminare «<span id="del-name"></span>»?</h3>
