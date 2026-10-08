@@ -20,6 +20,10 @@ class Formation(models.Model):
     module      = models.CharField(max_length=10, default="4-3-3")
     starter_ids = models.JSONField(default=list, blank=True)
     bench_ids   = models.JSONField(default=list, blank=True)
+    # Captain and vice: Player ids among the starters (the vice takes the
+    # armband when the captain gets no vote). Null = none chosen.
+    captain_id  = models.PositiveIntegerField(null=True, blank=True)
+    vice_id     = models.PositiveIntegerField(null=True, blank=True)
     updated_at  = models.DateTimeField(auto_now=True)
 
     def __str__(self):
@@ -200,6 +204,8 @@ class MatchdayFormation(models.Model):
     module      = models.CharField(max_length=10, default="4-3-3")
     starter_ids = models.JSONField(default=list, blank=True)
     bench_ids   = models.JSONField(default=list, blank=True)
+    captain_id  = models.PositiveIntegerField(null=True, blank=True)
+    vice_id     = models.PositiveIntegerField(null=True, blank=True)
     updated_at  = models.DateTimeField(auto_now=True)
 
     class Meta:

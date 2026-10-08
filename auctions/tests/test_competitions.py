@@ -418,3 +418,42 @@ class CompetitionRulesAppliedTests(TestCase):
         self.assertEqual(details["home"]["total"], 66.0)
         self.assertEqual(details["home"]["goals"], 1)
         self.assertEqual(details["home"]["home_bonus"], 2.0)
+
+
+class NewSeasonTests(TestCase):
+    """«Nuova stagione» chiude l'anno: giornate e classifiche restano nella
+    vecchia stagione (lo storico), la nuova riparte da zero con le stesse
+    competizioni e le stesse regole."""
+
+    def setUp(self):
+        self.league = League.objects.create(name="Lega Dinastia")
+        self.teams = [Participant.objects.create(display_name=f"T{i}", league=self.league) for i in range(4)]
+        self.old = Season.objects.create(league=self.league, name="Stagione 2026/27", matchdays=6,
+                                         rules={"conv_base": 60})
+        for n in range(1, 7):
+            Giornata.objects.create(season=self.old, number=n)
+        self.comp = Competition.objects.create(season=self.old, name="Campionato", kind=Competition.Type.ROUND_ROBIN,
+                                               settings={"home_bonus": 1.0, "start_giornata": 1})
+        setup_round_robin_competition(self.comp)
+        g1 = self.old.giornate.get(number=1)
+        from auctions.services.scoring import set_manual_scores
+        set_manual_scores(g1, {t: (Decimal("70"), None) for t in self.teams})
+        self.old_scores = GiornataScore.objects.filter(giornata__season=self.old).count()
+
+    def test_the_year_is_kept_and_a_new_one_starts(self):
+        from auctions.services import season as season_service
+        season_service.start_new_season(self.league.id, final_order=[t.id for t in self.teams])
+        self.old.refresh_from_db()
+        self.assertFalse(self.old.is_current)
+        new = Season.objects.get(league=self.league, is_current=True)
+        self.assertEqual(new.name, "Stagione 2027/28")
+        self.assertEqual(new.rules, {"conv_base": 60})
+        self.assertEqual(new.giornate.count(), 6)
+        self.assertFalse(new.giornate.exclude(status=Giornata.Status.SCHEDULED).exists())
+        clone = new.competitions.get()
+        self.assertEqual((clone.name, clone.kind, clone.settings["home_bonus"]), ("Campionato", "ROUND_ROBIN", 1.0))
+        self.assertGreater(clone.fixtures.count(), 0)
+        self.assertFalse(clone.fixtures.filter(computed=True).exists())
+        # Last year's results are still there.
+        self.assertEqual(GiornataScore.objects.filter(giornata__season=self.old).count(), self.old_scores)
+        self.assertTrue(self.comp.fixtures.filter(computed=True).exists())

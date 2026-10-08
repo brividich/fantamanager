@@ -78,19 +78,20 @@ class VotiServicesTests(TestCase):
         self.assertEqual(fv, Decimal("11.5"))
 
     def test_capitano_bonus_malus(self):
+        rules = {**DEFAULTS, "captain_enabled": True}     # the league switched it on
         # 7.0 >= 6.5 -> +0.5 bonus = 7.5
         perf_high = {"vote": Decimal("7.0"), "is_captain": True}
-        fv_high, _ = player_fantavoto(perf_high, "A", DEFAULTS)
+        fv_high, _ = player_fantavoto(perf_high, "A", rules)
         self.assertEqual(fv_high, Decimal("7.5"))
 
         # 5.0 <= 5.5 -> -0.5 malus = 4.5
         perf_low = {"vote": Decimal("5.0"), "is_captain": True}
-        fv_low, _ = player_fantavoto(perf_low, "A", DEFAULTS)
+        fv_low, _ = player_fantavoto(perf_low, "A", rules)
         self.assertEqual(fv_low, Decimal("4.5"))
 
         # 6.0 in between -> no bonus/malus = 6.0
         perf_mid = {"vote": Decimal("6.0"), "is_captain": True}
-        fv_mid, _ = player_fantavoto(perf_mid, "A", DEFAULTS)
+        fv_mid, _ = player_fantavoto(perf_mid, "A", rules)
         self.assertEqual(fv_mid, Decimal("6.0"))
 
     def test_coppa_italia_battle_royale_matrix(self):
@@ -783,3 +784,89 @@ class ScoringRulesTests(TestCase):
         self.assertContains(resp, 'name="rule_goal_penalty"')
         self.client.force_login(User.objects.create_user("x_sr", password="pw"))
         self.assertEqual(self.client.post(reverse("admin_scoring_rules"), {"league_id": league.id, "reset": "1"}).status_code, 403)
+
+
+class CaptainTests(TestCase):
+    """Capitano e vice: si scelgono fra i titolari, restano nella copia della
+    giornata e valgono nel calcolo solo se la lega ha acceso la regola."""
+
+    def setUp(self):
+        from ..models import Giornata, Participant, Player, Season
+        self.league = League.objects.create(name="Lega Capitani")
+        self.team = Participant.objects.create(display_name="Squadra", league=self.league)
+        players = {}
+        for role, n in (("P", 1), ("D", 4), ("C", 3), ("A", 3)):
+            players[role] = [Player.objects.create(name=f"{role}{i}", role=role, team="X", league=self.league,
+                                                   owner=self.team, cost=Decimal("1")) for i in range(n)]
+        self.xi = [players["P"][0], *players["D"], *players["C"], *players["A"]]
+        self.bench = Player.objects.create(name="Riserva", role="A", team="X", league=self.league,
+                                           owner=self.team, cost=Decimal("1"))
+        self.season = Season.objects.create(league=self.league, name="2026/27",
+                                            rules={"captain_enabled": True})
+        self.g1 = Giornata.objects.create(season=self.season, number=1, status="OPEN")
+        self.cap, self.vice = self.xi[-1], self.xi[-2]
+
+    def _save(self, captain, vice):
+        from .. import services
+        services.save_formation(self.team, "4-3-3", [str(p.id) for p in self.xi], giornata=self.g1,
+                                captain=captain, vice=vice)
+
+    def _score(self, votes):
+        from ..services.scoring import compute_giornata
+        for p in self.xi:
+            if p.id in votes:
+                PlayerPerformance.objects.create(giornata=self.g1, player=p, vote=Decimal(votes[p.id]))
+        compute_giornata(self.g1)
+        return GiornataScore.objects.get(giornata=self.g1, participant=self.team)
+
+    def test_captain_must_be_a_starter_and_differ_from_the_vice(self):
+        from ..models import Formation
+        self._save(self.bench.id, self.bench.id)
+        f = Formation.objects.get(participant=self.team)
+        self.assertEqual((f.captain_id, f.vice_id), (None, None))
+        self._save(self.cap.id, self.cap.id)
+        f.refresh_from_db()
+        self.assertEqual((f.captain_id, f.vice_id), (self.cap.id, None))
+
+    def test_the_captain_takes_the_bonus(self):
+        self._save(self.cap.id, self.vice.id)
+        votes = {p.id: "6" for p in self.xi}
+        votes[self.cap.id] = "7"
+        gs = self._score(votes)
+        self.assertEqual(gs.total, Decimal("6") * 10 + Decimal("7.5") + 1)     # +1: clean sheet
+        self.assertEqual(gs.breakdown["captain"]["id"], self.cap.id)
+
+    def test_the_vice_takes_the_armband_when_the_captain_doesnt_play(self):
+        self._save(self.cap.id, self.vice.id)
+        votes = {p.id: "6" for p in self.xi if p != self.cap}
+        votes[self.vice.id] = "5"
+        gs = self._score(votes)
+        self.assertEqual(gs.breakdown["captain"]["id"], self.vice.id)
+        self.assertEqual(gs.breakdown["captain"]["bonus"], -0.5)
+
+    def test_off_by_default(self):
+        self.season.rules = {}
+        self.season.save()
+        self._save(self.cap.id, self.vice.id)
+        gs = self._score({p.id: "7" for p in self.xi})
+        self.assertEqual(gs.total, Decimal("78"))       # 11 × 7 + clean sheet, no armband
+
+    def test_the_lock_keeps_the_armband_in_the_giornata_copy(self):
+        from ..models import MatchdayFormation
+        from ..services.formation import lock_formations
+        self._save(self.cap.id, self.vice.id)
+        lock_formations(self.g1)
+        mf = MatchdayFormation.objects.get(giornata=self.g1, participant=self.team)
+        self.assertEqual((mf.captain_id, mf.vice_id), (self.cap.id, self.vice.id))
+
+    def test_the_pitch_offers_the_armband_only_when_the_league_plays_it(self):
+        from django.urls import reverse
+        session = self.client.session
+        session["participant_id"] = self.team.id
+        session.save()
+        self._save(self.cap.id, None)
+        page = self.client.get(reverse("app_formazione")).content.decode()
+        self.assertIn('name="captain"', page)
+        self.season.rules = {}
+        self.season.save()
+        self.assertNotIn('name="captain"', self.client.get(reverse("app_formazione")).content.decode())

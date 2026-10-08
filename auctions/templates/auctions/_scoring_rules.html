@@ -28,6 +28,12 @@ dentro _giornate_manage.html: uguale in console e app. Dati da _rules_form
         <input type="hidden" name="next" value="{{ gv_back }}">
         {% for g in rule_groups %}
         <div class="sr-group">{{ g.title }}</div>
+        {% if g.title == "Capitano" %}
+        <div class="sr-row" style="grid-template-columns:22px minmax(0,1fr)">
+            <input type="checkbox" id="rule-captain" name="captain_enabled" value="1" {% if captain_on %}checked{% endif %}>
+            <label for="rule-captain">Attivo<small>I manager scelgono capitano e vice in formazione: il capitano prende bonus o malus sul suo voto base; se non gioca, lo prende il vice.</small></label>
+        </div>
+        {% endif %}
         <div class="sr-grid">
             {% for r in g.rows %}
             <div class="sr-row{% if r.switchable and not r.on %} off{% endif %}">

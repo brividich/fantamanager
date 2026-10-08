@@ -189,7 +189,8 @@ def admin_formation_edit(request, participant_id):
     if request.method == "POST":
         _mf, recomputed = admin_save_matchday_formation(
             team, giornata, request.POST.get("module", ""),
-            request.POST.getlist("starter"), request.POST.getlist("bench"))
+            request.POST.getlist("starter"), request.POST.getlist("bench"),
+            captain=request.POST.get("captain"), vice=request.POST.get("vice"))
         if request.POST.get("save"):
             messages.success(request, f"Formazione di {team.display_name} per la Giornata {giornata.number} salvata"
                              + (": punteggi ricalcolati." if recomputed else "."))
@@ -299,8 +300,15 @@ RULE_GROUPS = [
         ("clean_sheet", "Porta inviolata (portiere)", "", True, False),
         ("fair_play", "Fair play: nessun cartellino in squadra", "", True, False),
     ]),
+    ("Capitano", [
+        ("captain_bonus_threshold", "Bonus se il voto è almeno", "voto base; vuoto = 6,5", False, True),
+        ("captain_bonus_value", "Bonus capitano", "vuoto = +0,5", False, True),
+        ("captain_malus_threshold", "Malus se il voto è al massimo", "voto base; vuoto = 5,5", False, True),
+        ("captain_malus_value", "Malus capitano", "vuoto = -0,5", False, True),
+    ]),
 ]
-_RULE_LIMITS = {"conv_base": (1, 200), "conv_step": (Decimal("0.5"), 50), "max_subs": (0, 11)}
+_RULE_LIMITS = {"conv_base": (1, 200), "conv_step": (Decimal("0.5"), 50), "max_subs": (0, 11),
+                "captain_bonus_threshold": (0, 10), "captain_malus_threshold": (0, 10)}
 
 
 def _rules_form(season):
@@ -320,6 +328,7 @@ def _rules_form(season):
     return {
         "rule_groups": groups,
         "modif_on": bool(values.get("modificatore_difesa")),
+        "captain_on": bool(values.get("captain_enabled")),
         "modif_rows": [{"i": i, "avg": _decimal_text(Decimal(str(a))) if a != "" else "",
                         "bonus": _decimal_text(Decimal(str(b))) if b != "" else ""} for i, (a, b) in enumerate(table)],
         "rules_custom": bool(raw),
@@ -344,7 +353,7 @@ def admin_scoring_rules(request):
         season.save(update_fields=["rules"])
         messages.success(request, "Regole di punteggio riportate ai valori classici del Fantacalcio.")
     else:
-        rules, off, bad = {k: v for k, v in (season.rules or {}).items() if k in ("captain_enabled",) or k.startswith("captain_")}, [], []
+        rules, off, bad = {}, [], []
         for _title, items in RULE_GROUPS:
             for key, label, _hint, switchable, optional in items:
                 raw = (request.POST.get(f"rule_{key}") or "").strip().replace(",", ".")
@@ -378,6 +387,7 @@ def admin_scoring_rules(request):
             messages.error(request, "Valori non validi: " + ", ".join(dict.fromkeys(bad)) + ". Nessuna regola cambiata.")
             return redirect(back)
         rules["modificatore_difesa"] = bool(request.POST.get("modificatore_difesa"))
+        rules["captain_enabled"] = bool(request.POST.get("captain_enabled"))
         if table:
             rules["modif_table"] = table
         if off:

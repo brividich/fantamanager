@@ -123,11 +123,14 @@ class ScoringEngineTests(TestCase):
 
     def test_captain_bonus_and_malus_customizable(self):
         from auctions import scoring
-        # Default: +0.5 for vote >= 6.5, -0.5 for vote <= 5.5
-        fv_pos, _ = scoring.player_fantavoto({"vote": 7, "is_captain": True}, "C", scoring.DEFAULTS)
+        # Off by default; switched on: +0.5 for vote >= 6.5, -0.5 for vote <= 5.5
+        self.assertEqual(scoring.player_fantavoto({"vote": 7, "is_captain": True}, "C", scoring.DEFAULTS)[0],
+                         Decimal("7"))
+        on = {**scoring.DEFAULTS, "captain_enabled": True}
+        fv_pos, _ = scoring.player_fantavoto({"vote": 7, "is_captain": True}, "C", on)
         self.assertEqual(fv_pos, Decimal("7.5"))
 
-        fv_neg, _ = scoring.player_fantavoto({"vote": 5, "is_captain": True}, "C", scoring.DEFAULTS)
+        fv_neg, _ = scoring.player_fantavoto({"vote": 5, "is_captain": True}, "C", on)
         self.assertEqual(fv_neg, Decimal("4.5"))
 
         # Disabled captain rule
@@ -137,7 +140,7 @@ class ScoringEngineTests(TestCase):
 
         # Custom values: threshold 7.0, bonus +1.0, threshold 5.0, malus -1.0
         custom_rules_2 = {
-            **scoring.DEFAULTS,
+            **on,
             "captain_bonus_threshold": 7.0,
             "captain_bonus_value": 1.0,
             "captain_malus_threshold": 5.0,

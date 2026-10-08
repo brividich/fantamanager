@@ -14,7 +14,7 @@ from django.db import transaction
 
 from ..models import Competition, Fixture, Giornata, GiornataScore, Player, PlayerPerformance, Season
 from .. import scoring
-from .scoring import lineup_io, giornata_perf_map
+from .scoring import lineup_captains, lineup_io, giornata_perf_map
 from .voti import compute_coppa_italia_battle_royale
 
 
@@ -629,6 +629,59 @@ def season_name(today=None):
     return f"Stagione {start}/{(start + 1) % 100:02d}"
 
 
+def next_season_name(name, today=None):
+    """«Stagione 2026/27» → «Stagione 2027/28»; any other name gets the
+    football season running ``today``."""
+    import re
+    m = re.search(r"(\d{4})/(\d{2})\s*$", name or "")
+    if m:
+        start = int(m.group(1)) + 1
+        return f"{name[:m.start()]}{start}/{(start + 1) % 100:02d}"
+    return season_name(today)
+
+
+def build_schedule(competition):
+    """The calendar of a competition from its own settings (start/end
+    giornata, andata e ritorno). Formats without a calendar (total points,
+    Formula 1, …) and a Supercoppa without its two teams get none."""
+    s = competition.settings or {}
+    start = int(s.get("start_giornata") or 1)
+    end = s.get("end_giornata") or None
+    kind = competition.kind
+    if kind in (Competition.Type.ROUND_ROBIN, Competition.Type.SEASON_SPLIT):
+        return setup_round_robin_competition(competition, start_giornata=start, end_giornata=end)
+    if kind == Competition.Type.KNOCKOUT:
+        return setup_knockout_competition(competition, start_giornata=start, two_legged=bool(s.get("two_legged")))
+    if kind == Competition.Type.GROUPS_KNOCKOUT:
+        return setup_groups_knockout_competition(competition, start_giornata=start, end_giornata=end)
+    return []
+
+
+@transaction.atomic
+def roll_season(league):
+    """Close the league's current Season and open the next one.
+
+    The old season stays as it is — giornate, scores, fixtures, standings —
+    and becomes the league's history. The new one has fresh giornate, the same
+    scoring rules and the same competitions (same names, formats and
+    settings), their calendars drawn again for the teams active now.
+    Returns the new Season (None when the league had none yet)."""
+    old = Season.objects.select_for_update().filter(league=league, is_current=True).order_by("-id").first()
+    if old is None:
+        return None
+    Season.objects.filter(league=league, is_current=True).update(is_current=False)
+    new = Season.objects.create(
+        league=league, name=next_season_name(old.name), matchdays=old.matchdays or 38,
+        rules=dict(old.rules or {}), is_current=True,
+    )
+    Giornata.objects.bulk_create([Giornata(season=new, number=n) for n in range(1, new.matchdays + 1)])
+    for comp in old.competitions.filter(is_active=True).order_by("id"):
+        clone = Competition.objects.create(season=new, name=comp.name, kind=comp.kind,
+                                           settings=dict(comp.settings or {}))
+        build_schedule(clone)
+    return new
+
+
 @transaction.atomic
 def ensure_league_season_and_competitions(league):
     """Ensure active Season, matchdays (1..38), and standard competitions exist for a league."""
@@ -681,7 +734,9 @@ def get_fixture_details(fixture):
         if not part:
             return None
         starters, bench = lineup_io(part, giornata=giornata)
-        res = scoring.score_lineup(starters, bench, perf_map, rules)
+        captain_id, vice_id = lineup_captains(part, giornata)
+        res = scoring.score_lineup(starters, bench, perf_map, rules,
+                                   captain_id=captain_id, vice_id=vice_id)
 
         player_ids = set()
         for l in res["lines"]:
@@ -774,6 +829,8 @@ def get_fixture_details(fixture):
             "goals": goals_val,
             "modificatore": mod_val,
             "home_bonus": bonus,
+            "captain_id": res["captain"]["id"],
+            "captain_bonus": float(res["captain"]["bonus"]),
             "subs_count": res["subs"],
             "scorers": scorers,
             "assists": assists,

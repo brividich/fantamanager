@@ -45,6 +45,12 @@ def lineup_io(participant, giornata=None):
     return starters, bench
 
 
+def lineup_captains(participant, giornata=None):
+    """``(captain_id, vice_id)`` of the lineup ``lineup_io`` plays."""
+    saved = _saved_lineup(participant, giornata)
+    return saved["captain_id"], saved["vice_id"]
+
+
 def giornata_perf_map(giornata):
     """player id → performance dict for one giornata (engine input)."""
     return {pp.player_id: pp.as_perf()
@@ -59,6 +65,7 @@ def _serialisable_lines(res):
         "subs": res["subs"],
         "modificatore": f(res["modificatore"]),
         "fair_play": f(res.get("fair_play")),
+        "captain": {"id": res["captain"]["id"], "bonus": f(res["captain"]["bonus"])} if res.get("captain") else None,
         "lines": [{
             "id": l["id"], "role": l["role"], "vote": f(l["vote"]),
             "fantavoto": f(l["fantavoto"]), "has_vote": l["has_vote"], "sub_in": l["sub_in"],
@@ -71,7 +78,9 @@ def score_participant_giornata(participant, giornata, *, persist=True):
     performances. Returns the engine result; persists a GiornataScore when asked."""
     starters, bench = lineup_io(participant, giornata=giornata)
     rules = (giornata.season.rules or {}) if giornata.season_id else {}
-    res = scoring.score_lineup(starters, bench, giornata_perf_map(giornata), rules)
+    captain_id, vice_id = lineup_captains(participant, giornata)
+    res = scoring.score_lineup(starters, bench, giornata_perf_map(giornata), rules,
+                               captain_id=captain_id, vice_id=vice_id)
     if persist:
         GiornataScore.objects.update_or_create(
             giornata=giornata, participant=participant,

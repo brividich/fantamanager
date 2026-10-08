@@ -458,7 +458,10 @@ def _session_participant(request):
             return p
     user = getattr(request, "user", None)
     if user and user.is_authenticated:
-        p = Participant.objects.filter(user=user, is_active=True).first()
+        # Only an account with a single team gets it by default: with teams in
+        # several leagues the login asks which one (never the database order).
+        mine = list(Participant.objects.filter(user=user, is_active=True)[:2])
+        p = mine[0] if len(mine) == 1 else None
         if p:
             request.session["participant_id"] = p.id
             request.session["display_name"] = p.display_name

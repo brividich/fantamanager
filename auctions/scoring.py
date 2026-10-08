@@ -41,8 +41,10 @@ DEFAULTS = {
     "modificatore_difesa": False,
     # media (portiere + migliori 3 difensori) → bonus, applicata solo se attiva.
     "modif_table": [(6.5, 3), (6.0, 1)],
-    # Regola Capitano: personalizzabile (on/off, soglie e valori bonus/malus)
-    "captain_enabled":         True,
+    # Regola Capitano: personalizzabile (on/off, soglie e valori bonus/malus).
+    # Spenta di default: la lega la accende dalle Regole di punteggio, e da li'
+    # i manager scelgono capitano e vice in formazione.
+    "captain_enabled":         False,
     "captain_bonus_threshold": 6.5,
     "captain_bonus_value":     0.5,
     "captain_malus_threshold": 5.5,
@@ -111,17 +113,23 @@ def player_fantavoto(perf, role, rules):
         total += _d(r["goal_conceded"]) * conceded
         if r.get("clean_sheet") and conceded == 0:
             total += _d(r["clean_sheet"])
-    if perf.get("is_captain") and r.get("captain_enabled", True):
-        v = _d(vote)
-        b_thresh = _d(r.get("captain_bonus_threshold", 6.5))
-        b_val    = _d(r.get("captain_bonus_value", 0.5))
-        m_thresh = _d(r.get("captain_malus_threshold", 5.5))
-        m_val    = _d(r.get("captain_malus_value", -0.5))
-        if v >= b_thresh:
-            total += b_val
-        elif v <= m_thresh:
-            total += m_val
+    if perf.get("is_captain"):
+        total += captain_bonus(vote, r)
     return total, True
+
+
+def captain_bonus(vote, rules):
+    """The armband's bonus or malus on the captain's *base* vote: at or above
+    the bonus threshold, at or below the malus one, 0 in between or when the
+    league plays without it."""
+    if vote is None or not rules.get("captain_enabled", True):
+        return Decimal("0")
+    v = _d(vote)
+    if v >= _d(rules.get("captain_bonus_threshold", 6.5)):
+        return _d(rules.get("captain_bonus_value", 0.5))
+    if v <= _d(rules.get("captain_malus_threshold", 5.5)):
+        return _d(rules.get("captain_malus_value", -0.5))
+    return Decimal("0")
 
 
 def goals_from_total(total, rules):
@@ -149,13 +157,16 @@ def _modificatore_difesa(lines, rules):
     return Decimal("0")
 
 
-def score_lineup(starters, bench, perf, rules=None):
+def score_lineup(starters, bench, perf, rules=None, captain_id=None, vice_id=None):
     """Score one manager's lineup for a giornata.
 
     ``starters`` / ``bench`` are ordered lists of ``{"id", "role"}`` (bench order
     is the substitution priority). ``perf`` maps player id → performance dict.
+    ``captain_id`` / ``vice_id``: the armband goes to the captain if he got a
+    vote, else to the vice if he did (a substitute never inherits it).
     Returns a detailed result: total fantapunti, goals, the applied defensive
-    modifier, and per-slot lines (with which bench player, if any, came on).
+    modifier, the captain's bonus, and per-slot lines (with which bench
+    player, if any, came on).
     """
     rules = effective_rules(rules)
 
@@ -197,6 +208,15 @@ def score_lineup(starters, bench, perf, rules=None):
         modificatore = _modificatore_difesa(lines, rules)
         total += modificatore
 
+    # Captain: the bonus/malus on his base vote; the vice if he didn't play.
+    captain = {"id": None, "bonus": Decimal("0")}
+    played = {l["id"]: l for l in lines if l["has_vote"] and l["sub_in"] is None}
+    for cid in (captain_id, vice_id):
+        if cid and cid in played:
+            captain = {"id": cid, "bonus": captain_bonus(played[cid]["vote"], rules)}
+            break
+    total += captain["bonus"]
+
     # Fair play: nobody who played (starter or substitute) got a card.
     fair_play = Decimal("0")
     if rules.get("fair_play") and any(l["has_vote"] for l in lines):
@@ -210,6 +230,7 @@ def score_lineup(starters, bench, perf, rules=None):
         "goals": goals_from_total(total, rules),
         "modificatore": modificatore,
         "fair_play": fair_play,
+        "captain": captain,
         "subs": subs_done,
         "lines": lines,
     }

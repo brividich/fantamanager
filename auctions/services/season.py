@@ -64,6 +64,7 @@ def start_new_season(league_id, final_order=None):
         res = contracts.new_season(league.id)
         league.refresh_from_db()
         _step(report, f"Stagione {res['season']}: contratti scalati di un anno, {res['expired']} scaduti.")
+        _roll_championship(league, report)
         for name, amount in res.get("listed_lost", []):
             _step(report, f"{name} lascia la lista ceduti a fine contratto: +{amount} FM alla squadra.")
         if res["expired"]:
@@ -75,9 +76,21 @@ def start_new_season(league_id, final_order=None):
         league.season_number += 1
         league.save(update_fields=["season_number", "updated_at"])
         _step(report, f"Stagione {league.season_number} iniziata.")
+        _roll_championship(league, report)
 
     _open_summer(league, ranking, report)
     return report
+
+
+def _roll_championship(league, report):
+    """Giornate, risultati e classifiche dell'anno finito restano nella loro
+    stagione (lo storico); la nuova riparte da zero con le stesse competizioni."""
+    from .competitions import roll_season
+
+    new = roll_season(league)
+    if new is not None:
+        _step(report, f"{new.name}: giornate nuove, competizioni ricreate con i loro calendari; "
+                      "risultati e classifiche dell'anno scorso restano nello storico.")
 
 
 def _tick_loans(league, report):

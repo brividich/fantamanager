@@ -2,8 +2,8 @@
 from django.db import transaction
 from django.utils import timezone
 
-from .. import mantra
-from ..models import Formation, Giornata, MatchdayFormation, Participant, Player
+from .. import mantra, scoring
+from ..models import Formation, Giornata, MatchdayFormation, Participant, Player, Season
 
 # Modulo Classic -> titolari per reparto (il portiere e' sempre 1).
 FORMATION_MODULES = {
@@ -119,8 +119,34 @@ def _saved_lineup(participant, giornata=None):
         "module": module,
         "starter_ids": list(f.starter_ids or []) if f else [],
         "bench_ids": list(getattr(f, "bench_ids", None) or []) if f else [],
+        "captain_id": f.captain_id if f else None,
+        "vice_id": f.vice_id if f else None,
         "frozen": frozen,
     }
+
+
+def _clean_captains(starter_ids, captain, vice):
+    """``(captain_id, vice_id)`` kept only if they are among the starters; the
+    vice can't be the captain too."""
+    on_pitch = {pid for pid in starter_ids if pid}
+
+    def pick(raw):
+        try:
+            pid = int(raw)
+        except (TypeError, ValueError):
+            return None
+        return pid if pid in on_pitch else None
+
+    captain_id, vice_id = pick(captain), pick(vice)
+    if vice_id == captain_id:
+        vice_id = None
+    return captain_id, vice_id
+
+
+def captain_enabled(league):
+    """Whether the league plays with the armband (its current season's rules)."""
+    season = Season.objects.filter(league=league, is_current=True).first() if league else None
+    return bool(scoring.effective_rules(season.rules if season else None).get("captain_enabled"))
 
 
 def _formation_saved(participant, giornata=None):
@@ -216,7 +242,13 @@ def formation_state(participant, giornata=None):
         rows.append({"label": line_label, "slots": row_slots})
 
     bench = _ordered_bench(owned, list(assigned_ids), saved["bench_ids"])
+    starters = [p for p in placed if p is not None]
+    captain_id, vice_id = _clean_captains([p.id for p in starters], saved["captain_id"], saved["vice_id"])
     return {
+        "starters": starters,
+        "captain_id": captain_id,
+        "vice_id": vice_id,
+        "captain_enabled": captain_enabled(participant.league),
         "is_mantra": is_mantra,
         "module": module,
         "modules": _modules_for(is_mantra),
@@ -268,9 +300,10 @@ def _clean_lineup(participant, module, raw_ids, raw_bench_ids, pool=None):
     return module, ordered, bench
 
 
-def save_formation(participant, module, raw_ids, raw_bench_ids=None, giornata=None):
+def save_formation(participant, module, raw_ids, raw_bench_ids=None, giornata=None,
+                   captain=None, vice=None):
     """Salva una formazione posizionale: ``raw_ids[i]`` e' lo slot i-esimo,
-    ``raw_bench_ids`` l'ordine della panchina.
+    ``raw_bench_ids`` l'ordine della panchina, ``captain``/``vice`` fra i titolari.
 
     Diventa l'ultima formazione salvata (il modello per le giornate a venire)
     e, se ``giornata`` e' ancora da giocare, la formazione di quella giornata.
@@ -279,13 +312,13 @@ def save_formation(participant, module, raw_ids, raw_bench_ids=None, giornata=No
     if not is_editable(giornata):
         return None
     module, ordered, bench = _clean_lineup(participant, module, raw_ids, raw_bench_ids)
-    formation, _ = Formation.objects.update_or_create(
-        participant=participant, defaults={"module": module, "starter_ids": ordered, "bench_ids": bench}
-    )
+    captain_id, vice_id = _clean_captains(ordered, captain, vice)
+    values = {"module": module, "starter_ids": ordered, "bench_ids": bench,
+              "captain_id": captain_id, "vice_id": vice_id}
+    formation, _ = Formation.objects.update_or_create(participant=participant, defaults=values)
     if giornata is not None:
         MatchdayFormation.objects.update_or_create(
-            giornata=giornata, participant=participant,
-            defaults={"module": module, "starter_ids": ordered, "bench_ids": bench},
+            giornata=giornata, participant=participant, defaults=values,
         )
     return formation
 
@@ -314,9 +347,11 @@ def lock_formations(giornata):
             owned_ids = {p.id for p in owned}
             slots = [pid if pid in owned_ids else None for pid in saved["starter_ids"]]
             bench = [p.id for p in _ordered_bench(owned, slots, saved["bench_ids"])]
+            captain_id, vice_id = _clean_captains(slots, saved["captain_id"], saved["vice_id"])
             MatchdayFormation.objects.update_or_create(
                 giornata=giornata, participant=team,
-                defaults={"module": saved["module"], "starter_ids": slots, "bench_ids": bench},
+                defaults={"module": saved["module"], "starter_ids": slots, "bench_ids": bench,
+                          "captain_id": captain_id, "vice_id": vice_id},
             )
             written += 1
         if editable:
@@ -326,7 +361,8 @@ def lock_formations(giornata):
     return written
 
 
-def admin_save_matchday_formation(participant, giornata, module, raw_ids, raw_bench_ids=None):
+def admin_save_matchday_formation(participant, giornata, module, raw_ids, raw_bench_ids=None,
+                                  captain=None, vice=None):
     """L'admin della lega scrive la formazione di una squadra per una giornata
     qualsiasi, anche gia' bloccata o calcolata: una correzione (un manager che
     non ha schierato, un errore). Tocca solo la copia di quella giornata, non
@@ -339,9 +375,11 @@ def admin_save_matchday_formation(participant, giornata, module, raw_ids, raw_be
     module, ordered, bench = _clean_lineup(participant, module, raw_ids, raw_bench_ids, pool=pool)
     taken = {pid for pid in ordered if pid} | set(bench)
     bench += [p.id for p in pool if p.id not in taken]       # la panchina e' tutta la rosa che resta
+    captain_id, vice_id = _clean_captains(ordered, captain, vice)
     mf, _ = MatchdayFormation.objects.update_or_create(
         giornata=giornata, participant=participant,
-        defaults={"module": module, "starter_ids": ordered, "bench_ids": bench},
+        defaults={"module": module, "starter_ids": ordered, "bench_ids": bench,
+                  "captain_id": captain_id, "vice_id": vice_id},
     )
     recomputed = False
     # Only from votes: a giornata scored by hand (totals typed in) has none,

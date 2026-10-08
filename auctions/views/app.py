@@ -215,7 +215,9 @@ def app_live(request):
 
             def _get_team_live(part):
                 starters, bench = services.lineup_io(part, giornata=current_giornata)
-                res = scoring.score_lineup(starters, bench, perf_map, rules)
+                captain_id, vice_id = services.lineup_captains(part, current_giornata)
+                res = scoring.score_lineup(starters, bench, perf_map, rules,
+                                           captain_id=captain_id, vice_id=vice_id)
 
                 player_ids = set()
                 for l in res["lines"]:
@@ -243,6 +245,7 @@ def app_live(request):
                         "fantavoto": l["fantavoto"],
                         "has_vote": l["has_vote"],
                         "is_subbed": bool(sub_p),
+                        "is_captain": res["captain"]["id"] is not None and res["captain"]["id"] == l["id"] and not sub_p,
                         "perf": active_perf,
                         "goals": active_perf.get("goals", 0),
                         "assists": active_perf.get("assists", 0),
@@ -278,6 +281,7 @@ def app_live(request):
                     "total": typed.total if typed else res["total"],
                     "goals": typed.goals if typed else res["goals"],
                     "modificatore": res["modificatore"],
+                    "captain_bonus": res["captain"]["bonus"],
                     "subs": res["subs"],
                     "starters": detailed_starters,
                     "bench": detailed_bench,
@@ -321,7 +325,8 @@ def app_live(request):
             active_teams = list(participant.league.participants.filter(is_active=True)) if participant.league else [participant]
             for t in active_teams:
                 s, b = services.lineup_io(t, giornata=current_giornata)
-                r = scoring.score_lineup(s, b, perf_map, rules)
+                c, v = services.lineup_captains(t, current_giornata)
+                r = scoring.score_lineup(s, b, perf_map, rules, captain_id=c, vice_id=v)
                 typed = manual.get(t.id)
                 leaderboard.append({
                     "participant": t,
@@ -1118,7 +1123,8 @@ def app_formazione(request):
                                     + (f"Ora schieri per la Giornata {giornata.number}." if giornata else ""))
             return redirect("app_formazione")
         services.save_formation(participant, request.POST.get("module", ""), request.POST.getlist("starter"),
-                                request.POST.getlist("bench"), giornata=giornata)
+                                request.POST.getlist("bench"), giornata=giornata,
+                                captain=request.POST.get("captain"), vice=request.POST.get("vice"))
         if request.POST.get("save"):
             messages.success(request, f"Formazione salvata per la Giornata {giornata.number}." if giornata
                              else "Formazione salvata.")
@@ -1170,7 +1176,14 @@ def app_login(request):
     # If the user is already authenticated via Django user and has a linked team,
     # and they are not explicitly asking to switch (?switch=1):
     if request.method == "GET" and request.user.is_authenticated and not request.GET.get("switch"):
-        participant = Participant.objects.filter(user=request.user, is_active=True).first()
+        mine = list(Participant.objects.filter(user=request.user, is_active=True)[:2])
+        current = request.session.get("participant_id")
+        participant = None
+        if len(mine) == 1:
+            participant = mine[0]
+        elif mine and Participant.objects.filter(pk=current, user=request.user, is_active=True).exists():
+            return redirect(next_url)          # already playing one of their teams
+        # Two or more teams (in different leagues): the page below asks which.
         if participant:
             request.session["participant_id"] = participant.id
             request.session["display_name"] = participant.display_name
@@ -1215,9 +1228,16 @@ def app_login(request):
                     error = "Questo account è disattivato. Contatta l'amministratore."
                 else:
                     auth_login(request, user)
-                    teams = Participant.objects.filter(user=user, is_active=True)
-                    if teams.exists():
-                        participant = teams.first()
+                    teams = list(Participant.objects.filter(user=user, is_active=True)[:2])
+                    if len(teams) > 1:
+                        # Teams in more than one league: the account picks, never the database order.
+                        request.session.pop("participant_id", None)
+                        request.session.pop("display_name", None)
+                        messages.info(request, "Hai più squadre: scegli con quale entrare.")
+                        from urllib.parse import urlencode
+                        return redirect(f"{reverse('app_login')}?{urlencode({'switch': 1, 'next': next_url})}")
+                    if teams:
+                        participant = teams[0]
                     elif app_admin_leagues(user):
                         # No team, but a league to run: straight to the Regia,
                         # where "Vedi come" opens any team on purpose instead
@@ -1251,7 +1271,9 @@ def app_login(request):
             if participant_id and participant_id.isdigit():
                 candidate = Participant.objects.filter(pk=int(participant_id), is_active=True).first()
                 if candidate:
-                    if candidate.user_id is not None and (not request.user.is_authenticated or request.user.id != candidate.user_id):
+                    if request.user.is_authenticated and candidate.user_id == request.user.id:
+                        participant = candidate              # one of the account's own teams
+                    elif candidate.user_id is not None and (not request.user.is_authenticated or request.user.id != candidate.user_id):
                         error = f"{candidate.display_name} è associata all'account di un utente. Accedi con Username e Password."
                     elif candidate.access_code and throttle.blocked(request, "code"):
                         error = throttle.MESSAGE
@@ -1287,7 +1309,8 @@ def app_login(request):
     leagues = visible_leagues(request).prefetch_related("participants").order_by("name")
     user_teams = []
     if request.user.is_authenticated:
-        user_teams = list(Participant.objects.filter(user=request.user, is_active=True))
+        user_teams = list(Participant.objects.filter(user=request.user, is_active=True)
+                          .select_related("league").order_by("league__name", "display_name"))
 
     return render(
         request,
