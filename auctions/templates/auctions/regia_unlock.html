@@ -28,6 +28,19 @@
         </div>
     </div>
 
+    <details class="howto noprint" style="text-align:left">
+        <summary><svg class="ic"><use href="#i-lock"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+        <div class="howto-body">
+            Stai aprendo la regia da internet: serve il PIN a 6 cifre.
+            <ol>
+                <li>Sul PC che ospita l'asta apri <b>Accesso remoto</b> dal menu della console.</li>
+                <li>Leggi il numero nel riquadro <b>PIN regia</b>.</li>
+                <li>Scrivilo qui sotto e premi <b>Sblocca</b>.</li>
+            </ol>
+            <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Se il tunnel è stato chiuso e riaperto il PIN è nuovo. Dopo 5 tentativi sbagliati aspetta un minuto.</div>
+        </div>
+    </details>
+
     <div class="panel">
         <h2>PIN della regia</h2>
         {% if error %}<div class="unlock-err">{{ error }}</div>{% endif %}

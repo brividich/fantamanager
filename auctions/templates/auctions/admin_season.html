@@ -35,6 +35,38 @@
     </div>
 </div>
 
+{% if current_league %}
+<details class="howto noprint">
+    <summary><svg class="ic"><use href="#i-shield"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        Qui porti la lega da una stagione all'altra: classifiche, <b>tetto salariale</b> e <b>Decreto Salvacalcio</b>.
+        <ol>
+            {% if not current_league.salary_cap_enabled %}
+            <li>Il tetto è spento: apri <b>Impostazioni economia (comma 3)</b>, spunta <b>attivi</b> accanto a
+                <b>Tetto salariale e Decreto</b>, controlla le tabelle e premi <b>Salva</b>.</li>
+            {% endif %}
+            <li>Se è la prima stagione che gestisci qui, scrivi nella colonna <b>Anno prec.</b> la posizione finale
+                dell'anno scorso di ogni squadra e premi <b>Salva classifica anno precedente</b>.</li>
+            {% if not phases and current_league.salary_cap_enabled %}
+            <li>Per far partire subito il tetto, senza aspettare la fine del campionato, premi <b>Apri ora la fase estiva</b>.</li>
+            {% endif %}
+            {% if current_league.renewals_open %}
+            <li>I rinnovi sono aperti: quando le squadre li hanno dichiarati e hanno tirato i dadi, premi <b>Chiudi rinnovi</b>.</li>
+            {% endif %}
+            {% if not has_winter %}
+            <li>A fine girone d'andata premi <b>Metà stagione</b>{% if not current_league.standings_url and not app_ranking_available %}, dopo aver scritto le posizioni nella colonna <b>Metà</b>{% endif %}.</li>
+            {% endif %}
+            <li>A fine campionato premi <b>Nuova stagione</b>{% if not current_league.standings_url and not app_ranking_available %}, dopo aver scritto la classifica nella colonna <b>Fine</b>{% endif %};
+                poi, quando i rinnovi sono finiti, <b>Chiudi rinnovi</b>.</li>
+            {% if phases %}
+            <li>Per una multa o un correttivo usa <b>Rettifica tetto</b>: scegli la squadra, scrivi importo e motivo e premi <b>Applica</b>.</li>
+            {% endif %}
+        </ol>
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Nella tabella vedi per ogni squadra tetto, spesi e margine; i Decreti assegnati compaiono a destra.</div>
+    </div>
+</details>
+{% endif %}
+
 {% if messages %}
 <div style="margin-bottom:14px">
     {% for msg in messages %}

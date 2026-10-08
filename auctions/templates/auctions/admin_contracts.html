@@ -1176,6 +1176,38 @@
     {% endif %}
 </div>
 
+{% if current_league %}
+<details class="howto noprint">
+    <summary><svg class="ic"><use href="#i-shield"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        Qui gestisci i <b>contratti di permanenza</b>: quanti anni ogni giocatore resta nella sua squadra e chi si rinnova a fine contratto.
+        <ol>
+            {% if not current_league.contracts_enabled %}
+            <li>I contratti sono spenti: in <b>Regole e Parametri Contratti</b> accendi <b>Abilita Contratti di Permanenza</b>,
+                controlla le <b>Facce Dado Contratti</b> e le soglie per ruolo, poi premi <b>Salva impostazioni</b>.</li>
+            {% else %}
+            <li>In <b>Regole e Parametri Contratti</b> controlla le <b>Facce Dado Contratti</b> e, per ogni ruolo,
+                la <b>clausola FM</b> e l'<b>incasso max</b>. Se cambi qualcosa premi <b>Salva impostazioni</b>.</li>
+            <li>Apri una squadra in <b>Squadre della Lega</b>: per ogni giocatore <b>da tirare</b> premi <b>Tira</b>.
+                Lascia 🎲 per il dado virtuale, oppure scegli il numero se avete tirato un dado vero.</li>
+            <li>Per correggere un contratto scrivi gli anni accanto al giocatore e premi <b>Imposta</b>.</li>
+            {% if current_league.renewals_open %}
+            <li>I rinnovi sono aperti: ogni squadra dichiara dall'app quali giocatori scaduti vuole tenere.
+                Per ognuno di quelli premi <b>Rinnovo</b>: dado verde o rosso e, se esce verde, il dado contratti.</li>
+            <li>Quando hai finito premi <b>Chiudi rinnovi</b>.</li>
+            {% else %}
+            <li>A fine campionato premi <b>Nuova stagione</b>: i contratti scalano di un anno e si aprono i rinnovi per quelli scaduti.</li>
+            {% endif %}
+            {% endif %}
+            <li>In <b>Usciti dalla Serie A</b> trovi chi ha lasciato il campionato.
+                {% if apifootball %}Premi <b>Controlla tutte le rose</b> per cercarli da solo, oppure segnalali{% else %}Segnalali{% endif %}
+                con <b>Segnala uscita</b>; poi scegli l'esito e premi <b>Conferma</b>: la squadra incassa il compenso.</li>
+        </ol>
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> {% if current_league.contracts_enabled %}<b>Lista rinnovi</b> ed <b>Excel</b> ti danno il foglio dei rinnovi da stampare o condividere. {% endif %}Ogni dado e ogni modifica restano nel <b>Registro Dadi e Contratti</b> in fondo alla pagina.</div>
+    </div>
+</details>
+{% endif %}
+
 {% if messages %}
 <div style="margin-bottom:16px">
     {% for msg in messages %}

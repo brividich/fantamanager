@@ -166,6 +166,30 @@ its name to be typed: it takes teams, listone, auctions and sessions with it.
     <a class="fm-btn fm-btn-primary" href="{% url 'admin_setup' %}"><svg class="ic"><use href="#i-plus"/></svg> Nuova lega</a>
 </div>
 
+<details class="howto noprint">
+    <summary><svg class="ic"><use href="#i-shield"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        Qui imposti le regole di ogni lega che gestisci e fai pulizia di aste e salvataggi.
+        <ol>
+            {% if not rows %}
+            <li>Non gestisci ancora nessuna lega: premi <b>Nuova lega</b> per crearne una.</li>
+            {% else %}
+            <li>Nella scheda <b>Leghe</b> guarda l'elenco di controllo di ogni lega: dove manca qualcosa premi il link
+                accanto (<b>Carica</b> il listone, <b>Aggiungi</b> le squadre, <b>Sistema</b> gli accessi, <b>Crea</b> l'asta).</li>
+            <li>Premi <b>Modifica</b> per cambiare nome, crediti, sistema di gioco, rosa e regole (scambi, contratti,
+                tetto salariale), poi <b>Salva</b>.</li>
+            <li><b>Console</b> e <b>App</b> ti portano alla regia di quella lega.</li>
+            {% endif %}
+            <li>Nella scheda <b>Aste</b> elimini le aste che non servono più; in <b>Salvataggi</b> premi <b>Riprendi</b>
+                per ricreare un'asta da un salvataggio.</li>
+            {% if empties %}
+            <li>In <b>Pulizia</b> ci sono leghe vuote, senza listone né aste: premi <b>Ripulisci leghe vuote</b>.</li>
+            {% endif %}
+        </ol>
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Per l'asta in sala sul PC apri <b>Asta in sala</b>: ti guida passo passo. <b>Elimina</b> cancella la lega con squadre, listone, aste e salvataggi: per confermare devi scriverne il nome.</div>
+    </div>
+</details>
+
 {% for m in messages %}
 <div class="msg {% if m.tags %}{{ m.tags }}{% endif %}" role="status">{{ m }}</div>
 {% endfor %}

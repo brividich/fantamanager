@@ -109,6 +109,27 @@
     </div>
 </div>
 
+<details class="howto noprint">
+    <summary><svg class="ic"><use href="#i-shield"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        Qui crei i tornei della lega (campionato, coppe…) e ne segui classifiche e calendari.
+        <ol>
+            {% if not competitions %}
+            <li>Premi <b>Nuova Competizione</b>: in 5 passi scegli formato, nome, giornate e calcolo dei punteggi,
+                poi premi <b>Crea e Genera Calendario</b>.</li>
+            {% else %}
+            <li>Scegli una competizione dai pulsanti in alto: vedi la sua <b>Classifica & Punteggi</b> e il <b>Calendario Incontri</b>.</li>
+            <li>Su una partita premi <b>Tabellino</b> per vedere formazioni e voti delle due squadre.</li>
+            {% if selected_competition and selected_competition.kind in "ROUND_ROBIN KNOCKOUT SEASON_SPLIT" %}
+            <li>Se sono cambiate le squadre, <b>Rigenera Calendario</b> rifà gli accoppiamenti: le partite già registrate di questo torneo si cancellano.</li>
+            {% endif %}
+            <li>Per aggiungere un torneo premi <b>Nuova Competizione</b> e segui i 5 passi fino a <b>Crea e Genera Calendario</b>.</li>
+            {% endif %}
+        </ol>
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> I risultati arrivano da <b>Giornate & Voti</b>: quando calcoli una giornata, classifiche e calendari si aggiornano da soli.</div>
+    </div>
+</details>
+
 {% if messages %}
 <div style="margin-bottom:16px">
     {% for msg in messages %}
