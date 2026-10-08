@@ -143,10 +143,10 @@ class AppAuthTests(TestCase):
         self.team_open.refresh_from_db()
         self.assertEqual(self.team_open.access_code, "MYNEWCODE")
 
-        # 2. Too short (< 3 chars)
+        # 2. Too short (sotto la lunghezza minima dei codici scelti a mano)
         resp_short = self.client.post(
             reverse("app_update_pin"),
-            data={"access_code": "AB"},
+            data={"access_code": "ABCDE"},
         )
         self.assertEqual(resp_short.status_code, 302)
         self.team_open.refresh_from_db()
@@ -158,6 +158,15 @@ class AppAuthTests(TestCase):
             data={"access_code": "SECRET42"},
         )
         self.assertEqual(resp_dup.status_code, 302)
+        self.team_open.refresh_from_db()
+        self.assertEqual(self.team_open.access_code, "MYNEWCODE")
+
+        # 4. Codice già usato da una squadra di un'altra lega: il codice da
+        #    solo fa entrare, quindi dev'essere unico ovunque.
+        other = League.objects.create(name="Altra lega")
+        Participant.objects.create(league=other, display_name="Altrove",
+                                   access_code="ALTROVE9", is_active=True)
+        self.client.post(reverse("app_update_pin"), data={"access_code": "altrove9"})
         self.team_open.refresh_from_db()
         self.assertEqual(self.team_open.access_code, "MYNEWCODE")
 
