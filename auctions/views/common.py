@@ -537,6 +537,51 @@ def app_admin_league(request, admin_leagues, participant=None):
     return admin_leagues[0]
 
 
+# Pagine della console che l'app (Regia) apre nella sua cornice: nome della
+# pagina in console -> nome della stessa pagina nell'app. Stessa view, stesso
+# template; cambia solo la cornice (``page_frame``).
+APP_PAGES = {
+    "admin_participants": "app_regia_teams",
+    "admin_footballers": "app_footballers",
+    "admin_giornate": "app_giornate",
+    "admin_market_trades": "app_regia_trades",
+    "admin_players": "app_regia_players",
+}
+
+
+def in_app(request):
+    """La richiesta arriva dall'app (/app/…), non dalla console."""
+    return request is not None and request.path.startswith("/app/")
+
+
+def app_page_url(request, name, *args):
+    """L'indirizzo della pagina ``name``: quello dell'app se la richiesta
+    viene dall'app e la pagina ce l'ha, altrimenti quello della console."""
+    if in_app(request) and name in APP_PAGES:
+        return reverse(APP_PAGES[name], args=args)
+    return reverse(name, args=args)
+
+
+def page_frame(request, league, own_messages=False):
+    """La cornice di una pagina della console: la console stessa, o l'app
+    (Regia) quando la pagina è aperta da /app/regia/….
+
+    ``own_messages``: la pagina mostra già i messaggi, l'app non li ripete.
+    """
+    if not in_app(request):
+        return {"page_frame": "auctions/_frame_console.html"}
+    _participant, ctx = _app_ctx(request, "regia")
+    ctx = dict(ctx or {})
+    ctx.update({
+        "page_frame": "auctions/_frame_app.html",
+        "app_league": league,
+        "active_auction": _app_active_auction(league),
+        "manages_app_league": league is not None,
+        "page_messages": own_messages,
+    })
+    return ctx
+
+
 def _app_ctx(request, active_tab):
     """Shared shell context. Returns (participant, ctx).
 

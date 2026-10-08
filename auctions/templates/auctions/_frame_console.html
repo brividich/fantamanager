@@ -1,0 +1,11 @@
+{% extends "auctions/base.html" %}
+{% comment %}
+Cornice console delle pagine che girano anche nell'app (vedi _frame_app.html):
+la pagina estende {{ page_frame }} e riempie il blocco «page».
+{% endcomment %}
+{% block bodyclass %}role-admin{% endblock %}
+{% block wrapclass %}wrap-wide{% endblock %}
+{% block content %}
+{% include "auctions/_console_head.html" %}
+<!-- page:start -->{% block page %}{% endblock %}<!-- page:end -->
+{% endblock %}

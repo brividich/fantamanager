@@ -1,9 +1,7 @@
-{% extends "auctions/base.html" %}
+{% extends page_frame|default:"auctions/_frame_console.html" %}{% load fm_pages %}
 {% block title %}Giocatori — FantaManager{% endblock %}
-{% block bodyclass %}role-admin{% endblock %}
-{% block wrapclass %}wrap-wide{% endblock %}
 
-{% block content %}
+{% block page %}
 <style>
     /* ---- Listone — layout only ---------------------------------------- */
     .pg-head { display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap; margin:6px 0 14px; }
@@ -88,7 +86,6 @@
               letter-spacing:.05em; color:var(--fm-text-muted); }
 </style>
 
-{% include "auctions/_console_head.html" %}
 
 <div class="pg-head">
     <div>
@@ -96,7 +93,7 @@
         <div class="sub">Totale: <b>{{ total_count }}</b> giocatori{% if current_league %} · lega {{ current_league.name }}{% endif %}</div>
     </div>
     <span class="spacer"></span>
-    <a class="fm-btn fm-btn-secondary" href="{% url 'admin_export' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
+    <a class="fm-btn fm-btn-secondary" href="{% purl 'admin_export' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
         <svg class="ic"><use href="#i-export"/></svg> Esporta rose</a>
 </div>
 
@@ -111,7 +108,7 @@
     <b style="color:#fff">L'asta non è stata creata.</b> La lega
     {% if current_league %}<b style="color:#fff">{{ current_league.name }}</b>{% endif %}
     non ha ancora il listone: importa qui il file Quotazioni, poi torna a
-    <a href="{% url 'admin_auction_wizard' %}{% if current_league %}?league={{ current_league.id }}{% endif %}"
+    <a href="{% purl 'admin_auction_wizard' %}{% if current_league %}?league={{ current_league.id }}{% endif %}"
        style="color:var(--accent)">Nuova asta</a>.
     {% endif %}
 </div>
@@ -222,7 +219,7 @@
     <p class="muted" style="font-size:13px;margin:0 0 16px;line-height:1.6">
         Carica le <strong style="color:var(--ink)">schede squadra</strong> della lega: i <strong style="color:var(--ink)">PDF</strong>
         (una squadra per pagina) o l'<strong style="color:var(--ink)">Excel</strong> scaricato da
-        <a href="{% url 'admin_export' %}{% if current_league %}?league={{ current_league.id }}{% endif %}" style="color:var(--accent)">Export rose</a>,
+        <a href="{% purl 'admin_export' %}{% if current_league %}?league={{ current_league.id }}{% endif %}" style="color:var(--accent)">Export rose</a>,
         anche più file insieme. Entrano presidente, allenatore, stadio, palmarès, logo e maglie, la rosa con
         <strong style="color:var(--ink)">spesa e anni di contratto</strong> (RIN. = scaduto, - = da tirare),
         i giocatori <strong style="color:var(--ink)">fuori dalla Serie A</strong> (riga arancione),
@@ -338,7 +335,7 @@
         <button type="submit" class="fm-btn fm-btn-secondary">
             <svg class="ic"><use href="#i-filter"/></svg> Filtra</button>
         {% if filters.q or filters.role or filters.team or filters.status %}
-        <a class="fm-btn fm-btn-ghost" href="{% url 'admin_players' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">Azzera</a>
+        <a class="fm-btn fm-btn-ghost" href="{% purl 'admin_players' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">Azzera</a>
         {% endif %}
     </form>
 

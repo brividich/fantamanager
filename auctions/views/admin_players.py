@@ -18,6 +18,7 @@ from .common import (
     league_mismatch_json,
     managed_or_403,
     mixed_leagues,
+    page_frame,
     staff_member_required,
     target_league,
     user_can_manage_scope,
@@ -95,6 +96,7 @@ def admin_players(request):
     elif not in_scope:
         participants = participants.none()
     return render(request, "auctions/admin_players.html", {
+        **page_frame(request, league),
         "players": page.object_list, "page_obj": page, "paginator": paginator,
         "counts": counts, "free_count": free_count, "total_count": total_count,
         "filters": {"q": q, "role": role, "team": team, "status": status, "sort": sort},
