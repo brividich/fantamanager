@@ -421,3 +421,35 @@ def release(league):
         raise SalaError("La lega sul sito non è bloccata da questo PC.")
     _call(link["site"], link["key"], "sblocca", {"lock_id": link["lock_id"]})
     mark_sent(league, {"released": True})
+
+
+# --- per le pagine -----------------------------------------------------------
+
+def _when(iso):
+    try:
+        return datetime.fromisoformat(iso) if iso else None
+    except (TypeError, ValueError):
+        return None
+
+
+def view_info(league):
+    """Lo stato «asta in sala» di una lega, pronto per la pagina Impostazioni."""
+    s = league.sala or {}
+    lock_ = s.get("lock") or {}
+    link = s.get("link") or {}
+    last = s.get("last_results") or {}
+    return {
+        "has_key": bool(s.get("key_hash")),
+        "key_hint": s.get("key_hint", ""),
+        "key_at": _when(s.get("key_at")),
+        "locked": bool(lock_),
+        "lock_at": _when(lock_.get("at")),
+        "last_results_at": _when(last.get("at")),
+        "last_results": last,
+        "link": bool(link),
+        "link_site": link.get("site", ""),
+        "link_downloaded_at": _when(link.get("downloaded_at")),
+        "link_open": bool(link.get("lock_id")),
+        "link_sent_at": _when(link.get("sent_at")),
+        "link_report": link.get("report") or {},
+    }

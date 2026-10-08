@@ -170,6 +170,8 @@ its name to be typed: it takes teams, listone, auctions and sessions with it.
 <div class="msg {% if m.tags %}{{ m.tags }}{% endif %}" role="status">{{ m }}</div>
 {% endfor %}
 
+{% include "auctions/_sala_connect.html" %}
+
 <div class="cf-tabs" role="tablist" aria-label="Sezioni">
     <button type="button" role="tab" id="t-leghe" aria-controls="leghe" data-tab="leghe">
         <svg class="ic"><use href="#i-trophy"/></svg> Leghe <span class="cnt">{{ rows|length }}</span></button>
@@ -225,6 +227,8 @@ its name to be typed: it takes teams, listone, auctions and sessions with it.
                 <span>{% if r.auctions %}{{ r.auctions }} ast{{ r.auctions|pluralize:"a,e" }}{% else %}Nessuna asta{% endif %}</span>
                 {% if not r.auctions and r.pool %}<a href="{% purl 'admin_auction_wizard' %}?league={{ lg.id }}">Crea</a>{% endif %}</li>
         </ul>
+
+        {% include "auctions/_sala_card.html" %}
 
         <div class="lg-actions fm-onerow">
             <button type="button" class="fm-btn fm-btn-primary" data-edit="{{ lg.id }}" aria-expanded="false" aria-controls="ed-{{ lg.id }}">

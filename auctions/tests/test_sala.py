@@ -238,3 +238,80 @@ class SalaLockGuardTests(TestCase):
         sala.unlock(self.league)
         res = self.services.assign_player(self.free.id, self.team.id, price=3)
         self.assertTrue(res["ok"])
+
+
+class SalaPageTests(TestCase):
+    """I tasti dell'asta in sala nella pagina Impostazioni (console e app)."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user("presidente_pagina", password="pw")
+        self.league = League.objects.create(name="Lega Pagina", owner=self.owner)
+        self.team = Participant.objects.create(league=self.league, display_name="Alfa", credits=Decimal("500"))
+        self.player = Player.objects.create(league=self.league, name="Libero", role="C")
+        self.client.force_login(self.owner)
+        self.page = reverse("admin_config") + f"?league={self.league.id}"
+        self.http = Client()
+        patcher = mock.patch("requests.post", side_effect=self._post)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _post(self, url, json=None, timeout=None, headers=None):
+        resp = self.http.post(url[len(SITE):], data=json or {}, content_type="application/json",
+                              HTTP_AUTHORIZATION=(headers or {}).get("Authorization", ""))
+        return _Resp(resp)
+
+    def _action(self, action, **data):
+        return self.client.post(reverse("admin_config_action"),
+                                {"action": action, "league_id": self.league.id, "next": self.page, **data})
+
+    def test_key_is_shown_once_with_the_site_address(self):
+        self._action("sala_key")
+        page = self.client.get(self.page).content.decode()
+        self.league.refresh_from_db()
+        key = page.split('data-copy-text="', 1)[1].split('"', 1)[0]
+        self.assertEqual(sala.league_for_key(key), self.league)
+        self.assertIn("http://testserver", page)
+        self.assertNotIn(key, self.client.get(self.page).content.decode())   # una volta sola
+        self.assertContains(self.client.get(self.page), "Chiave attiva")
+
+    def test_revoke_and_manual_unlock(self):
+        key = sala.make_key(self.league)
+        sala.lock(self.league)
+        self.assertContains(self.client.get(self.page), "Asta in corso in sala")
+        self._action("sala_unlock")
+        self._action("sala_key_revoke")
+        self.league.refresh_from_db()
+        self.assertFalse(sala.is_locked(self.league))
+        self.assertIsNone(sala.league_for_key(key))
+
+    def test_other_admins_cannot_touch_the_key(self):
+        stranger = User.objects.create_user("estraneo", password="pw")
+        self.client.force_login(stranger)
+        self._action("sala_key")
+        self.league.refresh_from_db()
+        self.assertFalse(sala.has_key(self.league))
+
+    def test_the_pc_downloads_and_sends_back(self):
+        key = sala.make_key(self.league)
+        resp = self.client.post(reverse("admin_config_action"),
+                                {"action": "sala_connect", "site": SITE, "key": key, "next": self.page})
+        copy = League.objects.exclude(pk=self.league.pk).get(name="Lega Pagina")
+        self.assertIn(f"#lg-{copy.id}", resp["Location"])
+        self.assertEqual(copy.owner, self.owner)
+        page = self.client.get(reverse("admin_config") + f"?league={copy.id}").content.decode()
+        self.assertIn("Invia i risultati al sito", page)
+
+        Player.objects.filter(league=copy, name="Libero").update(
+            owner=copy.participants.get(display_name="Alfa"), cost=Decimal("7"))
+        self.client.post(reverse("admin_config_action"),
+                         {"action": "sala_send", "league_id": copy.id, "next": self.page})
+        self.player.refresh_from_db(); self.league.refresh_from_db()
+        self.assertEqual((self.player.owner, self.player.cost), (self.team, Decimal("7")))
+        self.assertFalse(sala.is_locked(self.league))
+        self.assertContains(self.client.get(reverse("admin_config") + f"?league={copy.id}"), "Risultati inviati")
+
+    def test_wrong_key_shows_the_reason(self):
+        self.client.post(reverse("admin_config_action"),
+                         {"action": "sala_connect", "site": SITE, "key": "fmsala_no", "next": self.page})
+        self.assertContains(self.client.get(self.page), "Chiave non valida")
+        self.assertEqual(League.objects.filter(name="Lega Pagina").count(), 1)

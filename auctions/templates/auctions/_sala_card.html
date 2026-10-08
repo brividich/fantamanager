@@ -1,0 +1,89 @@
+{% comment %}
+L'asta in sala per una lega (services/sala.py), nella sua scheda della pagina
+Impostazioni (console e app: stessa pagina). ``r.sala`` = sala.view_info.
+
+Sul sito: la chiave con cui il PC della sala scarica la lega, e il blocco
+mentre l'asta si gioca là. Sul PC: la lega scaricata, da rimandare al sito.
+{% endcomment %}
+{% with s=r.sala %}
+<details class="lg-sala"{% if s.locked or s.link_open or sala_new_key.league_id == lg.id %} open{% endif %}>
+    <summary>
+        <svg class="ic"><use href="#i-globe"/></svg> Asta in sala
+        {% if s.locked %}<span class="tag live">Bloccata</span>
+        {% elif s.link_open %}<span class="tag live">Da rimandare al sito</span>
+        {% elif s.link %}<span class="tag ok">Risultati inviati</span>
+        {% elif s.has_key %}<span class="tag ok">Chiave attiva</span>{% endif %}
+    </summary>
+
+    {% if s.link %}
+    {# Sul PC: questa lega è la copia di una lega del sito. #}
+    <p>Scaricata da <b>{{ s.link_site }}</b>{% if s.link_downloaded_at %} il {{ s.link_downloaded_at|date:"d/m/Y H:i" }}{% endif %}.
+        {% if s.link_open %}Sul sito rose, crediti e listone sono bloccati finché non rimandi i risultati.
+        {% else %}Risultati inviati{% if s.link_sent_at %} il {{ s.link_sent_at|date:"d/m/Y H:i" }}{% endif %}{% if "players" in s.link_report %}: {{ s.link_report.players }} giocatori e {{ s.link_report.teams }} squadre aggiornati{% endif %}.{% endif %}</p>
+    {% if s.link_open %}
+    <div class="fm-onerow">
+        <form method="post" action="{% url 'admin_config_action' %}"
+              onsubmit="return confirm('Inviare al sito rose e crediti di «{{ lg.name|escapejs }}» come sono adesso? Il sito li prende così e si sblocca.');">
+            {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <input type="hidden" name="action" value="sala_send"><input type="hidden" name="league_id" value="{{ lg.id }}">
+            <button type="submit" class="fm-btn fm-btn-primary fm-btn-sm"><svg class="ic"><use href="#i-cloud-up"/></svg> Invia i risultati al sito</button>
+        </form>
+        <form method="post" action="{% url 'admin_config_action' %}"
+              onsubmit="return confirm('Sbloccare la lega sul sito senza cambiare niente? Quello che è successo qui non arriva al sito.');">
+            {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <input type="hidden" name="action" value="sala_release"><input type="hidden" name="league_id" value="{{ lg.id }}">
+            <button type="submit" class="fm-btn fm-btn-ghost fm-btn-sm">Annulla e sblocca il sito</button>
+        </form>
+    </div>
+    {% endif %}
+
+    {% else %}
+    {# Sul sito: la chiave del PC e il blocco. #}
+    {% if s.locked %}
+    <p class="lg-sala-lock"><svg class="ic"><use href="#i-lock"/></svg>
+        <span>Asta in corso in sala{% if s.lock_at %} dal {{ s.lock_at|date:"d/m/Y H:i" }}{% endif %}: rose, crediti e listone
+        sono bloccati finché il PC della sala non rimanda i risultati.</span></p>
+    {% else %}
+    <p>Per fare l'asta su un PC in sala, anche senza internet: il PC scarica la lega con una chiave,
+        il sito la blocca, alla fine il PC rimanda rose e crediti.
+        {% if s.last_results_at %}Ultimi risultati arrivati il {{ s.last_results_at|date:"d/m/Y H:i" }}.{% endif %}</p>
+    {% endif %}
+
+    {% if sala_new_key.league_id == lg.id %}
+    <div class="lg-sala-key">
+        <div class="k">Sul PC della sala, in Impostazioni → «Scarica una lega dal sito»:</div>
+        <div><span class="lbl">Sito</span> <code>{{ sala_site_url }}</code></div>
+        <div><span class="lbl">Chiave</span> <code class="sel">{{ sala_new_key.key }}</code>
+            <button type="button" class="fm-btn fm-btn-ghost fm-btn-sm" data-copy-text="{{ sala_new_key.key }}"><svg class="ic"><use href="#i-copy"/></svg> Copia</button></div>
+        <div class="muted">Copiala adesso: non verrà più mostrata.</div>
+    </div>
+    {% elif s.has_key %}
+    <p class="muted">Chiave attiva (…{{ s.key_hint }}){% if s.key_at %}, creata il {{ s.key_at|date:"d/m/Y" }}{% endif %}.</p>
+    {% endif %}
+
+    <div class="fm-onerow">
+        <form method="post" action="{% url 'admin_config_action' %}"
+              {% if s.has_key %}onsubmit="return confirm('Generare una nuova chiave? Quella di prima smette di funzionare.');"{% endif %}>
+            {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <input type="hidden" name="action" value="sala_key"><input type="hidden" name="league_id" value="{{ lg.id }}">
+            <button type="submit" class="fm-btn fm-btn-secondary fm-btn-sm"><svg class="ic"><use href="#i-link"/></svg> {% if s.has_key %}Nuova chiave{% else %}Genera la chiave per il PC{% endif %}</button>
+        </form>
+        {% if s.has_key %}
+        <form method="post" action="{% url 'admin_config_action' %}" onsubmit="return confirm('Revocare la chiave? Il PC della sala non potrà più collegarsi.');">
+            {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <input type="hidden" name="action" value="sala_key_revoke"><input type="hidden" name="league_id" value="{{ lg.id }}">
+            <button type="submit" class="fm-btn fm-btn-ghost fm-btn-sm">Revoca</button>
+        </form>
+        {% endif %}
+        {% if s.locked %}
+        <form method="post" action="{% url 'admin_config_action' %}"
+              onsubmit="return confirm('Sbloccare a mano? Usalo solo se il PC della sala si è perso: i suoi risultati non saranno più accettati.');">
+            {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <input type="hidden" name="action" value="sala_unlock"><input type="hidden" name="league_id" value="{{ lg.id }}">
+            <button type="submit" class="fm-btn btn-warn fm-btn-sm"><svg class="ic"><use href="#i-lock"/></svg> Sblocca a mano</button>
+        </form>
+        {% endif %}
+    </div>
+    {% endif %}
+</details>
+{% endwith %}

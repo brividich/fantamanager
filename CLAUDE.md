@@ -78,6 +78,27 @@ connessione senza risposta per 10 s chiusa e riaperta. Il timer parte da
 `performance.now() - live.lagMs()`: lo stato è partito dal server un attimo
 prima. Mai un `new WebSocket` in una pagina.
 
+## Asta in sala: la lega va dal sito al PC e torna
+
+FantaManager gira sul sito (NAS, VPS: la lega tutto l'anno) e sul PC in sala
+(app desktop: l'asta, anche senza internet). `services/sala.py` li collega;
+chi usa il PC da solo non ci passa mai.
+
+- Sul sito l'admin genera la chiave della lega (Impostazioni → scheda →
+  «Asta in sala»; si mostra una volta, il sito tiene l'impronta in
+  `League.sala`). Il PC scarica la lega con indirizzo e chiave
+  (`/api/sala/v1/scarica/`): il sito la **blocca**, il PC ne fa una copia
+  collegata (`sala["link"]`, con gli id del sito) e ci gioca l'asta.
+- Alla fine il PC rimanda lo stato finale di rose, crediti e contratti più il
+  registro movimenti (`/risultati/`): il sito lo applica tutto o niente e si
+  sblocca. «Annulla e sblocca» (`/sblocca/`) lascia il sito com'era.
+- Mentre è bloccata, ogni cambio di rose, crediti o listone della lega
+  solleva `LeagueLocked` (`sala.ensure_unlocked`, chiamato in ogni servizio
+  che li scrive e nelle view che scrivono direttamente); `SalaLockGuard`
+  (`middleware.py`) lo trasforma in messaggio o JSON 423. **Un nuovo
+  servizio che scrive rose, crediti o listone chiama `ensure_unlocked`.**
+  Formazioni, voti, nomi e il resto restano liberi.
+
 ## Formazioni: una per giornata
 
 Si schiera per la prossima giornata ancora da giocare (`target_giornata`,
