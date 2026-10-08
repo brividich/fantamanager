@@ -34,6 +34,7 @@ from django.db.models import Max, Q
 from django.utils import timezone
 
 from ..models import ContractEvent, Player, UefaClubRank
+from .sala import ensure_unlocked as _sala_guard
 
 logger = logging.getLogger("auctions.abroad")
 
@@ -411,6 +412,7 @@ def _lose(player, amount, note):
 
     owner = player.owner
     league = owner.league
+    _sala_guard(league)
     ContractEvent.objects.create(
         league=league, player=player, player_name=player.name, participant=owner,
         participant_name=owner.display_name, kind=ContractEvent.Kind.LEFT,

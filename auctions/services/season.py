@@ -18,6 +18,7 @@ from django.db import transaction
 
 from ..models import CapPhase, League, LeagueRanking
 from . import contracts, salary
+from .sala import ensure_unlocked as _sala_guard
 
 
 def _resolve_ranking(league, season, kind, order=None):
@@ -44,6 +45,7 @@ def _step(report, text):
 @transaction.atomic
 def start_new_season(league_id, final_order=None):
     league = League.objects.select_for_update().get(pk=league_id)
+    _sala_guard(league)
     report = {"ok": True, "steps": [], "warnings": []}
     finishing = league.season_number
 
@@ -100,6 +102,7 @@ def _open_summer(league, final_ranking, report):
 @transaction.atomic
 def close_renewals(league_id):
     league = League.objects.select_for_update().get(pk=league_id)
+    _sala_guard(league)
     report = {"ok": True, "steps": [], "warnings": []}
     contracts.close_renewals(league.id)
     _step(report, "Rinnovi chiusi.")
@@ -112,6 +115,7 @@ def close_renewals(league_id):
 @transaction.atomic
 def midseason(league_id, mid_order=None):
     league = League.objects.select_for_update().get(pk=league_id)
+    _sala_guard(league)
     report = {"ok": True, "steps": [], "warnings": []}
     ranking = _resolve_ranking(league, league.season_number, LeagueRanking.Kind.MIDSEASON, mid_order)
     if ranking is None:

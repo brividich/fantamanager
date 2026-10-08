@@ -987,6 +987,8 @@ def apply_team_sheets(sheets, league, *, mapping=None, replace=True, dry_run=Fal
     """
     from .. import team_sheets as ts
     from ..models import Participant, Player
+    from ..services.sala import ensure_unlocked
+    ensure_unlocked(league)
 
     mapping = mapping or {}
     now = timezone.now()

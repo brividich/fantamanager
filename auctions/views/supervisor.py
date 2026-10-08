@@ -514,6 +514,8 @@ def supervisor_dashboard(request):
         elif action == "delete_league":
             lid = request.POST.get("league_id")
             league = get_object_or_404(League, pk=lid)
+            from ..services.sala import ensure_unlocked
+            ensure_unlocked(league)
             name = league.name
             league.delete()
             messages.success(request, f"Lega '{name}' eliminata definitivamente.")

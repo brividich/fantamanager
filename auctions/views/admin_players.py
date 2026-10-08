@@ -9,6 +9,7 @@ from django.views.decorators.http import require_POST
 from ..models import Auction, League, LeagueConfig, Participant, Player
 from ..providers import importers
 from .. import services
+from ..services.sala import ensure_unlocked as _sala_guard
 from .common import (
     broadcast_state,
     current_auction,
@@ -339,6 +340,7 @@ def admin_delete_player(request, player_id):
     player, denied = managed_or_403(request, Player, player_id)
     if denied:
         return denied
+    _sala_guard(player.league_id)
     player.delete()
     return JsonResponse({"ok": True})
 
@@ -354,6 +356,7 @@ def admin_clear_players(request):
     league, denied = league_scope_or_403(request, request.POST.get("league_id"))
     if denied:
         return denied
+    _sala_guard(league)
     Player.objects.filter(league=league).delete()
     return JsonResponse({"ok": True})
 

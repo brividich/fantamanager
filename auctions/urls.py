@@ -310,6 +310,11 @@ urlpatterns = [
     path("app/regia/mercato/<int:session_id>/", views.app_regia_market_session, name="app_regia_market_session"),
     path("app/regia/scambi/", views.app_regia_trades, name="app_regia_trades"),
     path("app/regia/squadre/", views.app_regia_teams, name="app_regia_teams"),
+    # Il PC della sala parla col sito (services/sala.py): chiave della lega, niente sessione.
+    path("api/sala/v1/stato/", views.sala_status, name="sala_status"),
+    path("api/sala/v1/scarica/", views.sala_download, name="sala_download"),
+    path("api/sala/v1/risultati/", views.sala_results, name="sala_results"),
+    path("api/sala/v1/sblocca/", views.sala_release, name="sala_release"),
     # Pagine della console nella cornice dell'app: stessa view, stesso template.
     path("app/regia/giocatori/", views.admin_players, name="app_regia_players"),
     path("app/regia/contratti/", views.admin_contracts, name="app_regia_contracts"),

@@ -89,6 +89,12 @@ class League(models.Model):
     # se impostata, i passaggi di stagione leggono da lì la classifica.
     standings_url = models.URLField(blank=True)
 
+    # L'asta dal vivo su un PC in sala (services/sala.py). Sul sito: la chiave
+    # con cui il PC si collega ("key_hash", "key_hint") e il blocco mentre
+    # l'asta si gioca là ("lock"). Sul PC: il collegamento alla lega del sito
+    # ("link": indirizzo, chiave, corrispondenza fra squadre e giocatori).
+    sala = models.JSONField(default=dict, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

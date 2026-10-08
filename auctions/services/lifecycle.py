@@ -15,6 +15,7 @@ from .queue import (
     _next_pending, _set_on_block, _role_jump_target, enqueue_released_player,
 )
 from .sealed import _clear_sealed
+from .sala import ensure_unlocked as _sala_guard
 
 logger = logging.getLogger("auctions.lifecycle")
 
@@ -42,6 +43,7 @@ def listone_loaded(auction):
 @transaction.atomic
 def start_auction(auction_id):
     auction = Auction.objects.select_for_update().get(pk=auction_id)
+    _sala_guard(auction.league_id)   # lega con l'asta in sala: niente asta qui
     # The listone (Quotazioni) is mandatory: without a player pool there is
     # nothing to auction. This holds regardless of whether rosters were loaded.
     if not listone_loaded(auction):
@@ -93,6 +95,7 @@ def call_player(auction_id, player_id):
     no deadline yet — the first bid starts the clock). Rejects owned players.
     """
     auction = Auction.objects.select_for_update().get(pk=auction_id)
+    _sala_guard(auction.league_id)
     try:
         player = Player.objects.get(pk=player_id)
     except Player.DoesNotExist:
@@ -741,6 +744,7 @@ def release_player(player_id, *, auction_id=None, by_admin=False, participant_id
         player = Player.objects.select_for_update().get(pk=player_id)
     except Player.DoesNotExist:
         return {"ok": False, "error": "player_not_found"}
+    _sala_guard(player.league_id)
 
     if player.owner_id is None:
         return {"ok": False, "error": "not_owned"}
@@ -847,6 +851,7 @@ def assign_player(player_id, participant_id, *, price=None, by_admin=True, note=
         player = Player.objects.select_for_update().get(pk=player_id)
     except Player.DoesNotExist:
         return {"ok": False, "error": "player_not_found"}
+    _sala_guard(player.league_id)
     try:
         new_owner = Participant.objects.select_for_update().get(pk=participant_id)
     except Participant.DoesNotExist:
