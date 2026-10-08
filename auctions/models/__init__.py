@@ -3,6 +3,7 @@
 Re-exports all data models, choices, and utilities for 100% backward compatibility
 with `from auctions.models import ...` and `from .models import ...`.
 """
+from .algo import AlgoSample, AlgoSettingsVersion
 from .auction import (
     Auction,
     AuctionCycleResult,
@@ -48,6 +49,8 @@ from .player import (
 from .session import AuctionSession
 
 __all__ = [
+    "AlgoSample",
+    "AlgoSettingsVersion",
     "generate_public_token",
     "League",
     "LeagueConfig",

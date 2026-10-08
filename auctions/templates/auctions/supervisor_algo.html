@@ -1,0 +1,595 @@
+{% extends "auctions/base.html" %}
+{% comment %}
+Supervisor → Voto algoritmico. I parametri di auctions/voto_algoritmico.py per
+tutta la piattaforma. A sinistra la bozza, a destra cosa cambia rispetto ai
+valori in uso sullo stesso campione (anteprima a ogni modifica, nessun
+salvataggio finché non si preme «Salva»). Solo superuser.
+{% endcomment %}
+{% block title %}Voto algoritmico — FantaManager{% endblock %}
+{% block bodyclass %}role-admin{% endblock %}
+{% block wrapclass %}wrap-wide{% endblock %}
+
+{% block content %}
+{% include "auctions/_console_head.html" %}
+<style>
+    .va { --va-up: var(--fm-success); --va-down: var(--fm-danger); --va-old: rgba(170,187,208,.38); }
+    .va [hidden] { display:none !important; }
+    .va label { text-transform:none; letter-spacing:0; margin:0; font-weight:500; color:var(--fm-text); font-size:13.5px; }
+    .va th { letter-spacing:.02em; text-transform:none; }
+    .va-head { display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap; margin:8px 0 14px; }
+    .va-head h1 { margin:0; font-size:28px; }
+    .va-head .sub { font-size:13px; color:var(--fm-text-secondary); margin-top:4px; max-width:78ch; line-height:1.5; }
+    .va-msg { padding:10px 14px; border-radius:var(--fm-radius-sm); font-size:13px; margin-bottom:10px;
+              border:1px solid var(--fm-border-active); background:rgba(8,124,240,.10); }
+    .va-msg.error { border-color:rgba(255,61,80,.45); background:rgba(255,61,80,.10); color:#ffb3bb; }
+    .va-msg.success { border-color:rgba(22,217,104,.35); background:rgba(22,217,104,.10); color:#8df0b6; }
+
+    .va-state { display:flex; align-items:center; gap:10px 16px; flex-wrap:wrap; padding:12px 14px; margin-bottom:14px;
+                border-radius:var(--fm-radius-md); border:1px solid var(--fm-border); background:var(--fm-card); font-size:13px; }
+    .va-state b { color:var(--fm-text); }
+    .va-state .muted { color:var(--fm-text-muted); }
+    .va-state form { display:flex; gap:8px; align-items:center; margin:0; }
+    .va-state select, .va-state input[type=number] { min-width:0; }
+    .va-spacer { flex:1 1 auto; }
+
+    .va-grid { display:grid; grid-template-columns:minmax(0, 1fr); gap:16px; align-items:start; }
+    @media (min-width: 1100px) { .va-grid { grid-template-columns:minmax(0, 1.05fr) minmax(0, 1fr); } }
+    .va-col { min-width:0; display:flex; flex-direction:column; gap:12px; }
+    .va-impact { position:sticky; top:12px; }
+    @media (max-width: 1099px) { .va-impact { position:static; } }
+
+    .va-card { border:1px solid var(--fm-border); background:var(--fm-card); border-radius:var(--fm-radius-md); }
+    .va-card > summary, .va-card > .va-card-h { list-style:none; cursor:pointer; padding:12px 14px; font-weight:700;
+        display:flex; align-items:center; gap:8px; font-size:14px; }
+    .va-card > .va-card-h { cursor:default; }
+    .va-card > summary::-webkit-details-marker { display:none; }
+    .va-card > summary .count { margin-left:auto; font-weight:600; font-size:12px; color:var(--fm-warning); }
+    .va-card > summary .chev { transition:transform .15s; color:var(--fm-text-muted); }
+    .va-card[open] > summary .chev { transform:rotate(180deg); }
+    .va-body { padding:0 14px 12px; }
+
+    .va-field { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:4px 12px; align-items:center;
+                padding:9px 0; border-top:1px solid var(--fm-border); }
+    .va-field:first-child { border-top:0; }
+    .va-field .lbl { font-size:13.5px; display:flex; align-items:center; gap:6px; min-width:0; }
+    .va-field .hint { grid-column:1 / 2; font-size:11.5px; color:var(--fm-text-muted); }
+    .va-field .meta { grid-column:2 / 3; font-size:11.5px; color:var(--fm-text-muted); text-align:right; white-space:nowrap; }
+    .va-field.is-dirty .lbl::before { content:""; width:7px; height:7px; border-radius:50%; background:var(--fm-warning); flex:none; }
+    .va-field.is-error input { border-color:var(--fm-danger); }
+    .va-field .err { grid-column:1 / -1; font-size:12px; color:#ff8a95; }
+    .va-num { display:flex; align-items:center; gap:4px; }
+    .va-num input { width:88px; text-align:right; font-variant-numeric:tabular-nums; padding:6px 8px; }
+    .va-num button { width:30px; height:30px; padding:0; display:grid; place-items:center; flex:none; }
+    .va-reset { background:none; border:0; color:var(--fm-primary-light); cursor:pointer; padding:0; font-size:11.5px; filter:none; }
+    .va-reset:hover { text-decoration:underline; filter:none; }
+    .va-toggle { display:flex; align-items:center; gap:8px; font-size:13px; }
+    .va-toggle input { width:18px; height:18px; }
+
+    .va-table-wrap { overflow-x:auto; margin:0 -14px; padding:0 14px; }
+    .va-table { border-collapse:collapse; font-size:12.5px; width:100%; }
+    .va-table th, .va-table td { padding:6px 6px; border-top:1px solid var(--fm-border); text-align:right; white-space:nowrap; }
+    .va-table th:first-child, .va-table td:first-child { text-align:left; position:sticky; left:0; background:#061a33; }
+    .va-table thead th { font-weight:600; color:var(--fm-text-secondary); font-size:11.5px; border-top:0; vertical-align:bottom; }
+    .va-table input { width:64px; text-align:right; padding:4px 6px; font-size:12.5px; font-variant-numeric:tabular-nums; }
+    .va-table td.unused input { opacity:.45; }
+    .va-table td.is-dirty input { border-color:var(--fm-warning); }
+    .va-table td.is-error input { border-color:var(--fm-danger); }
+
+    .va-actions { position:sticky; bottom:0; z-index:5; display:flex; gap:8px; align-items:center; padding:10px 12px;
+                  border:1px solid var(--fm-border-active); border-radius:var(--fm-radius-md);
+                  background:linear-gradient(145deg, rgba(7,29,56,.98), rgba(4,20,41,.99)); box-shadow:var(--fm-shadow); }
+    .va-actions input[name=note] { flex:1 1 160px; min-width:120px; }
+    .va-actions .dirty-n { font-size:12px; color:var(--fm-warning); white-space:nowrap; }
+
+    .va-kpis { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:8px; padding:0 14px 12px; }
+    @media (min-width: 560px) { .va-kpis { grid-template-columns:repeat(4, minmax(0,1fr)); } }
+    .va-kpi { border:1px solid var(--fm-border); border-radius:var(--fm-radius-sm); padding:8px 10px; min-width:0; }
+    .va-kpi .k { font-size:11px; color:var(--fm-text-muted); }
+    .va-kpi .v { font-family:var(--fm-display); font-size:24px; font-weight:700; font-variant-numeric:tabular-nums; line-height:1.15; }
+    .va-kpi .s { font-size:11.5px; color:var(--fm-text-secondary); }
+    .va-up { color:var(--va-up); } .va-down { color:var(--va-down); } .va-flat { color:var(--fm-text-secondary); }
+
+    .va-sec { padding:10px 14px 12px; border-top:1px solid var(--fm-border); }
+    .va-sec h3 { margin:0 0 8px; font-size:13px; font-weight:700; display:flex; gap:8px; align-items:baseline; }
+    .va-sec h3 small { font-weight:400; color:var(--fm-text-muted); font-size:11.5px; }
+
+    .va-hist { display:flex; align-items:flex-end; gap:6px; height:150px; padding-top:16px; }
+    .va-hist .bin { flex:1 1 0; min-width:0; display:flex; flex-direction:column; align-items:center; gap:4px; height:100%; }
+    .va-hist .bars { flex:1 1 auto; width:100%; display:flex; align-items:flex-end; justify-content:center; gap:2px; }
+    .va-hist .bar { width:42%; max-width:16px; border-radius:3px 3px 0 0; min-height:1px; position:relative; }
+    .va-hist .bar.old { background:var(--va-old); }
+    .va-hist .bar.new { background:var(--fm-primary-light); }
+    .va-hist .x { font-size:11px; color:var(--fm-text-secondary); font-variant-numeric:tabular-nums; }
+    .va-legend { display:flex; gap:14px; font-size:11.5px; color:var(--fm-text-secondary); margin-top:6px; }
+    .va-legend i { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:5px; vertical-align:-1px; }
+
+    .va-rt { width:100%; border-collapse:collapse; font-size:12.5px; font-variant-numeric:tabular-nums; }
+    .va-rt th, .va-rt td { padding:6px 4px; white-space:nowrap; text-align:right; border-top:1px solid var(--fm-border); }
+    .va-rt th:first-child, .va-rt td:first-child { text-align:left; }
+    .va-rt thead th { border-top:0; color:var(--fm-text-muted); font-weight:600; font-size:11.5px; }
+    .va-rt tr.tot td { font-weight:700; }
+    .va-rt .arrow { color:var(--fm-text-muted); padding:0 3px; }
+
+    .va-pf { display:flex; flex-direction:column; gap:6px; }
+    .va-pf .it { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:2px 10px; padding:7px 9px;
+                 border:1px solid var(--fm-border); border-radius:var(--fm-radius-sm); font-size:12.5px; }
+    .va-pf .it .l { font-weight:600; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .va-pf .it .d { font-variant-numeric:tabular-nums; text-align:right; font-weight:700; }
+    .va-pf .it .s { grid-column:1 / -1; color:var(--fm-text-muted); font-size:11.5px; }
+
+    .va-mv { width:100%; border-collapse:collapse; font-size:12.5px; font-variant-numeric:tabular-nums; }
+    .va-mv td, .va-mv th { padding:6px 4px; border-top:1px solid var(--fm-border); text-align:right; }
+    .va-mv td:first-child, .va-mv th:first-child { text-align:left; }
+    .va-mv thead th { border-top:0; color:var(--fm-text-muted); font-weight:600; font-size:11.5px; }
+    .va-mv tr.va-mvrow { cursor:pointer; }
+    .va-mv tr.va-mvrow:hover td { background:rgba(255,255,255,.03); }
+    .va-mv .who small { color:var(--fm-text-muted); }
+    .va-mv tr.va-mvdet td { padding:0 4px 8px; border-top:0; }
+    .va-bd { display:grid; grid-template-columns:auto repeat(3, auto); gap:2px 14px; justify-content:start;
+             font-size:11.5px; color:var(--fm-text-secondary); padding:6px 8px; background:rgba(255,255,255,.03); border-radius:6px; }
+    .va-bd b { color:var(--fm-text); font-weight:600; }
+
+    .va-empty { font-size:12.5px; color:var(--fm-text-muted); padding:4px 0; }
+    .va-loading { opacity:.55; transition:opacity .15s; }
+    .va-ref { font-size:12.5px; line-height:1.6; }
+
+    .va-ver { width:100%; border-collapse:collapse; font-size:12.5px; }
+    .va-ver td, .va-ver th { padding:7px 4px; border-top:1px solid var(--fm-border); text-align:left; vertical-align:middle; }
+    .va-ver thead th { border-top:0; color:var(--fm-text-muted); font-weight:600; font-size:11.5px; }
+    .va-ver .badge { font-size:11px; padding:2px 8px; border-radius:99px; background:rgba(22,217,104,.14); color:#8df0b6; }
+    .va-ver form { margin:0; }
+    .va-ver button { padding:4px 10px; font-size:12px; }
+</style>
+
+<div class="va">
+<div class="va-head">
+    <div>
+        <h1>Voto algoritmico</h1>
+        <div class="sub">I parametri con cui FantaManager calcola il voto in pagella dai fatti della partita, per tutta la piattaforma. Ogni modifica mostra subito cosa cambia sul campione scelto rispetto ai valori in uso; niente cambia davvero finché non salvi.</div>
+    </div>
+</div>
+
+{% for m in messages %}<div class="va-msg {{ m.tags }}" role="status">{{ m }}</div>{% endfor %}
+
+<div class="va-state">
+    <div>
+        {% if active_version %}
+            In uso: <b>versione {{ active_version.pk }}</b> del {{ active_version.created_at|date:"j M Y, H:i" }}
+            · <span class="muted">{{ saved_overrides }} parametr{{ saved_overrides|pluralize:"o,i" }} divers{{ saved_overrides|pluralize:"o,i" }} dai valori di partenza</span>
+        {% else %}
+            In uso: <b>valori di partenza</b> <span class="muted">(nessuna versione salvata)</span>
+        {% endif %}
+    </div>
+    <div class="va-spacer"></div>
+    <form method="get" action="{% url 'supervisor_algo' %}">
+        <label for="va-sample" class="muted" style="font-size:12px">Campione</label>
+        <select id="va-sample" name="campione" onchange="this.form.submit()">
+            {% for s in samples %}
+            <option value="{{ s.key }}" {% if s.key == sample_key %}selected{% endif %}>{{ s.name }}{% if s.rows %} · {{ s.rows }} prestazioni{% endif %}</option>
+            {% endfor %}
+        </select>
+    </form>
+    {% if api_ready %}
+    <form method="post" action="{% url 'supervisor_algo_sample_import' %}">
+        {% csrf_token %}
+        <input type="number" name="giornata" min="1" max="38" placeholder="Giornata" aria-label="Giornata da importare" style="width:96px" required>
+        <button type="submit" class="fm-btn-secondary" title="Importa da API-Football le prestazioni vere di una giornata di Serie A">Importa da API-Football</button>
+    </form>
+    {% else %}
+    <span class="muted" style="font-size:12px">Per provare su giornate vere serve API-Football (APIFOOTBALL_KEY).</span>
+    {% endif %}
+    {% if sample_key != "sim" %}
+    <form method="post" action="{% url 'supervisor_algo_sample_delete' sample_key %}" onsubmit="return confirm('Eliminare questo campione?')">
+        {% csrf_token %}
+        <button type="submit" class="fm-btn-ghost" title="Elimina il campione"><svg class="ic"><use href="#i-trash"/></svg></button>
+    </form>
+    {% endif %}
+</div>
+
+<div class="va-grid">
+    <!-- Bozza -->
+    <div class="va-col" id="va-form">
+        {% for g in groups %}
+        <details class="va-card" data-group open>
+            <summary>{{ g.title }} <span class="count" data-count></span> <svg class="ic chev"><use href="#i-chev-down"/></svg></summary>
+            <div class="va-body">
+                {% for f in g.fields %}
+                <div class="va-field" data-field="{{ f.key }}">
+                    {% if f.is_bool %}
+                    <label class="va-toggle lbl"><input type="checkbox" data-path="{{ f.key }}" {% if f.value %}checked{% endif %}> {{ f.label }}</label>
+                    <div class="meta">partenza: {{ f.default|yesno:"sì,no" }}
+                        <button type="button" class="va-reset" data-reset="{{ f.key }}" hidden>ripristina</button></div>
+                    {% else %}
+                    <label class="lbl" for="va-{{ f.key }}">{{ f.label }}</label>
+                    <div class="va-num">
+                        <button type="button" class="fm-btn-secondary" data-nudge="-1" aria-label="Diminuisci {{ f.label }}"><svg class="ic"><use href="#i-minus"/></svg></button>
+                        <input id="va-{{ f.key }}" type="number" inputmode="decimal" data-path="{{ f.key }}" value="{{ f.value|stringformat:'s' }}"
+                               step="{{ f.step|stringformat:'s' }}" min="{{ f.min|stringformat:'s' }}" max="{{ f.max|stringformat:'s' }}">
+                        <button type="button" class="fm-btn-secondary" data-nudge="1" aria-label="Aumenta {{ f.label }}"><svg class="ic"><use href="#i-plus"/></svg></button>
+                    </div>
+                    <div class="hint">{{ f.hint }}</div>
+                    <div class="meta">partenza: <span data-fmt>{{ f.default|stringformat:'s' }}</span>
+                        <button type="button" class="va-reset" data-reset="{{ f.key }}" hidden>ripristina</button></div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+                {% if g.title == "Uscita e standardizzazione" %}
+                <div class="va-field" style="grid-template-columns:1fr">
+                    <div class="lbl" style="font-weight:600">Calibra sul campione</div>
+                    <div class="hint">Calcola scala e spostamento perché i voti della bozza abbiano la media e la dispersione indicate sul campione scelto.</div>
+                    <div class="fm-onerow" style="display:flex;gap:8px;align-items:center;margin-top:6px">
+                        <label style="font-size:12px">Media <input type="number" id="va-cal-mean" value="6.0" step="0.05" min="5" max="7" style="width:76px"></label>
+                        <label style="font-size:12px">Dev. std <input type="number" id="va-cal-sd" value="0.6" step="0.05" min="0.2" max="1.5" style="width:76px"></label>
+                        <button type="button" class="fm-btn-secondary" id="va-calibrate">Calcola</button>
+                        <span id="va-cal-msg" style="font-size:12px;color:var(--fm-text-muted)"></span>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </details>
+        {% endfor %}
+
+        {% for t in tables %}
+        <details class="va-card" data-group>
+            <summary>{{ t.title }} <span class="count" data-count></span> <svg class="ic chev"><use href="#i-chev-down"/></svg></summary>
+            <div class="va-body">
+                <div class="va-field" style="border-top:0;padding-top:0"><div class="hint" style="grid-column:1/-1">{{ t.hint }}. In grigio le statistiche che quel ruolo non usa.</div></div>
+                <div class="va-table-wrap">
+                <table class="va-table">
+                    <thead><tr><th>Ruolo</th>{% for c in stat_cols %}<th>{{ c.label }}</th>{% endfor %}</tr></thead>
+                    <tbody>
+                    {% for r in t.rows %}
+                    <tr><td>{{ r.label }}</td>
+                        {% for c in r.cells %}
+                        <td class="{% if not c.used %}unused{% endif %}" data-cell="{{ t.key }}.{{ r.role }}.{{ c.stat }}" title="partenza: {{ c.default }}">
+                            <input type="number" inputmode="decimal" step="{% if t.key == 'perf_weights' %}0.01{% else %}0.1{% endif %}"
+                                   data-path="{{ t.key }}.{{ r.role }}.{{ c.stat }}" value="{{ c.value|stringformat:'s' }}" aria-label="{{ t.title }} {{ r.label }} {{ c.stat }}">
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                </div>
+                {% if t.key == "perf_weights" %}
+                <div class="hint" style="margin-top:10px;font-size:12px;font-weight:600;color:var(--fm-text-secondary)">Malus per tutti i ruoli</div>
+                <div class="va-table-wrap">
+                <table class="va-table"><tbody><tr>
+                    {% for m in malus %}
+                    <td style="text-align:left;position:static;background:none">{{ m.label }}</td>
+                    <td data-cell="perf_malus.{{ m.stat }}" title="partenza: {{ m.default }}"><input type="number" step="0.01" data-path="perf_malus.{{ m.stat }}" value="{{ m.value|stringformat:'s' }}" aria-label="Malus {{ m.label }}"></td>
+                    {% endfor %}
+                </tr></tbody></table>
+                </div>
+                {% endif %}
+            </div>
+        </details>
+        {% endfor %}
+
+        <form method="post" action="{% url 'supervisor_algo_save' %}" class="va-actions" id="va-save-form">
+            {% csrf_token %}
+            <input type="hidden" name="rules" id="va-rules-field">
+            <input type="hidden" name="campione" value="{{ sample_key }}">
+            <span class="dirty-n" id="va-dirty-n"></span>
+            <input type="text" name="note" maxlength="200" placeholder="Nota (facoltativa): cosa hai cambiato e perché">
+            <button type="button" class="fm-btn-ghost" id="va-undo" disabled>Annulla modifiche</button>
+            <button type="submit" id="va-save" disabled><svg class="ic"><use href="#i-save"/></svg> Salva</button>
+        </form>
+
+        <div class="va-card">
+            <div class="va-card-h">Storico <span style="margin-left:auto;font-weight:400;font-size:12px;color:var(--fm-text-muted)">ogni salvataggio è una versione</span></div>
+            <div class="va-body">
+                {% if versions %}
+                <div class="va-table-wrap">
+                <table class="va-ver">
+                    <thead><tr><th>Versione</th><th>Quando</th><th>Chi</th><th>Nota</th><th>Modifiche</th><th></th></tr></thead>
+                    <tbody>
+                    {% for v in versions %}
+                    <tr>
+                        <td>{{ v.pk }}</td>
+                        <td style="white-space:nowrap">{{ v.created_at|date:"j M Y, H:i" }}</td>
+                        <td>{{ v.created_by.username|default:"—" }}</td>
+                        <td>{{ v.note|default:"—" }}</td>
+                        <td>{{ v.n_changes }}</td>
+                        <td style="text-align:right">
+                            {% if forloop.first %}<span class="badge">In uso</span>{% else %}
+                            <form method="post" action="{% url 'supervisor_algo_restore' v.pk %}" onsubmit="return confirm('Rimettere in uso la versione {{ v.pk }}? Diventa una nuova versione.')">
+                                {% csrf_token %}<input type="hidden" name="campione" value="{{ sample_key }}">
+                                <button type="submit" class="fm-btn-secondary">Ripristina</button>
+                            </form>{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                </div>
+                {% else %}
+                <div class="va-empty">Ancora nessuna versione salvata: sono in uso i valori di partenza scritti nel codice.</div>
+                {% endif %}
+                {% if active_version and saved_overrides %}
+                <form method="post" action="{% url 'supervisor_algo_defaults' %}" style="margin-top:10px" onsubmit="return confirm('Tornare ai valori di partenza? La versione attuale resta nello storico.')">
+                    {% csrf_token %}<input type="hidden" name="campione" value="{{ sample_key }}">
+                    <button type="submit" class="fm-btn-ghost">Torna ai valori di partenza</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Impatto -->
+    <div class="va-col va-impact">
+        <div class="va-card" id="va-impact">
+            <div class="va-card-h">Cosa cambia <span id="va-impact-sub" style="margin-left:auto;font-weight:400;font-size:12px;color:var(--fm-text-muted)"></span></div>
+            <div class="va-kpis">
+                <div class="va-kpi"><div class="k">Voti cambiati</div><div class="v" id="k-changed">—</div><div class="s" id="k-changed-s">&nbsp;</div></div>
+                <div class="va-kpi"><div class="k">Media</div><div class="v" id="k-mean">—</div><div class="s" id="k-mean-s">&nbsp;</div></div>
+                <div class="va-kpi"><div class="k">Scostamento medio</div><div class="v" id="k-abs">—</div><div class="s">per voto cambiato o no</div></div>
+                <div class="va-kpi"><div class="k">Saliti · scesi</div><div class="v" id="k-ud">—</div><div class="s" id="k-sv">&nbsp;</div></div>
+            </div>
+            <div class="va-sec" id="va-ref-sec" hidden>
+                <h3>Rispetto al rating di API-Football <small>riferimento esterno, non la verità</small></h3>
+                <div class="va-ref" id="va-ref"></div>
+            </div>
+            <div class="va-sec">
+                <h3>Distribuzione dei voti</h3>
+                <div class="va-hist" id="va-hist" role="img" aria-label="Distribuzione dei voti, in uso e bozza"></div>
+                <div class="va-legend"><span><i style="background:var(--va-old)"></i>In uso</span><span><i style="background:var(--fm-primary-light)"></i>Bozza</span></div>
+            </div>
+            <div class="va-sec">
+                <h3>Per ruolo</h3>
+                <div class="va-table-wrap">
+                <table class="va-rt">
+                    <thead><tr><th>Ruolo</th><th>Media</th><th>Δ</th><th>Dev. std</th></tr></thead>
+                    <tbody id="va-roles"></tbody>
+                </table>
+                </div>
+            </div>
+            <div class="va-sec">
+                <h3>Effetto di ogni parametro toccato <small>da solo, sui valori in uso</small></h3>
+                <div class="va-pf" id="va-pf"></div>
+            </div>
+            <div class="va-sec">
+                <h3>Chi si sposta di più <small>tocca una riga per il dettaglio</small></h3>
+                <table class="va-mv">
+                    <thead><tr><th>Giocatore</th><th>In uso</th><th>Bozza</th><th>Δ</th></tr></thead>
+                    <tbody id="va-movers"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+{{ algo_saved|json_script:"va-saved" }}
+{{ algo_defaults|json_script:"va-defaults" }}
+{{ sample_key|json_script:"va-sample-key" }}
+<script>
+(function () {
+    const SAVED = JSON.parse(document.getElementById("va-saved").textContent);
+    const DEFAULTS = JSON.parse(document.getElementById("va-defaults").textContent);
+    const SAMPLE = JSON.parse(document.getElementById("va-sample-key").textContent);
+    const URL_PREVIEW = "{% url 'supervisor_algo_preview' %}";
+    const URL_CALIBRATE = "{% url 'supervisor_algo_calibrate' %}";
+    const CSRF = document.querySelector("#va-save-form input[name=csrfmiddlewaretoken]").value;
+    const draft = JSON.parse(JSON.stringify(SAVED));
+    const nf = (x, d = 2) => (x === null || x === undefined) ? "—"
+        : Number(x).toLocaleString("it-IT", {minimumFractionDigits: d, maximumFractionDigits: d});
+    const vf = (x) => (x === null || x === undefined) ? "s.v." : nf(x, 1);
+    const signed = (x, d = 2) => (x > 0 ? "+" : x < 0 ? "−" : "±") + nf(Math.abs(x), d);
+    const cls = (x) => x > 0.0005 ? "va-up" : x < -0.0005 ? "va-down" : "va-flat";
+    const esc = (s) => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+    function get(obj, path) { return path.split(".").reduce((o, k) => (o == null ? undefined : o[k]), obj); }
+    function set(obj, path, val) {
+        const keys = path.split("."); let o = obj;
+        keys.slice(0, -1).forEach(k => { o[k] = o[k] || {}; o = o[k]; });
+        o[keys[keys.length - 1]] = val;
+    }
+    const same = (a, b) => (typeof a === "boolean" || typeof b === "boolean") ? !!a === !!b
+        : Math.abs(Number(a ?? 0) - Number(b ?? 0)) < 1e-9;
+
+    // Formato italiano dei default mostrati
+    document.querySelectorAll("[data-fmt]").forEach(el => {
+        const n = Number(el.textContent); if (!isNaN(n)) el.textContent = n.toLocaleString("it-IT", {maximumFractionDigits: 4});
+    });
+
+    const inputs = Array.from(document.querySelectorAll("[data-path]"));
+
+    function readInput(el) {
+        if (el.type === "checkbox") return el.checked;
+        const v = el.value.trim().replace(",", ".");
+        return v === "" ? NaN : Number(v);
+    }
+    function writeInput(el, v) {
+        if (el.type === "checkbox") el.checked = !!v; else el.value = v;
+    }
+
+    function refreshMarks() {
+        let dirty = 0;
+        inputs.forEach(el => {
+            const path = el.dataset.path;
+            const isDirty = !same(get(draft, path), get(SAVED, path));
+            const box = el.closest("[data-field]") || el.closest("[data-cell]");
+            if (box) box.classList.toggle("is-dirty", isDirty);
+            if (isDirty) dirty++;
+            const reset = document.querySelector(`[data-reset="${path}"]`);
+            if (reset) reset.hidden = same(get(draft, path), get(DEFAULTS, path));
+        });
+        document.querySelectorAll("details[data-group]").forEach(d => {
+            const n = d.querySelectorAll(".is-dirty").length;
+            d.querySelector("[data-count]").textContent = n ? `${n} modificat${n === 1 ? "o" : "i"}` : "";
+        });
+        document.getElementById("va-dirty-n").textContent = dirty ? `${dirty} modific${dirty === 1 ? "a" : "he"} non salvat${dirty === 1 ? "a" : "e"}` : "";
+        document.getElementById("va-save").disabled = !dirty;
+        document.getElementById("va-undo").disabled = !dirty;
+        window.onbeforeunload = dirty ? () => true : null;
+        return dirty;
+    }
+
+    function clearErrors() {
+        document.querySelectorAll(".is-error").forEach(e => e.classList.remove("is-error"));
+        document.querySelectorAll(".va-field .err").forEach(e => e.remove());
+    }
+    function showErrors(errors) {
+        Object.entries(errors).forEach(([path, msg]) => {
+            const field = document.querySelector(`[data-field="${path}"]`);
+            const cell = document.querySelector(`[data-cell="${path}"]`);
+            if (field) {
+                field.classList.add("is-error");
+                const e = document.createElement("div"); e.className = "err"; e.textContent = msg; field.appendChild(e);
+                field.closest("details").open = true;
+            } else if (cell) {
+                cell.classList.add("is-error"); cell.title = msg; cell.closest("details").open = true;
+            }
+        });
+    }
+
+    inputs.forEach(el => {
+        el.addEventListener(el.type === "checkbox" ? "change" : "input", () => {
+            const v = readInput(el);
+            if (el.type !== "checkbox" && isNaN(v)) return;
+            set(draft, el.dataset.path, v);
+            refreshMarks(); schedule();
+        });
+    });
+    document.querySelectorAll("[data-nudge]").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const el = btn.parentElement.querySelector("input");
+            const step = Number(el.step) || 1, dir = Number(btn.dataset.nudge);
+            let v = (Number(el.value) || 0) + dir * step;
+            if (el.min !== "") v = Math.max(Number(el.min), v);
+            if (el.max !== "") v = Math.min(Number(el.max), v);
+            const decimals = (String(el.step).split(".")[1] || "").length;
+            el.value = Number(v.toFixed(Math.max(decimals, 0)));
+            el.dispatchEvent(new Event("input"));
+        });
+    });
+    document.querySelectorAll("[data-reset]").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const path = btn.dataset.reset, el = document.querySelector(`[data-path="${path}"]`);
+            writeInput(el, get(DEFAULTS, path));
+            el.dispatchEvent(new Event(el.type === "checkbox" ? "change" : "input"));
+        });
+    });
+    document.getElementById("va-undo").addEventListener("click", () => {
+        inputs.forEach(el => { const v = get(SAVED, el.dataset.path); writeInput(el, v); set(draft, el.dataset.path, v); });
+        clearErrors(); refreshMarks(); schedule();
+    });
+    document.getElementById("va-save-form").addEventListener("submit", (ev) => {
+        document.getElementById("va-rules-field").value = JSON.stringify(draft);
+        window.onbeforeunload = null;
+    });
+
+    // --- anteprima ---
+    let timer = null, ctrl = null;
+    function schedule() { clearTimeout(timer); timer = setTimeout(runPreview, 220); }
+    async function post(url, body) {
+        const resp = await fetch(url, {method: "POST", headers: {"Content-Type": "application/json", "X-CSRFToken": CSRF},
+                                       body: JSON.stringify(body), signal: ctrl ? ctrl.signal : undefined, credentials: "same-origin"});
+        return [resp.status, await resp.json()];
+    }
+    async function runPreview() {
+        if (ctrl) ctrl.abort();
+        ctrl = new AbortController();
+        const box = document.getElementById("va-impact");
+        box.classList.add("va-loading");
+        try {
+            const [status, data] = await post(URL_PREVIEW, {rules: draft, sample: SAMPLE});
+            clearErrors();
+            if (status === 400 && data.errors) { showErrors(data.errors); document.getElementById("va-impact-sub").textContent = "correggi i valori in rosso"; return; }
+            if (!data.ok) throw new Error(data.error || "errore");
+            render(data);
+        } catch (e) {
+            if (e.name !== "AbortError") document.getElementById("va-impact-sub").textContent = "anteprima non disponibile";
+        } finally { box.classList.remove("va-loading"); }
+    }
+
+    function render(d) {
+        const s = d.summary;
+        document.getElementById("va-impact-sub").textContent = `${d.sample_name} · ${d.rows.toLocaleString("it-IT")} prestazioni`;
+        document.getElementById("k-changed").textContent = s.changed.toLocaleString("it-IT");
+        document.getElementById("k-changed-s").textContent = `${nf(s.changed_pct, 1)}% del campione`;
+        const tot = d.by_role.find(r => r.role === "Tutti");
+        const dm = (tot.after.mean ?? 0) - (tot.before.mean ?? 0);
+        const km = document.getElementById("k-mean");
+        km.innerHTML = `${nf(tot.after.mean)} <span class="${cls(dm)}" style="font-size:15px">${signed(dm)}</span>`;
+        document.getElementById("k-mean-s").textContent = `in uso ${nf(tot.before.mean)}`;
+        document.getElementById("k-abs").textContent = nf(s.mean_abs_delta);
+        document.getElementById("k-ud").innerHTML = `<span class="va-up">↑${s.up}</span> <span class="va-down">↓${s.down}</span>`;
+        document.getElementById("k-sv").textContent = s.voted_before !== s.voted_after
+            ? `con voto: ${s.voted_before} → ${s.voted_after}` : `${s.voted_after} con voto`;
+
+        // riferimento
+        const ref = d.reference, refSec = document.getElementById("va-ref-sec");
+        if (ref && ref.before && ref.after) {
+            refSec.hidden = false;
+            const dMae = ref.after.mae - ref.before.mae, dCorr = (ref.after.corr ?? 0) - (ref.before.corr ?? 0);
+            document.getElementById("va-ref").innerHTML =
+                `Distanza media: ${nf(ref.before.mae)} → <b>${nf(ref.after.mae)}</b> <span class="${cls(-dMae)}">${dMae < 0 ? "più vicino" : dMae > 0 ? "più lontano" : "uguale"}</span><br>` +
+                `Correlazione: ${nf(ref.before.corr)} → <b>${nf(ref.after.corr)}</b> <span class="${cls(dCorr)}">${signed(dCorr)}</span> · su ${ref.after.n} voti`;
+        } else refSec.hidden = true;
+
+        // istogramma
+        const hist = document.getElementById("va-hist");
+        const max = Math.max(1, ...d.histogram.flatMap(b => [b.before, b.after]));
+        hist.innerHTML = d.histogram.map(b => `
+            <div class="bin" title="${nf(b.vote, 1)}: in uso ${b.before}, bozza ${b.after}">
+                <div class="bars"><div class="bar old" style="height:${100 * b.before / max}%"></div><div class="bar new" style="height:${100 * b.after / max}%"></div></div>
+                <div class="x">${nf(b.vote, 1)}</div>
+            </div>`).join("");
+
+        // ruoli
+        document.getElementById("va-roles").innerHTML = d.by_role.map(r => {
+            const delta = (r.after.mean ?? 0) - (r.before.mean ?? 0);
+            return `<tr class="${r.role === "Tutti" ? "tot" : ""}"><td>${esc(r.label)}</td>
+                <td>${nf(r.before.mean)}<span class="arrow">→</span>${nf(r.after.mean)}</td>
+                <td class="${cls(delta)}">${signed(delta)}</td>
+                <td>${nf(r.before.sd)}<span class="arrow">→</span>${nf(r.after.sd)}</td></tr>`;
+        }).join("");
+
+        // parametri
+        const pf = document.getElementById("va-pf");
+        pf.innerHTML = d.per_field.length ? d.per_field.map(f => `
+            <div class="it"><div class="l" title="${esc(f.label)}">${esc(f.label)}</div>
+                <div class="d ${cls(f.mean_delta)}">${signed(f.mean_delta, 3)}</div>
+                <div class="s">${esc(nfAny(f.from))} → ${esc(nfAny(f.to))} · ${f.changed} voti cambiati (<span class="va-up">↑${f.up}</span> <span class="va-down">↓${f.down}</span>)</div></div>`).join("")
+            : `<div class="va-empty">Nessun parametro diverso dai valori in uso: modificane uno per vederne l'effetto.</div>`;
+
+        // movimenti
+        const PARTS = [["base", "Base"], ["risultato", "Risultato"], ["reparto", "Reparto"], ["eventi", "Eventi"], ["rendimento", "Rendimento"], ["calibrazione", "Calibrazione"]];
+        const mv = document.getElementById("va-movers");
+        mv.innerHTML = d.movers.length ? d.movers.map((m, i) => {
+            const bb = m.breakdown_before || {}, ba = m.breakdown_after || {};
+            const det = PARTS.filter(([k]) => k in bb || k in ba).map(([k, l]) =>
+                `<span>${l}</span><b>${bb.sv ? "s.v." : nf(bb[k] ?? 0)}</b><span>→</span><b>${ba.sv ? "s.v." : nf(ba[k] ?? 0)}</b>`).join("");
+            return `<tr class="va-mvrow" data-i="${i}"><td class="who">${esc(m.name)} <small>${esc(m.role)} · ${esc(m.team)} · ${m.minutes ?? 0}'</small></td>
+                <td>${vf(m.before)}</td><td>${vf(m.after)}</td>
+                <td class="${cls(m.delta ?? 0)}">${m.delta === null ? "s.v." : signed(m.delta, 1)}</td></tr>
+                <tr class="va-mvdet" data-d="${i}" hidden><td colspan="4"><div class="va-bd"><span></span><span>in uso</span><span></span><span>bozza</span>${det}</div></td></tr>`;
+        }).join("") : `<tr><td colspan="4" class="va-empty">Nessun voto cambia.</td></tr>`;
+        mv.querySelectorAll("tr.va-mvrow").forEach(tr => tr.addEventListener("click", () => {
+            const det = mv.querySelector(`tr[data-d="${tr.dataset.i}"]`); det.hidden = !det.hidden;
+        }));
+    }
+    function nfAny(x) { return typeof x === "boolean" ? (x ? "sì" : "no") : Number(x).toLocaleString("it-IT", {maximumFractionDigits: 4}); }
+
+    // calibrazione
+    document.getElementById("va-calibrate").addEventListener("click", async () => {
+        const msg = document.getElementById("va-cal-msg");
+        msg.textContent = "calcolo…";
+        try {
+            const [_s, data] = await post(URL_CALIBRATE, {rules: draft, sample: SAMPLE,
+                mean: document.getElementById("va-cal-mean").value, sd: document.getElementById("va-cal-sd").value});
+            if (!data.ok) { msg.textContent = data.error || "correggi i valori in rosso"; if (data.errors) showErrors(data.errors); return; }
+            ["calib_scale", "calib_shift"].forEach(k => {
+                const el = document.querySelector(`[data-path="${k}"]`); el.value = data[k]; el.dispatchEvent(new Event("input"));
+            });
+            msg.textContent = `scala ${nfAny(data.calib_scale)}, spostamento ${nfAny(data.calib_shift)}`;
+        } catch (e) { msg.textContent = "non riuscito"; }
+    });
+
+    refreshMarks();
+    runPreview();
+})();
+</script>
+{% endblock %}
