@@ -1,5 +1,4 @@
 """Big screen view for in-room display."""
-import json
 
 from django.conf import settings
 from django.http import HttpResponseForbidden
@@ -32,7 +31,7 @@ def screen(request, auction_id):
     participants = participants.order_by("display_name")
     return render(request, "auctions/screen.html", {
         "auction": auction,
-        "state": json.dumps(services.serialize_state(auction)),
+        "state": services.serialize_state(auction),
         "recent": recent,
         "participants": participants,
     })

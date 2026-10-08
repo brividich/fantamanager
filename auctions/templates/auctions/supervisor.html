@@ -984,6 +984,7 @@
     </div>
 </div>
 
+{{ league_teams_data|json_script:"sup-league-teams-data" }}
 <script>
     function openSupervisorEditUser(id, username, email, firstName, lastName, role, isActive, isSelf) {
         document.getElementById('sup-edit-user-id').value = id;
@@ -1075,7 +1076,7 @@
             counterElem.innerHTML = `Mostrati <b>${visibleCount}</b> di <b>${rows.length}</b> utenti`;
         }
     }
-    const LEAGUE_TEAMS_DATA = {{ league_teams_json|safe }};
+    const LEAGUE_TEAMS_DATA = JSON.parse(document.getElementById("sup-league-teams-data").textContent);
     let teamNameManuallyTouched = false;
 
     const teamNameInputElem = document.getElementById('new-team-name-input');

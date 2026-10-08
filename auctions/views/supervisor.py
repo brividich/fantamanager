@@ -2,7 +2,6 @@
 from datetime import datetime, timedelta, timezone as dt_timezone
 from decimal import Decimal
 from functools import wraps
-import json
 import logging
 import os
 import platform
@@ -749,7 +748,6 @@ def supervisor_dashboard(request):
         ]
         for lg in leagues
     }
-    league_teams_json = json.dumps(league_teams_map)
 
     # Enrich leagues with active auction status
     for lg in leagues:
@@ -796,7 +794,7 @@ def supervisor_dashboard(request):
             "metrics": metrics,
             "users": users,
             "leagues": leagues,
-            "league_teams_json": league_teams_json,
+            "league_teams_data": league_teams_map,
             "recent_logs": recent_logs,
             "log_filename": log_filename,
             "level_filter": level_filter,

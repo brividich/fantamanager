@@ -812,15 +812,19 @@
     });
 })();
 </script>
+{{ state|json_script:"fm-state-data" }}
+{{ watched_ids|json_script:"fm-watched-data" }}
+{{ watch_max_prices|json_script:"fm-watch-max-data" }}
+{{ error_labels|json_script:"fm-error-labels-data" }}
 <script>
     const AUCTION_ID = {{ auction.id }};
-    const WATCHED = new Set({{ watched_ids_json|safe }});
+    const WATCHED = new Set(JSON.parse(document.getElementById("fm-watched-data").textContent));
     // Player id -> your own noted ceiling (string keys: JSON object keys are
     // always strings, and playerId is used as one below to match that).
-    const WATCH_MAX = {{ watch_max_prices_json|safe }};
+    const WATCH_MAX = JSON.parse(document.getElementById("fm-watch-max-data").textContent);
     const SEALED_TOTAL = {{ auction.sealed_seconds }};
     let curPlayerId = null, _lastObjective = null;
-    let state = {{ state|safe }};
+    let state = JSON.parse(document.getElementById("fm-state-data").textContent);
     let timerBase = { remaining: state.remaining_seconds, at: performance.now() };
     let lastPrice = null;
 
@@ -841,7 +845,7 @@
 
     // Sourced from services.ERROR_LABELS so every rejection code has Italian
     // wording — no bare identifiers on screen.
-    const REASON_LABEL = {{ error_labels_json|safe }};
+    const REASON_LABEL = JSON.parse(document.getElementById("fm-error-labels-data").textContent);
     const errLabel = (code) => REASON_LABEL[code] || code || "Errore";
 
     function remainingNow() {

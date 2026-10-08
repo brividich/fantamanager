@@ -3,6 +3,7 @@ Behaviour for the compact remote strip. Kept separate from the console script so
 any page can drop in the bar. Every lookup is null-safe: the detailed page hosts
 the same status endpoint with a different DOM.
 {% endcomment %}
+{{ remote_data|json_script:"fm-remote-bar-data" }}
 <script>
     let fmRemotePoll = null;
     let fmRemoteUrl = "";
@@ -60,5 +61,5 @@ the same status endpoint with a different DOM.
             () => showToast("Indirizzo copiato", "ok"),
             () => showToast("Copia manualmente l'indirizzo", "bad"));
     }
-    fmRemoteBar({{ remote_json|safe }});
+    fmRemoteBar(JSON.parse(document.getElementById("fm-remote-bar-data").textContent));
 </script>

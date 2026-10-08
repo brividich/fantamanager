@@ -1,6 +1,5 @@
 """Remote access management: Cloudflare quick tunnel, remote PIN gate, and shutdown."""
 import io
-import json
 
 try:
     import qrcode
@@ -60,7 +59,7 @@ def admin_remote_page(request):
         "selected": live,
         "console_section": "Accesso remoto",
         "console_active": "remote",
-        "remote_json": json.dumps(remote.status()),
+        "remote_data": remote.status(),
         "lan_url": remote.lan_url(request),
     })
 

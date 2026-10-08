@@ -1,5 +1,4 @@
 """Bidder-facing views: join flow, live bid page, watchlist management, and self-release."""
-import json
 from decimal import Decimal, InvalidOperation
 
 from django.conf import settings
@@ -241,12 +240,12 @@ def bid_page(request, auction_id):
         # the LAN address is a different origin and carries no session cookie.
         "lan_switch_url": (participant_lan_join_url(request, participant, auction)
                            if participant else ""),
-        "state": json.dumps(services.serialize_state(auction)),
+        "state": services.serialize_state(auction),
         "plan": services.roster_plan(participant) if participant else None,
         "watches": watches,
-        "watched_ids_json": json.dumps(watched_ids),
-        "watch_max_prices_json": json.dumps(watch_max_prices),
-        "error_labels_json": json.dumps(services.ERROR_LABELS),
+        "watched_ids": watched_ids,
+        "watch_max_prices": watch_max_prices,
+        "error_labels": services.ERROR_LABELS,
     })
 
 

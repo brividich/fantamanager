@@ -1,6 +1,8 @@
+{{ state_data|json_script:"fm-state-data" }}
+{{ error_labels|json_script:"fm-error-labels-data" }}
 <script>
     const AUCTION_ID = {{ selected.id }};
-    let state = {{ state_json|safe }};
+    let state = JSON.parse(document.getElementById("fm-state-data").textContent);
     let timerBase = { remaining: state ? state.remaining_seconds : 0, at: performance.now() };
     let lastPrice = state ? state.current_price : null;
     // The live websocket state never carries per-team credit/roster figures
@@ -210,7 +212,7 @@
     }
 
     // Italian wording for every rejection / error code (services.ERROR_LABELS).
-    const ERROR_LABEL = {{ error_labels_json|safe }};
+    const ERROR_LABEL = JSON.parse(document.getElementById("fm-error-labels-data").textContent);
     const errLabel = (code) => ERROR_LABEL[code] || code || "Errore";
 
     async function control(action) {
