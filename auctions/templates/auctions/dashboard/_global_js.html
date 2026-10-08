@@ -32,7 +32,7 @@
                 el.innerHTML = '<div style="color:#f7768e">Impossibile caricare i log.</div>';
             }
         } catch (e) {
-            el.innerHTML = `<div style="color:#f7768e">Errore di rete: ${e.message}</div>`;
+            el.innerHTML = `<div style="color:#f7768e">Errore di rete: ${escapeHtml(e.message)}</div>`;
         }
     }
 
@@ -84,9 +84,9 @@
             const d = await (await fetch(`/dashboard/participants/${id}/roster/`)).json();
             if (!d.ok) throw new Error();
             body.innerHTML = d.roster.length ? d.roster.map(pl => `
-                <tr id="rosterrow-${pl.id}">
+                <tr id="rosterrow-${Number(pl.id)}">
                     <td style="font-weight:600"></td>
-                    <td><span class="role-badge role-${pl.role}">${pl.role}</span></td>
+                    <td><span class="role-badge role-${fmRole(pl.role)}">${escapeHtml(pl.role)}</span></td>
                     <td style="text-align:right">${Math.round(pl.cost)}</td>
                     <td style="text-align:right">${Math.round(pl.quotation)}</td>
                     <td style="text-align:right">
@@ -225,7 +225,7 @@
         const summary = document.getElementById('credits-summary-box');
         if (form) form.action = `/dashboard/team/${id}/credits/`;
         if (title) title.textContent = `Regola Crediti · ${name}`;
-        if (summary) summary.innerHTML = `Club: <b>${name}</b> · Budget Totale: <b>${totalCredits} FM</b> · Residui: <b style="color:var(--fm-success)">${remainingCredits} FM</b>`;
+        if (summary) summary.innerHTML = `Club: <b>${escapeHtml(name)}</b> · Budget Totale: <b>${escapeHtml(totalCredits)} FM</b> · Residui: <b style="color:var(--fm-success)">${escapeHtml(remainingCredits)} FM</b>`;
         if (m) m.style.display = 'flex';
     }
 
