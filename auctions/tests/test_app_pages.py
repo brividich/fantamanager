@@ -17,6 +17,7 @@ from ..views.common import APP_PAGES
 # (pagina in console, pagina nell'app): quelle che usano la cornice condivisa.
 FRAMED_PAGES = [
     ("admin_players", "app_regia_players"),
+    ("admin_contracts", "app_regia_contracts"),
 ]
 
 
@@ -80,3 +81,17 @@ class AppPagesParityTests(TestCase):
             with self.subTest(page=app_name):
                 resp = self.client.get(reverse(app_name))
                 self.assertEqual(resp.status_code, 302)
+
+    def test_actions_return_to_the_page_they_came_from(self):
+        """Un form della pagina nell'app torna all'app; senza next, alla console."""
+        self.client.force_login(self.owner)
+        back = reverse("app_regia_contracts") + f"?league={self.league.id}"
+        data = {"league_id": self.league.id, "action": "settings", "faces": "1,2,3"}
+        resp = self.client.post(reverse("admin_contracts_action"), {**data, "next": back})
+        self.assertRedirects(resp, back, fetch_redirect_response=False)
+        # La pagina dell'app mostra il messaggio una volta sola.
+        page = self.client.get(back).content.decode()
+        self.assertEqual(page.count("Impostazioni contratti salvate."), 1)
+        resp = self.client.post(reverse("admin_contracts_action"), {**data, "next": "https://evil.example/"})
+        self.assertRedirects(resp, reverse("admin_contracts") + f"?league={self.league.id}",
+                             fetch_redirect_response=False)

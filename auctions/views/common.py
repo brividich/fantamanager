@@ -546,6 +546,7 @@ APP_PAGES = {
     "admin_giornate": "app_giornate",
     "admin_market_trades": "app_regia_trades",
     "admin_players": "app_regia_players",
+    "admin_contracts": "app_regia_contracts",
 }
 
 

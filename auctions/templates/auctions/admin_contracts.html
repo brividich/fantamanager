@@ -1,9 +1,7 @@
-{% extends "auctions/base.html" %}
+{% extends page_frame|default:"auctions/_frame_console.html" %}{% load fm_pages %}
 {% block title %}Contratti — FantaManager{% endblock %}
-{% block bodyclass %}role-admin{% endblock %}
-{% block wrapclass %}wrap-wide{% endblock %}
 
-{% block content %}
+{% block page %}
 <style>
     /* ==========================================================================
        Fluid Page Container & Design System Tokens
@@ -1123,7 +1121,6 @@
     }
 </style>
 
-{% include "auctions/_console_head.html" %}
 
 <div class="ct-page">
 <div class="ct-head">
@@ -1151,7 +1148,7 @@
         </span>
         {% endif %}
         <form method="post" action="{% url 'admin_contracts_action' %}" onsubmit="return confirm('Iniziare una nuova stagione? Tutti i contratti scalano di un anno e si aprono i rinnovi per quelli scaduti.');">
-            {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}">
+            {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="league_id" value="{{ current_league.id }}">
             <input type="hidden" name="action" value="new_season">
             <button type="submit" class="ct-btn go">
                 <svg class="ic" style="width:14px;height:14px"><use href="#i-plus"/></svg>
@@ -1170,7 +1167,7 @@
         </a>
         {% if current_league.renewals_open %}
         <form method="post" action="{% url 'admin_contracts_action' %}">
-            {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}">
+            {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="league_id" value="{{ current_league.id }}">
             <input type="hidden" name="action" value="close_renewals">
             <button type="submit" class="ct-btn">Chiudi rinnovi</button>
         </form>
@@ -1211,7 +1208,7 @@
     </div>
 
     <form method="post" action="{% url 'admin_contracts_action' %}" class="ct-settings-form">
-        {% csrf_token %}
+        {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
         <input type="hidden" name="league_id" value="{{ current_league.id }}">
         <input type="hidden" name="action" value="settings">
 
@@ -1367,7 +1364,7 @@
                 <div class="ct-act">
                     {% if p.contract_years is None %}
                     <form method="post" action="{% url 'admin_contracts_action' %}" data-dice="contract" data-player="{{ p.name }}">
-                        {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}">
+                        {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="league_id" value="{{ current_league.id }}">
                         <input type="hidden" name="action" value="roll"><input type="hidden" name="player_id" value="{{ p.id }}">
                         <select name="manual_face" title="Lascia 🎲 per il dado virtuale o scegli il risultato del dado vero">
                             <option value="">🎲</option>{% for f in contract_faces %}<option value="{{ f }}">{{ f }}</option>{% endfor %}
@@ -1376,7 +1373,7 @@
                     </form>
                     {% elif p.contract_years == 0 and p.renewal_declared and current_league.renewals_open %}
                     <form method="post" action="{% url 'admin_contracts_action' %}" data-dice="renewal" data-player="{{ p.name }}">
-                        {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}">
+                        {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="league_id" value="{{ current_league.id }}">
                         <input type="hidden" name="action" value="renew"><input type="hidden" name="player_id" value="{{ p.id }}">
                         <select name="manual_outcome" title="Dado rinnovo"><option value="">🎲</option><option value="green">🟢</option><option value="red">🔴</option></select>
                         <select name="manual_face" title="Dado contratti (se verde inserito a mano)"><option value="">🎲</option>{% for f in contract_faces %}<option value="{{ f }}">{{ f }}</option>{% endfor %}</select>
@@ -1384,7 +1381,7 @@
                     </form>
                     {% else %}
                     <form method="post" action="{% url 'admin_contracts_action' %}">
-                        {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}">
+                        {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="league_id" value="{{ current_league.id }}">
                         <input type="hidden" name="action" value="set"><input type="hidden" name="player_id" value="{{ p.id }}">
                         <input type="number" name="years" min="0" max="4" value="{{ p.contract_years|default_if_none:'' }}" style="width:48px" title="Anni di contratto">
                         <button type="submit" class="ct-btn">Imposta</button>
@@ -1502,7 +1499,7 @@
     <div class="ct-departures-toolbar">
         <div class="ct-toolbar-group">
             <form method="post" action="{% url 'admin_contracts_action' %}" style="margin:0">
-                {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="left_check_all">
+                {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="left_check_all">
                 <button type="submit" class="ct-btn go"{% if not apifootball or roster_check.status == "running" %} disabled{% endif %} title="Cerca su API-Football chi ha lasciato la Serie A">
                     <svg class="ic" style="width:14px;height:14px"><use href="#i-search"/></svg>
                     <span>Controlla tutte le rose</span>
@@ -1510,7 +1507,7 @@
             </form>
             {% if to_detect %}
             <form method="post" action="{% url 'admin_contracts_action' %}" style="margin:0">
-                {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="left_detect_all">
+                {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="left_detect_all">
                 <button type="submit" class="ct-btn go"{% if not apifootball %} disabled{% endif %}>
                     Rileva tutti ({{ to_detect }})
                 </button>
@@ -1519,7 +1516,7 @@
             {% if priced %}
             <form method="post" action="{% url 'admin_contracts_action' %}" style="margin:0"
                   onsubmit="return confirm('Confermare {{ priced|length }} uscit{{ priced|length|pluralize:"a,e" }}? Le squadre incassano {{ priced_total|floatformat:0 }} FM in totale e perdono i giocatori.');">
-                {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="left_resolve_priced">
+                {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="left_resolve_priced">
                 <button type="submit" class="ct-btn go">
                     Conferma tutte con compenso ({{ priced|length }} · {{ priced_total|floatformat:0 }} FM)
                 </button>
@@ -1529,7 +1526,7 @@
 
         <div class="ct-toolbar-group">
             <form method="post" action="{% url 'admin_contracts_action' %}" class="ct-manual-flag-form">
-                {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="left_flag">
+                {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="left_flag">
                 <span style="font-weight:700;font-size:12.5px;color:var(--ink-bright,#fff)">Segnala a mano:</span>
                 <select name="player_id">
                     {% for p in flaggable %}<option value="{{ p.id }}">{{ p.owner.display_name }} · {{ p.role }} {{ p.name }}</option>{% endfor %}
@@ -1570,7 +1567,7 @@
         </div>
         <div class="ct-left-act">
             <form method="post" action="{% url 'admin_contracts_action' %}" class="ct-left-res-form">
-                {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}">
+                {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="league_id" value="{{ current_league.id }}">
                 <input type="hidden" name="action" value="left_resolve"><input type="hidden" name="player_id" value="{{ p.id }}">
                 <input name="club" value="{{ p.left_club }}" placeholder="Club di destinazione" class="ct-in ct-in-club">
                 <select name="outcome" class="ct-in ct-in-outcome">
@@ -1587,7 +1584,7 @@
                 <button type="submit" class="ct-btn go">Conferma</button>
             </form>
             <form method="post" action="{% url 'admin_contracts_action' %}" class="ct-left-detect-form">
-                {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}">
+                {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="league_id" value="{{ current_league.id }}">
                 <input type="hidden" name="action" value="left_detect"><input type="hidden" name="player_id" value="{{ p.id }}">
                 <button type="submit" class="ct-btn"{% if not apifootball %} disabled{% endif %} title="Rileva club e ranking UEFA">Rileva</button>
             </form>
@@ -1618,7 +1615,7 @@
         </div>
         <div class="ct-left-act">
             <form method="post" action="{% url 'admin_contracts_action' %}" style="display:flex;gap:8px;align-items:center">
-                {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}">
+                {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="league_id" value="{{ current_league.id }}">
                 <input type="hidden" name="action" value="list_release"><input type="hidden" name="player_id" value="{{ p.id }}">
                 <span class="ct-comp-badge">+{{ p.abroad_compensation|floatformat:0 }} FM</span>
                 <button type="submit" class="ct-btn go">Svincola e incassa</button>
@@ -1642,11 +1639,11 @@
         </p>
         <div style="display:flex;gap:12px;align-items:flex-start;margin-top:12px;flex-wrap:wrap">
             <form method="post" action="{% url 'admin_contracts_action' %}">
-                {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="uefa_fetch">
+                {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="uefa_fetch">
                 <button type="submit" class="ct-btn go">Scarica da uefa.com</button>
             </form>
             <form method="post" action="{% url 'admin_contracts_action' %}" style="display:flex;gap:8px;align-items:flex-start;flex:1 1 280px;max-width:100%;flex-wrap:wrap">
-                {% csrf_token %}<input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="uefa_paste">
+                {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="uefa_paste">
                 <textarea name="ranking" rows="3" aria-label="Ranking UEFA da incollare" placeholder="Incolla qui la tabella copiata da uefa.com&#10;oppure una riga per club:&#10;1;Real Madrid&#10;2;Bayern München" style="flex:1 1 240px;min-width:0;max-width:100%;font-size:12px;border-radius:8px;border:1px solid var(--line);background:rgba(0,0,0,0.3);color:inherit;padding:8px 10px;box-sizing:border-box"></textarea>
                 <button type="submit" class="ct-btn">Salva incollato</button>
             </form>
