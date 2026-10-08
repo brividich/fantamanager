@@ -221,3 +221,30 @@ class StandingsUrlTests(TestCase):
 
     def test_a_public_page_is_read(self):
         self.assertEqual(len(self._fetch("https://example.com/classifica", {"example.com": "93.184.216.34"})), 1)
+
+
+class EncryptedSecretTests(TestCase):
+    def test_smtp_password_is_encrypted_at_rest(self):
+        from django.db import connection
+
+        from ..models import MailSettings
+
+        cfg = MailSettings.get()
+        cfg.password = "segreta-123"
+        cfg.save()
+        with connection.cursor() as cur:
+            cur.execute("SELECT password FROM auctions_mailsettings WHERE id = %s", [cfg.pk])
+            raw = cur.fetchone()[0]
+        self.assertNotIn("segreta", raw)
+        self.assertTrue(raw.startswith("fernet:"))
+        self.assertEqual(MailSettings.get().password, "segreta-123")
+
+    def test_a_password_saved_in_clear_is_still_read(self):
+        from django.db import connection
+
+        from ..models import MailSettings
+
+        cfg = MailSettings.get()
+        with connection.cursor() as cur:
+            cur.execute("UPDATE auctions_mailsettings SET password = %s WHERE id = %s", ["vecchia", cfg.pk])
+        self.assertEqual(MailSettings.get().password, "vecchia")

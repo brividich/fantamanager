@@ -590,3 +590,17 @@ def version_status_api(request):
             "postgresql_support",
         ],
     })
+
+
+def password_problem(password, user=None):
+    """Django's password validators (length, common, all digits, too close to
+    the account's name), as one Italian sentence; "" when it is fine. Every
+    form that sets a password chosen by a person goes through this."""
+    from django.contrib.auth.password_validation import validate_password
+    from django.core.exceptions import ValidationError
+
+    try:
+        validate_password(password, user)
+    except ValidationError as exc:
+        return " ".join(exc.messages)
+    return ""

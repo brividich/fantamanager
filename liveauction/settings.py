@@ -79,6 +79,12 @@ if BEHIND_PROXY:
 TRUSTED_PROXY_HOPS = int(os.getenv("DJANGO_PROXY_HOPS", "1")) if BEHIND_PROXY else 0
 
 
+# Key for the secrets stored encrypted in the database (SMTP password). Unset:
+# derived from SECRET_KEY. Generate one with
+#   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+FM_FIELD_ENCRYPTION_KEY = os.getenv("FM_FIELD_ENCRYPTION_KEY", "")
+
+
 # --- Application definition -------------------------------------------------
 INSTALLED_APPS = [
     # `daphne` must come first so it overrides the `runserver` command and

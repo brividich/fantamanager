@@ -96,17 +96,17 @@ class AdminObjectRbacTests(TestCase):
         url = f"/dashboard/team/{self.team.id}/pin/"
         token = self.team.public_token
         self._as(self.owner)
-        resp = self.client.post(url, {"pin": "1234", "regenerate_token": "1"},
+        resp = self.client.post(url, {"pin": "123456", "regenerate_token": "1"},
                                 HTTP_X_REQUESTED_WITH="XMLHttpRequest")
         self.assertEqual(resp.status_code, 200)
         self.team.refresh_from_db()
-        self.assertEqual(self.team.access_code, "1234")
+        self.assertEqual(self.team.access_code, "123456")
         self.assertNotEqual(self.team.public_token, token)
 
         self._as(self.superadmin)
-        self.client.post(url, {"pin": "4321"})
+        self.client.post(url, {"pin": "654321"})
         self.team.refresh_from_db()
-        self.assertEqual(self.team.access_code, "4321")
+        self.assertEqual(self.team.access_code, "654321")
 
     # --- Team edit / delete / roster / quick assign -------------------------
 

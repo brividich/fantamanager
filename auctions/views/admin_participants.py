@@ -29,6 +29,7 @@ from .common import (
     FORBIDDEN_LEAGUE_MSG,
     current_auction,
     linkable_users,
+    password_problem,
     manageable_leagues,
     league_scope_or_403,
     managed_or_403,
@@ -239,8 +240,8 @@ def admin_create_participant(request):
         generated = not password
         if generated:
             password = generate_password()
-        elif len(password) < MIN_PASSWORD_LENGTH:
-            messages.error(request, f"La password deve contenere almeno {MIN_PASSWORD_LENGTH} caratteri.")
+        elif (weak := password_problem(password)):
+            messages.error(request, weak)
             return redirect(safe_next(request, fallback))
 
         User = get_user_model()
@@ -519,7 +520,6 @@ def admin_participant_roster(request, participant_id):
 # one the coach already has, reset a forgotten password, switch it off.
 
 SESSION_ACCOUNT_SECRET_KEY = "fm_account_secret"
-MIN_PASSWORD_LENGTH = 6          # the same floor the registration form asks for
 ACCOUNTS_FORBIDDEN_MSG = (
     "Gli account degli allenatori li gestisce il presidente della lega (o il superadmin)."
 )
@@ -692,8 +692,8 @@ def admin_participant_account(request, participant_id):
         generated = not password
         if generated:
             password = generate_password()
-        elif len(password) < MIN_PASSWORD_LENGTH:
-            return fail(f"La password deve contenere almeno {MIN_PASSWORD_LENGTH} caratteri.")
+        elif (weak := password_problem(password)):
+            return fail(weak)
         with transaction.atomic():
             account = User.objects.create_user(
                 username=username, email=email, password=password,
@@ -763,8 +763,8 @@ def admin_participant_account(request, participant_id):
                 gen_pwd = (request.POST.get("generate_password") == "1") or not password
                 if gen_pwd and not password:
                     password = generate_password()
-                elif len(password) < MIN_PASSWORD_LENGTH:
-                    return fail(f"La password deve contenere almeno {MIN_PASSWORD_LENGTH} caratteri.")
+                elif (weak := password_problem(password)):
+                    return fail(weak)
                 with transaction.atomic():
                     account = User.objects.create_user(
                         username=username,
@@ -820,8 +820,8 @@ def admin_participant_account(request, participant_id):
         if gen_pwd and not new_password:
             new_password = generate_password()
         if new_password:
-            if len(new_password) < MIN_PASSWORD_LENGTH:
-                return fail(f"La password deve contenere almeno {MIN_PASSWORD_LENGTH} caratteri.")
+            if (weak := password_problem(new_password, account)):
+                return fail(weak)
             account.set_password(new_password)
             pwd_reset_done = True
             if account.pk == request.user.pk:
@@ -888,8 +888,8 @@ def admin_participant_account(request, participant_id):
         generated = not password
         if generated:
             password = generate_password()
-        elif len(password) < MIN_PASSWORD_LENGTH:
-            return fail(f"La password deve contenere almeno {MIN_PASSWORD_LENGTH} caratteri.")
+        elif (weak := password_problem(password)):
+            return fail(weak)
         account.set_password(password)
         account.save(update_fields=["password"])
         if account.pk == request.user.pk:

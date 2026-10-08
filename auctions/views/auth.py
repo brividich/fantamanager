@@ -163,10 +163,25 @@ def login_view(request):
     )
 
 
+def _password_problem(password, username="", email="", first_name=""):
+    """Django's password validators (length, common, numeric, too close to
+    the name), as one Italian sentence; "" when the password is fine."""
+    from django.contrib.auth.password_validation import validate_password
+    from django.core.exceptions import ValidationError
+
+    try:
+        validate_password(password, User(username=username, email=email, first_name=first_name))
+    except ValidationError as exc:
+        return " ".join(exc.messages)
+    return ""
+
+
 def register_view(request):
     """Handle new user registration.
 
-    First registered user on an empty platform automatically becomes Superadmin.
+    In the desktop app the first registered user on an empty platform becomes
+    Superadmin. On a server the superadmin comes from the install (entrypoint,
+    ``createsuperuser``): whoever reached the page first must not get it.
     """
     if request.user.is_authenticated:
         return redirect("home")
@@ -183,18 +198,18 @@ def register_view(request):
             error = "Nome utente e password sono obbligatori."
         elif len(username) < 3:
             error = "Il nome utente deve contenere almeno 3 caratteri."
-        elif len(password) < 6:
-            error = "La password deve contenere almeno 6 caratteri."
         elif password != password_confirm:
             error = "Le due password non coincidono."
+        elif (weak := _password_problem(password, username, email, first_name)):
+            error = weak
         elif User.objects.filter(username__iexact=username).exists():
             error = "Questo nome utente è già in uso. Scegline un altro."
         elif email and User.objects.filter(email__iexact=email).exists():
             error = "Questa email è già associata a un account."
         else:
             try:
-                # First user becomes Superadmin
-                is_first = User.objects.count() == 0
+                # First user becomes Superadmin (desktop app only).
+                is_first = settings.DESKTOP_APP and User.objects.count() == 0
                 user = User.objects.create_user(
                     username=username,
                     email=email,

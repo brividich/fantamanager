@@ -736,8 +736,9 @@ class WatchlistTests(TestCase):
         Watch.objects.create(participant=self.p, player=priced, max_price=Decimal("42"))
         Watch.objects.create(participant=self.p, player=unpriced, max_price=None)
         resp = self.client.get(f"/bid/{self.auction.id}/")
-        prices = json.loads(resp.context["watch_max_prices_json"])
-        self.assertEqual(prices, {str(priced.id): "42.00"})
+        prices = resp.context["watch_max_prices"]
+        self.assertEqual(prices, {priced.id: "42.00"})
+        self.assertContains(resp, f'"{priced.id}": "42.00"')     # string keys in the page JSON
 
 
 class JoinPathTests(TestCase):
@@ -810,7 +811,7 @@ class MultiLeagueIsolationTests(TestCase):
 
     def test_a_team_is_created_inside_the_league_it_was_added_from(self):
         self.client.post("/admin-auction/participants/create/", {
-            "display_name": "Squadra B1", "access_code": "B1",
+            "display_name": "Squadra B1", "access_code": "SQB1B1",
             "league_id": str(self.b.id), "next": "/admin-auction/",
         })
         team = Participant.objects.get(display_name="Squadra B1")
@@ -819,7 +820,7 @@ class MultiLeagueIsolationTests(TestCase):
 
     def test_credits_default_to_that_league_budget(self):
         self.client.post("/admin-auction/participants/create/", {
-            "display_name": "Senza crediti", "access_code": "X",
+            "display_name": "Senza crediti", "access_code": "XXXXXX",
             "league_id": str(self.b.id),
         })
         self.assertEqual(Participant.objects.get(display_name="Senza crediti").credits,

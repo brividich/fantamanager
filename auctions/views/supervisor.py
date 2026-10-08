@@ -35,7 +35,7 @@ from ..models import Auction, Bid, League, MailSettings, Participant, Player
 from ..consumers import _ROOM_TICKERS
 from ..services import mail
 from ..services.voti_live import LiveSyncManager, normalize_provider
-from .common import form_int
+from .common import form_int, password_problem
 
 logger = logging.getLogger(__name__)
 
@@ -441,8 +441,8 @@ def supervisor_dashboard(request):
 
             password_changed = False
             if new_password:
-                if len(new_password) < 4:
-                    messages.error(request, "La password deve contenere almeno 4 caratteri.")
+                if (weak := password_problem(new_password, user_obj)):
+                    messages.error(request, weak)
                     return redirect(f"{reverse('supervisor_dashboard')}?tab=users")
                 user_obj.set_password(new_password)
                 password_changed = True
