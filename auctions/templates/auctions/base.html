@@ -173,6 +173,95 @@
             const p = location.protocol === "https:" ? "wss" : "ws";
             return `${p}://${location.host}/ws/auction/${id}/`;
         }
+
+        /* La connessione all'asta dal vivo, una sola per offerte, maxischermo e
+           regia. Si riconnette da sola con attese crescenti (1, 2, 4… fino a 10
+           s, con un po' di caso perché i telefoni non tornino tutti insieme),
+           e subito quando il telefono si risveglia o torna la rete. Ogni 4 s
+           chiede lo stato (sync): un evento perso si recupera, e dal tempo della
+           risposta stima il ritardo, che lagMs() dà per correggere il timer.
+           Un sync senza risposta per 10 s è una connessione morta (telefono
+           uscito dallo standby): la chiude e ne apre una nuova.
+           handlers.onMessage(msg) riceve ogni messaggio; handlers.onStatus(stato,
+           {ping}) con stato "connecting" | "open" | "closed". */
+        function fmLiveSocket(auctionId, handlers) {
+            const SYNC_MS = 4000, DEAD_MS = 10000, MAX_WAIT_MS = 10000;
+            let socket = null, retry = null, ticker = null, pending = null;
+            let tries = 0, nextId = 1;
+            const rtts = [];
+            const status = (s, info) => handlers.onStatus && handlers.onStatus(s, info || {});
+
+            function lagMs() {
+                // Metà del giro più veloce fra gli ultimi: i picchi non contano.
+                return rtts.length ? Math.min(Math.min.apply(null, rtts) / 2, 2000) : 0;
+            }
+            function sync() {
+                if (!socket || socket.readyState !== WebSocket.OPEN) return;
+                if (pending && performance.now() - pending.at > DEAD_MS) { drop(); return; }
+                if (pending) return;
+                pending = { id: nextId++, at: performance.now() };
+                socket.send(JSON.stringify({ action: "sync", sync_id: pending.id }));
+            }
+            function later() {
+                if (retry) return;
+                const base = Math.min(MAX_WAIT_MS, 1000 * Math.pow(2, tries++));
+                retry = setTimeout(() => { retry = null; open(); }, base / 2 + Math.random() * base / 2);
+            }
+            function drop() {
+                const s = socket;
+                socket = null;
+                clearInterval(ticker); ticker = null; pending = null;
+                if (s) {
+                    s.onopen = s.onmessage = s.onclose = null;
+                    try { s.close(); } catch (e) {}
+                }
+                status("closed");
+                later();
+            }
+            function open() {
+                if (socket) return;
+                status("connecting");
+                const s = socket = new WebSocket(auctionSocketUrl(auctionId));
+                s.onopen = () => {
+                    tries = 0;
+                    status("open");
+                    clearInterval(ticker);
+                    ticker = setInterval(sync, SYNC_MS);
+                    sync();
+                };
+                s.onmessage = (e) => {
+                    let msg;
+                    try { msg = JSON.parse(e.data); } catch (err) { return; }
+                    if (pending && msg.sync_id === pending.id) {
+                        const rtt = performance.now() - pending.at;
+                        pending = null;
+                        rtts.push(rtt);
+                        if (rtts.length > 5) rtts.shift();
+                        status("open", { ping: Math.round(rtt) });
+                    }
+                    handlers.onMessage(msg);
+                };
+                s.onclose = () => { if (socket === s) drop(); };
+            }
+            function wake() {
+                if (!socket) { clearTimeout(retry); retry = null; tries = 0; open(); }
+                else sync();
+            }
+            window.addEventListener("online", wake);
+            document.addEventListener("visibilitychange", () => {
+                if (document.visibilityState === "visible") wake();
+            });
+            open();
+            return {
+                send(obj) {
+                    if (!socket || socket.readyState !== WebSocket.OPEN) return false;
+                    socket.send(JSON.stringify(obj));
+                    return true;
+                },
+                isOpen() { return !!socket && socket.readyState === WebSocket.OPEN; },
+                lagMs,
+            };
+        }
         function fmtTime(s) {
             s = Math.max(0, Math.ceil(s));
             return String(Math.floor(s/60)).padStart(2,"0") + ":" + String(s%60).padStart(2,"0");

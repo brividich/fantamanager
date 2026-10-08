@@ -822,6 +822,7 @@
     let curPlayerId = null, _lastObjective = null;
     let state = {{ state|safe }};
     let timerBase = { remaining: state.remaining_seconds, at: performance.now() };
+    let live = null;   // la connessione all'asta (fmLiveSocket, base.html)
     let lastPrice = null;
 
     const $priceVal  = document.getElementById("price-val");
@@ -904,8 +905,7 @@
         const now = performance.now();
         if (now - _lastReaction < 400) return;   // client-side throttle
         _lastReaction = now;
-        if (socket && socket.readyState === WebSocket.OPEN)
-            socket.send(JSON.stringify({ action: "reaction", emoji }));
+        if (live) live.send({ action: "reaction", emoji });
         spawnReaction(emoji);  // instant local feedback
     }
     function spawnReaction(emoji) {
@@ -1069,7 +1069,8 @@
             $turn.style.display = s.turn && waiting ? "" : "none";
             if (s.turn) $turn.textContent = mine ? "📣 Tocca a te chiamare il prossimo giocatore!" : `Tocca a ${s.turn.name} chiamare`;
         }
-        timerBase = { remaining: s.remaining_seconds, at: performance.now() };
+        // Lo stato è partito dal server un attimo fa: il timer parte da allora.
+        timerBase = { remaining: s.remaining_seconds, at: performance.now() - (live ? live.lagMs() : 0) };
 
         $priceVal.textContent = money(s.current_price);
         if (prev !== null && prev !== s.current_price) {
@@ -1235,19 +1236,19 @@
         const input = document.getElementById("sealed-amount");
         const value = (input.value || "").trim();
         if (!value) { showToast("Scrivi una cifra", "bad"); return; }
-        if (!socket || socket.readyState !== WebSocket.OPEN) {
+        if (!live || !live.isOpen()) {
             showToast("Connessione assente, riprovo…", "bad"); return;
         }
-        socket.send(JSON.stringify({ action: "sealed_bid", amount: value }));
+        live.send({ action: "sealed_bid", amount: value });
         showToast("Busta consegnata: " + value + " FM", "good");
     }
     window.sendSealed = sendSealed;
 
     function sendBid(inc) {
-        if (!socket || socket.readyState !== WebSocket.OPEN) {
+        if (!live || !live.isOpen()) {
             showToast("Connessione assente, riprovo…", "bad"); return;
         }
-        socket.send(JSON.stringify({ action: "bid", increment: inc }));
+        live.send({ action: "bid", increment: inc });
     }
 
     const $wsIndicator = document.getElementById("ws-indicator");
@@ -1258,73 +1259,41 @@
         $wsLabel.textContent   = label;
     }
 
-    let socket = null;
-    let _pingTimer = null;
-    let _pingSentAt = null;
+    function onLiveMessage(msg) {
+        if (msg.type === "state") applyState(msg);
+        else if (msg.type === "bid_accepted") { soundBid(); showToast("✓ Offerta accettata!", "ok"); }
+        else if (msg.type === "bid_rejected") { soundRejected(); showToast("✗ " + errLabel(msg.reason), "bad"); }
+        else if (msg.type === "bid_new" && msg.extended) flashExtended();
+        else if (msg.type === "participant_offline")
+            showAlert("📡", `${msg.participant} si è disconnesso`, 7000);
+        else if (msg.type === "participant_warning" && msg.kind === "latency")
+            showAlert("⚠️", `${msg.participant} — latenza alta (${msg.ping} ms)`, 6000);
+        else if (msg.type === "sealed_me") { sealedMe = msg; renderSealed(); }
+        else if (msg.type === "sealed_accepted") {
+            soundBid();
+            showToast(`✓ Busta consegnata: ${money(msg.amount)} FM`, "ok");
+            document.getElementById("sealed-amount").value = "";
+        }
+        else if (msg.type === "sealed_rejected") {
+            soundRejected(); showToast("✗ " + errLabel(msg.reason), "bad");
+        }
+        else if (msg.type === "reaction") spawnReaction(msg.emoji);
+        else if (msg.type === "announcement") showAnnouncement(msg.text, msg.level);
+    }
 
-    function sendPing() {
-        if (socket && socket.readyState === WebSocket.OPEN) {
-            _pingSentAt = performance.now();
-            socket.send(JSON.stringify({ action: "sync" }));
+    function onLiveStatus(status, info) {
+        if (status === "connecting") setWsState("ws-connecting", "Connessione…");
+        else if (status === "closed") setWsState("ws-closed", "Offline");
+        else if (info.ping == null) setWsState("ws-open", "Online");
+        else {
+            setWsState("ws-open", `Online · ${info.ping} ms`);
+            // Segnala al server se la latenza è alta
+            if (info.ping > 300) live.send({ action: "latency_warning", ping: info.ping });
         }
     }
 
-    function connect() {
-        setWsState("ws-connecting", "Connessione…");
-        socket = new WebSocket(auctionSocketUrl(AUCTION_ID));
-
-        socket.onopen = () => {
-            setWsState("ws-open", "Online");
-            // Misura il ping ogni 4 secondi con un sync
-            clearInterval(_pingTimer);
-            _pingTimer = setInterval(sendPing, 4000);
-            sendPing();
-        };
-
-        socket.onmessage = (e) => {
-            // Calcola ping se era in attesa di risposta sync
-            if (_pingSentAt !== null) {
-                const ping = Math.round(performance.now() - _pingSentAt);
-                _pingSentAt = null;
-                setWsState("ws-open", `Online · ${ping} ms`);
-                // Segnala al server se la latenza è alta
-                if (ping > 300) {
-                    socket.send(JSON.stringify({ action: "latency_warning", ping }));
-                }
-            }
-            const msg = JSON.parse(e.data);
-            if (msg.type === "state") applyState(msg);
-            else if (msg.type === "bid_accepted") { soundBid(); showToast("✓ Offerta accettata!", "ok"); }
-            else if (msg.type === "bid_rejected") { soundRejected(); showToast("✗ " + errLabel(msg.reason), "bad"); }
-            else if (msg.type === "bid_new" && msg.extended) flashExtended();
-            else if (msg.type === "participant_offline")
-                showAlert("📡", `${msg.participant} si è disconnesso`, 7000);
-            else if (msg.type === "participant_warning" && msg.kind === "latency")
-                showAlert("⚠️", `${msg.participant} — latenza alta (${msg.ping} ms)`, 6000);
-            else if (msg.type === "sealed_me") { sealedMe = msg; renderSealed(); }
-            else if (msg.type === "sealed_accepted") {
-                soundBid();
-                showToast(`✓ Busta consegnata: ${money(msg.amount)} FM`, "ok");
-                document.getElementById("sealed-amount").value = "";
-            }
-            else if (msg.type === "sealed_rejected") {
-                soundRejected(); showToast("✗ " + errLabel(msg.reason), "bad");
-            }
-            else if (msg.type === "reaction") spawnReaction(msg.emoji);
-            else if (msg.type === "announcement") showAnnouncement(msg.text, msg.level);
-        };
-
-        socket.onclose = () => {
-            setWsState("ws-closed", "Offline");
-            clearInterval(_pingTimer);
-            _pingTimer = null;
-            _pingSentAt = null;
-            setTimeout(connect, 1500);
-        };
-    }
-
     applyState(state);
-    connect();
+    live = fmLiveSocket(AUCTION_ID, { onMessage: onLiveMessage, onStatus: onLiveStatus });
     requestAnimationFrame(tick);
 
     // --- Svincolo (release one of my own players) -----------------------------

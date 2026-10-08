@@ -68,6 +68,16 @@ stessi testi**.
   `AppPagesParityTests` in `auctions/tests/test_app_pages.py`,
   `GiornatePageTests` e `AdminFormationEditorTests` in `auctions/tests/test_voti.py`.
 
+## Asta live: una sola connessione
+
+Offerte (`bid.html`), maxischermo (`screen.html`) e regia
+(`dashboard/_live_js.html`) si collegano all'asta solo con `fmLiveSocket`
+(`base.html`): riconnessione con attese crescenti e al risveglio del telefono,
+`sync` numerato ogni 4 s (recupera gli eventi persi e misura il ritardo),
+connessione senza risposta per 10 s chiusa e riaperta. Il timer parte da
+`performance.now() - live.lagMs()`: lo stato è partito dal server un attimo
+prima. Mai un `new WebSocket` in una pagina.
+
 ## Formazioni: una per giornata
 
 Si schiera per la prossima giornata ancora da giocare (`target_giornata`,
