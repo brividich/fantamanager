@@ -27,7 +27,9 @@ class _Resp:
         return json.loads(self._body)
 
 
-class SalaRoundTripTests(TestCase):
+class _SalaSite(TestCase):
+    """Un sito con una lega e la sua chiave; le chiamate del PC vanno all'API."""
+
     def setUp(self):
         self.owner = User.objects.create_user("presidente_sala", password="pw")
         self.league = League.objects.create(name="Lega Sala", owner=self.owner, budget=Decimal("500"))
@@ -63,6 +65,8 @@ class SalaRoundTripTests(TestCase):
         RosterLog.objects.create(participant=alfa, participant_name="Alfa", player_name="Barella",
                                  player_role="C", action=RosterLog.Action.ASSIGN, credits_delta=Decimal("-30"))
 
+
+class SalaRoundTripTests(_SalaSite):
     # --- la chiave ---------------------------------------------------------
 
     def test_key_identifies_the_league_and_is_shown_once(self):
@@ -277,7 +281,7 @@ class SalaPageTests(TestCase):
     def test_revoke_and_manual_unlock(self):
         key = sala.make_key(self.league)
         sala.lock(self.league)
-        self.assertContains(self.client.get(self.page), "Asta in corso in sala")
+        self.assertContains(self.client.get(self.page), "In corso: rose, crediti e listone")
         self._action("sala_unlock")
         self._action("sala_key_revoke")
         self.league.refresh_from_db()
@@ -315,3 +319,138 @@ class SalaPageTests(TestCase):
                          {"action": "sala_connect", "site": SITE, "key": "fmsala_no", "next": self.page})
         self.assertContains(self.client.get(self.page), "Chiave non valida")
         self.assertEqual(League.objects.filter(name="Lega Pagina").count(), 1)
+
+
+class SalaLiveTests(_SalaSite):
+    """Fase 3: chi gioca da fuori entra dall'app del sito nell'asta del PC."""
+
+    TUNNEL = "https://abc-def.trycloudflare.com"
+
+    def test_pc_publishes_the_address_and_teams_enter_from_the_site(self):
+        copy = sala.connect(SITE, self.key)
+        sala.publish_live(self.TUNNEL, wait=True)
+        self.league.refresh_from_db()
+        live = sala.live_info(self.league)
+        self.assertEqual(live["url"], self.TUNNEL)
+        pc_alfa = copy.participants.get(display_name="Alfa")
+        self.assertEqual(sala.live_entry_url(self.alfa), f"{self.TUNNEL}/join/?t={pc_alfa.public_token}")
+        self.assertEqual(sala.link_info(Participant.objects.get(pk=pc_alfa.pk).league)["live_url"], self.TUNNEL)
+
+        # Il manager di Alfa, nell'app del sito: il richiamo e l'ingresso.
+        app = Client()
+        s = app.session; s["participant_id"] = self.alfa.id; s.save()
+        self.assertContains(app.get(reverse("app_home")), "Asta in corso in sala")
+        resp = app.get(reverse("app_sala_enter"))
+        self.assertEqual(resp["Location"], f"{self.TUNNEL}/join/?t={pc_alfa.public_token}")
+
+        # Tunnel chiuso: niente ingresso, la home dice cosa aspettare.
+        sala.publish_live(None, wait=True)
+        self.assertIsNone(sala.live_entry_url(self.alfa))
+        self.assertContains(app.get(reverse("app_home")), "appena la regia attiva")
+        self.assertRedirects(app.get(reverse("app_sala_enter")), reverse("app_home"), fetch_redirect_response=False)
+
+    def test_results_clear_the_address(self):
+        copy = sala.connect(SITE, self.key)
+        sala.publish_live(self.TUNNEL, wait=True)
+        sala.send_results(copy)
+        self.assertIsNone(sala.live_entry_url(self.alfa))
+        sala.publish_live(self.TUNNEL, wait=True)    # già rimandata: niente da pubblicare
+        self.league.refresh_from_db()
+        self.assertIsNone(sala.live_info(self.league))
+
+    def test_site_refuses_bad_addresses_and_old_locks(self):
+        sala.connect(SITE, self.key)
+        self.league.refresh_from_db()
+        lock_id = sala.lock_info(self.league)["id"]
+        with self.assertRaisesMessage(sala.SalaError, "https://"):
+            sala.set_live(self.league, lock_id, "http://in-chiaro.example", {})
+        with self.assertRaisesMessage(sala.SalaError, "non è più valido"):
+            sala.set_live(self.league, "vecchio", self.TUNNEL, {})
+        # Squadre di altre leghe non entrano nella mappa.
+        sala.set_live(self.league, lock_id, self.TUNNEL, {str(self.alfa.id): "a", "999999": "x", "nonnum": "y"})
+        self.league.refresh_from_db()
+        self.assertEqual(sala.live_info(self.league)["teams"], {str(self.alfa.id): "a"})
+
+
+class TunnelRestartTests(TestCase):
+    """Il tunnel che cade si riapre da solo, finché la regia lo vuole aperto."""
+
+    class _Proc:
+        def __init__(self, lines):
+            import io
+            self.stderr = io.BytesIO("".join(lines).encode())
+
+        def poll(self):
+            return 0
+
+    def setUp(self):
+        from .. import remote
+        self.remote = remote
+        remote.stop()
+        self.addCleanup(remote.stop)
+        self.heard = []
+        remote.on_public_url(self.heard.append)
+        self.addCleanup(lambda: remote._LISTENERS.remove(self.heard.append))
+
+    def _run(self, wanted=True):
+        proc = self._Proc(["INF |  https://abc-def.trycloudflare.com  |\n"])
+        self.remote._PROC = proc
+        self.remote._set(status="starting", wanted=wanted, port=8000, attempt=0)
+        with mock.patch.object(self.remote, "_restart_later") as again, \
+                mock.patch.object(self.remote, "_harden"), mock.patch.object(self.remote, "_unharden"):
+            self.remote._watch(proc)
+        return again
+
+    def test_a_dead_tunnel_comes_back_by_itself(self):
+        again = self._run()
+        self.assertEqual(self.heard, ["https://abc-def.trycloudflare.com", None])
+        again.assert_called_once_with(8000, 0)
+        self.assertIn("lo riapro da solo", self.remote.status()["error"])
+
+    def test_no_restart_after_disattiva(self):
+        again = self._run(wanted=False)
+        again.assert_not_called()
+
+
+class LiveSocketAccessTests(TestCase):
+    """Con l'asta raggiungibile da internet la connessione in tempo reale
+    accetta solo squadre dell'asta, chi gestisce la lega e il maxischermo."""
+
+    def setUp(self):
+        from .common import make_live_auction
+        self.owner = User.objects.create_user("regista_ws", password="pw")
+        self.league = League.objects.create(name="Lega WS", owner=self.owner)
+        self.team = Participant.objects.create(league=self.league, display_name="Alfa")
+        self.auction = make_live_auction(league=self.league)
+
+    def _connect(self, session=None, user=None):
+        from asgiref.sync import async_to_sync
+        from channels.routing import URLRouter
+        from channels.testing import WebsocketCommunicator
+        from django.contrib.auth.models import AnonymousUser
+        from ..routing import websocket_urlpatterns
+
+        async def go():
+            comm = WebsocketCommunicator(URLRouter(websocket_urlpatterns), f"/ws/auction/{self.auction.id}/")
+            comm.scope["session"] = session or {}
+            comm.scope["user"] = user or AnonymousUser()
+            ok, _ = await comm.connect()
+            await comm.disconnect()
+            return ok
+        return async_to_sync(go)()
+
+    def test_on_the_lan_anyone_can_watch(self):
+        with self.settings(PUBLIC_TOKENS_REQUIRED=False):
+            self.assertTrue(self._connect())
+
+    def test_from_the_internet_only_who_belongs(self):
+        with self.settings(PUBLIC_TOKENS_REQUIRED=True):
+            self.assertFalse(self._connect())                                         # sconosciuto
+            self.assertTrue(self._connect(session={"participant_id": self.team.id}))  # squadra
+            self.assertTrue(self._connect(user=self.owner))                           # regia
+            self.assertTrue(self._connect(session={f"screen_ok_{self.auction.id}": True}))  # maxischermo
+
+    def test_screen_page_marks_the_session(self):
+        with self.settings(PUBLIC_TOKENS_REQUIRED=True):
+            self.client.get(reverse("screen", args=[self.auction.id]) + f"?t={self.auction.public_token}")
+            self.assertTrue(self.client.session.get(f"screen_ok_{self.auction.id}"))

@@ -65,6 +65,12 @@ def sala_results(request, league, data):
 
 
 @_api
+def sala_live(request, league, data):
+    sala.set_live(league, data.get("lock_id"), data.get("url"), data.get("teams"))
+    return JsonResponse({"ok": True})
+
+
+@_api
 def sala_release(request, league, data):
     sala.unlock(league, data.get("lock_id"))
     return JsonResponse({"ok": True})

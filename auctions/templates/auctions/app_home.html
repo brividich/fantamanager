@@ -147,6 +147,28 @@
 </a>
 {% endif %}
 
+{% if sala_entry %}
+<a class="a-cta" href="{% url 'app_sala_enter' %}" style="background:linear-gradient(135deg,rgba(239,68,68,0.15),rgba(19,181,255,0.08));border-color:rgba(239,68,68,0.4);margin-bottom:12px">
+    <svg class="ic" style="color:#ef4444"><use href="#i-gavel"/></svg>
+    <span class="t">
+        <b style="display:flex;align-items:center;gap:6px;">
+            <span style="width:8px;height:8px;border-radius:50%;background:#ef4444;box-shadow:0 0 8px #ef4444;display:inline-block;animation:pulse-dot 1.2s infinite;"></span>
+            Asta in corso in sala
+        </b>
+        <span>Tocca per entrare: arrivi nella sala offerte già come {{ participant.display_name }}</span>
+    </span>
+    <span class="go" style="color:#ef4444">›</span>
+</a>
+{% elif sala_locked %}
+<div class="a-cta" style="background:rgba(255,181,38,.08);border-color:rgba(255,181,38,.35);margin-bottom:12px;cursor:default">
+    <svg class="ic" style="color:#ffb526"><use href="#i-clock"/></svg>
+    <span class="t">
+        <b>Asta in corso in sala</b>
+        <span>Se sei lì, entra dal wifi della sala. Da fuori: il tasto per entrare compare qui appena la regia attiva l'accesso da internet.</span>
+    </span>
+</div>
+{% endif %}
+
 {% if active_auction %}
 <a class="a-cta" href="{% url 'bid' active_auction.id %}" style="background:linear-gradient(135deg,rgba(239,68,68,0.15),rgba(19,181,255,0.08));border-color:rgba(239,68,68,0.4);margin-bottom:12px">
     <svg class="ic" style="color:#ef4444"><use href="#i-gavel"/></svg>

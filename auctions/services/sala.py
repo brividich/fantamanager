@@ -16,7 +16,9 @@ sito lo applica così com'è (``apply_results``) e si sblocca.
 Chi usa il PC da solo, senza sito, non passa mai di qui.
 """
 import hashlib
+import logging
 import secrets
+import threading
 import uuid
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
@@ -25,6 +27,8 @@ from django.db import transaction
 from django.utils import timezone
 
 from ..models import League, Participant, Player, RosterLog
+
+logger = logging.getLogger("auctions.sala")
 
 FORMAT = 1
 KEY_PREFIX = "fmsala_"
@@ -185,6 +189,7 @@ def unlock(league, lock_id=None):
             raise SalaError("Questo blocco non è più valido: la lega è stata sbloccata o riscaricata.")
         sala = dict(league.sala or {})
         sala.pop("lock", None)
+        sala.pop("live", None)
         league.sala = sala
         league.save(update_fields=["sala", "updated_at"])
     return True
@@ -276,12 +281,54 @@ def apply_results(league, lock_id, payload):
 
         sala = dict(league.sala or {})
         sala.pop("lock", None)
+        sala.pop("live", None)
         sala["last_results"] = {"at": timezone.now().isoformat(), "teams": len(changed_teams),
                                 "players": len(changed_players)}
         league.sala = sala
         league.save(update_fields=["sala", "updated_at"])
     return {"teams": len(changed_teams), "players": len(changed_players),
             "log": len(payload.get("log") or [])}
+
+
+# --- sul sito: l'asta in sala raggiungibile da internet ------------------------
+
+def set_live(league, lock_id, url, teams):
+    """L'indirizzo dell'asta in sala (il tunnel del PC) e, per ogni squadra del
+    sito, il suo codice sul PC: chi gioca da fuori entra dall'app del sito.
+    ``url`` None: l'asta non è raggiungibile (tunnel chiuso)."""
+    with transaction.atomic():
+        league = League.objects.select_for_update().get(pk=league.pk)
+        current = lock_info(league)
+        if not current or current.get("id") != lock_id:
+            raise SalaError("Questo blocco non è più valido: la lega è stata sbloccata o riscaricata.")
+        sala = dict(league.sala or {})
+        if url:
+            if not str(url).startswith("https://"):
+                raise SalaError("L'indirizzo dell'asta deve iniziare con https://.")
+            own = set(Participant.objects.filter(league=league).values_list("id", flat=True))
+            sala["live"] = {
+                "url": str(url).rstrip("/")[:200],
+                "teams": {str(k): str(v)[:64] for k, v in (teams or {}).items()
+                          if str(k).isdigit() and int(k) in own and v},
+                "at": timezone.now().isoformat(),
+            }
+        else:
+            sala.pop("live", None)
+        league.sala = sala
+        league.save(update_fields=["sala", "updated_at"])
+
+
+def live_info(league):
+    return (league.sala or {}).get("live") if league is not None else None
+
+
+def live_entry_url(participant):
+    """Dove entra questa squadra nell'asta in sala, o None se non c'è."""
+    if participant is None or participant.league_id is None:
+        return None
+    live = live_info(League.objects.filter(pk=participant.league_id).first())
+    token = (live or {}).get("teams", {}).get(str(participant.id))
+    return f"{live['url']}/join/?t={token}" if token else None
 
 
 # --- sul PC: la copia della lega e i risultati da rimandare -------------------
@@ -399,8 +446,12 @@ def _call(site, key, action, data=None, timeout=30):
 def connect(site, key, *, owner=None, force=False):
     """Scarica la lega dal sito (che la blocca) e ne crea la copia sul PC."""
     body = _call(site, key, "scarica", {"force": bool(force)})
-    return import_linked_league(body.get("snapshot"), site=site, key=key,
-                                lock_id=body.get("lock_id"), owner=owner)
+    league = import_linked_league(body.get("snapshot"), site=site, key=key,
+                                  lock_id=body.get("lock_id"), owner=owner)
+    from .. import remote
+    if remote.public_url():
+        threading.Thread(target=_publish_one, args=(league, remote.public_url()), daemon=True).start()
+    return league
 
 
 def send_results(league):
@@ -452,4 +503,53 @@ def view_info(league):
         "link_open": bool(link.get("lock_id")),
         "link_sent_at": _when(link.get("sent_at")),
         "link_report": link.get("report") or {},
+        "link_live_url": link.get("live_url", ""),
+        "link_live_at": _when(link.get("live_at")),
+        "link_live_error": link.get("live_error", ""),
+        "live": bool(s.get("live")),
+        "live_at": _when((s.get("live") or {}).get("at")),
+        "live_teams": len((s.get("live") or {}).get("teams") or {}),
     }
+
+
+def _open_links():
+    """Le leghe del PC scaricate da un sito e non ancora rimandate."""
+    return [lg for lg in League.objects.filter(sala__has_key="link") if (link_info(lg) or {}).get("lock_id")]
+
+
+def _publish_one(league, url):
+    link = link_info(league)
+    tokens = dict(Participant.objects.filter(league=league).values_list("id", "public_token"))
+    teams = {str(remote): tokens.get(int(local)) for local, remote in link["teams"].items()
+             if tokens.get(int(local))}
+    error = None
+    try:
+        _call(link["site"], link["key"], "live", {"lock_id": link["lock_id"], "url": url, "teams": teams},
+              timeout=15)
+    except SalaError as exc:
+        error = str(exc)
+        logger.warning("Asta in sala: indirizzo non comunicato a %s: %s", link["site"], exc)
+    league.refresh_from_db()
+    sala = dict(league.sala or {})
+    current = dict(sala.get("link") or {})
+    current.update({"live_url": url or "", "live_at": timezone.now().isoformat(), "live_error": error or ""})
+    sala["link"] = current
+    league.sala = sala
+    league.save(update_fields=["sala", "updated_at"])
+    return error
+
+
+def publish_live(url, wait=False):
+    """Sul PC: dice ai siti delle leghe scaricate dove si entra nell'asta
+    (l'indirizzo del tunnel, None quando si chiude). Le chiamate partono in
+    sottofondo: il tunnel non aspetta il sito. ``wait`` per i test."""
+    leagues = _open_links()
+    if not leagues:
+        return
+    def _run():
+        for league in leagues:
+            _publish_one(league, url)
+    if wait:
+        _run()
+    else:
+        threading.Thread(target=_run, daemon=True).start()

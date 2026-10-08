@@ -1,5 +1,13 @@
 # FantaManager — regole per chi sviluppa
 
+## Ogni pagina guida passo passo
+
+Ogni pagina dice a chi la usa cosa fare adesso, cosa viene dopo e a che punto
+è. Le procedure (creare, collegare, chiudere…) sono passi numerati: fatti con
+✓, quello di adesso evidenziato col suo tasto, i successivi spiegati. Ogni
+pagina ha il suo «Cosa fare in questa pagina» (`details.howto`); un messaggio
+d'errore dice anche cosa fare per rimediare. Esempio: `_sala_card.html`.
+
 ## Web e app mobile devono essere uguali
 
 La console web (`/dashboard/…`: `auctions/templates/auctions/market/*`,
@@ -98,6 +106,16 @@ chi usa il PC da solo non ci passa mai.
   (`middleware.py`) lo trasforma in messaggio o JSON 423. **Un nuovo
   servizio che scrive rose, crediti o listone chiama `ensure_unlocked`.**
   Formazioni, voti, nomi e il resto restano liberi.
+- Chi gioca da fuori sala entra dal **tunnel** del PC (`remote.py`), ma
+  dall'app del sito: quando il tunnel apre, cambia o chiude, `remote` avvisa
+  chi ascolta (`on_public_url`) e `sala.publish_live` manda al sito
+  l'indirizzo e il codice di ogni squadra sul PC (`/live/`). Nella home
+  dell'app del sito compare «Asta in corso in sala» → `app_sala_enter`, che
+  porta nell'asta già riconosciuti. Se il tunnel cade si riapre da solo
+  (finché la regia non preme «Disattiva») e il nuovo indirizzo riparte.
+- Con l'asta raggiungibile da internet (`PUBLIC_TOKENS_REQUIRED`) la
+  connessione in tempo reale accetta solo le squadre dell'asta, chi gestisce
+  la lega e il maxischermo aperto col suo codice (`screen_ok_<id>` in sessione).
 
 ## Formazioni: una per giornata
 

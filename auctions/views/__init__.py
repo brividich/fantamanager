@@ -156,6 +156,7 @@ from .admin_wizards import (
 )
 from .home import home_portal
 from .app import (
+    app_sala_enter,
     app_altro,
     app_formazione,
     app_home,
@@ -190,7 +191,7 @@ from .app import (
     app_print_buste_report,
     app_export_buste_csv,
 )
-from .sala_api import sala_download, sala_release, sala_results, sala_status
+from .sala_api import sala_download, sala_live, sala_release, sala_results, sala_status
 from .app_admin import (
     app_regia, app_regia_market_session, app_regia_teams, app_regia_trades, app_view_as, app_view_as_exit,
     league_admin_digest,
@@ -424,6 +425,8 @@ __all__ = [
     "sala_download",
     "sala_results",
     "sala_release",
+    "sala_live",
+    "app_sala_enter",
     "app_view_as",
     "app_view_as_exit",
     "league_admin_digest",
