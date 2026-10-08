@@ -21,6 +21,7 @@ import math
 import random
 from statistics import mean, pstdev
 
+from .. import voto_taratura
 from ..models import AlgoSample, AlgoSettingsVersion
 from ..voto_algoritmico import ALGO_DEFAULTS, ROLES, STAT_KEYS, calibrate, effective_algo_rules, player_vote
 
@@ -535,6 +536,199 @@ def import_apifootball_round(round_number, user=None):
 
 
 # --------------------------------------------------------------------------
+# Voti di riferimento (solo taratura)
+# --------------------------------------------------------------------------
+#
+# Il superuser carica a mano il file dei voti di una fonte esterna per una
+# giornata già importata come campione. Servono solo a confrontare e tarare
+# l'algoritmo su questa pagina: non entrano mai nei voti delle giornate.
+
+REF_MAX_BYTES = 5 * 1024 * 1024
+REF_MAX_ROWS = 2000
+REF_EXTENSIONS = (".xlsx", ".xls", ".csv")
+REPORT_LIMIT = 30
+REF_MEDIA = "media"
+
+
+def _ref_role(role):
+    role = (role or "").strip().upper()
+    return role if role in ROLES else ""
+
+
+def parse_reference_file(uploaded_file):
+    """Righe normalizzate ``{name, team, role, vote}`` del file caricato.
+    ``vote`` è una stringa («6.5») o None (senza voto). ValueError se il file
+    non va bene (estensione, dimensione, righe, contenuto)."""
+    from .voti import parse_voti_file
+    name = (getattr(uploaded_file, "name", "") or "").strip()
+    if not name.lower().endswith(REF_EXTENSIONS):
+        raise ValueError("il file deve essere .xlsx, .xls o .csv")
+    size = getattr(uploaded_file, "size", None)
+    if size is not None and size > REF_MAX_BYTES:
+        raise ValueError("il file supera 5 MB")
+    content = uploaded_file.read(REF_MAX_BYTES + 1)
+    if len(content) > REF_MAX_BYTES:
+        raise ValueError("il file supera 5 MB")
+    try:
+        parsed = parse_voti_file(content, name)
+    except Exception as exc:          # file danneggiato o non un foglio di calcolo
+        raise ValueError(f"il file non si legge ({exc.__class__.__name__})") from exc
+    if not parsed:
+        raise ValueError("nessuna riga di voti riconosciuta (servono almeno le colonne Nome e Voto)")
+    if len(parsed) > REF_MAX_ROWS:
+        raise ValueError(f"troppe righe: {len(parsed)}, al massimo {REF_MAX_ROWS}")
+    return [{"name": r["name"], "team": r.get("team") or "", "role": _ref_role(r.get("role")),
+             "vote": None if r.get("vote") is None else str(r["vote"])} for r in parsed]
+
+
+def match_reference(sample_rows, ref_rows):
+    """Abbina le righe del file a quelle del campione: stessa squadra
+    (``apifootball.same_club``), poi il nome col punteggio di
+    ``footballers.name_match_score``. Pari merito = ambiguo; una riga del
+    campione si abbina una volta sola. Ritorna il dict salvato in
+    ``AlgoReference.matched``."""
+    from ..providers.apifootball import same_club
+    from .footballers import name_match_score
+
+    by_team = {}
+    for i, sr in enumerate(sample_rows):
+        by_team.setdefault(sr.get("team") or "", []).append(i)
+    team_cache = {}
+
+    def candidates(team):
+        if not team:
+            return range(len(sample_rows))
+        if team not in team_cache:
+            team_cache[team] = [i for club, idx in by_team.items() if same_club(club, team) for i in idx]
+        return team_cache[team]
+
+    used, votes = {}, {}
+    unmatched_file, ambiguous = [], []
+    for fr in ref_rows:
+        scored = []
+        for i in candidates(fr["team"]):
+            sr = sample_rows[i]
+            score = name_match_score(fr["name"], fr["role"], sr.get("name") or "", _ref_role(sr.get("role")))
+            if score is not None:
+                scored.append((score, i))
+        scored.sort(key=lambda si: -si[0])
+        who = {"name": fr["name"], "team": fr["team"]}
+        if not scored:
+            unmatched_file.append(who)
+            continue
+        if len(scored) > 1 and scored[1][0] == scored[0][0]:
+            ties = [sample_rows[i].get("name") or "" for sc, i in scored if sc == scored[0][0]]
+            ambiguous.append({**who, "candidates": ties[:5]})
+            continue
+        idx = scored[0][1]
+        if idx in used:
+            unmatched_file.append({**who, "reason": f"«{sample_rows[idx].get('name')}» già abbinato a «{used[idx]}»"})
+            continue
+        used[idx] = fr["name"]
+        votes[str(idx)] = fr["vote"]
+    unmatched_sample = [{"name": sr.get("name") or "", "team": sr.get("team") or "", "minutes": sr.get("minutes")}
+                        for i, sr in enumerate(sample_rows)
+                        if i not in used and (sr.get("minutes") or 0) > 0]
+    return {"votes": votes, "unmatched_file": unmatched_file,
+            "unmatched_sample": unmatched_sample, "ambiguous": ambiguous}
+
+
+def import_reference(sample, uploaded_file, label, user=None):
+    """Crea l'``AlgoReference`` di ``sample`` dal file caricato a mano."""
+    from ..models import AlgoReference
+    label = (label or "").strip()[:80]
+    if not label:
+        raise ValueError("scrivi un'etichetta per la fonte (es. il nome del giornale)")
+    rows = parse_reference_file(uploaded_file)
+    matched = match_reference(list(sample.rows or []), rows)
+    return AlgoReference.objects.create(
+        sample=sample, label=label, filename=(getattr(uploaded_file, "name", "") or "")[:200],
+        rows=rows, matched=matched, created_by=user if getattr(user, "is_authenticated", False) else None)
+
+
+def reference_summary(ref):
+    """Conteggi e prime voci dei report di abbinamento, per la pagina."""
+    m = ref.matched or {}
+    return {
+        "id": ref.pk, "label": ref.label, "filename": ref.filename, "created_at": ref.created_at,
+        "sample_id": ref.sample_id, "sample_name": ref.sample.name,
+        "matched": len(m.get("votes") or {}), "rows": len(ref.rows or []),
+        "unmatched_file": len(m.get("unmatched_file") or []),
+        "unmatched_sample": len(m.get("unmatched_sample") or []),
+        "ambiguous": len(m.get("ambiguous") or []),
+        "unmatched_file_list": (m.get("unmatched_file") or [])[:REPORT_LIMIT],
+        "unmatched_sample_list": (m.get("unmatched_sample") or [])[:REPORT_LIMIT],
+        "ambiguous_list": (m.get("ambiguous") or [])[:REPORT_LIMIT],
+    }
+
+
+def comparison_rows(sample_ids, reference_ids=None):
+    """Righe di più campioni in fila e i loro riferimenti con gli indici
+    riportati sulla fila unica. ``reference_ids`` None = tutti quelli dei
+    campioni. Ogni riga riceve ``_g`` = id del campione (la giornata), per la
+    validazione della taratura. Ritorna ``(nomi, righe, riferimenti)``."""
+    from ..models import AlgoReference
+    ids = list(dict.fromkeys(int(x) for x in sample_ids or [] if str(x).isdigit()))
+    samples = {s.pk: s for s in AlgoSample.objects.filter(pk__in=ids)}
+    refs_qs = AlgoReference.objects.filter(sample_id__in=samples.keys())
+    if reference_ids is not None:
+        refs_qs = refs_qs.filter(pk__in=[int(x) for x in reference_ids if str(x).isdigit()])
+    by_sample = {}
+    for ref in refs_qs.order_by("id"):
+        by_sample.setdefault(ref.sample_id, []).append(ref)
+    names, rows, refs = [], [], []
+    for sid in ids:
+        sample = samples.get(sid)
+        if sample is None:
+            continue
+        offset = len(rows)
+        sample_rows = list(sample.rows or [])[:PREVIEW_ROW_LIMIT - offset]
+        if not sample_rows:
+            continue
+        names.append(sample.name)
+        for r in sample_rows:
+            rows.append({**r, "_g": sid})
+        for ref in by_sample.get(sid, []):
+            votes = {offset + int(k): v for k, v in ((ref.matched or {}).get("votes") or {}).items()
+                     if str(k).isdigit() and int(k) < len(sample_rows)}
+            refs.append({"id": ref.pk, "label": ref.label, "sample_id": sid, "matched": votes})
+    return names, rows, refs
+
+
+def _ref_float(v):
+    if v is None:
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def reference_votes(refs, mode=REF_MEDIA):
+    """{indice: voto|None} del riferimento scelto: le fonti con l'etichetta
+    ``mode`` oppure, con ``"media"``, la media dei riferimenti disponibili per
+    giocatore (s.v. solo se tutte le fonti lo danno senza voto)."""
+    key = (mode or REF_MEDIA).strip().lower()
+    chosen = refs if key == REF_MEDIA else [r for r in refs if r["label"].strip().lower() == key]
+    acc = {}
+    for ref in chosen:
+        for idx, v in ref["matched"].items():
+            acc.setdefault(idx, []).append(_ref_float(v))
+    out = {}
+    for idx, vals in acc.items():
+        nums = [v for v in vals if v is not None]
+        out[idx] = sum(nums) / len(nums) if nums else None
+    return out
+
+
+def reference_labels(refs):
+    seen = {}
+    for r in refs:
+        seen.setdefault(r["label"].strip().lower(), r["label"].strip())
+    return list(seen.values())
+
+
+# --------------------------------------------------------------------------
 # Anteprima
 # --------------------------------------------------------------------------
 
@@ -587,11 +781,145 @@ def _compare(before, after):
     return changed, deltas
 
 
-def preview(rows, current, draft):
+# --- confronto con i voti di riferimento ------------------------------------
+
+GRID = [4.0 + 0.5 * i for i in range(10)]          # 4 … 8,5
+GROUP_MIN = 10
+DISAGREE_LIMIT = 15
+
+
+def _err_metrics(pairs):
+    """Errori dell'algoritmo rispetto al riferimento su coppie (alg, rif)."""
+    n = len(pairs)
+    if not n:
+        return None
+    diffs = [a - r for a, r in pairs]
+    return {
+        "n": n,
+        "mae": round(mean(abs(d) for d in diffs), 3),
+        "rmse": round(math.sqrt(mean(d * d for d in diffs)), 3),
+        "bias": round(mean(diffs), 3),
+        "corr": _pearson([a for a, _ in pairs], [r for _, r in pairs]),
+        "exact_pct": round(100 * sum(1 for d in diffs if abs(d) < 1e-9) / n, 1),
+        "within_pct": round(100 * sum(1 for d in diffs if abs(d) <= 0.5 + 1e-9) / n, 1),
+    }
+
+
+def _small(pairs):
+    if not pairs:
+        return None
+    diffs = [a - r for a, r in pairs]
+    return {"n": len(pairs), "mae": round(mean(abs(d) for d in diffs), 3), "bias": round(mean(diffs), 3)}
+
+
+def _row_role(row):
+    role = (row.get("role") or "C").upper()
+    return role if role in ROLES else "C"
+
+
+def _intv(v):
+    try:
+        return int(v or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def error_groups(row):
+    """I gruppi «dove sbagliamo» di una riga: [(dimensione, gruppo)]."""
+    out = []
+    gf, ga = row.get("team_goals_for"), row.get("team_goals_against")
+    if gf is not None and ga is not None:
+        d = _intv(gf) - _intv(ga)
+        out.append(("Risultato della squadra", "Vittoria" if d > 0 else "Sconfitta" if d < 0 else "Pareggio"))
+    m = _intv(row.get("minutes"))
+    out.append(("Minuti giocati", "meno di 30'" if m < 30 else "30'–59'" if m < 60 else "60'–89'" if m < 90 else "90'"))
+    goals, assists = _intv(row.get("goals")), _intv(row.get("assists"))
+    card = bool(row.get("yellow") or row.get("red"))
+    if goals:
+        out.append(("Eventi", "con gol"))
+    if assists:
+        out.append(("Eventi", "con assist"))
+    if card:
+        out.append(("Eventi", "con cartellino"))
+    if not (goals or assists or card):
+        out.append(("Eventi", "nessun evento"))
+    role = _row_role(row)
+    if role == "P":
+        out.append(("Porta inviolata (P, D)", "sì" if _intv(row.get("goals_conceded")) == 0 else "no"))
+    elif role == "D" and ga is not None:
+        out.append(("Porta inviolata (P, D)", "sì" if _intv(ga) == 0 else "no"))
+    return out
+
+
+def _grid_index(v):
+    return max(0, min(len(GRID) - 1, int(round((v - GRID[0]) / 0.5))))
+
+
+def compare_reference(rows, before, after, ref):
+    """Voto algoritmico (in uso e bozza) contro il riferimento ``ref``
+    ({indice: voto|None}) sui soli giocatori abbinati. Serializzabile JSON."""
+    idx = sorted(i for i in ref if 0 <= i < len(rows))
+    out = {"matched": len(idx)}
+    both = {}
+    for tag, votes in (("before", before), ("after", after)):
+        pairs = [(votes[i][0], ref[i]) for i in idx if votes[i][0] is not None and ref[i] is not None]
+        both[tag] = pairs
+        out[tag] = _err_metrics(pairs)
+        counts = {"both": 0, "alg_only": 0, "ref_only": 0, "none": 0}
+        for i in idx:
+            a, r = votes[i][0] is not None, ref[i] is not None
+            counts["both" if a and r else "alg_only" if a else "ref_only" if r else "none"] += 1
+        out[f"sv_{tag}"] = counts
+
+    out["by_role"] = []
+    for role in ROLES:
+        sel = [i for i in idx if _row_role(rows[i]) == role and ref[i] is not None]
+        b = [(before[i][0], ref[i]) for i in sel if before[i][0] is not None]
+        a = [(after[i][0], ref[i]) for i in sel if after[i][0] is not None]
+        if b or a:
+            out["by_role"].append({"role": role, "label": ROLE_LABELS[role], "before": _small(b), "after": _small(a)})
+
+    groups = {}
+    for i in idx:
+        if ref[i] is None:
+            continue
+        for key in error_groups(rows[i]):
+            g = groups.setdefault(key, {"before": [], "after": []})
+            if before[i][0] is not None:
+                g["before"].append((before[i][0], ref[i]))
+            if after[i][0] is not None:
+                g["after"].append((after[i][0], ref[i]))
+    out["groups"] = sorted(
+        ({"dim": dim, "group": name, "before": _small(g["before"]), "after": _small(g["after"])}
+         for (dim, name), g in groups.items() if len(g["after"]) >= GROUP_MIN),
+        key=lambda g: -abs(g["after"]["bias"]))
+
+    out["grid"] = GRID
+    for tag in ("before", "after"):
+        matrix = [[0] * len(GRID) for _ in GRID]
+        for a, r in both[tag]:
+            matrix[_grid_index(a)][_grid_index(r)] += 1
+        out[f"heatmap_{tag}"] = matrix
+
+    worst = sorted(((abs(after[i][0] - ref[i]), i) for i in idx
+                    if after[i][0] is not None and ref[i] is not None), key=lambda di: -di[0])
+    out["disagreements"] = [{
+        "name": rows[i].get("name") or "—", "team": rows[i].get("team") or "",
+        "role": _row_role(rows[i]), "minutes": rows[i].get("minutes"),
+        "before": before[i][0], "after": after[i][0], "ref": round(ref[i], 2),
+        "breakdown_before": before[i][1]["breakdown"], "breakdown_after": after[i][1]["breakdown"],
+    } for _d, i in worst[:DISAGREE_LIMIT]]
+    return out
+
+
+def preview(rows, current, draft, references=None, reference_mode=REF_MEDIA):
     """Cosa cambia passando da ``current`` a ``draft`` sulle righe ``rows``.
 
     ``current`` e ``draft`` sono regole complete (o sparse: si completano coi
-    default). Tutto ciò che torna è serializzabile in JSON."""
+    default). ``references`` = [{id, label, matched: {indice: voto|None}}]
+    (``comparison_rows``) aggiunge il confronto con i voti di riferimento,
+    della fonte ``reference_mode`` (etichetta) o la loro media. Tutto ciò che
+    torna è serializzabile in JSON."""
     current = effective_algo_rules(current)
     draft = effective_algo_rules(draft)
     rows = list(rows)[:PREVIEW_ROW_LIMIT]
@@ -627,9 +955,23 @@ def preview(rows, current, draft):
     # Effetto di ogni parametro toccato, da solo (sulle regole salvate).
     flat_cur, flat_new = _flatten(current), _flatten(draft)
     per_field = []
+    feats = None
     for path in sorted(p for p in flat_new if not _same(flat_new[p], flat_cur.get(p, 0)))[:PER_FIELD_LIMIT]:
         only = _with_path(current, path, flat_new[path])
-        alone = _votes(rows, only)
+        dotted = ".".join(path)
+        if voto_taratura.group_of(dotted) and dotted != "base":
+            # Parametro lineare: cambia solo i voti delle righe in cui conta
+            # (o con un tetto attivo); le altre restano come prima.
+            if feats is None:
+                feats = [voto_taratura._analyze(row, _row_role(row), current) if b[0] is not None else None
+                         for row, b in zip(rows, before)]
+            alone = list(before)
+            for i, f in enumerate(feats):
+                if f is not None and (dotted in f[0] or f[1]):
+                    res = player_vote(rows[i], rules=only)
+                    alone[i] = (float(res["vote"]) if res["vote"] is not None else None, res)
+        else:
+            alone = _votes(rows, only)
         ch, ds = _compare(before, alone)
         per_field.append({
             "path": ".".join(path), "label": path_label(path),
@@ -656,7 +998,18 @@ def preview(rows, current, draft):
         "movers": movers[:15],
         "per_field": per_field,
         "reference": {"before": _reference(rows, before), "after": _reference(rows, after)},
+        "references": _references_block(rows, before, after, references, reference_mode),
     }
+
+
+def _references_block(rows, before, after, references, mode):
+    if not references:
+        return None
+    labels = reference_labels(references)
+    if (mode or REF_MEDIA).strip().lower() not in {REF_MEDIA} | {l.lower() for l in labels}:
+        mode = REF_MEDIA
+    ref = reference_votes(references, mode)
+    return {"sources": labels, "mode": mode, **compare_reference(rows, before, after, ref)}
 
 
 def calibrate_on(rows, draft, target_mean=6.0, target_sd=0.6):
@@ -666,3 +1019,38 @@ def calibrate_on(rows, draft, target_mean=6.0, target_sd=0.6):
     plain.update({"calib_scale": 1.0, "calib_shift": 0.0})
     raws = [res["raw"] for _v, res in _votes(list(rows)[:PREVIEW_ROW_LIMIT], plain) if res["raw"] is not None]
     return calibrate(raws, target_mean=target_mean, target_sd=target_sd, base=plain["base"])
+
+
+# --------------------------------------------------------------------------
+# Taratura automatica (auctions/voto_taratura.py)
+# --------------------------------------------------------------------------
+
+def tuning_ranges(rules):
+    """Range ammessi di ogni parametro tarabile: quelli dei campi della pagina."""
+    ranges = {}
+    for _title, items in FIELD_GROUPS:
+        for key, _label, _hint, step, lo, hi in items:
+            if step is not bool:
+                ranges[key] = (lo, hi)
+    for role, stats in rules["perf_weights"].items():
+        for stat in stats:
+            ranges[f"perf_weights.{role}.{stat}"] = WEIGHT_RANGE
+    for stat in rules["perf_malus"]:
+        ranges[f"perf_malus.{stat}"] = WEIGHT_RANGE
+    return ranges
+
+
+def tune_on(rows, references, reference_mode, draft, groups=None, lam=None):
+    """La proposta di ``voto_taratura.tune`` con le etichette della pagina."""
+    from .. import voto_taratura
+    if not references:
+        raise ValueError("servono voti di riferimento abbinati ai campioni scelti")
+    rules = effective_algo_rules(draft)
+    ref = reference_votes(references, reference_mode)
+    result = voto_taratura.tune(rows, ref, rules, groups=groups,
+                                lam=voto_taratura.PRUDENZA["media"] if lam is None else lam,
+                                ranges=tuning_ranges(rules))
+    for p in result["params"]:
+        p["label"] = path_label(tuple(p["path"].split(".")))
+    result["group_labels"] = dict(voto_taratura.GROUPS)
+    return result

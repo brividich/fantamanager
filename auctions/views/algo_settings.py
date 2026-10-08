@@ -12,7 +12,8 @@ from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from ..models import AlgoSample, AlgoSettingsVersion
+from .. import voto_taratura
+from ..models import AlgoReference, AlgoSample, AlgoSettingsVersion
 from ..providers.apifootball import ApiFootballError
 from ..providers.apifootball import is_configured as apifootball_configured
 from ..services import voto_algo
@@ -87,6 +88,18 @@ def supervisor_algo(request):
     malus = [{"stat": s, "label": voto_algo.STAT_LABELS[s], "value": saved["perf_malus"].get(s, 0),
               "default": defaults["perf_malus"].get(s, 0)} for s in ALGO_DEFAULTS["perf_malus"]]
 
+    # Voti di riferimento (solo taratura): quelli del campione scelto, e i
+    # campioni API-Football che ne hanno almeno uno per confronto e taratura.
+    all_refs = list(AlgoReference.objects.select_related("sample").order_by("sample_id", "label", "id"))
+    sample_refs = [voto_algo.reference_summary(r) for r in all_refs if str(r.sample_id) == sample_key]
+    compare_samples = []
+    for sample in AlgoSample.objects.filter(references__isnull=False).distinct().order_by("-created_at", "-id"):
+        refs = [r for r in all_refs if r.sample_id == sample.pk]
+        compare_samples.append({"id": sample.pk, "name": sample.name, "rows": len(sample.rows or []),
+                                "refs": [{"id": r.pk, "label": r.label} for r in refs]})
+    # Di partenza si confronta il campione scelto, se ha voti di riferimento.
+    selected_compare = [c["id"] for c in compare_samples if str(c["id"]) == sample_key]
+
     versions = list(AlgoSettingsVersion.objects.select_related("created_by").order_by("-created_at", "-id")[:15])
     for v in versions:
         v.n_changes = len(voto_algo._flatten(v.rules or {}))
@@ -104,6 +117,16 @@ def supervisor_algo(request):
         "algo_saved": saved,
         "algo_defaults": defaults,
         "api_ready": apifootball_configured(),
+        "sample_is_real": sample_key != voto_algo.SIM_KEY,
+        "sample_refs": sample_refs,
+        "compare_samples": compare_samples,
+        "compare_setup": {
+            "samples": compare_samples, "selected": selected_compare,
+            "groups": [{"key": k, "label": label} for k, label in voto_taratura.GROUPS],
+            "prudenza": voto_taratura.PRUDENZA, "lambda_range": voto_taratura.LAMBDA_RANGE,
+            "min_rows": voto_taratura.MIN_ROWS,
+        },
+        "ref_max_rows": voto_algo.REF_MAX_ROWS,
         "console_active": "algo",
     })
 
@@ -117,10 +140,59 @@ def supervisor_algo_preview(request):
     draft, errors = voto_algo.clean_rules(data.get("rules"))
     if errors:
         return JsonResponse({"ok": False, "errors": errors}, status=400)
-    name, rows = voto_algo.sample_rows(data.get("sample"))
-    result = voto_algo.preview(rows, voto_algo.platform_rules(), draft)
+    picked, problem = _comparison(data)
+    if problem:
+        return JsonResponse({"ok": False, "error": problem}, status=400)
+    if picked:
+        name, rows, refs = picked
+    else:
+        name, rows = voto_algo.sample_rows(data.get("sample"))
+        refs = []
+    result = voto_algo.preview(rows, voto_algo.platform_rules(), draft,
+                               references=refs, reference_mode=data.get("reference_mode"))
     result.update({"ok": True, "sample_name": name})
     return JsonResponse(result)
+
+
+def _id_list(value):
+    """Lista di id interi da un campo JSON; None se il campo non è una lista valida."""
+    if value is None:
+        return []
+    if not isinstance(value, list) or len(value) > 50:
+        return None
+    try:
+        return [int(v) for v in value]
+    except (TypeError, ValueError):
+        return None
+
+
+def _comparison(data):
+    """Righe e voti di riferimento chiesti dalla pagina:
+    ``samples`` (id dei campioni da unire; se manca, il campione ``sample``
+    quando è un campione vero) e ``reference_ids`` (se manca, tutti).
+    Ritorna ((nome, righe, riferimenti) | None, errore | None)."""
+    samples = _id_list(data.get("samples"))
+    if samples is None:
+        return None, "Campioni non validi."
+    if not samples:
+        key = str(data.get("sample") or "")
+        if not key.isdigit():
+            return None, None
+        samples = [int(key)]
+    found = set(AlgoSample.objects.filter(pk__in=samples).values_list("pk", flat=True))
+    missing = [s for s in samples if s not in found]
+    if missing:
+        return None, f"Campione inesistente: {missing[0]}."
+    ref_ids = None
+    if data.get("reference_ids") is not None:
+        ref_ids = _id_list(data.get("reference_ids"))
+        if ref_ids is None:
+            return None, "Riferimenti non validi."
+        known = set(AlgoReference.objects.filter(pk__in=ref_ids).values_list("pk", flat=True))
+        if any(r not in known for r in ref_ids):
+            return None, "Voto di riferimento inesistente."
+    names, rows, refs = voto_algo.comparison_rows(samples, ref_ids)
+    return (" + ".join(names) or "—", rows, refs), None
 
 
 @supervisor_required
@@ -230,3 +302,83 @@ def supervisor_algo_sample_delete(request, sample_id):
     if deleted:
         messages.success(request, "Campione eliminato.")
     return redirect(_page_url())
+
+
+@supervisor_required
+@require_POST
+def supervisor_algo_reference_upload(request):
+    """Carica a mano il file dei voti di una fonte esterna per un campione
+    API-Football. Solo materiale di taratura: resta su questa pagina."""
+    # Il corpo troppo grande si rifiuta prima di leggerlo.
+    try:
+        length = int(request.META.get("CONTENT_LENGTH") or 0)
+    except ValueError:
+        length = 0
+    if length > voto_algo.REF_MAX_BYTES + 64 * 1024:
+        messages.error(request, "Voti di riferimento non caricati: il file supera 5 MB.")
+        key = request.GET.get("campione") or ""
+        return redirect(_page_url(key if key.isdigit() else None))
+    sid = str(request.POST.get("sample") or "")
+    sample = AlgoSample.objects.filter(pk=int(sid)).first() if sid.isdigit() else None
+    if sample is None:
+        messages.error(request, "Scegli un campione importato da API-Football.")
+        return redirect(_page_url())
+    upload = request.FILES.get("file")
+    if upload is None:
+        messages.error(request, "Voti di riferimento non caricati: nessun file scelto.")
+        return redirect(_page_url(str(sample.pk)))
+    try:
+        ref = voto_algo.import_reference(sample, upload, request.POST.get("label"), request.user)
+    except ValueError as exc:
+        messages.error(request, f"Voti di riferimento non caricati: {exc}.")
+        return redirect(_page_url(str(sample.pk)))
+    m = ref.matched
+    messages.success(request, f"Voti di riferimento «{ref.label}» caricati: {len(m['votes'])} abbinati, "
+                              f"{len(m['unmatched_file'])} del file non abbinati, {len(m['ambiguous'])} ambigui.")
+    return redirect(_page_url(str(sample.pk)))
+
+
+@supervisor_required
+@require_POST
+def supervisor_algo_reference_delete(request, reference_id):
+    ref = AlgoReference.objects.filter(pk=reference_id).first()
+    if ref is None:
+        messages.error(request, "Voti di riferimento non trovati.")
+        return redirect(_page_url(request.POST.get("campione")))
+    sample_id = ref.sample_id
+    ref.delete()
+    messages.success(request, "Voti di riferimento eliminati.")
+    return redirect(_page_url(str(sample_id)))
+
+
+@supervisor_required
+@require_POST
+def supervisor_algo_fit(request):
+    """Proposta di taratura dei parametri sui voti di riferimento: non salva
+    niente, la pagina la carica nella bozza se il superuser lo chiede."""
+    data = _json_body(request)
+    if data is None:
+        return JsonResponse({"ok": False, "error": "Richiesta non valida."}, status=400)
+    draft, errors = voto_algo.clean_rules(data.get("rules"))
+    if errors:
+        return JsonResponse({"ok": False, "errors": errors}, status=400)
+    groups = data.get("groups")
+    valid_groups = {k for k, _label in voto_taratura.GROUPS}
+    if groups is not None and (not isinstance(groups, list) or any(g not in valid_groups for g in groups)):
+        return JsonResponse({"ok": False, "error": "Gruppi di parametri non validi."}, status=400)
+    try:
+        lam = float(data.get("lambda", voto_taratura.PRUDENZA["media"]))
+    except (TypeError, ValueError):
+        return JsonResponse({"ok": False, "error": "Prudenza non valida."}, status=400)
+    lo, hi = voto_taratura.LAMBDA_RANGE
+    if not (lo <= lam <= hi):
+        return JsonResponse({"ok": False, "error": "Prudenza fuori scala."}, status=400)
+    picked, problem = _comparison(data)
+    if problem or not picked:
+        return JsonResponse({"ok": False, "error": problem or "Scegli i campioni con voti di riferimento."}, status=400)
+    _name, rows, refs = picked
+    try:
+        result = voto_algo.tune_on(rows, refs, data.get("reference_mode"), draft, groups=groups, lam=lam)
+    except ValueError as exc:
+        return JsonResponse({"ok": False, "error": str(exc)[:1].upper() + str(exc)[1:] + "."}, status=400)
+    return JsonResponse({"ok": True, **result})

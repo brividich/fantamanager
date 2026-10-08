@@ -30,6 +30,8 @@ def _parse_dec(val: Any) -> Optional[Decimal]:
     s = str(val).replace(",", ".").strip()
     if not s or s.lower() in ("s.v.", "sv", "-", "*", "null", "none"):
         return None
+    # Voto d'ufficio: «6*» vale 6.
+    s = s.rstrip("*").strip()
     try:
         return Decimal(s)
     except Exception:
@@ -122,17 +124,18 @@ def parse_voti_file(file_bytes: bytes, filename: str) -> List[Dict[str, Any]]:
 
 def _normalize_vote_row(d: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Map arbitrary column header variations to canonical fields."""
-    def get_first(*keys):
+    def get_first(*keys, exclude=()):
         # 1. First pass: exact matches
         for k in keys:
             for actual_key, val in d.items():
                 if k == actual_key:
                     if val is not None and str(val).strip() != "":
                         return val
-        # 2. Second pass: substring matches
+        # 2. Second pass: substring matches (skipping columns that only look
+        #    like the one wanted, e.g. «Fantavoto» when looking for «Voto»)
         for k in keys:
             for actual_key, val in d.items():
-                if k in actual_key:
+                if k in actual_key and not any(x in actual_key for x in exclude):
                     if val is not None and str(val).strip() != "":
                         return val
         return None
@@ -141,7 +144,10 @@ def _normalize_vote_row(d: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if not name:
         return None
 
-    vote_val = get_first("voto italia", "v.i.", "vi", "voto statistico", "voto puro", "voto")
+    # Il voto puro, mai il fantavoto (voto + bonus/malus): «Fantavoto» contiene
+    # «voto» e, senza una colonna intitolata esattamente così, vinceva lei.
+    vote_val = get_first("voto italia", "v.i.", "vi", "voto statistico", "voto puro", "voto",
+                         exclude=("fanta", "fv"))
     vote = _parse_dec(vote_val)
 
     return {

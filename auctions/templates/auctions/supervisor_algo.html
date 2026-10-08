@@ -139,6 +139,45 @@ salvataggio finché non si preme «Salva»). Solo superuser.
     .va-ver .badge { font-size:11px; padding:2px 8px; border-radius:99px; background:rgba(22,217,104,.14); color:#8df0b6; }
     .va-ver form { margin:0; }
     .va-ver button { padding:4px 10px; font-size:12px; }
+    /* Voti di riferimento e taratura */
+    .va-wide { margin-bottom:14px; }
+    .va-note { font-size:11.5px; color:var(--fm-text-muted); line-height:1.5; }
+    .va-refs { display:flex; flex-direction:column; gap:8px; }
+    .va-refitem { border:1px solid var(--fm-border); border-radius:var(--fm-radius-sm); padding:8px 10px; font-size:12.5px; min-width:0; }
+    .va-refitem .top { display:flex; gap:8px 12px; align-items:center; flex-wrap:wrap; }
+    .va-refitem .top b { font-size:13.5px; }
+    .va-refitem .top form { margin:0 0 0 auto; }
+    .va-refitem details { margin-top:6px; }
+    .va-refitem details summary { cursor:pointer; color:var(--fm-primary-light); font-size:12px; }
+    .va-refitem ul { margin:6px 0 0; padding-left:18px; columns:2 220px; font-size:12px; color:var(--fm-text-secondary); }
+    .va-pill { font-size:11.5px; padding:2px 8px; border-radius:99px; border:1px solid var(--fm-border); white-space:nowrap; }
+    .va-pill.ok { color:#8df0b6; border-color:rgba(22,217,104,.35); }
+    .va-pill.warn { color:var(--fm-warning); border-color:rgba(255,181,38,.35); }
+    .va-upload { display:grid; grid-template-columns:minmax(0,1fr); gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid var(--fm-border); }
+    @media (min-width:700px) { .va-upload { grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) auto; align-items:end; } }
+    .va-upload input[type=text], .va-upload input[type=file] { width:100%; min-width:0; }
+    .va-pick { display:flex; flex-wrap:wrap; gap:6px 14px; font-size:13px; }
+    .va-pick label { display:flex; gap:6px; align-items:center; }
+    .va-controls { display:grid; grid-template-columns:minmax(0,1fr); gap:10px; }
+    @media (min-width:900px) { .va-controls { grid-template-columns:minmax(0,1.2fr) minmax(0,1fr); } }
+    .va-controls .box { border:1px solid var(--fm-border); border-radius:var(--fm-radius-sm); padding:8px 10px; min-width:0; }
+    .va-controls .box h4 { margin:0 0 6px; font-size:12px; font-weight:600; color:var(--fm-text-secondary); }
+    .va-prud { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .va-prud input[type=range] { flex:1 1 140px; min-width:0; }
+    .va-prud .fm-onerow { display:flex; gap:6px; }
+    .va-fitres { margin-top:12px; display:flex; flex-direction:column; gap:10px; }
+    .va-warn { padding:8px 12px; border-radius:var(--fm-radius-sm); font-size:12.5px; border:1px solid rgba(255,181,38,.4); background:rgba(255,181,38,.10); color:#ffd27a; }
+    .va-flag { font-size:10.5px; padding:1px 6px; border-radius:99px; background:rgba(255,181,38,.15); color:#ffd27a; margin-left:4px; white-space:nowrap; }
+    .va-heat { border-collapse:collapse; font-size:10.5px; font-variant-numeric:tabular-nums; margin:0 auto; }
+    .va-heat td, .va-heat th { width:28px; height:24px; padding:0; text-align:center; }
+    .va-heat th { color:var(--fm-text-muted); font-weight:500; }
+    .va-heat td { border:1px solid rgba(255,255,255,.05); color:var(--fm-text); }
+    .va-heat td.diag { outline:1.5px solid rgba(255,255,255,.55); outline-offset:-2px; }
+    .va-heat caption { caption-side:bottom; font-size:11px; color:var(--fm-text-muted); padding-top:6px; }
+    .va-rt.va-fittab td:first-child { white-space:normal; min-width:140px; }
+    .va-2x2 { border-collapse:collapse; font-size:12.5px; font-variant-numeric:tabular-nums; }
+    .va-2x2 td, .va-2x2 th { padding:5px 10px; border:1px solid var(--fm-border); text-align:right; }
+    .va-2x2 th { color:var(--fm-text-muted); font-weight:600; font-size:11.5px; text-align:left; }
 </style>
 
 <div class="va">
@@ -185,6 +224,104 @@ salvataggio finché non si preme «Salva»). Solo superuser.
     </form>
     {% endif %}
 </div>
+
+<details class="va-card va-wide" id="va-refs-card" {% if sample_refs %}open{% endif %}>
+    <summary>Voti di riferimento <span class="count">{% if sample_refs %}{{ sample_refs|length }} per questo campione{% endif %}</span> <svg class="ic chev"><use href="#i-chev-down"/></svg></summary>
+    <div class="va-body">
+        <div class="va-note">Il file dei voti di una fonte esterna, procurato e caricato a mano, per confrontare e tarare l'algoritmo. È solo materiale di taratura: lo vedi solo tu, su questa pagina; non entra mai nei voti delle giornate.</div>
+        {% if sample_is_real %}
+        <div class="va-refs" style="margin-top:10px">
+            {% for r in sample_refs %}
+            <div class="va-refitem">
+                <div class="top">
+                    <b>{{ r.label }}</b>
+                    <span class="va-note">{{ r.filename|default:"—" }} · caricato il {{ r.created_at|date:"j M Y, H:i" }}</span>
+                    <span class="va-pill ok">{{ r.matched }} abbinati</span>
+                    {% if r.unmatched_file %}<span class="va-pill warn">{{ r.unmatched_file }} del file non abbinati</span>{% endif %}
+                    {% if r.unmatched_sample %}<span class="va-pill">{{ r.unmatched_sample }} del campione senza voto di riferimento</span>{% endif %}
+                    {% if r.ambiguous %}<span class="va-pill warn">{{ r.ambiguous }} ambigui</span>{% endif %}
+                    <form method="post" action="{% url 'supervisor_algo_reference_delete' r.id %}" onsubmit="return confirm('Eliminare questi voti di riferimento?')">
+                        {% csrf_token %}<input type="hidden" name="campione" value="{{ sample_key }}">
+                        <button type="submit" class="fm-btn-ghost" title="Elimina i voti di riferimento"><svg class="ic"><use href="#i-trash"/></svg></button>
+                    </form>
+                </div>
+                <div class="va-note">Materiale di taratura: eliminalo quando non serve più.</div>
+                {% if r.unmatched_file or r.ambiguous or r.unmatched_sample %}
+                <details>
+                    <summary>Chi non è stato abbinato{% if r.unmatched_file > 30 or r.unmatched_sample > 30 or r.ambiguous > 30 %} (prime 30 voci per tipo){% endif %}</summary>
+                    {% if r.unmatched_file_list %}<div class="va-note" style="margin-top:6px">Nel file, senza corrispondenza nel campione</div>
+                    <ul>{% for u in r.unmatched_file_list %}<li>{{ u.name }}{% if u.team %} · {{ u.team }}{% endif %}{% if u.reason %} — {{ u.reason }}{% endif %}</li>{% endfor %}</ul>{% endif %}
+                    {% if r.ambiguous_list %}<div class="va-note" style="margin-top:6px">Ambigui (più giocatori ugualmente simili)</div>
+                    <ul>{% for u in r.ambiguous_list %}<li>{{ u.name }}{% if u.team %} · {{ u.team }}{% endif %} → {{ u.candidates|join:", " }}</li>{% endfor %}</ul>{% endif %}
+                    {% if r.unmatched_sample_list %}<div class="va-note" style="margin-top:6px">Nel campione con minuti giocati, senza voto di riferimento</div>
+                    <ul>{% for u in r.unmatched_sample_list %}<li>{{ u.name }} · {{ u.team }} · {{ u.minutes|default:0 }}'</li>{% endfor %}</ul>{% endif %}
+                </details>
+                {% endif %}
+            </div>
+            {% empty %}
+            <div class="va-empty">Nessun voto di riferimento per questo campione.</div>
+            {% endfor %}
+        </div>
+        <form method="post" enctype="multipart/form-data" action="{% url 'supervisor_algo_reference_upload' %}?campione={{ sample_key }}" class="va-upload">
+            {% csrf_token %}
+            <input type="hidden" name="sample" value="{{ sample_key }}">
+            <label style="display:block"><span class="va-note">Etichetta della fonte</span>
+                <input type="text" name="label" maxlength="80" required placeholder="es. il nome del giornale"></label>
+            <label style="display:block"><span class="va-note">File dei voti (.xlsx, .xls, .csv · al massimo 5 MB e {{ ref_max_rows }} righe)</span>
+                <input type="file" name="file" accept=".xlsx,.xls,.csv" required></label>
+            <button type="submit" class="fm-btn-secondary">Carica</button>
+            <div class="va-note" style="grid-column:1/-1">Carica solo file che hai il diritto di usare. Nessun download automatico: i voti di riferimento restano su questa pagina e si possono eliminare in ogni momento.</div>
+        </form>
+        {% else %}
+        <div class="va-empty" style="margin-top:8px">Per caricare voti di riferimento scegli un campione importato da API-Football.</div>
+        {% endif %}
+
+        {% if compare_samples %}
+        <div class="va-controls" style="margin-top:12px">
+            <div class="box">
+                <h4>Campioni per confronto e taratura</h4>
+                <div class="va-pick" id="va-cmp-samples">
+                    {% for c in compare_samples %}
+                    <label><input type="checkbox" value="{{ c.id }}"> {{ c.name }} <span class="va-note">· {{ c.refs|length }} rif.</span></label>
+                    {% endfor %}
+                </div>
+                <div class="va-note" style="margin-top:6px">Nessuno spuntato: il pannello «Cosa cambia» usa il campione scelto sopra.</div>
+            </div>
+            <div class="box">
+                <h4>Fonte di confronto</h4>
+                <select id="va-ref-mode" aria-label="Fonte di confronto"></select>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</details>
+
+{% if compare_samples %}
+<details class="va-card va-wide" id="va-fit-card">
+    <summary>Taratura automatica <span class="count" id="va-fit-count"></span> <svg class="ic chev"><use href="#i-chev-down"/></svg></summary>
+    <div class="va-body">
+        <div class="va-note">Cerca i parametri che avvicinano il voto algoritmico ai voti di riferimento dei campioni spuntati, partendo dalla bozza. Non li copia: resta vicina ai valori attuali (Prudenza), ogni parametro si sposta poco e la proposta si verifica su giornate non usate per tararla. Niente si salva: la proposta va nella bozza solo se la carichi.</div>
+        <div class="va-controls" style="margin-top:10px">
+            <div class="box">
+                <h4>Gruppi da tarare</h4>
+                <div class="va-pick" id="va-fit-groups"></div>
+            </div>
+            <div class="box">
+                <h4>Prudenza <span class="va-note" id="va-prud-v"></span></h4>
+                <div class="va-prud">
+                    <input type="range" id="va-prud" min="-2" max="1.3" step="0.01" aria-label="Prudenza">
+                    <div class="fm-onerow" id="va-prud-presets"></div>
+                </div>
+            </div>
+        </div>
+        <div class="fm-onerow" style="display:flex;gap:8px;align-items:center;margin-top:10px">
+            <button type="button" id="va-fit-run">Calcola proposta</button>
+            <span id="va-fit-msg" class="va-note"></span>
+        </div>
+        <div class="va-fitres" id="va-fit-res" hidden></div>
+    </div>
+</details>
+{% endif %}
 
 <div class="va-grid">
     <!-- Bozza -->
@@ -327,8 +464,48 @@ salvataggio finché non si preme «Salva»). Solo superuser.
                 <div class="va-kpi"><div class="k">Saliti · scesi</div><div class="v" id="k-ud">—</div><div class="s" id="k-sv">&nbsp;</div></div>
             </div>
             <div class="va-sec" id="va-ref-sec" hidden>
-                <h3>Rispetto al rating di API-Football <small>riferimento esterno, non la verità</small></h3>
+                <h3>Rispetto al rating API-Football <small>riferimento esterno, non la verità</small></h3>
                 <div class="va-ref" id="va-ref"></div>
+            </div>
+            <div id="va-cmp" hidden>
+                <div class="va-sec">
+                    <h3>Rispetto ai voti di riferimento <small id="va-cmp-sub"></small></h3>
+                    <div class="va-kpis" style="padding:0">
+                        <div class="va-kpi"><div class="k">Errore medio (MAE)</div><div class="v" id="c-mae">—</div><div class="s" id="c-mae-s">&nbsp;</div></div>
+                        <div class="va-kpi"><div class="k">Bias (algoritmo − rif.)</div><div class="v" id="c-bias">—</div><div class="s" id="c-bias-s">&nbsp;</div></div>
+                        <div class="va-kpi"><div class="k">Entro ±0,5</div><div class="v" id="c-within">—</div><div class="s" id="c-within-s">&nbsp;</div></div>
+                        <div class="va-kpi"><div class="k">Correlazione</div><div class="v" id="c-corr">—</div><div class="s" id="c-corr-s">&nbsp;</div></div>
+                    </div>
+                </div>
+                <div class="va-sec">
+                    <h3>Per ruolo</h3>
+                    <div class="va-table-wrap"><table class="va-rt">
+                        <thead><tr><th>Ruolo</th><th>MAE</th><th>Bias</th><th>Giocatori</th></tr></thead>
+                        <tbody id="c-roles"></tbody>
+                    </table></div>
+                </div>
+                <div class="va-sec">
+                    <h3>Dove sbagliamo <small>gruppi con almeno 10 giocatori, dal bias più forte</small></h3>
+                    <div class="va-table-wrap"><table class="va-rt">
+                        <thead><tr><th>Gruppo</th><th>Bias</th><th>MAE</th><th>Giocatori</th></tr></thead>
+                        <tbody id="c-groups"></tbody>
+                    </table></div>
+                </div>
+                <div class="va-sec">
+                    <h3>Algoritmo × riferimento <small>bozza; sulla diagonale i voti uguali</small></h3>
+                    <div class="va-table-wrap"><table class="va-heat" id="c-heat"></table></div>
+                </div>
+                <div class="va-sec">
+                    <h3>Senza voto <small>chi ha il voto per l'algoritmo e per il riferimento (bozza)</small></h3>
+                    <div class="va-table-wrap"><table class="va-2x2" id="c-sv"></table></div>
+                </div>
+                <div class="va-sec">
+                    <h3>Maggiori disaccordi <small>tocca una riga per il dettaglio</small></h3>
+                    <div class="va-table-wrap"><table class="va-mv">
+                        <thead><tr><th>Giocatore</th><th>In uso</th><th>Bozza</th><th>Rif.</th></tr></thead>
+                        <tbody id="c-worst"></tbody>
+                    </table></div>
+                </div>
             </div>
             <div class="va-sec">
                 <h3>Distribuzione dei voti</h3>
@@ -363,6 +540,7 @@ salvataggio finché non si preme «Salva»). Solo superuser.
 {{ algo_saved|json_script:"va-saved" }}
 {{ algo_defaults|json_script:"va-defaults" }}
 {{ sample_key|json_script:"va-sample-key" }}
+{{ compare_setup|json_script:"va-compare" }}
 <script>
 (function () {
     const SAVED = JSON.parse(document.getElementById("va-saved").textContent);
@@ -370,6 +548,10 @@ salvataggio finché non si preme «Salva»). Solo superuser.
     const SAMPLE = JSON.parse(document.getElementById("va-sample-key").textContent);
     const URL_PREVIEW = "{% url 'supervisor_algo_preview' %}";
     const URL_CALIBRATE = "{% url 'supervisor_algo_calibrate' %}";
+    const URL_FIT = "{% url 'supervisor_algo_fit' %}";
+    const COMPARE = JSON.parse(document.getElementById("va-compare").textContent);
+    let selectedSamples = COMPARE.selected.slice();
+    let refMode = "media";
     const CSRF = document.querySelector("#va-save-form input[name=csrfmiddlewaretoken]").value;
     const draft = JSON.parse(JSON.stringify(SAVED));
     const nf = (x, d = 2) => (x === null || x === undefined) ? "—"
@@ -483,9 +665,11 @@ salvataggio finché non si preme «Salva»). Solo superuser.
     // --- anteprima ---
     let timer = null, ctrl = null;
     function schedule() { clearTimeout(timer); timer = setTimeout(runPreview, 220); }
-    async function post(url, body) {
+    // ``own`` = richiesta che l'anteprima successiva non deve interrompere (taratura).
+    async function post(url, body, own = false) {
         const resp = await fetch(url, {method: "POST", headers: {"Content-Type": "application/json", "X-CSRFToken": CSRF},
-                                       body: JSON.stringify(body), signal: ctrl ? ctrl.signal : undefined, credentials: "same-origin"});
+                                       body: JSON.stringify(body), signal: (!own && ctrl) ? ctrl.signal : undefined,
+                                       credentials: "same-origin"});
         return [resp.status, await resp.json()];
     }
     async function runPreview() {
@@ -494,7 +678,8 @@ salvataggio finché non si preme «Salva»). Solo superuser.
         const box = document.getElementById("va-impact");
         box.classList.add("va-loading");
         try {
-            const [status, data] = await post(URL_PREVIEW, {rules: draft, sample: SAMPLE});
+            const [status, data] = await post(URL_PREVIEW, {rules: draft, sample: SAMPLE,
+                                                            samples: selectedSamples, reference_mode: refMode});
             clearErrors();
             if (status === 400 && data.errors) { showErrors(data.errors); document.getElementById("va-impact-sub").textContent = "correggi i valori in rosso"; return; }
             if (!data.ok) throw new Error(data.error || "errore");
@@ -528,6 +713,8 @@ salvataggio finché non si preme «Salva»). Solo superuser.
                 `Distanza media: ${nf(ref.before.mae)} → <b>${nf(ref.after.mae)}</b> <span class="${cls(-dMae)}">${dMae < 0 ? "più vicino" : dMae > 0 ? "più lontano" : "uguale"}</span><br>` +
                 `Correlazione: ${nf(ref.before.corr)} → <b>${nf(ref.after.corr)}</b> <span class="${cls(dCorr)}">${signed(dCorr)}</span> · su ${ref.after.n} voti`;
         } else refSec.hidden = true;
+
+        renderReferences(d.references);
 
         // istogramma
         const hist = document.getElementById("va-hist");
@@ -572,6 +759,196 @@ salvataggio finché non si preme «Salva»). Solo superuser.
         }));
     }
     function nfAny(x) { return typeof x === "boolean" ? (x ? "sì" : "no") : Number(x).toLocaleString("it-IT", {maximumFractionDigits: 4}); }
+
+    // --- voti di riferimento ---
+    const PARTS_ALL = [["base", "Base"], ["risultato", "Risultato"], ["reparto", "Reparto"], ["eventi", "Eventi"], ["rendimento", "Rendimento"], ["calibrazione", "Calibrazione"]];
+    function breakdownRows(bb, ba) {
+        bb = bb || {}; ba = ba || {};
+        return PARTS_ALL.filter(([k]) => k in bb || k in ba).map(([k, l]) =>
+            `<span>${l}</span><b>${bb.sv ? "s.v." : nf(bb[k] ?? 0)}</b><span>→</span><b>${ba.sv ? "s.v." : nf(ba[k] ?? 0)}</b>`).join("");
+    }
+    // Il KPI mostra la bozza e lo scarto dai valori in uso; ``better`` dice se lo scarto è un miglioramento.
+    function kpi(id, before, after, digits, suffix, better) {
+        const el = document.getElementById(id), sub = document.getElementById(id + "-s");
+        if (after === null || after === undefined) { el.textContent = "—"; sub.textContent = ""; return; }
+        const delta = (after ?? 0) - (before ?? 0);
+        const good = better(before ?? 0, after);
+        const tone = Math.abs(delta) < 0.0005 ? "va-flat" : good ? "va-up" : "va-down";
+        el.innerHTML = `${nf(after, digits)}${suffix} <span class="${tone}" style="font-size:15px">${signed(delta, digits)}</span>`;
+        sub.textContent = `in uso ${nf(before, digits)}${suffix}`;
+    }
+    function renderReferences(c) {
+        const box = document.getElementById("va-cmp");
+        if (!c || !c.matched) { box.hidden = true; return; }
+        box.hidden = false;
+        const b = c.before || {}, a = c.after || {};
+        document.getElementById("va-cmp-sub").textContent =
+            `${c.mode === "media" ? "media dei riferimenti" : c.mode} · ${c.matched} abbinati, ${a.n || 0} con voto in entrambi`;
+        kpi("c-mae", b.mae, a.mae, 2, "", (x, y) => y < x);
+        kpi("c-bias", b.bias, a.bias, 2, "", (x, y) => Math.abs(y) < Math.abs(x));
+        kpi("c-within", b.within_pct, a.within_pct, 1, "%", (x, y) => y > x);
+        kpi("c-corr", b.corr, a.corr, 2, "", (x, y) => y > x);
+        const arrow = (x, y, d = 2) => `${nf(x, d)}<span class="arrow">→</span>${nf(y, d)}`;
+        document.getElementById("c-roles").innerHTML = c.by_role.map(r =>
+            `<tr><td>${esc(r.label)}</td><td>${arrow(r.before && r.before.mae, r.after && r.after.mae)}</td>
+             <td>${arrow(r.before && r.before.bias, r.after && r.after.bias)}</td><td>${r.after ? r.after.n : 0}</td></tr>`).join("")
+            || `<tr><td colspan="4" class="va-empty">Nessun giocatore con voto in entrambi.</td></tr>`;
+        document.getElementById("c-groups").innerHTML = c.groups.map(g =>
+            `<tr><td>${esc(g.dim)}: ${esc(g.group)}</td>
+             <td class="${Math.abs(g.after.bias) < Math.abs(g.before ? g.before.bias : 0) ? "va-up" : "va-flat"}">${arrow(g.before && g.before.bias, g.after.bias)}</td>
+             <td>${arrow(g.before && g.before.mae, g.after.mae)}</td><td>${g.after.n}</td></tr>`).join("")
+            || `<tr><td colspan="4" class="va-empty">Servono almeno 10 giocatori per gruppo.</td></tr>`;
+        // heatmap: righe = algoritmo (dall'alto), colonne = riferimento
+        const grid = c.grid, m = c.heatmap_after, max = Math.max(1, ...m.flat());
+        let html = `<thead><tr><th></th>${grid.map(v => `<th>${nf(v, 1)}</th>`).join("")}</tr></thead><tbody>`;
+        for (let i = grid.length - 1; i >= 0; i--) {
+            html += `<tr><th>${nf(grid[i], 1)}</th>` + grid.map((v, j) => {
+                const n = m[i][j], alpha = n ? 0.12 + 0.88 * n / max : 0;
+                return `<td class="${i === j ? "diag" : ""}" style="background:rgba(8,124,240,${alpha.toFixed(3)})" title="algoritmo ${nf(grid[i], 1)}, riferimento ${nf(v, 1)}: ${n}">${n || ""}</td>`;
+            }).join("") + "</tr>";
+        }
+        document.getElementById("c-heat").innerHTML = html + `</tbody><caption>righe: voto algoritmico · colonne: voto di riferimento</caption>`;
+        const sv = c.sv_after;
+        document.getElementById("c-sv").innerHTML =
+            `<tr><th></th><th>Rif. con voto</th><th>Rif. s.v.</th></tr>` +
+            `<tr><th>Algoritmo con voto</th><td>${sv.both}</td><td>${sv.alg_only}</td></tr>` +
+            `<tr><th>Algoritmo s.v.</th><td>${sv.ref_only}</td><td>${sv.none}</td></tr>`;
+        const wt = document.getElementById("c-worst");
+        wt.innerHTML = c.disagreements.length ? c.disagreements.map((w, i) =>
+            `<tr class="va-mvrow" data-i="${i}"><td class="who">${esc(w.name)} <small>${esc(w.role)} · ${esc(w.team)} · ${esc(w.minutes ?? 0)}'</small></td>
+             <td>${vf(w.before)}</td><td>${vf(w.after)}</td><td>${nf(w.ref, 1)}</td></tr>
+             <tr class="va-mvdet" data-d="${i}" hidden><td colspan="4"><div class="va-bd"><span></span><span>in uso</span><span></span><span>bozza</span>${breakdownRows(w.breakdown_before, w.breakdown_after)}</div></td></tr>`).join("")
+            : `<tr><td colspan="4" class="va-empty">Nessun disaccordo.</td></tr>`;
+        wt.querySelectorAll("tr.va-mvrow").forEach(tr => tr.addEventListener("click", () => {
+            const det = wt.querySelector(`tr[data-d="${tr.dataset.i}"]`); det.hidden = !det.hidden;
+        }));
+    }
+
+    // campioni e fonte per confronto e taratura
+    function activeSamples() {
+        if (selectedSamples.length) return selectedSamples;
+        return COMPARE.samples.some(c => String(c.id) === String(SAMPLE)) ? [Number(SAMPLE)] : [];
+    }
+    function refreshModes() {
+        const sel = document.getElementById("va-ref-mode");
+        if (!sel) return;
+        const ids = activeSamples(), labels = new Map();
+        COMPARE.samples.filter(c => ids.includes(c.id)).forEach(c => c.refs.forEach(r => {
+            const key = r.label.trim().toLowerCase(); if (!labels.has(key)) labels.set(key, r.label.trim());
+        }));
+        const opts = [["media", "Media dei riferimenti"], ...Array.from(labels.values()).map(l => [l, l])];
+        if (!opts.some(([v]) => v.toLowerCase() === refMode.toLowerCase())) refMode = "media";
+        sel.innerHTML = opts.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join("");
+        sel.value = opts.find(([v]) => v.toLowerCase() === refMode.toLowerCase())[0];
+    }
+    const cmpBox = document.getElementById("va-cmp-samples");
+    if (cmpBox) {
+        cmpBox.querySelectorAll("input").forEach(cb => {
+            cb.checked = selectedSamples.includes(Number(cb.value));
+            cb.addEventListener("change", () => {
+                selectedSamples = Array.from(cmpBox.querySelectorAll("input:checked")).map(x => Number(x.value));
+                refreshModes(); schedule();
+            });
+        });
+        document.getElementById("va-ref-mode").addEventListener("change", (ev) => { refMode = ev.target.value; schedule(); });
+        refreshModes();
+    }
+
+    // --- taratura automatica ---
+    const fitCard = document.getElementById("va-fit-card");
+    if (fitCard) {
+        const groupsBox = document.getElementById("va-fit-groups");
+        groupsBox.innerHTML = COMPARE.groups.map(g =>
+            `<label><input type="checkbox" value="${esc(g.key)}" checked> ${esc(g.label)}</label>`).join("");
+        const prud = document.getElementById("va-prud"), prudV = document.getElementById("va-prud-v");
+        const PRESETS = [["bassa", "Bassa"], ["media", "Media"], ["alta", "Alta"]];
+        document.getElementById("va-prud-presets").innerHTML = PRESETS.map(([k, l]) =>
+            `<button type="button" class="fm-btn-secondary" data-preset="${k}" style="padding:4px 10px;font-size:12px">${l}</button>`).join("");
+        const lam = () => Math.pow(10, Number(prud.value));
+        function showLam() {
+            const v = lam();
+            const near = PRESETS.find(([k]) => Math.abs(Math.log10(COMPARE.prudenza[k]) - Number(prud.value)) < 0.02);
+            prudV.textContent = `λ ${nfAny(Number(v.toPrecision(2)))}${near ? " · " + near[1].toLowerCase() : ""}`;
+        }
+        document.querySelectorAll("[data-preset]").forEach(b => b.addEventListener("click", () => {
+            prud.value = Math.log10(COMPARE.prudenza[b.dataset.preset]); showLam();
+        }));
+        prud.addEventListener("input", showLam);
+        prud.value = Math.log10(COMPARE.prudenza.media); showLam();
+
+        const res = document.getElementById("va-fit-res"), msg = document.getElementById("va-fit-msg");
+        const run = document.getElementById("va-fit-run");
+        let lastFit = null;
+        run.addEventListener("click", async () => {
+            const groups = Array.from(groupsBox.querySelectorAll("input:checked")).map(x => x.value);
+            const samples = activeSamples();
+            if (!samples.length) { msg.textContent = "spunta almeno un campione con voti di riferimento"; return; }
+            run.disabled = true; msg.textContent = "calcolo della proposta…"; res.classList.add("va-loading");
+            try {
+                const [_s, data] = await post(URL_FIT, {rules: draft, samples, reference_mode: refMode, groups, lambda: lam()}, true);
+                if (!data.ok) {
+                    msg.textContent = data.error || "correggi i valori in rosso";
+                    if (data.errors) showErrors(data.errors);
+                    return;
+                }
+                lastFit = data; msg.textContent = ""; renderFit(data);
+            } catch (e) { msg.textContent = "non riuscito"; }
+            finally { run.disabled = false; res.classList.remove("va-loading"); }
+        });
+
+        function renderFit(d) {
+            const v = d.validation, f = d.fit;
+            const changed = d.params.filter(p => Math.abs(p.delta) > 0.0005);
+            document.getElementById("va-fit-count").textContent = `${changed.length} parametri proposti`;
+            const how = v.mode === "giornate" ? `una giornata esclusa a turno (${v.folds})` : "30% delle partite, mai usate per tararla";
+            const cal = d.calibration, calNow = d.calibration_current;
+            res.hidden = false;
+            res.innerHTML =
+                (d.warning ? `<div class="va-warn">La proposta ${esc(d.warning)}.</div>` : "") +
+                `<div class="va-kpis" style="padding:0">
+                    <div class="va-kpi"><div class="k">MAE in taratura</div><div class="v">${nf(f.mae_after)}</div><div class="s">in uso ${nf(f.mae_before)} · ${f.n} giocatori</div></div>
+                    <div class="va-kpi"><div class="k">MAE in verifica</div><div class="v ${v.gain >= 0.02 ? "va-up" : ""}">${nf(v.mae_after)}</div><div class="s">in uso ${nf(v.mae_before)} · ${esc(how)}</div></div>
+                    <div class="va-kpi"><div class="k">Giocatori usati</div><div class="v">${d.rows_used}</div><div class="s">${d.rows_capped} esclusi per un tetto attivo</div></div>
+                    <div class="va-kpi"><div class="k">Prudenza</div><div class="v">λ ${nfAny(Number(d.lambda.toPrecision(2)))}</div><div class="s">verso i valori della bozza</div></div>
+                </div>` +
+                `<div class="va-table-wrap"><table class="va-rt va-fittab"><thead><tr><th>Parametro</th><th>Attuale</th><th>Proposto</th><th>Δ</th></tr></thead><tbody>` +
+                (changed.length ? changed.map(p => `<tr><td>${esc(p.label)}${p.flags.map(fl => `<span class="va-flag">${esc(fl)}</span>`).join("")}</td>
+                    <td>${esc(nfAny(p.current))}</td><td><b>${esc(nfAny(p.proposed))}</b></td><td class="${cls(p.delta)}">${signed(p.delta, 3)}</td></tr>`).join("")
+                    : `<tr><td colspan="4" class="va-empty">Nessun parametro da cambiare.</td></tr>`) +
+                `</tbody></table></div>` +
+                `<div class="va-note">Le etichette gialle sono i vincoli raggiunti: range del campo, spostamento massimo (±0,5; ±0,15 per i pesi del rendimento) o segno di bonus e malus. Calcolata senza calibrazione: caricandola, scala e spostamento tornano 1 e 0.</div>` +
+                (cal ? `<div class="va-note">Calibrazione sui voti di riferimento (media ${nf(cal.target_mean)}, dev. std ${nf(cal.target_sd)}): scala ${esc(nfAny(cal.calib_scale))}, spostamento ${esc(nfAny(cal.calib_shift))}${calNow ? ` · sui valori attuali: scala ${esc(nfAny(calNow.calib_scale))}, spostamento ${esc(nfAny(calNow.calib_shift))}` : ""}.</div>` : "") +
+                `<div class="fm-onerow" style="display:flex;gap:8px">
+                    <button type="button" data-fit="tune" class="${d.warning ? "fm-btn-secondary" : ""}" ${changed.length ? "" : "disabled"}>Carica nella bozza</button>
+                    <button type="button" data-fit="both" class="fm-btn-secondary" ${cal ? "" : "disabled"}>Carica anche la calibrazione</button>
+                    <button type="button" data-fit="cal" class="fm-btn-secondary" ${calNow ? "" : "disabled"}>Solo la calibrazione</button>
+                    <button type="button" data-fit="drop" class="fm-btn-ghost">Scarta</button>
+                </div>`;
+            res.querySelectorAll("[data-fit]").forEach(b => b.addEventListener("click", () => applyFit(b.dataset.fit)));
+        }
+
+        function loadValues(values) {
+            Object.entries(values).forEach(([path, value]) => {
+                const el = document.querySelector(`[data-path="${path}"]`);
+                if (!el) return;
+                writeInput(el, value); set(draft, path, value);
+            });
+            clearErrors(); refreshMarks(); schedule();
+        }
+        function applyFit(kind) {
+            if (!lastFit) return;
+            if (kind === "drop") { res.hidden = true; res.innerHTML = ""; lastFit = null; document.getElementById("va-fit-count").textContent = ""; return; }
+            const values = {};
+            if (kind === "tune" || kind === "both") {
+                lastFit.params.forEach(p => { values[p.path] = p.proposed; });
+                values.calib_scale = 1; values.calib_shift = 0;
+            }
+            const cal = kind === "cal" ? lastFit.calibration_current : kind === "both" ? lastFit.calibration : null;
+            if (cal) { values.calib_scale = cal.calib_scale; values.calib_shift = cal.calib_shift; }
+            loadValues(values);
+            msg.textContent = "proposta caricata nella bozza: guarda «Cosa cambia» e salva se ti convince";
+        }
+    }
 
     // calibrazione
     document.getElementById("va-calibrate").addEventListener("click", async () => {

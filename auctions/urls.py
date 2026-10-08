@@ -21,6 +21,9 @@ urlpatterns = [
     path("supervisor/voto-algoritmico/ripristina/<int:version_id>/", views.supervisor_algo_restore, name="supervisor_algo_restore"),
     path("supervisor/voto-algoritmico/campioni/importa/", views.supervisor_algo_sample_import, name="supervisor_algo_sample_import"),
     path("supervisor/voto-algoritmico/campioni/<int:sample_id>/elimina/", views.supervisor_algo_sample_delete, name="supervisor_algo_sample_delete"),
+    path("supervisor/voto-algoritmico/riferimenti/carica/", views.supervisor_algo_reference_upload, name="supervisor_algo_reference_upload"),
+    path("supervisor/voto-algoritmico/riferimenti/<int:reference_id>/elimina/", views.supervisor_algo_reference_delete, name="supervisor_algo_reference_delete"),
+    path("supervisor/voto-algoritmico/taratura/", views.supervisor_algo_fit, name="supervisor_algo_fit"),
     path("portal/", views.home_portal, name="home_portal"),
 
     # Clean Sports Management Dashboard Routes

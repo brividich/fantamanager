@@ -507,6 +507,8 @@ def fixture_player_rows(fixture_id, *, get=requests.get):
             own_by_team[team] += own_goals
             rows.append({
                 "api_id": player.get("id"),
+                # La partita: la taratura del voto algoritmico divide per partita.
+                "fixture_id": fixture_id,
                 "name": (player.get("name") or "").strip(),
                 "team": team,
                 "role": GAME_POSITIONS.get((games.get("position") or "").upper(), ""),
