@@ -349,7 +349,7 @@ class CompetitionWizardParityTests(TestCase):
         for kind, _ in Competition.Type.choices:
             self.assertIn(f"selectCompKind('{kind}'", web_wz, kind)
         for field in ("name", "description", "start_giornata", "end_giornata", "two_legged",
-                      "home_id", "away_id", "win_points", "goal_threshold", "home_bonus", "notify_teams"):
+                      "home_id", "away_id", "win_points", "draw_points", "loss_points", "home_bonus", "notify_teams"):
             self.assertIn(f'name="{field}"', web_wz, field)
         self.assertEqual(web_wz, app_wz, "il wizard competizioni differisce tra web e app")
 
@@ -364,3 +364,57 @@ class CompetitionWizardParityTests(TestCase):
         self.assertEqual(comp.season.league, self.league)
         self.assertEqual(comp.settings["win_points"], 2)
         self.assertEqual(comp.settings["home_bonus"], 1.0)
+
+
+class CompetitionRulesAppliedTests(TestCase):
+    """What the wizard lets the admin choose is what the matches are played
+    with: the home bonus and the points for a win, a draw and a defeat."""
+
+    def setUp(self):
+        self.league = League.objects.create(name="Lega Regole")
+        self.season = Season.objects.create(league=self.league, name="2026/27", matchdays=2)
+        self.g1 = Giornata.objects.create(season=self.season, number=1)
+        self.home = Participant.objects.create(display_name="Casa", league=self.league)
+        self.away = Participant.objects.create(display_name="Ospite", league=self.league)
+        self.comp = Competition.objects.create(
+            season=self.season, name="Campionato", kind=Competition.Type.ROUND_ROBIN,
+            settings={"home_bonus": 2.0, "win_points": 2, "draw_points": 1, "loss_points": 0},
+        )
+        self.fx = Fixture.objects.create(giornata=self.g1, competition=self.comp,
+                                         home=self.home, away=self.away)
+
+    def _play(self, home_total, away_total):
+        from auctions.services.scoring import set_manual_scores
+
+        set_manual_scores(self.g1, {self.home: (Decimal(home_total), None),
+                                    self.away: (Decimal(away_total), None)})
+        self.fx.refresh_from_db()
+
+    def test_the_home_bonus_turns_a_draw_into_a_win(self):
+        self._play("64", "65")             # 64 + 2 = 66: one goal; 65: none
+        self.assertEqual((self.fx.home_goals, self.fx.away_goals), (1, 0))
+        self.assertEqual(self.fx.home_total, Decimal("66"))
+        self.assertEqual((self.fx.home_points, self.fx.away_points), (2, 0))   # win worth 2 here
+
+    def test_without_a_bonus_the_totals_decide_alone(self):
+        self.comp.settings = {}
+        self.comp.save()
+        self._play("64", "65")
+        self.assertEqual((self.fx.home_goals, self.fx.away_goals), (0, 0))
+        self.assertEqual((self.fx.home_points, self.fx.away_points), (1, 1))
+
+    def test_typed_goals_stay_as_typed(self):
+        from auctions.services.scoring import set_manual_scores
+
+        set_manual_scores(self.g1, {self.home: (Decimal("64"), 0), self.away: (Decimal("65"), 0)})
+        self.fx.refresh_from_db()
+        self.assertEqual((self.fx.home_goals, self.fx.away_goals), (0, 0))
+
+    def test_the_match_sheet_shows_the_bonus(self):
+        from auctions.services.competitions import get_fixture_details
+
+        self._play("64", "65")
+        details = get_fixture_details(self.fx)
+        self.assertEqual(details["home"]["total"], 66.0)
+        self.assertEqual(details["home"]["goals"], 1)
+        self.assertEqual(details["home"]["home_bonus"], 2.0)

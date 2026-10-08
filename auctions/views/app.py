@@ -395,6 +395,7 @@ def app_lega(request):
         "season": season,
         "competitions": competitions,
         "current_competition": current_competition,
+        "goal_rules": scoring.effective_rules(season.rules if season else None),
         "competition_data": competition_data,
         "competition_matchdays": competition_matchdays,
         "active_tab": active_tab,

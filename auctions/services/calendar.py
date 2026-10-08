@@ -75,8 +75,8 @@ def standings(season):
         h["gf"] += fx.home_goals; h["ga"] += fx.away_goals
         a["gf"] += fx.away_goals; a["ga"] += fx.home_goals
         h["points"] += fx.home_points; a["points"] += fx.away_points
-        if fx.home_points == 3: h["won"] += 1; a["lost"] += 1
-        elif fx.away_points == 3: a["won"] += 1; h["lost"] += 1
+        if fx.home_goals > fx.away_goals: h["won"] += 1; a["lost"] += 1
+        elif fx.away_goals > fx.home_goals: a["won"] += 1; h["lost"] += 1
         else: h["drawn"] += 1; a["drawn"] += 1
 
     for gs in GiornataScore.objects.filter(giornata__season=season):

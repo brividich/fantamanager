@@ -216,9 +216,14 @@ def score_lineup(starters, bench, perf, rules=None):
 
 
 def fixture_outcome(home_goals, away_goals, rules=None):
-    """League points for a head-to-head result: 3 / 1 / 0."""
+    """League points for a head-to-head result: 3 / 1 / 0 unless the
+    competition says otherwise (``win_points``/``draw_points``/``loss_points``)."""
+    rules = rules or {}
+    win = int(rules.get("win_points", 3))
+    draw = int(rules.get("draw_points", 1))
+    loss = int(rules.get("loss_points", 0))
     if home_goals > away_goals:
-        return 3, 0
+        return win, loss
     if home_goals < away_goals:
-        return 0, 3
-    return 1, 1
+        return loss, win
+    return draw, draw

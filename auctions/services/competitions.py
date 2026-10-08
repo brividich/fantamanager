@@ -470,10 +470,10 @@ def _compute_groups_standings(competition):
         a["goals_against"] += f.home_goals
         h["points"] += f.home_points
         a["points"] += f.away_points
-        if f.home_points > f.away_points:
+        if f.home_goals > f.away_goals:
             h["won"] += 1
             a["lost"] += 1
-        elif f.home_points < f.away_points:
+        elif f.home_goals < f.away_goals:
             a["won"] += 1
             h["lost"] += 1
         else:
@@ -534,10 +534,10 @@ def _compute_round_robin_standings(competition):
         h["points"] += f.home_points
         a["points"] += f.away_points
 
-        if f.home_points > f.away_points:
+        if f.home_goals > f.away_goals:
             h["won"] += 1
             a["lost"] += 1
-        elif f.home_points < f.away_points:
+        elif f.home_goals < f.away_goals:
             a["won"] += 1
             h["lost"] += 1
         else:
@@ -671,8 +671,13 @@ def get_fixture_details(fixture):
     season = giornata.season
     rules = scoring.effective_rules(season.rules if season else None)
     perf_map = giornata_perf_map(giornata)
+    settings = (fixture.competition.settings or {}) if fixture.competition_id else {}
+    try:
+        home_bonus = float(settings.get("home_bonus") or 0)
+    except (TypeError, ValueError):
+        home_bonus = 0.0
 
-    def _team_detail(part):
+    def _team_detail(part, fx_total=None, fx_goals=None, bonus=0.0):
         if not part:
             return None
         starters, bench = lineup_io(part, giornata=giornata)
@@ -757,6 +762,9 @@ def get_fixture_details(fixture):
         gs = GiornataScore.objects.filter(giornata=giornata, participant=part).first()
         total_val = float(gs.total) if gs else float(res["total"])
         goals_val = gs.goals if gs else res["goals"]
+        # The match itself: the total with the home bonus and the goals it gave.
+        if fixture.computed and fx_total is not None:
+            total_val, goals_val = float(fx_total), fx_goals
         mod_val = float(gs.modificatore) if gs else float(res["modificatore"])
 
         return {
@@ -765,6 +773,7 @@ def get_fixture_details(fixture):
             "total": total_val,
             "goals": goals_val,
             "modificatore": mod_val,
+            "home_bonus": bonus,
             "subs_count": res["subs"],
             "scorers": scorers,
             "assists": assists,
@@ -781,8 +790,9 @@ def get_fixture_details(fixture):
         "is_computed": fixture.computed,
         "status": giornata.status,
         "status_display": giornata.get_status_display(),
-        "home": _team_detail(fixture.home),
-        "away": _team_detail(fixture.away) if fixture.away else None,
+        "home": _team_detail(fixture.home, fixture.home_total, fixture.home_goals, home_bonus),
+        "away": (_team_detail(fixture.away, fixture.away_total, fixture.away_goals)
+                 if fixture.away else None),
     }
 
 

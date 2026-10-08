@@ -177,6 +177,10 @@ class Fixture(models.Model):
     away_goals  = models.PositiveSmallIntegerField(default=0)
     home_points = models.PositiveSmallIntegerField(default=0)
     away_points = models.PositiveSmallIntegerField(default=0)
+    # Fantapunti each side played the match with: the team's giornata total
+    # plus the competition's home bonus for the home side.
+    home_total  = models.DecimalField(max_digits=7, decimal_places=2, null=True, blank=True)
+    away_total  = models.DecimalField(max_digits=7, decimal_places=2, null=True, blank=True)
     computed    = models.BooleanField(default=False)
 
     class Meta:

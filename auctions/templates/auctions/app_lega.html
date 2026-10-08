@@ -105,7 +105,7 @@
         <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(auto-fit, minmax(160px, 1fr));gap:10px;color:var(--ink-soft);font-size:12px;">
             <div><span class="muted" style="font-size:11px;display:block;">Periodo Giornate</span><b>G{{ current_competition.settings.start_giornata|default:1 }} &rarr; {% if current_competition.settings.end_giornata %}G{{ current_competition.settings.end_giornata }}{% else %}Fine Stagione{% endif %}</b></div>
             <div><span class="muted" style="font-size:11px;display:block;">Punti Risultato</span><b>Vittoria {{ current_competition.settings.win_points|default:3 }} · Pari {{ current_competition.settings.draw_points|default:1 }} · Sconfitta {{ current_competition.settings.loss_points|default:0 }}</b></div>
-            <div><span class="muted" style="font-size:11px;display:block;">Soglie Gol</span><b>1° Gol a {{ current_competition.settings.goal_threshold|default:66.0 }}pt (+{{ current_competition.settings.goal_step|default:6.0 }}pt)</b></div>
+            <div><span class="muted" style="font-size:11px;display:block;">Soglie Gol</span><b>1° Gol a {{ goal_rules.conv_base }}pt (+{{ goal_rules.conv_step }}pt) · della lega</b></div>
             <div><span class="muted" style="font-size:11px;display:block;">Fattore Campo</span><b>+{{ current_competition.settings.home_bonus|default:0.0 }} pt casa</b></div>
             {% if current_competition.kind == "FORMULA_1" %}
             <div style="grid-column: 1 / -1;background:rgba(255,255,255,0.03);padding:8px 12px;border-radius:8px;">
