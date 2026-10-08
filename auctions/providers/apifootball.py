@@ -478,8 +478,13 @@ def fixture_player_rows(fixture_id, *, get=requests.get):
     """Le righe voto/bonus/malus di una partita, nel formato di ``voti_live``."""
     own = _own_goals(fixture_id, get)
     rows = []
+    # Gol segnati da ciascuna squadra: reti dei suoi giocatori + autogol avversari.
+    # Si ricavano dalla stessa risposta, senza chiedere il risultato all'API.
+    scored, own_by_team = {}, {}
     for team_block in _get("/fixtures/players", {"fixture": fixture_id}, get=get):
         team = ((team_block.get("team") or {}).get("name") or "").strip()
+        scored.setdefault(team, 0)
+        own_by_team.setdefault(team, 0)
         for entry in team_block.get("players") or []:
             player = entry.get("player") or {}
             stats = (entry.get("statistics") or [{}])[0] or {}
@@ -487,10 +492,19 @@ def fixture_player_rows(fixture_id, *, get=requests.get):
             goals = stats.get("goals") or {}
             cards = stats.get("cards") or {}
             pen = stats.get("penalty") or {}
+            shots = stats.get("shots") or {}
+            passes = stats.get("passes") or {}
+            tackles = stats.get("tackles") or {}
+            duels = stats.get("duels") or {}
+            dribbles = stats.get("dribbles") or {}
+            fouls = stats.get("fouls") or {}
             minutes = _num(games.get("minutes"))
             rating = games.get("rating")
             # Senza minuti giocati è un senza voto, anche se l'API manda un rating.
             vote = rating if (minutes > 0 and rating not in (None, "", "-")) else None
+            own_goals = own.get(player.get("id"), 0)
+            scored[team] += _num(goals.get("total"))
+            own_by_team[team] += own_goals
             rows.append({
                 "api_id": player.get("id"),
                 "name": (player.get("name") or "").strip(),
@@ -499,14 +513,35 @@ def fixture_player_rows(fixture_id, *, get=requests.get):
                 "vote": vote,
                 "goals": _num(goals.get("total")),
                 "goals_conceded": _num(goals.get("conceded")),
-                "own_goals": own.get(player.get("id"), 0),
+                "own_goals": own_goals,
                 "pen_scored": _num(pen.get("scored")),
                 "pen_missed": _num(pen.get("missed")),
                 "pen_saved": _num(pen.get("saved")),
                 "assists": _num(goals.get("assists")),
                 "yellow": _num(cards.get("yellow")) > 0,
                 "red": _num(cards.get("red")) > 0,
+                # Per il voto algoritmico (auctions/voto_algoritmico.py).
+                "minutes": minutes,
+                "saves": _num(goals.get("saves")),
+                "shots_on": _num(shots.get("on")),
+                "key_passes": _num(passes.get("key")),
+                "tackles": _num(tackles.get("total")),
+                "blocks": _num(tackles.get("blocks")),
+                "interceptions": _num(tackles.get("interceptions")),
+                "duels_won": _num(duels.get("won")),
+                "dribbles_won": _num(dribbles.get("success")),
+                "dribbled_past": _num(dribbles.get("past")),
+                "fouls": _num(fouls.get("committed")),
+                "pen_won": _num(pen.get("won")),
+                "pen_committed": _num(pen.get("commited") or pen.get("committed")),
             })
+    teams = list(scored)
+    if len(teams) == 2:
+        a, b = teams
+        result = {a: (scored[a] + own_by_team[b], scored[b] + own_by_team[a]),
+                  b: (scored[b] + own_by_team[a], scored[a] + own_by_team[b])}
+        for row in rows:
+            row["team_goals_for"], row["team_goals_against"] = result[row["team"]]
     return rows
 
 
