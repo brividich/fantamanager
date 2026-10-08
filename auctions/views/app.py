@@ -25,7 +25,7 @@ from ..models import (
     Trade,
 )
 from .. import scoring, services, throttle
-from ..models.participant import AMBIGUOUS_CODE_MESSAGE, find_team_by_code
+from ..models.participant import AMBIGUOUS_CODE_MESSAGE, custom_code_error, find_team_by_code
 from ..services import mail, sala
 from ..services.market import buyout_price, fa_period_start, session_moves, waiver_order
 from .admin_market import rule_choices, session_labels
@@ -1107,16 +1107,11 @@ def app_update_pin(request):
         return _redirect_login(request, ctx)
 
     new_code = (request.POST.get("access_code") or "").strip().upper()[:20]
-    if len(new_code) < 3:
-        messages.error(request, "Il codice deve contenere almeno 3 caratteri.")
-        return redirect("app_altro")
-
-    # Ensure uniqueness within the same league
-    already_used = Participant.objects.filter(
-        league=participant.league, access_code__iexact=new_code
-    ).exclude(pk=participant.id).exists()
-    if already_used:
-        messages.error(request, "Questo codice è già utilizzato da un'altra squadra della lega.")
+    # Le stesse regole dei codici scelti dall'admin: lunghezza minima e
+    # unico in tutte le leghe (il codice da solo fa entrare nella squadra).
+    code_error = custom_code_error(new_code, exclude_pk=participant.pk)
+    if code_error:
+        messages.error(request, code_error)
         return redirect("app_altro")
 
     participant.access_code = new_code
