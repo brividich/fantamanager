@@ -41,8 +41,12 @@ def synthetic(matches=150, per_giornata=550, true=None, noise=0.15, seed=1):
     return rows, ref
 
 
+# Parametri «veri» dei dati sintetici. Gol subiti e scarto sono scelti perché
+# il loro tetto scatti con questi valori e non con quelli di partenza
+# (-0,45 × 3 gol < -1; 0,2 × 2 gol di scarto > 0,25).
 TRUE = {"win": 0.5, "loss": -0.4, "goal": 0.8, "assist": 0.4, "clean_sheet_P": 0.8,
-        "yellow": -0.4, "base": 6.1, "perf_weights": {"A": {"shots_on": 0.2}}}
+        "yellow": -0.4, "base": 6.1, "perf_weights": {"A": {"shots_on": 0.2}},
+        "conceded_P": -0.45, "conceded_D": -0.35, "margin_step": 0.2}
 
 
 # --------------------------------------------------------------------------
@@ -275,8 +279,13 @@ class TuningTests(SimpleTestCase):
         out = vt.tune(rows, ref, effective_algo_rules({}), lam=0.01, ranges=voto_algo.tuning_ranges(effective_algo_rules({})))
         got = {p["path"]: p["proposed"] for p in out["params"]}
         for path, want in (("win", 0.5), ("loss", -0.4), ("goal", 0.8), ("assist", 0.4), ("clean_sheet_P", 0.8),
-                           ("yellow", -0.4), ("base", 6.1), ("perf_weights.A.shots_on", 0.2)):
+                           ("yellow", -0.4), ("base", 6.1), ("perf_weights.A.shots_on", 0.2),
+                           # i parametri con un tetto: prima della stima ripetuta restavano
+                           # attenuati (-0,36, -0,32, 0,15), ora come gli altri
+                           ("conceded_P", -0.45), ("conceded_D", -0.35), ("margin_step", 0.2)):
             self.assertAlmostEqual(got[path], want, delta=0.06, msg=path)
+        self.assertGreater(out["iterations"], 1)
+        self.assertEqual(out["iterations_stop"], "stabile")
         self.assertEqual(out["validation"]["mode"], "giornate")
         self.assertGreater(out["validation"]["gain"], vt.MIN_GAIN)
         self.assertIsNone(out["warning"])
@@ -326,28 +335,25 @@ class TuningTests(SimpleTestCase):
         rows, ref = synthetic(true=TRUE, per_giornata=600)
         giornate = {r["_g"] for r in rows}
         calls = []
-        original = vt._estimate
+        original = vt._fit
 
-        def spy(entries, *args, **kwargs):
-            calls.append(len(entries))
-            return original(entries, *args, **kwargs)
+        def spy(cands, *args, **kwargs):
+            calls.append({rows[c[0]]["_g"] for c in cands} if cands else set())
+            calls[-1] = (len(cands), calls[-1])
+            return original(cands, *args, **kwargs)
 
-        with mock.patch.object(vt, "_estimate", side_effect=spy):
+        with mock.patch.object(vt, "_fit", side_effect=spy):
             out = vt.tune(rows, ref, effective_algo_rules({}), lam=0.5)
-        total = out["rows_used"]
         self.assertEqual(out["validation"]["folds"], len(giornate))
-        self.assertEqual(calls[0], total)                       # proposta: tutte le righe
-        usable = self._usable_by_giornata(rows, ref)
-        self.assertEqual(sorted(calls[1:]), sorted(total - n for n in usable.values()))
-
-    def _usable_by_giornata(self, rows, ref):
-        rules = vt._neutral(effective_algo_rules({}))
-        out = {}
-        for i, r in enumerate(rows):
-            if ref.get(i) is None or not va.has_vote(r, r["role"], rules) or vt.cap_active(r, r["role"], rules):
-                continue
-            out[r["_g"]] = out.get(r["_g"], 0) + 1
-        return out
+        self.assertEqual(calls[0], (out["rows_both"], giornate))          # proposta: tutte le righe
+        # ogni verifica si tara senza la giornata su cui si misura
+        held_out = [giornate - seen for _n, seen in calls[1:]]
+        self.assertEqual(sorted(len(h) for h in held_out), [1] * len(giornate))
+        self.assertEqual(set().union(*held_out), giornate)
+        per_g = {g: sum(1 for c in vt._candidates(rows, ref, vt._neutral(effective_algo_rules({})))
+                        if rows[c[0]]["_g"] == g) for g in giornate}
+        for (n, _seen), (g,) in zip(calls[1:], held_out):
+            self.assertEqual(n, out["rows_both"] - per_g[g])
 
     def test_una_giornata_divide_per_partita(self):
         rows, ref = synthetic(true=TRUE, per_giornata=10 ** 6)
@@ -357,6 +363,70 @@ class TuningTests(SimpleTestCase):
         # le due squadre della stessa partita hanno la stessa chiave
         self.assertEqual(keys[0], keys[11])
         self.assertNotEqual(keys[0], keys[22])
+
+    def test_seconda_iterazione_esclude_i_tetti_dei_valori_stimati(self):
+        """Portieri con 3 gol subiti: con -0,25 per gol il tetto (-1) non
+        scatta, con i valori veri (-0,45) sì. La prima stima li tiene, la
+        seconda li esclude."""
+        rows, ref = synthetic(true=TRUE)
+        anchor = vt._neutral(effective_algo_rules({}))
+        cands = vt._candidates(rows, ref, anchor)
+        gk3 = {c[0] for c in cands if c[2] == "P" and va._i(rows[c[0]].get("goals_conceded")) == 3}
+        self.assertTrue(gk3)
+        fit = vt._fit(cands, anchor, vt.tunable_paths(anchor), 0.01,
+                      voto_algo.tuning_ranges(effective_algo_rules({})))
+        self.assertFalse(gk3 & fit["trace"][0])            # prima stima: dentro
+        self.assertTrue(gk3 <= fit["trace"][1])            # seconda: fuori
+        self.assertTrue(gk3 <= fit["excluded"])
+        self.assertLess(fit["values"]["conceded_P"], -0.4)
+
+    def test_iterazioni_limitate_e_risultato_deterministico(self):
+        rules = effective_algo_rules({})
+        # Valore vero sul filo del tetto (0,25 = margin_cap): l'insieme delle
+        # righe al tetto cambia a ogni stima e non si ferma da solo.
+        edge = {**TRUE, "margin_step": 0.25}
+        for true in (TRUE, edge):
+            rows, ref = synthetic(true=true)
+            one = vt.tune(rows, ref, rules, lam=0.01)
+            two = vt.tune(rows, ref, rules, lam=0.01)
+            self.assertLessEqual(one["iterations"], vt.MAX_ITERATIONS)
+            self.assertEqual(one["proposal"], two["proposal"])
+            self.assertEqual((one["iterations"], one["rows_capped"]), (two["iterations"], two["rows_capped"]))
+        self.assertIn(one["iterations_stop"], ("limite", "oscilla"))
+        self.assertAlmostEqual(one["proposal"].get("margin_step", 0.125), 0.25, delta=0.06)
+
+    def test_oscillazione_tiene_la_proposta_migliore(self):
+        """Se l'insieme escluso torna uguale a uno già visto, la stima si
+        ferma e tiene la proposta con l'errore di taratura più basso."""
+        rows, ref = synthetic(true=TRUE)
+        anchor = vt._neutral(effective_algo_rules({}))
+        cands = vt._candidates(rows, ref, anchor)
+        a, b = frozenset({cands[0][0]}), frozenset({cands[1][0]})
+        real = vt._analyze
+
+        def fake(row, role, rules):
+            x, caps = real(row, role, rules)
+            if rules is anchor:
+                return x, ([] if row is not cands[0][1] else ["finto"])
+            return x, (["finto"] if row is cands[0][1] or (row is cands[1][1] and fake.flip) else [])
+        fake.flip = False
+
+        estimates = []
+
+        def estimate(entries, *args, **kwargs):
+            estimates.append(len(entries))
+            fake.flip = not fake.flip
+            return ({"win": 0.4 if fake.flip else 0.3}, {})
+
+        with mock.patch.object(vt, "_analyze", side_effect=fake), \
+                mock.patch.object(vt, "_estimate", side_effect=estimate):
+            fit = vt._fit([(i, row, role, r, x, row is cands[0][1]) for i, row, role, r, x, _c in cands],
+                          anchor, ["win"], 0.5, {})
+        self.assertEqual(fit["stopped"], "oscilla")
+        self.assertEqual(fit["trace"], [a, a | b])
+        mae = {v: vt._mae(vt._vote_pairs([c[1] for c in cands], {n: c[3] for n, c in enumerate(cands)},
+                                          vt._apply(anchor, {"win": v}))) for v in (0.3, 0.4)}
+        self.assertEqual(fit["values"]["win"], min(mae, key=mae.get))
 
     def test_gruppi_esclusi_restano_invariati(self):
         rows, ref = synthetic(true=TRUE)

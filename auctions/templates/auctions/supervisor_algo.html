@@ -908,7 +908,7 @@ salvataggio finché non si preme «Salva»). Solo superuser.
                 `<div class="va-kpis" style="padding:0">
                     <div class="va-kpi"><div class="k">MAE in taratura</div><div class="v">${nf(f.mae_after)}</div><div class="s">in uso ${nf(f.mae_before)} · ${f.n} giocatori</div></div>
                     <div class="va-kpi"><div class="k">MAE in verifica</div><div class="v ${v.gain >= 0.02 ? "va-up" : ""}">${nf(v.mae_after)}</div><div class="s">in uso ${nf(v.mae_before)} · ${esc(how)}</div></div>
-                    <div class="va-kpi"><div class="k">Giocatori usati</div><div class="v">${d.rows_used}</div><div class="s">${d.rows_capped} esclusi per un tetto attivo</div></div>
+                    <div class="va-kpi"><div class="k">Giocatori usati</div><div class="v">${d.rows_used}</div><div class="s">${d.rows_capped} esclusi per un tetto attivo · ${d.iterations} ${d.iterations === 1 ? "iterazione" : "iterazioni"}${d.iterations_stop === "stabile" ? "" : " (tetti non stabili: tenuta la proposta con l'errore più basso)"}</div></div>
                     <div class="va-kpi"><div class="k">Prudenza</div><div class="v">λ ${nfAny(Number(d.lambda.toPrecision(2)))}</div><div class="s">verso i valori della bozza</div></div>
                 </div>` +
                 `<div class="va-table-wrap"><table class="va-rt va-fittab"><thead><tr><th>Parametro</th><th>Attuale</th><th>Proposto</th><th>Δ</th></tr></thead><tbody>` +

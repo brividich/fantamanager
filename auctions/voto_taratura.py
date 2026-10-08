@@ -10,8 +10,10 @@ Il voto grezzo è lineare nei parametri:
 vinto, quello di ``goal`` il numero di gol, quello di un peso del rendimento lo
 scarto della statistica per 90' dalla media del ruolo, …). Fanno eccezione i
 tetti (``margin_cap``, ``conceded_cap``, ``perf_cap``): le righe in cui un
-tetto è attivo si escludono dalla regressione. Limiti min/max e arrotondamento
-stanno dopo il grezzo e non entrano nella stima.
+tetto è attivo si escludono dalla regressione, con i valori di partenza o con
+quelli stimati (la stima si ripete finché quell'insieme non cambia, vedi
+``_fit``). Limiti min/max e arrotondamento stanno dopo il grezzo e non entrano
+nella stima.
 
 La stima è una ridge regression verso i valori attuali:
 
@@ -56,6 +58,8 @@ MOVE_PERF = 0.15
 PRUDENZA = {"bassa": 0.1, "media": 0.5, "alta": 2.0}
 LAMBDA_RANGE = (0.01, 20.0)
 MIN_ROWS = 300
+# Stima ripetuta finché le righe con un tetto attivo non cambiano.
+MAX_ITERATIONS = 4
 MIN_GAIN = 0.02
 SPLIT_TRAIN = 0.7
 SPLIT_SEED = 7
@@ -348,6 +352,68 @@ def _neutral(rules):
 
 
 # --------------------------------------------------------------------------
+# Stima con i tetti
+# --------------------------------------------------------------------------
+#
+# Una riga con un tetto attivo non è lineare nei parametri e va tolta dalla
+# regressione. Ma il tetto dipende dai valori: una riga libera con quelli di
+# partenza può finire al tetto con quelli stimati (un portiere che subisce 3
+# gol: -0,25 × 3 = -0,75, sopra il tetto di -1; -0,45 × 3 = -1,35, al tetto).
+# Lasciarla dentro attenua la stima proprio dei parametri con un tetto
+# (gol subiti, scarto). Per questo la stima si ripete escludendo le righe al
+# tetto con i valori di partenza OPPURE con quelli proposti, finché l'insieme
+# escluso non cambia. La regolarizzazione resta ancorata ai valori di partenza.
+
+def _candidates(rows, ref, anchor, indices=None):
+    """Le righe utili alla taratura: voto di riferimento e voto
+    dell'algoritmo. Ogni voce: (indice, riga, ruolo, rif, contributi, tetto
+    attivo con i valori di partenza)."""
+    out = []
+    for i in (range(len(rows)) if indices is None else indices):
+        r = ref.get(i)
+        row = rows[i]
+        role = _role(row)
+        if r is None or not has_vote(row, role, anchor):
+            continue
+        x, caps = _analyze(row, role, anchor)
+        out.append((i, row, role, r, x, bool(caps)))
+    return out
+
+
+def _fit(cands, anchor, paths, lam, ranges, max_iterations=MAX_ITERATIONS):
+    """Stima ripetuta sui candidati. Ritorna {values, flags, excluded (indici
+    delle righe escluse per un tetto), iterations, trace (gli insiemi esclusi
+    a ogni iterazione), stopped ("stabile" | "oscilla" | "limite")}."""
+    anchor_capped = frozenset(i for i, *_rest, capped in cands if capped)
+    excluded = anchor_capped
+    seen, records = [], []
+    stopped = "limite"
+    for _ in range(max_iterations):
+        entries = [(x, r) for i, _row, _role, r, x, _c in cands if i not in excluded]
+        values, flags = _estimate(entries, anchor, paths, lam, ranges)
+        proposed = _apply(anchor, values)
+        records.append({"values": values, "flags": flags, "excluded": excluded, "rules": proposed})
+        seen.append(excluded)
+        nxt = anchor_capped | frozenset(i for i, row, role, _r, _x, _c in cands
+                                        if _analyze(row, role, proposed)[1])
+        if nxt == excluded:
+            stopped = "stabile"
+            break
+        if nxt in seen:
+            stopped = "oscilla"
+            break
+        excluded = nxt
+    chosen = records[-1]
+    if stopped != "stabile" and len(records) > 1:
+        # Nessun punto fermo: la proposta con l'errore di taratura più basso.
+        rows = [row for _i, row, *_rest in cands]
+        ref = {n: c[3] for n, c in enumerate(cands)}
+        chosen = min(records, key=lambda rec: (_mae(_vote_pairs(rows, ref, rec["rules"])) or 0.0))
+    return {"values": chosen["values"], "flags": chosen["flags"], "excluded": chosen["excluded"],
+            "iterations": len(records), "trace": [rec["excluded"] for rec in records], "stopped": stopped}
+
+
+# --------------------------------------------------------------------------
 # Dati, validazione, proposta
 # --------------------------------------------------------------------------
 
@@ -421,28 +487,20 @@ def tune(rows, ref, rules, *, groups=None, lam=PRUDENZA["media"], ranges=None, m
     lam = _clamp(float(lam), *LAMBDA_RANGE)
     paths = tunable_paths(anchor, groups)
 
-    usable, capped_n = [], 0
-    for i, row in enumerate(rows):
-        r = ref.get(i)
-        role = _role(row)
-        if r is None or not has_vote(row, role, anchor):
-            continue
-        x, caps = _analyze(row, role, anchor)
-        if caps:
-            capped_n += 1
-            continue
-        usable.append((i, x, r))
-    both = capped_n + len(usable)
+    cands = _candidates(rows, ref, anchor)
+    both = len(cands)
     if both < min_rows:
         raise ValueError(f"servono almeno {min_rows} giocatori abbinati con voto in entrambi "
                          f"(algoritmo e riferimento): ce ne sono {both}")
     if not paths:
         raise ValueError("scegli almeno un gruppo di parametri da tarare")
 
-    values, flags = _estimate([(x, r) for _i_, x, r in usable], anchor, paths, lam, ranges)
+    fit = _fit(cands, anchor, paths, lam, ranges)
+    values, flags = fit["values"], fit["flags"]
     proposed = _apply(anchor, values)
 
-    # Verifica fuori campione.
+    # Verifica fuori campione: ogni fold rifà la stessa stima ripetuta sulle
+    # sole righe di taratura, così misura esattamente quello che si propone.
     giornate = sorted({row.get("_g") for row in rows if row.get("_g") is not None}, key=str)
     if len(giornate) >= 2:
         mode = "giornate"
@@ -456,11 +514,10 @@ def tune(rows, ref, rules, *, groups=None, lam=PRUDENZA["media"], ranges=None, m
         folds = [{i for i, k in enumerate(keys) if k in test_keys}]
     val_before, val_after = [], []
     for test in folds:
-        train = [(x, r) for i, x, r in usable if i not in test]
+        train = [c for c in cands if c[0] not in test]
         if not train:
             continue
-        fold_values, _f = _estimate(train, anchor, paths, lam, ranges)
-        fold_rules = _apply(anchor, fold_values)
+        fold_rules = _apply(anchor, _fit(train, anchor, paths, lam, ranges)["values"])
         test_rows = [rows[i] for i in sorted(test)]
         test_ref = {n: ref.get(i) for n, i in enumerate(sorted(test))}
         val_before += _vote_pairs(test_rows, test_ref, anchor)
@@ -488,7 +545,8 @@ def tune(rows, ref, rules, *, groups=None, lam=PRUDENZA["media"], ranges=None, m
     return {
         "lambda": lam,
         "groups": sorted({group_of(p) for p in paths}),
-        "rows_both": both, "rows_used": len(usable), "rows_capped": capped_n,
+        "rows_both": both, "rows_used": both - len(fit["excluded"]), "rows_capped": len(fit["excluded"]),
+        "iterations": fit["iterations"], "iterations_stop": fit["stopped"],
         "params": params,
         "proposal": {p["path"]: p["proposed"] for p in params if abs(p["delta"]) > 1e-9},
         "fit": {"n": len(fit_after), "mae_before": _mae(fit_before), "mae_after": _mae(fit_after)},
