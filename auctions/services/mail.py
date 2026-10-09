@@ -117,9 +117,10 @@ def send(subject, to, text, html=None, reply_to=None, cfg=None, conn=None):
     try:
         msg.send(fail_silently=False)
     except Exception as exc:  # smtplib, socket, ssl… all end up here
-        logger.warning("Invio email fallito a %s: %s", ", ".join(recipients), exc)
+        # Mai gli indirizzi nei log: bastano quanti erano (dati di terzi).
+        logger.warning("Invio email fallito (%d destinatari): %s", len(recipients), _explain(exc))
         return False, _explain(exc)
-    logger.info("Email «%s» inviata a %s", subject, ", ".join(recipients))
+    logger.info("Email «%s» inviata (%d destinatari)", subject, len(recipients))
     return True, ""
 
 
@@ -166,7 +167,7 @@ def send_test(to, cfg=None):
 def league_recipients(league):
     """The league's active teams that have an address to write to."""
     from ..models import Participant
-    teams = Participant.objects.filter(league=league, is_active=True).select_related("user")
+    teams = Participant.objects.filter(league=league, is_active=True).select_related("user", "user__privacy")
     return [p for p in teams if p.contact_email]
 
 
@@ -229,6 +230,10 @@ def _send_to_teams(request, teams, subject, template, extra):
         report["errors"].append("Posta non configurata.")
         report["skipped"] = len(teams)
         return report
+    from . import privacy
+
+    sender = sender_name(request, teams[0].league if teams else None)
+    legal_urls = privacy.legal_links(base)
     conn = connection(cfg)
     try:
         conn.open()
@@ -242,7 +247,8 @@ def _send_to_teams(request, teams, subject, template, extra):
             if not address:
                 report["skipped"] += 1
                 continue
-            ctx = {"team": p, "league": p.league, **extra(base, p)}
+            ctx = {"team": p, "league": p.league, "sender": sender, **legal_urls,
+                   "unsubscribe_url": privacy.unsubscribe_url(base, p), **extra(base, p)}
             text = render_to_string(f"auctions/email/{template}.txt", ctx)
             html = render_to_string(f"auctions/email/{template}.html", ctx)
             ok, error = send(subject, address, text, html=html, cfg=cfg, conn=conn)
@@ -258,6 +264,18 @@ def _send_to_teams(request, teams, subject, template, extra):
         except Exception:
             pass
     return report
+
+
+def sender_name(request, league):
+    """Chi manda le email della lega, come lo legge chi le riceve: chi ha
+    premuto il tasto (le view lo lasciano solo a chi gestisce la lega), o il
+    presidente quando parte da un superuser o senza richiesta."""
+    user = getattr(request, "user", None) if request is not None else None
+    if user is None or not user.is_authenticated or user.is_superuser:
+        user = getattr(league, "owner", None) if league is not None else None
+    if user is None:
+        return "il presidente della lega"
+    return user.get_full_name() or user.first_name or user.username
 
 
 def send_team_invites(request, league, teams=None):

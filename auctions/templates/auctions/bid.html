@@ -1,6 +1,8 @@
 {% extends "auctions/base.html" %}
 {% block title %}{{ auction.title }} — Offerte{% endblock %}
 {% block bodyclass %}role-player{% endblock %}
+{# Asta dal vivo: niente avvisi in cima alla pagina delle offerte (stanno nelle altre pagine). #}
+{% block privacy_notice %}{% endblock %}
 {% block wrapclass %}bid-wrap{% endblock %}
 
 {% block content %}

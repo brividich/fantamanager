@@ -114,10 +114,14 @@ class SaasRbacTests(TestCase):
 
     def test_on_a_server_the_first_registration_is_an_ordinary_user(self):
         User.objects.all().delete()
+        # Sul server la registrazione chiede email e consenso (test_privacy).
         resp = self.client.post(reverse("register"), {
             "username": "first_user",
+            "email": "first@example.it",
             "password": "securepassword123",
             "password_confirm": "securepassword123",
+            "accept_terms": "1",
+            "accept_age": "1",
         })
         self.assertRedirects(resp, reverse("onboarding"))
         self.assertFalse(User.objects.get(username="first_user").is_superuser)

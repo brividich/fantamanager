@@ -241,6 +241,12 @@ def main() -> None:
 
     # First-run / upgrade: bring the SQLite schema up to date silently.
     call_command("migrate", interactive=False, verbosity=0)
+    # Il PC non ha lo scheduler: la pulizia della privacy (IP delle offerte
+    # vecchie, sessioni scadute) la fa a ogni avvio.
+    try:
+        call_command("privacy_cleanup", verbosity=0)
+    except Exception:  # noqa: BLE001 — mai un motivo per non aprire l'app
+        pass
 
     port = free_port(8000)
     url = f"http://localhost:{port}/"

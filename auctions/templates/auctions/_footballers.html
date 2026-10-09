@@ -7,6 +7,7 @@ filtri, righe e testi si cambiano qui, valgono per entrambe.
 Dati da views/footballers.py:footballers_context (fb_*); i link restano
 relativi alla pagina che include il partial, la lega in ?league= compresa.
 {% endcomment %}
+{% load fm_privacy %}
 <!-- footballers:start -->
 <style>
     .fb-stats { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
@@ -183,12 +184,12 @@ relativi alla pagina che include il partial, la lega in ?league= compresa.
     <div class="fb-list">
     {% for f in fb_rows %}
         <div class="fb-row">
-            {% if f.photo_url %}<img class="fb-photo" src="{{ f.photo_url }}" alt="" loading="lazy" referrerpolicy="no-referrer">
+            {% if f.photo_url %}<img class="fb-photo" src="{{ f.photo_url|local_img }}" alt="" loading="lazy" referrerpolicy="no-referrer">
             {% else %}<span class="fb-photo"></span>{% endif %}
             <div class="fb-main">
                 <div class="fb-name">{% if f.role %}<span class="role-badge role-{{ f.role }}">{{ f.role }}</span> {% endif %}{{ f.name }}{% if f.roles_display %} <span class="fb-mroles">{{ f.roles_display }}</span>{% endif %}{% if f.role_edited %} <span class="fb-edited" title="Ruolo corretto a mano: gli aggiornamenti da API-Football non lo cambiano">✎</span>{% endif %}</div>
                 <div class="fb-sub">
-                    {% if f.club_logo %}<img src="{{ f.club_logo }}" alt="" loading="lazy" referrerpolicy="no-referrer">{% endif %}
+                    {% if f.club_logo %}<img src="{{ f.club_logo|local_img }}" alt="" loading="lazy" referrerpolicy="no-referrer">{% endif %}
                     <span>{{ f.club_name|default:"—" }}</span>
                     {% if f.number %}<span>· n. {{ f.number }}</span>{% endif %}
                     {% if f.age %}<span>· {{ f.age }} anni</span>{% endif %}

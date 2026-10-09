@@ -11,9 +11,11 @@ import time
 from django.core.management.base import BaseCommand
 from django.db import close_old_connections
 
-from ...services import scheduler
+from ...services import privacy, scheduler
 
 logger = logging.getLogger("auctions.scheduler")
+
+PRIVACY_CLEANUP_EVERY = 24 * 3600
 
 
 class Command(BaseCommand):
@@ -34,7 +36,18 @@ class Command(BaseCommand):
         signal.signal(signal.SIGINT, _stop)
         if not once:
             self.stdout.write(f"Scheduler avviato (ogni {interval}s).")
+        last_cleanup = 0.0
         while True:
+            if not once and time.monotonic() - last_cleanup >= PRIVACY_CLEANUP_EVERY:
+                # Conservazione dei dati personali (docs/PRIVACY.md): una volta
+                # al giorno, e subito all'avvio.
+                last_cleanup = time.monotonic()
+                try:
+                    report = privacy.cleanup()
+                    if any(report.values()):
+                        logger.info("Pulizia privacy: %s", report)
+                except Exception:
+                    logger.exception("Pulizia privacy non riuscita")
             try:
                 summary = scheduler.run_once(broadcast=scheduler.channel_broadcast)
             except Exception:

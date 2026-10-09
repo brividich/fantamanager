@@ -141,6 +141,8 @@ MIDDLEWARE = [
     "auctions.middleware.FriendlyErrorPages",
     # Lega bloccata dall'asta in sala: un messaggio, non un errore (services/sala.py).
     "auctions.middleware.SalaLockGuard",
+    # Informativa o termini cambiati: chi li aveva accettati li riaccetta.
+    "auctions.middleware.LegalGate",
 ]
 
 # WhiteNoise serves static files efficiently when running behind a single ASGI
@@ -177,6 +179,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "auctions.context_processors.app_version",
+                "auctions.context_processors.privacy_notice",
             ],
         },
     },
@@ -308,6 +311,10 @@ FM_MAX_REQUEST_BYTES = int(os.getenv("FM_MAX_REQUEST_BYTES", str(25 * 1024 * 102
 MEDIA_ROOT = Path(os.getenv("FANTAMANAGER_MEDIA_ROOT") or (BASE_DIR / "media"))
 
 # PostgreSQL dumps (./backups in docker-compose, shared with its backup service).
+# Quante copie tiene il servizio di backup e ogni quante ore (docker-compose):
+# qui solo per scriverlo nell'informativa (tabella della conservazione).
+BACKUP_KEEP = int(os.getenv("BACKUP_KEEP", "30"))
+BACKUP_EVERY_HOURS = int(os.getenv("BACKUP_EVERY_HOURS", "6"))
 BACKUP_DIR = Path(os.getenv("FANTAMANAGER_BACKUP_DIR") or (BASE_DIR / "backups"))
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
@@ -353,6 +360,26 @@ EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True").lower() in ("1", "true", "yes
 EMAIL_USE_SSL = os.getenv("EMAIL_USE_SSL", "False").lower() in ("1", "true", "yes")
 EMAIL_TIMEOUT = int(os.getenv("EMAIL_TIMEOUT", "15"))
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "FantaManager <noreply@fantamanager.local>")
+
+# --- Privacy ----------------------------------------------------------------
+# Titolare del trattamento e contatto privacy mostrati nell'informativa
+# (/privacy/): chi gestisce l'istanza li imposta nel .env, non stanno nel codice.
+FM_PRIVACY_OWNER = os.getenv("FM_PRIVACY_OWNER", "").strip()
+FM_PRIVACY_EMAIL = os.getenv("FM_PRIVACY_EMAIL", "").strip()
+# Dopo quanti giorni IP e user-agent delle offerte vengono azzerati.
+FM_RETENTION_BID_IP_DAYS = int(os.getenv("FM_RETENTION_BID_IP_DAYS", "90"))
+# Account registrati da soli, mai verificati, senza squadre né leghe: cancellati
+# dopo questi giorni.
+FM_RETENTION_UNVERIFIED_DAYS = int(os.getenv("FM_RETENTION_UNVERIFIED_DAYS", "30"))
+# Consenso a informativa e termini alla registrazione, email obbligatoria e
+# riaccettazione quando i testi cambiano. L'app del PC tiene i dati sul PC di
+# chi la usa, senza utenti esterni: lì è spento, salvo FM_LEGAL_REQUIRED=True.
+# Vuoto = automatico (acceso sul server, spento sul PC).
+_legal = os.getenv("FM_LEGAL_REQUIRED", "").strip().lower()
+FM_LEGAL_REQUIRED = None if not _legal else _legal in ("1", "true", "yes")
+# Cookie: solo quelli tecnici (sessione e CSRF), quindi nessun banner. Se un
+# giorno servono statistiche di visita, solo strumenti senza cookie e ospitati
+# qui (per esempio Umami o Plausible self-hosted), mai script di terzi.
 
 # --- Logging ----------------------------------------------------------------
 LOGS_DIR = BASE_DIR / "logs"

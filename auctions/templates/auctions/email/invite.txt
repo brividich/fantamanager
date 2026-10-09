@@ -1,6 +1,6 @@
 {% autoescape off %}Ciao {{ team.display_name }},
 
-sei nella lega {{ league.name }}. Dall'app vedi la tua rosa, prepari la formazione, fai le offerte al mercato e segui l'asta dal telefono.
+{{ sender }} ti ha invitato nella lega {{ league.name }} con questa squadra. Dall'app vedi la tua rosa, prepari la formazione, fai le offerte al mercato e segui l'asta dal telefono.
 
 Entra nella tua squadra con il tuo link personale:
 {{ link }}
@@ -11,3 +11,4 @@ Il link è personale: non inoltrarlo.
 
 — FantaManager · {{ league.name }}
 {% endautoescape %}
+{% include "auctions/email/_footer.txt" %}

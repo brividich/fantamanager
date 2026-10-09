@@ -1,0 +1,8 @@
+{% autoescape off %}Ciao {{ name }},
+
+come hai chiesto, il tuo account FantaManager «{{ report.username }}» è stato eliminato.
+{% if report.teams %}Le tue squadre ({{ report.teams }}) restano alla loro lega, senza più collegamenti a te.
+{% endif %}Offerte e risultati restano alla lega senza indirizzo IP né dispositivo.
+
+Non sei stato tu? Rispondi subito a chi gestisce il sito{% if privacy_url %} (contatti nell'informativa: {{ privacy_url }}){% endif %}.
+{% endautoescape %}

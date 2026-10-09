@@ -1,6 +1,8 @@
 {% extends "auctions/base.html" %}
 {% block title %}{{ auction.title }} — Maxischermo{% endblock %}
 {% block bodyclass %}role-tv{% endblock %}
+{# Maxischermo (proiettore, nessuno ci clicca): niente avvisi né link legali. #}
+{% block privacy_notice %}{% endblock %}{% block legal_footer %}{% endblock %}
 {% block wrapclass %}wrap-wide{% endblock %}
 
 {% block content %}

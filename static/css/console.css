@@ -1222,3 +1222,52 @@ tr.flash-in { animation: flashIn .5s ease; }
     -webkit-mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent);
             mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent);
 }
+
+/* ---- Passi numerati (procedure: fatto ✓, adesso, dopo) -------------- */
+/* Come .sala-steps (_sala_connect.html), per le pagine nuove: account,
+   privacy, inviti. <ol class="fm-steps"><li class="done|now|opt"> */
+.fm-steps { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
+.fm-steps li { display: grid; grid-template-columns: 24px minmax(0,1fr); gap: 10px; align-items: start;
+    padding: 8px 10px; border-radius: var(--fm-radius-sm); border: 1px solid transparent; min-width: 0; }
+.fm-steps li > div { display: grid; gap: 6px; min-width: 0; }
+.fm-steps .n { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 800; background: rgba(255,255,255,.06); color: var(--fm-text-muted); }
+.fm-steps b { font-size: 13px; }
+.fm-steps b small { font-weight: 500; color: var(--fm-text-muted); }
+.fm-steps span { font-size: 12.5px; color: var(--fm-text-secondary); line-height: 1.5; }
+.fm-steps span.warn { color: var(--fm-warning); }
+.fm-steps li.done .n { background: rgba(22,217,104,.15); color: var(--fm-success); }
+.fm-steps li.done b { color: var(--fm-text-secondary); }
+.fm-steps li.now { border-color: var(--fm-border-active); background: rgba(8,124,240,.06); }
+.fm-steps li.now .n { background: var(--fm-primary); color: #fff; }
+.fm-steps li.opt .n { border: 1px dashed var(--fm-border); background: none; }
+.fm-steps .fm-btn, .fm-steps form { justify-self: start; }
+
+/* ---- Privacy: avviso in cima e link legali in fondo ----------------- */
+.fm-privacy-notice {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
+    margin: 0 auto; padding: 8px 16px; font-size: 12.5px; line-height: 1.45;
+    background: rgba(250,204,21,.10); border-bottom: 1px solid rgba(250,204,21,.28); color: var(--fm-text);
+}
+.fm-privacy-notice form { margin: 0; }
+.fm-privacy-notice a { color: inherit; font-weight: 700; }
+.fm-legal-foot {
+    text-align: center; font-size: 11.5px; color: var(--fm-text-muted);
+    padding: 14px 16px 18px;
+}
+.fm-legal-foot a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.fm-legal-foot a + a::before { content: "·"; display: inline-block; margin: 0 8px; text-decoration: none; }
+@media print { .fm-legal-foot, .fm-privacy-notice { display: none; } }
+
+/* ---- Pagine legali (informativa, termini) ---------------------------- */
+.fm-legal { max-width: 820px; margin: 0 auto; line-height: 1.65; font-size: 14px; }
+.fm-legal h1 { font-family: var(--fm-display); font-size: 28px; margin: 6px 0 4px; }
+.fm-legal h2 { font-size: 17px; margin: 26px 0 8px; }
+.fm-legal .legal-meta { color: var(--fm-text-muted); font-size: 12.5px; }
+.fm-legal .legal-draft {
+    margin: 14px 0; padding: 10px 14px; border-radius: var(--fm-radius-sm);
+    background: rgba(239,68,68,.10); border: 1px solid rgba(239,68,68,.35); font-weight: 700; font-size: 13px;
+}
+.fm-legal table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.fm-legal th, .fm-legal td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--fm-border); vertical-align: top; }
+.fm-legal .table-scroll table { min-width: 520px; }

@@ -1,0 +1,11 @@
+{% autoescape off %}Ciao {{ user.first_name|default:user.username }},
+
+per confermare l'email {{ email }} del tuo account FantaManager «{{ user.username }}» apri questo link:
+{{ link }}
+
+Il link vale {{ hours }} ore. Finché non confermi, l'account funziona ma non ricevi avvisi e non puoi recuperare la password.
+Non hai creato tu l'account? Ignora questa email.
+
+--
+Informativa privacy: {{ privacy_url }} · Termini: {{ terms_url }}
+{% endautoescape %}

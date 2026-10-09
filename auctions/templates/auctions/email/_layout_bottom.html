@@ -1,6 +1,7 @@
 </td></tr>
-<tr><td style="padding:14px 24px;background:#f6f8fb;color:#64748b;font-size:11.5px;line-height:1.5">
-  Ricevi questa email perché la tua squadra partecipa a {{ league.name }}. Il link è personale: non inoltrarlo.
+<tr><td style="padding:14px 24px;background:#f6f8fb;color:#64748b;font-size:11.5px;line-height:1.55">
+  Te l'ha mandata <b>{{ sender }}</b>, che organizza la lega <b>{{ league.name }}</b> su FantaManager: ricevi questa email perché ha inserito il tuo indirizzo per la squadra <b>{{ team.display_name }}</b>. Il link è personale: non inoltrarlo.<br>
+  {% if unsubscribe_url %}<a href="{{ unsubscribe_url }}" style="color:#64748b">Non voglio più ricevere email da questa lega</a>{% endif %}{% if privacy_url %} · <a href="{{ privacy_url }}" style="color:#64748b">Informativa privacy</a> · <a href="{{ terms_url }}" style="color:#64748b">Termini</a>{% endif %}
 </td></tr>
 </table>
 </td></tr></table>

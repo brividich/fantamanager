@@ -42,6 +42,7 @@ from .participant import (
     Participant,
     Watch,
 )
+from .privacy import AccountPrivacy, AuditLog, LegalAcceptance
 from .player import (
     Player,
     RosterLog,
@@ -64,6 +65,9 @@ __all__ = [
     "AuctionCycleResult",
     "Participant",
     "ManagedAccount",
+    "AccountPrivacy",
+    "AuditLog",
+    "LegalAcceptance",
     "Watch",
     "Bid",
     "SealedBid",

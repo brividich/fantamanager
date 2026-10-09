@@ -136,6 +136,8 @@ button) and everything else opens as a full-screen menu: ``.fm-chrome`` is
     <span class="fm-nav-spacer"></span>
 
     {% if request.user.is_authenticated %}
+    <a class="fm-nav-link {% if console_active == 'account' %}is-active{% endif %}" href="{% url 'account' %}" title="Email, i tuoi dati, privacy">
+        <svg class="ic"><use href="#i-shield"/></svg> Il mio account</a>
     <a class="fm-nav-link" data-nav-keep href="{% url 'logout' %}" style="color:#ef4444" title="Disconnetti account">
         Esci
     </a>

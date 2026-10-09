@@ -1,0 +1,33 @@
+{% extends "auctions/base.html" %}
+{% block title %}Email della lega — FantaManager{% endblock %}
+{% block content %}
+{% include "auctions/_auth_style.html" %}
+<div class="auth-card">
+    <div class="auth-brand">
+        <div class="auth-title">{% if invalid %}Link non valido{% elif done %}Fatto{% else %}Email della lega{% endif %}</div>
+        {% if not invalid %}<div class="auth-subtitle">{{ team.display_name }}{% if league %} · {{ league.name }}{% endif %}</div>{% endif %}
+    </div>
+    <details class="howto"{% if not done %} open{% endif %}>
+        <summary><svg class="ic"><use href="#i-shield"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+        <div class="howto-body">
+            {% if invalid %}Il link non è completo o la squadra non esiste più. Copia il link per intero dall'email; se non basta, scrivi al presidente della lega.
+            {% elif done %}Non ricevi più email da questa lega. Il presidente lo vede nella pagina Squadre. Se cambi idea, chiedigli di scrivere di nuovo la tua email.
+            {% else %}
+            <ol>
+                <li>Premi <b>Non voglio più email da questa lega</b>: l'indirizzo della squadra viene tolto.</li>
+                <li>Il presidente lo vede nella pagina Squadre. La squadra e il link d'accesso restano come sono.</li>
+            </ol>
+            {% endif %}
+        </div>
+    </details>
+    {% if done %}
+    <div class="auth-success" role="status">Non riceverai più email da {{ league.name|default:"questa lega" }} per {{ team.display_name }}.</div>
+    {% elif not invalid %}
+    {% if already %}<p style="line-height:1.6">Questa squadra ha già chiesto di non ricevere email{% if team.email %}, ma il presidente ha scritto un indirizzo nuovo{% endif %}.</p>{% endif %}
+    <form method="post">{% csrf_token %}
+        <button type="submit" class="btn-submit">Non voglio più email da questa lega</button>
+    </form>
+    {% endif %}
+    <p class="auth-legal"><a href="{% url 'privacy' %}">Informativa privacy</a></p>
+</div>
+{% endblock %}

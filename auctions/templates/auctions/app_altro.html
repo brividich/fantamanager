@@ -54,6 +54,7 @@
             {% endif %}
             <li>Tocca <b>Installa l'app sul telefono</b> per averla sulla schermata Home, a tutto schermo.</li>
             <li><b>Tema</b> alterna la modalità scura e chiara.</li>
+            {% if user.is_authenticated %}<li><b>Il mio account</b>: cambia email, scarica i tuoi dati o elimina l'account.</li>{% endif %}
             <li><b>{% if participant %}Cambia squadra o account{% else %}Collega una squadra{% endif %}</b> per entrare con un altro codice o profilo; <b>Esci</b> chiude la sessione.</li>
             {% if is_app_admin %}
             <li><b>Regia della lega</b> apre il pannello dell'admin.</li>
@@ -200,6 +201,19 @@
         updateThemeLabel();
     }
     </script>
+
+    {% if user.is_authenticated %}
+    <a class="action-tile" href="{% url 'app_account' %}">
+        <div class="at-left">
+            <span class="at-icon"><svg class="ic"><use href="#i-shield"/></svg></span>
+            <div>
+                <span style="display:block;line-height:1.2">Il mio account</span>
+                <small class="muted" style="font-size:11.5px;font-weight:600">Email, i tuoi dati, privacy, elimina account</small>
+            </div>
+        </div>
+        <span class="muted" style="font-size:18px">›</span>
+    </a>
+    {% endif %}
 
     <a class="action-tile" href="{% url 'app_login' %}?switch=1">
         <div class="at-left">

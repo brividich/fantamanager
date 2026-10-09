@@ -1,0 +1,60 @@
+{% extends "auctions/base.html" %}
+{% block title %}Termini d'uso — FantaManager{% endblock %}
+{% block content %}
+<article class="fm-legal">
+    <div class="fm-onerow noprint" style="margin:8px 0 14px">
+        <a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% url 'home' %}"><svg class="ic"><use href="#i-arrow-left"/></svg> Home</a>
+        <a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% url 'privacy' %}">Informativa privacy</a>
+        {% if user.is_authenticated %}<a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% url 'account' %}">Il mio account</a>{% endif %}
+    </div>
+
+    <details class="howto noprint">
+        <summary><svg class="ic"><use href="#i-shield"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+        <div class="howto-body">
+            Le regole per usare FantaManager.
+            <ol>
+                <li>Leggile prima di registrarti: alla registrazione ti chiediamo di accettarle.</li>
+                <li>Se cambiano, al primo accesso ti chiediamo di accettarle di nuovo.</li>
+                <li>Domande: scrivi al contatto indicato nell'<a href="{% url 'privacy' %}">informativa privacy</a>.</li>
+            </ol>
+        </div>
+    </details>
+
+    <h1>Termini d'uso</h1>
+    <div class="legal-meta">Versione {{ terms_version }} · aggiornati il {{ legal_date|date:"j F Y" }}</div>
+    <div class="legal-draft">BOZZA — testo da far rivedere a un professionista prima di aprire il servizio a utenti esterni.</div>
+
+    <h2>1. Il servizio</h2>
+    <p>FantaManager serve a organizzare leghe di fantacalcio fra amici: aste, mercato, rose, formazioni e punteggi.
+        Lo gestisce {% if owner %}<b>{{ owner }}</b>{% else %}chi ha installato questo sito{% endif %}. È un gioco: non ci sono premi in denaro gestiti dal sito e i crediti delle squadre non hanno valore reale.</p>
+
+    <h2>2. Account</h2>
+    <ul>
+        <li>Per registrarti devi avere almeno {{ min_age }} anni e indicare un'email che usi davvero: serve a confermare l'account e a recuperare la password.</li>
+        <li>Tieni per te password, codice e link della squadra: chi li ha entra al tuo posto.</li>
+        <li>Un account per persona. Il presidente di una lega può creare account per le squadre della sua lega e consegnarli ai partecipanti.</li>
+    </ul>
+
+    <h2>3. Le leghe</h2>
+    <ul>
+        <li>Chi crea una lega ne è il presidente: decide regole, squadre e inviti, e può nominare dei co-admin.</li>
+        <li>Il presidente inserisce i dati delle squadre (nomi, email) solo di persone che partecipano alla lega e che sono d'accordo a ricevere gli inviti.</li>
+        <li>Le decisioni sul gioco (regole, ricorsi, offerte contestate) spettano alla lega, non al sito.</li>
+    </ul>
+
+    <h2>4. Uso corretto</h2>
+    <p>Non usare il sito per altro che il gioco: niente tentativi di entrare in account o squadre altrui, niente programmi che fanno offerte al posto tuo, niente contenuti offensivi nei nomi delle squadre o nei messaggi. Chi gestisce il sito può sospendere gli account che non rispettano queste regole.</p>
+
+    <h2>5. Disponibilità</h2>
+    <p>Il sito è offerto così com'è. Facciamo il possibile perché aste e mercato funzionino e i dati siano salvati (backup automatici), ma non possiamo garantire che il servizio non si interrompa mai. Durante un'asta, un'offerta conta da quando arriva al server.</p>
+
+    <h2>6. Eliminazione</h2>
+    <p>Puoi eliminare il tuo account quando vuoi da <a href="{% url 'account' %}">Il mio account</a>. La tua squadra resta alla lega (le altre squadre hanno giocato contro di te), senza riferimenti a te. Se sei presidente di una lega con altre squadre, prima passala a un co-admin o eliminala.</p>
+
+    <h2>7. Dati personali</h2>
+    <p>Come trattiamo i tuoi dati è scritto nell'<a href="{% url 'privacy' %}">informativa privacy</a>.</p>
+
+    <h2>8. Modifiche</h2>
+    <p>Se questi termini cambiano in modo sostanziale, al primo accesso ti chiediamo di accettarli di nuovo; se non li accetti puoi eliminare l'account.</p>
+</article>
+{% endblock %}
