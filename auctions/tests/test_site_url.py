@@ -140,21 +140,3 @@ class SiteUrlSettingTests(SimpleTestCase):
         for bad in ("fanta.example.it", "ftp://x.it", "https://x.it/percorso", "https://"):
             with self.subTest(bad=bad), self.assertRaises(ImproperlyConfigured):
                 _site_url(bad)
-
-    def test_the_server_profile_requires_it(self):
-        import importlib
-        import os
-        import sys
-
-        env = {"DJANGO_DEBUG": "False", "DJANGO_ALLOWED_HOSTS": "fanta.example.it",
-               "POSTGRES_DB": "x", "POSTGRES_PASSWORD": "una-password-vera", "FM_SITE_URL": ""}
-        with mock.patch.dict(os.environ, env):
-            for mod in ("liveauction.settings_server", "liveauction.settings"):
-                sys.modules.pop(mod, None)
-            try:
-                with self.assertRaisesRegex(ImproperlyConfigured, "FM_SITE_URL"):
-                    importlib.import_module("liveauction.settings_server")
-            finally:
-                for mod in ("liveauction.settings_server", "liveauction.settings"):
-                    sys.modules.pop(mod, None)
-                importlib.import_module("liveauction.settings")

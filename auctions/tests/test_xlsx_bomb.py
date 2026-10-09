@@ -8,7 +8,6 @@ senza scompattare, e rifiuta con un messaggio che dice cosa fare.
 import io
 import struct
 import zipfile
-import zlib
 from decimal import Decimal
 
 from django.contrib.auth.models import User
