@@ -25,7 +25,9 @@ class AuctionTickTests(TestCase):
 
     def test_an_expired_lot_closes_and_the_winner_pays_with_nobody_connected(self):
         services.place_bid(self.auction.id, self.team.id, 5)
-        Auction.objects.filter(pk=self.auction.id).update(ends_at=timezone.now() - timedelta(seconds=1))
+        # Scaduto da più del margine dello scheduler (CLOSE_GRACE), senza ticker.
+        Auction.objects.filter(pk=self.auction.id).update(
+            ends_at=timezone.now() - scheduler.CLOSE_GRACE - timedelta(seconds=1))
         sent = []
         summary = scheduler.run_once(broadcast=sent.append)
         self.assertEqual(summary["auctions"], {self.auction.id: ["closed"]})

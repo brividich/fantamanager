@@ -11,6 +11,7 @@ from django.db import DatabaseError
 from django.utils import timezone
 
 from . import backup, health, services
+from .services import scheduler
 from .models import Auction, Participant
 
 logger = logging.getLogger(__name__)
@@ -113,6 +114,7 @@ class RoomTicker:
         self.group_name = group_name
         self.clients = 0
         self.task = None
+        self._beat = None      # last heartbeat written (services/scheduler.py)
 
     def start_if_needed(self):
         self.clients += 1
@@ -164,6 +166,12 @@ class RoomTicker:
         backup.backup_database_async(
             reason=backup.PERIODIC, min_interval=self._BACKUP_INTERVAL_SECONDS,
         )
+        # Battito per lo scheduler (un altro processo): con questo ticker vivo
+        # non chiude lui i lotti di quest'asta. Al massimo uno ogni 2 s.
+        now = timezone.now()
+        if settings.FM_TICKER_HEARTBEAT and (self._beat is None or now - self._beat >= scheduler.BEAT_EVERY):
+            await database_sync_to_async(scheduler.ticker_heartbeat)(self.auction_id, None, now)
+            self._beat = now
         # Ogni chiamata dice quando il ticker ha chiesto: un'attesa in coda
         # dietro al database fermo non deve far scadere il lotto (stall.py).
         sealed = await database_sync_to_async(services.sealed_tick)(

@@ -217,12 +217,13 @@ def resolve_sealed(auction_id, *, force=False):
     return auction
 
 
-def sealed_tick(auction_id, as_of=None):
+def sealed_tick(auction_id, as_of=None, grace=None):
     """Chiamata dal ticker: apri le buste se il tempo del giro e' finito.
 
     ``as_of`` e' quando il ticker ha chiesto: conta il tempo di allora, non
     quello dopo un'attesa in coda (vedi stall.py), e un fermo lungo restituisce
-    prima i suoi secondi alle buste."""
+    prima i suoi secondi alle buste. ``grace``: apre solo se il giro e' finito
+    da almeno tanto (lo scheduler)."""
     now = timezone.now()
     as_of = as_of or now
     if stall.stalled(as_of, now):
@@ -233,7 +234,7 @@ def sealed_tick(auction_id, as_of=None):
             if moved:
                 auction.save(update_fields=moved)
     pending = Auction.objects.filter(
-        pk=auction_id, sealed_round__gt=0, sealed_ends_at__lte=as_of
+        pk=auction_id, sealed_round__gt=0, sealed_ends_at__lte=as_of - (grace or timedelta(0))
     ).exists()
     if not pending:
         return None

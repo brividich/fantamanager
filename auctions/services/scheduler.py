@@ -7,7 +7,11 @@ server). Each pass:
   the in-process ``RoomTicker`` only runs while a WebSocket is connected, so
   without this a lot left alone never expires. Closing is idempotent
   (``close_if_expired`` is a conditional UPDATE, ``finalize_expired`` guards
-  on auction+cycle), so the two tickers never charge a winner twice;
+  on auction+cycle), so the two tickers never charge a winner twice. While the
+  room's ticker is alive (its heartbeat, ``Auction.ticker_seen_at``, younger
+  than ``TICKER_ALIVE``) the auction is left to it: only it closes behind the
+  bids already queued to the database. With no ticker the scheduler closes,
+  but only ``CLOSE_GRACE`` after the deadline, for the bids still in flight;
 - opens and closes the market sessions on their dates (``sync_market_schedule``,
   otherwise run only when someone visits a market page);
 - locks the lineups of a giornata when its deadline (``Giornata.starts_at``)
@@ -29,6 +33,24 @@ logger = logging.getLogger("auctions.scheduler")
 # auction left CLOSED is a finished one, not a stuck lot.
 STUCK_LOT_WINDOW = timedelta(hours=6)
 
+# The room ticker's heartbeat: written at most every BEAT_EVERY; younger than
+# TICKER_ALIVE means a web process is running that auction's clock.
+BEAT_EVERY = timedelta(seconds=2)
+TICKER_ALIVE = timedelta(seconds=10)
+# Without a ticker, a lot closes only this long after its deadline.
+CLOSE_GRACE = timedelta(seconds=3)
+
+
+def ticker_heartbeat(auction_id, last=None, now=None):
+    """The room ticker says it is alive, at most once every ``BEAT_EVERY``.
+    Returns whether it wrote (the caller keeps ``now`` as its ``last``)."""
+    now = now or timezone.now()
+    if last is not None and now - last < BEAT_EVERY:
+        return False
+    # .update(): neither updated_at nor anything else of the auction moves.
+    Auction.objects.filter(pk=auction_id).update(ticker_seen_at=now)
+    return True
+
 
 def due_auction_ids(now=None):
     """Auctions with something that may be due: a running timer, sealed bids
@@ -38,7 +60,7 @@ def due_auction_ids(now=None):
         Q(status=Auction.Status.LIVE, ends_at__lte=now)
         | Q(sealed_round__gt=0, sealed_ends_at__lte=now)
         | Q(status=Auction.Status.CLOSED, ends_at__isnull=False, updated_at__gte=now - STUCK_LOT_WINDOW)
-    ).values_list("id", flat=True))
+    ).exclude(ticker_seen_at__gte=now - TICKER_ALIVE).values_list("id", flat=True))
 
 
 def auction_tick(auction_id, broadcast=None):
@@ -49,9 +71,11 @@ def auction_tick(auction_id, broadcast=None):
                    sealed_tick, stuck_closed_lot)
 
     done = []
-    if sealed_tick(auction_id) is not None:
+    # as_of: when this pass asked, so a stalled database still gives its
+    # seconds back to the timer (stall.give_back) before anything closes.
+    if sealed_tick(auction_id, as_of=timezone.now(), grace=CLOSE_GRACE) is not None:
         done.append("sealed")
-    closed = close_if_expired(auction_id)
+    closed = close_if_expired(auction_id, as_of=timezone.now(), grace=CLOSE_GRACE)
     if closed is not None:
         finalize_expired(auction_id)
         done.append("closed")

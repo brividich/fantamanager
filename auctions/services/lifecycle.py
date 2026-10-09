@@ -257,11 +257,12 @@ def close_auction(auction_id):
     return auction
 
 
-def close_if_expired(auction_id, as_of=None):
+def close_if_expired(auction_id, as_of=None, grace=None):
     """Chiude il lotto se il suo tempo era finito quando il ticker ha chiesto
     (``as_of``). Le offerte arrivate prima di quel momento sono in coda davanti
     a questa chiamata e passano prima; un fermo lungo restituisce prima i suoi
-    secondi al timer (vedi stall.py)."""
+    secondi al timer (vedi stall.py). ``grace``: chiude solo se era scaduto da
+    almeno tanto (lo scheduler, che non è in coda con le offerte)."""
     now = timezone.now()
     as_of = as_of or now
     live = Auction.objects.filter(pk=auction_id, status=Auction.Status.LIVE)
@@ -272,7 +273,7 @@ def close_if_expired(auction_id, as_of=None):
             moved = stall.give_back(auction, as_of, timezone.now()) if auction else []
             if moved:
                 auction.save(update_fields=moved)
-    updated = live.filter(ends_at__lte=as_of).update(
+    updated = live.filter(ends_at__lte=as_of - (grace or timedelta(0))).update(
         status=Auction.Status.CLOSED, remaining_seconds=0, updated_at=now)
     if updated:
         return Auction.objects.get(pk=auction_id)
