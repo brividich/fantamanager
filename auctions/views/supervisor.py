@@ -795,6 +795,8 @@ def supervisor_dashboard(request):
 
     from ..models import AuditLog
     audit_rows = AuditLog.objects.select_related("league").all()[:300] if tab == "audit" else []
+    from ..services import onboarding
+    funnel = onboarding.funnel() if tab == "leagues" else None
 
     return render(
         request,
@@ -802,6 +804,7 @@ def supervisor_dashboard(request):
         {
             "tab": tab,
             "audit_rows": audit_rows,
+            "funnel": funnel,
             "metrics": metrics,
             "users": users,
             "leagues": leagues,

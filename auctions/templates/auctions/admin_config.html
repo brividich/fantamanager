@@ -253,6 +253,7 @@ its name to be typed: it takes teams, listone, auctions and sessions with it.
         </ul>
 
         {% include "auctions/_sala_card.html" %}
+        {% include "auctions/_coadmin_manage.html" with ca=r.coadmin %}
 
         <div class="lg-actions fm-onerow">
             <button type="button" class="fm-btn fm-btn-primary" data-edit="{{ lg.id }}" aria-expanded="false" aria-controls="ed-{{ lg.id }}">

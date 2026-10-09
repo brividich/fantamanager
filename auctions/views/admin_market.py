@@ -784,7 +784,8 @@ def admin_market_notify(request, session_id):
         messages.error(request, "La sessione è già stata scrutinata: niente da annunciare.")
         return redirect(_back(request, _dashboard_url(request, session)))
     if not mail.is_ready():
-        messages.error(request, "La posta non è configurata: impostala in Impostazioni → Posta.")
+        from .admin_onboarding import mail_off_message
+        messages.error(request, mail_off_message(request, "avvisa le squadre nel gruppo della lega"))
         return redirect(_back(request, _dashboard_url(request, session)))
     report = mail.send_market_notice(request, session)
     (messages.success if report["sent"] and not report["failed"] else messages.warning)(

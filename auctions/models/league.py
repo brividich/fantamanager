@@ -95,6 +95,23 @@ class League(models.Model):
     # ("link": indirizzo, chiave, corrispondenza fra squadre e giocatori).
     sala = models.JSONField(default=dict, blank=True)
 
+    # --- Preparazione e misure (onboarding) --------------------------------
+    # Da dove è nata la lega e quando ha passato i primi traguardi: servono
+    # alla tabella del Supervisor (quante leghe arrivano a giocare), niente
+    # tracciamento esterno. ``setup_state``: la card «Prepara la lega»
+    # (regole controllate, card nascosta).
+    class CreatedVia(models.TextChoices):
+        WIZARD = "wizard", "Wizard (console)"
+        APP = "app", "Wizard (app)"
+        CONSOLE = "console", "Console"
+        SALA = "sala", "Asta in sala"
+
+    created_via          = models.CharField(max_length=10, choices=CreatedVia.choices, blank=True)
+    first_invite_at      = models.DateTimeField(null=True, blank=True)
+    first_team_joined_at = models.DateTimeField(null=True, blank=True)
+    ready_at             = models.DateTimeField(null=True, blank=True)
+    setup_state          = models.JSONField(default=dict, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

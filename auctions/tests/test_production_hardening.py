@@ -260,8 +260,9 @@ class TenantIsolationTests(TestCase):
 
     def test_a_new_league_cannot_take_other_teams(self):
         free = Participant.objects.create(display_name="Senza lega")
-        self.client.post(reverse("admin_create_league"),
-                         {"name": "Nuova", "attach_ids": [self.their_team.id, free.id]})
+        self.client.post(reverse("admin_setup_create"),
+                         {"name": "Nuova", "start_choice": "new", "create_auction": "0",
+                          "attach_ids": [self.their_team.id, free.id]})
         self.their_team.refresh_from_db()
         free.refresh_from_db()
         self.assertEqual(self.their_team.league, self.theirs)
@@ -270,8 +271,9 @@ class TenantIsolationTests(TestCase):
     def test_the_superadmin_still_adopts_league_less_teams(self):
         free = Participant.objects.create(display_name="Senza lega")
         self.client.force_login(self.root)
-        self.client.post(reverse("admin_create_league"),
-                         {"name": "Nuova", "attach_ids": [self.their_team.id, free.id]})
+        self.client.post(reverse("admin_setup_create"),
+                         {"name": "Nuova", "start_choice": "new", "create_auction": "0",
+                          "attach_ids": [self.their_team.id, free.id]})
         free.refresh_from_db()
         self.their_team.refresh_from_db()
         self.assertEqual(free.league.name, "Nuova")
@@ -279,12 +281,14 @@ class TenantIsolationTests(TestCase):
 
     def test_an_organisers_league_does_not_rewrite_the_global_defaults(self):
         before = LeagueConfig.get().budget
-        self.client.post(reverse("admin_create_league"), {"name": "Nuova", "budget": "7"})
+        self.client.post(reverse("admin_setup_create"), {"name": "Nuova", "budget": "7",
+                                                         "start_choice": "new", "create_auction": "0"})
         self.assertEqual(LeagueConfig.get().budget, before)
         self.assertTrue(League.objects.filter(name="Nuova", owner=self.me).exists())
 
     def test_pickers_list_only_my_leagues(self):
-        for name in ("admin_auction_wizard", "admin_create_league", "admin_export"):
+        # «Nuova lega» è il wizard (admin_setup): il vecchio form vi rimanda.
+        for name in ("admin_auction_wizard", "admin_setup", "admin_export"):
             resp = self.client.get(reverse(name))
             self.assertEqual(resp.status_code, 200, name)
             self.assertNotContains(resp, "Altrui", msg_prefix=name)

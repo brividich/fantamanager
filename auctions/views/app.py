@@ -27,7 +27,7 @@ from ..models import (
 )
 from .. import scoring, services, throttle
 from ..models.participant import AMBIGUOUS_CODE_MESSAGE, custom_code_error, find_team_by_code
-from ..services import mail, sala
+from ..services import mail, onboarding, sala
 from ..services.market import buyout_price, fa_period_start, session_moves, waiver_order
 from .admin_market import rule_choices, session_labels
 from .auth import authenticate_identifier
@@ -1164,17 +1164,9 @@ def app_formazione(request):
 
 
 def _claims_team(user, team):
-    """Whether opening ``team`` from the login links it to ``user``'s account.
-
-    Only a manager's first team in that league: an admin checking teams by code
-    (or a manager who already has a team there) is visiting, not claiming. A
-    stray link kept the team on the wrong account for good: the admin's next
-    login opened it instead of their own, and its manager could no longer pick
-    it from the list.
-    """
-    if user_can_manage_scope(user, team.league):
-        return False
-    return not Participant.objects.filter(user=user, league_id=team.league_id).exists()
+    """Whether opening ``team`` from the login links it to ``user``'s account
+    (``services.onboarding.claims_team``: one rule for invites and codes)."""
+    return onboarding.claims_team(user, team)
 
 
 def app_login(request):
@@ -1192,6 +1184,12 @@ def app_login(request):
     token = (request.GET.get("t") or "").strip()
     if token:
         participant = Participant.objects.filter(public_token=token, is_active=True).first()
+        if participant and participant.user_id is None and not user_can_manage_scope(request.user, participant.league):
+            # Un invito di una squadra senza account: la pagina d'invito, che
+            # collega la squadra in un passo (o fa entrare senza account).
+            from urllib.parse import urlencode
+            query = f"?{urlencode({'next': next_url})}" if request.GET.get("next") else ""
+            return redirect(reverse("invite", args=[participant.public_token]) + query)
         if participant:
             request.session["participant_id"] = participant.id
             request.session["display_name"] = participant.display_name
@@ -1291,10 +1289,9 @@ def app_login(request):
                     error = "Codice squadra non valido o non riconosciuto."
                 elif participant.user_id is not None and request.user.is_authenticated and request.user.id != participant.user_id:
                     error = "Questa squadra è già associata a un altro account utente."
-                elif request.user.is_authenticated and participant.user is None and _claims_team(request.user, participant):
-                    # Link unassigned team to the currently logged-in user
-                    participant.user = request.user
-                    participant.save(update_fields=["user"])
+                elif request.user.is_authenticated:
+                    # Il collegamento di sempre (invito, onboarding, qui): una regola sola.
+                    onboarding.link_team(request.user, participant)
 
         elif login_mode == "select" or participant_id:
             if participant_id and participant_id.isdigit():
@@ -1318,9 +1315,8 @@ def app_login(request):
                                  "chiedi a chi organizza la lega di collegarla al tuo account.")
                     else:
                         participant = candidate
-                        if request.user.is_authenticated and participant.user is None and _claims_team(request.user, participant):
-                            participant.user = request.user
-                            participant.save(update_fields=["user"])
+                        if request.user.is_authenticated and participant.user is None:
+                            onboarding.link_team(request.user, participant)
                 else:
                     error = "Squadra non trovata."
             else:

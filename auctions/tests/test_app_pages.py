@@ -30,6 +30,8 @@ FRAMED_PAGES = [
     ("admin_auction_wizard", "app_regia_auction_wizard"),
     # Il mio account (privacy): per chi gestisce leghe la console, nell'app l'app.
     ("account", "app_account"),
+    # «Nuova lega»: il wizard, unica strada per creare una lega (anche nell'app).
+    ("admin_setup", "app_regia_setup"),
 ]
 
 

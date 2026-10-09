@@ -9,14 +9,16 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from .. import services
+from .. import remote, services
 from ..models import Auction, League, LeagueConfig, Participant, Player
 from ..models.participant import generate_access_code
 from ..providers import importers
-from ..services import mail
+from ..services import mail, onboarding
 from .admin_dashboard import _pint
+from .admin_participants import invite_rows
 from .common import (
     SESSION_LEAGUE_KEY,
+    in_app,
     _call_order,
     _flow_mode,
     _opening_price_mode,
@@ -31,6 +33,21 @@ from .common import (
 
 # What the wizard did, kept for the «Lega pronta» page it lands on.
 SETUP_REPORT_KEY = "setup_report"
+
+# Passo «Regole» del wizard: un tocco riempie budget, rosa e ritmo dell'asta;
+# «Personalizza» apre i campi. ``slots``: P/D/C/A in Classic, portieri e
+# movimento in Mantra.
+RULE_PRESETS = [
+    {"key": "classic", "label": "Classic", "budget": 500, "game_mode": "CLASSIC", "slots": [3, 8, 8, 6],
+     "contracts": False, "pace": "std",
+     "desc": "500 crediti, rosa 3 · 8 · 8 · 6, asta da 60 secondi a giocatore. La lega di sempre."},
+    {"key": "mantra", "label": "Mantra", "budget": 500, "game_mode": "MANTRA", "slots": [3, 22],
+     "contracts": False, "pace": "std",
+     "desc": "500 crediti, 3 portieri e 22 di movimento, ruoli e moduli Mantra."},
+    {"key": "dinasty", "label": "Dinasty con contratti", "budget": 500, "game_mode": "CLASSIC", "slots": [3, 8, 8, 6],
+     "contracts": True, "pace": "std",
+     "desc": "Classic con i contratti di permanenza: le rose restano da una stagione all'altra."},
+]
 
 
 def _sealed_settings(request):
@@ -192,61 +209,29 @@ def admin_wizard_create(request):
 
 @staff_member_required
 def admin_create_league(request):
-    """Create a *League* — the season-long container."""
-    if request.method == "GET":
-        cfg = LeagueConfig.get()
-        return render(request, "auctions/league_form.html", {
-            "cfg": cfg,
-            "free_teams": _free_teams(request.user),
-            "leagues": manageable_leagues(request.user),
-        })
-
-    def dec(name, default):
-        try:
-            return Decimal(str(request.POST.get(name) or default))
-        except (InvalidOperation, ValueError):
-            return Decimal(str(default))
-
-    def pint(name, default):
-        try:
-            return max(0, int(request.POST.get(name) or default))
-        except (TypeError, ValueError):
-            return int(default)
-
-    budget = dec("budget", "500")
-    league = League.objects.create(
-        name=request.POST.get("name", "").strip() or "Lega",
-        owner=request.user if request.user.is_authenticated else None,
-        source_site=request.POST.get("source_site", "").strip(),
-        external_id=request.POST.get("external_id", "").strip(),
-        budget=budget,
-        slot_limits=request.POST.get("slot_limits", "1") != "0",
-        slots_p=pint("slots_p", 3),
-        slots_d=pint("slots_d", 8),
-        slots_c=pint("slots_c", 8),
-        slots_a=pint("slots_a", 6),
-        game_mode=_game_mode(request.POST.get("game_mode")),
-        slots_gk=pint("slots_gk", 3),
-        slots_out=pint("slots_out", 22),
-        gk_max_clubs=pint("gk_max_clubs", 0),
-    )
-
-    _remember_as_default(request.user, league)
-    _create_manual_teams(request, league, budget)
-    _adopt_free_teams(request, league)
-
-    return redirect(f"/dashboard/{league.id}/")
+    """La vecchia «Nuova lega» (league_form.html): oggi una lega nasce solo dal
+    wizard (``admin_setup``), anche nell'app. L'indirizzo resta per i vecchi
+    segnalibri e porta lì."""
+    return redirect("admin_setup")
 
 
 # --- Unified setup wizard ---------------------------------------------------
 
 def _create_manual_teams(request, league, budget):
     """The teams typed (or pasted) into the wizard. A name typed twice makes
-    one team, not two twins nobody can tell apart at the auction."""
+    one team, not two twins nobody can tell apart at the auction.
+
+    ``participants_json`` is the wizard's editable preview; without it (no
+    JavaScript, or a script) ``teams_text`` — one team per line, «Nome; email»
+    — goes through the same parser the preview uses."""
     try:
         manual = json.loads(request.POST.get("participants_json") or "[]")
     except (ValueError, TypeError):
         manual = []
+    if (not manual and (request.POST.get("teams_text") or "").strip()
+            and request.POST.get("start_choice") != "rose"):
+        manual = [{"name": r["name"], "email": r["email"]}
+                  for r in onboarding.parse_team_lines(request.POST.get("teams_text"))]
     seen = set()
     for p in manual if isinstance(manual, list) else []:
         name = (str(p.get("name") or "") if isinstance(p, dict) else "").strip()[:80]
@@ -271,7 +256,14 @@ def _create_manual_teams(request, league, budget):
 def _setup_wizard_context(request, error=""):
     user = request.user
     mine = League.objects.all() if user.is_superuser else League.objects.filter(owner=user)
+    frame = page_frame(request, None)
+    if in_app(request) and not manageable_leagues(user).exists():
+        # Nessuna lega ancora: dall'app si torna alla scelta iniziale, non alla Regia.
+        frame.update({"frame_back_url": reverse("onboarding"), "frame_back_label": "Indietro"})
     return {
+        **frame,
+        "in_app": in_app(request),
+        "presets": RULE_PRESETS,
         "cfg": LeagueConfig.get(),
         # Names already taken by the user's leagues: the wizard warns before a
         # second "Lega" is born next to the first one.
@@ -316,10 +308,16 @@ def _import_leghe_rose_into_league(request, league):
 
 
 def _parse_listone_upload(request):
+    """Il listone caricato, se c'è. Non è più obbligatorio: senza file la lega
+    usa il listone generale dei calciatori, che riceve da sola appena nasce
+    (``services.footballers.on_league_created``). Lo vuole solo chi ha scelto
+    «Ho il mio listone»."""
     upload = request.FILES.get("listone_file")
     if not upload:
-        return [], ("Il listone (Quotazioni) è obbligatorio: carica il file "
-                    "ufficiale .xlsx/.xls oppure un .csv con Nome, Ruolo, Squadra, Quotazione.")
+        if request.POST.get("start_choice") == "listone":
+            return [], ("Hai scelto «Ho il mio listone»: carica il file (.xlsx/.xls ufficiale, oppure un .csv "
+                        "con Nome, Ruolo, Squadra, Quotazione), o scegli «Lega nuova» per usare il listone generale.")
+        return [], ""
     try:
         rows, _errors = importers.parse_listone_file(upload, upload.name)
     except Exception as exc:
@@ -337,7 +335,10 @@ def _import_listone_into_league(rows, league, *, replace=True):
 
 @staff_member_required
 def admin_setup(request):
-    """Render the unified 'Nuova lega' wizard (GET)."""
+    """Il wizard «Nuova lega» (GET): l'unica strada per creare una lega, in
+    console (/dashboard/setup/) e nell'app (/app/regia/nuova-lega/, e
+    /app/nuova-lega/ per chi non ha ancora leghe). Stessa view e stesso
+    template, cambia la cornice (``page_frame``)."""
     return render(request, "auctions/setup_wizard.html", _setup_wizard_context(request))
 
 
@@ -365,7 +366,10 @@ def admin_setup_create(request):
     budget = dec("budget", "500")
     source_site = request.POST.get("source_site", "").strip()
     slot_limits = request.POST.get("slot_limits", "1") != "0"
+    from_app = request.POST.get("from") == "app"
     league = League.objects.create(
+        created_via=League.CreatedVia.APP if from_app else League.CreatedVia.WIZARD,
+        contracts_enabled=request.POST.get("contracts_enabled") == "1",
         name=request.POST.get("name", "").strip() or "Lega",
         owner=request.user if request.user.is_authenticated else None,
         source_site=source_site,
@@ -387,6 +391,8 @@ def admin_setup_create(request):
     _adopt_free_teams(request, league)
 
     import_choice = request.POST.get("import_choice", "none")
+    if request.POST.get("start_choice") == "new":
+        import_choice = "none"      # «Lega nuova»: nessun file, anche se ne era rimasto uno
     import_report = None
     if import_choice == "leghe":
         _import_listone_into_league(listone_rows, league, replace=True)
@@ -396,21 +402,29 @@ def admin_setup_create(request):
             import_report = _import_rose_into_league(request, league, source=import_choice)
         _import_listone_into_league(listone_rows, league, replace=(import_report is None))
 
+    _apply_detected_emails(request, league)
+
     request.session[SESSION_LEAGUE_KEY] = league.id
     invites = None
     if request.POST.get("send_invites") == "1" and mail.is_ready():
         invites = mail.send_team_invites(request, league)
+    coadmin = _invite_coadmin(request, league)
     request.session[SETUP_REPORT_KEY] = {
         "league_id": league.id,
         "import": ({k: v for k, v in import_report.items() if isinstance(v, int)}
                    if isinstance(import_report, dict) else None),
         "invites": invites,
+        # Senza posta pronta: «Lega pronta» apre la condivisione per squadra.
+        "share": request.POST.get("send_invites") == "1" and invites is None,
+        "coadmin": coadmin,
     }
+    done_url = (reverse("app_regia_setup_done", args=[league.id]) if from_app
+                else reverse("admin_setup_done", args=[league.id]))
 
     # «Solo la lega»: the auction is created later, from the wizard or the
     # Mercato, when the league knows what it needs.
     if request.POST.get("create_auction", "1") == "0":
-        return redirect("admin_setup_done", league_id=league.id)
+        return redirect(done_url)
 
     mode = request.POST.get("mode", "").strip()
     if mode not in Auction.Mode.values:
@@ -457,12 +471,53 @@ def admin_setup_create(request):
     # Started right away: the room is waiting, straight to the regia.
     if request.POST.get("start_now") == "1":
         return redirect(f"/regia/{auction.id}/")
-    return redirect("admin_setup_done", league_id=league.id)
+    return redirect(done_url)
+
+
+def _apply_detected_emails(request, league):
+    """Le email delle squadre arrivate dal file delle rose, scritte nel wizard
+    (passo «Squadre»): ``detected_emails_json`` = {nome squadra: email}."""
+    try:
+        emails = json.loads(request.POST.get("detected_emails_json") or "{}")
+    except (ValueError, TypeError):
+        return
+    if not isinstance(emails, dict):
+        return
+    wanted = {str(k).strip().lower(): str(v or "").strip()[:254] for k, v in emails.items()}
+    for p in Participant.objects.filter(league=league, email=""):
+        email = wanted.get(p.display_name.strip().lower(), "")
+        if not email:
+            continue
+        try:
+            validate_email(email)
+        except ValidationError:
+            continue
+        p.email = email
+        p.save(update_fields=["email"])
+
+
+def _invite_coadmin(request, league):
+    """Il co-admin scritto nel wizard (facoltativo): l'invito parte per email
+    se si può, altrimenti «Lega pronta» mostra il link da passargli."""
+    email = (request.POST.get("coadmin_email") or "").strip()
+    if not email:
+        return None
+    try:
+        validate_email(email)
+    except ValidationError:
+        return {"error": f"«{email}» non è un'email valida: il co-admin lo inviti dalle Impostazioni."}
+    from .invite import new_coadmin_invite, send_coadmin_invite
+
+    inv = new_coadmin_invite(league, request.user, email)
+    ok, _err = send_coadmin_invite(request, inv)
+    return {"email": email, "sent": ok, "token": inv.token}
 
 
 @staff_member_required
 def admin_setup_done(request, league_id):
-    """«Lega pronta»: what the wizard created and the next steps, in order."""
+    """«Lega pronta»: what the wizard created and the next steps, in order —
+    the same «Prepara la lega» card the Regia and the dashboard show, and the
+    invite of every team, one by one (console and app)."""
     league = get_object_or_404(League, pk=league_id)
     if not user_can_manage_league(request.user, league):
         return HttpResponseForbidden("Non hai i permessi per gestire questa lega.")
@@ -473,7 +528,16 @@ def admin_setup_done(request, league_id):
     players = Player.objects.filter(league=league)
     auction = Auction.objects.filter(league=league).order_by("-created_at").first()
     with_email = [p for p in teams if p.contact_email]
+    coadmin = report.get("coadmin") or None
+    if coadmin and coadmin.get("token"):
+        coadmin = {**coadmin, "link": remote.best_base_url(request).rstrip("/")
+                   + reverse("coadmin_invite", args=[coadmin["token"]])}
     return render(request, "auctions/setup_done.html", {
+        **page_frame(request, league, own_messages=True),
+        "setup_card": onboarding.setup_card(league),
+        "invite_rows": invite_rows(request, teams),
+        "share_open": bool(report.get("share")),
+        "coadmin": coadmin,
         "league": league,
         "current_league": league,
         "teams": teams,

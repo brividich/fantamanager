@@ -28,7 +28,7 @@ mk_labels, is_buste, is_renewals, renewals,
                 Per aprirla subito premi <b>Apri ora</b>.{% elif s.status == "open" %}✓ La sessione è aperta alle squadre.{% else %}✓ La sessione è stata aperta.{% endif %}</li>
             {% if s.status != "resolved" %}
             <li>Controlla le regole sotto i numeri: per cambiarle, anche titolo e chiusura, premi <b>Regole</b>.
-                Con <b>Avvisa via email</b> mandi l'avviso alle squadre{% if not mail_ready %} (prima configura la posta: Impostazioni → Posta){% endif %}.</li>
+                Con <b>Avvisa via email</b> mandi l'avviso alle squadre{% if not mail_ready %}{% if request.user.is_superuser %} (prima configura la posta: Impostazioni → Posta){% else %} (l'invio email non è attivo su questo sito: avvisa le squadre nel gruppo della lega){% endif %}{% endif %}.</li>
             {% endif %}
             <li>{% if s.status == "open" %}<b>Adesso:</b> segui in <b>{{ mk_labels.deliveries }}</b> come procedono le squadre ({{ delivered }}/{{ participants_stats|length }}).
                 {% if s.closes_at %}Si chiude da sola il {{ s.closes_at|date:"d/m H:i" }}{% else %}La chiusura è manuale{% endif %}: per fermarla prima premi <b>Chiudi finestra</b>.
@@ -107,7 +107,7 @@ mk_labels, is_buste, is_renewals, renewals,
             <form method="post" action="{% url 'admin_market_notify' s.id %}"{% if mail_ready %} onsubmit="return confirm('Inviare l\'avviso della sessione alle {{ reachable }} squadre con un indirizzo email?');"{% endif %}>
                 {% csrf_token %}<input type="hidden" name="next" value="{{ mk_back }}">
                 <button type="submit" class="fm-btn fm-btn-secondary fm-btn-sm"{% if not mail_ready or not reachable %} disabled{% endif %}
-                        title="{% if not mail_ready %}Posta non configurata: Impostazioni → Posta{% elif not reachable %}Nessuna squadra ha un indirizzo email{% else %}Email alle {{ reachable }} squadre con un indirizzo{% endif %}">
+                        title="{% if not mail_ready %}{% if request.user.is_superuser %}Posta non configurata: Impostazioni → Posta{% else %}L'invio email non è attivo su questo sito{% endif %}{% elif not reachable %}Nessuna squadra ha un indirizzo email{% else %}Email alle {{ reachable }} squadre con un indirizzo{% endif %}">
                     <svg class="ic"><use href="#i-bell"/></svg> Avvisa via email</button>
             </form>
             {% endif %}

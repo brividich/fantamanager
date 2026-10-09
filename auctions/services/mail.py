@@ -215,7 +215,7 @@ def _app_link(base, participant, path_name="app_home"):
     return f"{base}{reverse('app_login')}?t={participant.public_token}&next={nxt}"
 
 
-def _send_to_teams(request, teams, subject, template, extra):
+def _send_to_teams(request, teams, subject, template, extra, on_sent=None):
     """Render ``template`` (.txt and .html) for each team and send it through
     one connection. Returns ``{"sent", "failed", "skipped", "errors"}``."""
     report = {"sent": 0, "failed": 0, "skipped": 0, "errors": []}
@@ -232,6 +232,7 @@ def _send_to_teams(request, teams, subject, template, extra):
         return report
     from . import privacy
 
+    sent_teams = []
     sender = sender_name(request, teams[0].league if teams else None)
     legal_urls = privacy.legal_links(base)
     conn = connection(cfg)
@@ -254,6 +255,7 @@ def _send_to_teams(request, teams, subject, template, extra):
             ok, error = send(subject, address, text, html=html, cfg=cfg, conn=conn)
             if ok:
                 report["sent"] += 1
+                sent_teams.append(p)
             else:
                 report["failed"] += 1
                 if error not in report["errors"]:
@@ -263,6 +265,8 @@ def _send_to_teams(request, teams, subject, template, extra):
             conn.close()
         except Exception:
             pass
+    if on_sent is not None and sent_teams:
+        on_sent(sent_teams)
     return report
 
 
@@ -279,11 +283,15 @@ def sender_name(request, league):
 
 
 def send_team_invites(request, league, teams=None):
-    """Each team gets its personal app link and access code."""
+    """Each team gets its personal invite link (/invito/<token>/: account and
+    team in one step) and access code."""
+    from . import onboarding
+
     teams = league_recipients(league) if teams is None else teams
     return _send_to_teams(
         request, teams, f"Benvenuto in {league.name}", "invite",
-        lambda base, p: {"link": _app_link(base, p), "code": p.access_code},
+        lambda base, p: {"link": base + onboarding.invite_path(p), "code": p.access_code},
+        on_sent=lambda sent: onboarding.mark_invite_sent(sent, "email"),
     )
 
 

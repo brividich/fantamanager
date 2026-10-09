@@ -1240,7 +1240,7 @@ tr.flash-in { animation: flashIn .5s ease; }
 .fm-steps li.done b { color: var(--fm-text-secondary); }
 .fm-steps li.now { border-color: var(--fm-border-active); background: rgba(8,124,240,.06); }
 .fm-steps li.now .n { background: var(--fm-primary); color: #fff; }
-.fm-steps li.opt .n { border: 1px dashed var(--fm-border); background: none; }
+.fm-steps li.opt .n, .fm-steps li.later .n { border: 1px dashed var(--fm-border); background: none; }
 .fm-steps .fm-btn, .fm-steps form { justify-self: start; }
 
 /* ---- Privacy: avviso in cima e link legali in fondo ----------------- */

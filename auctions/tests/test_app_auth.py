@@ -51,11 +51,16 @@ class AppAuthTests(TestCase):
         self.assertEqual(self.client.session.get("display_name"), self.team_protected.display_name)
 
     def test_login_via_tokenized_link(self):
-        """Opening app_login with ?t=<public_token> signs in automatically."""
+        """Opening app_login with ?t=<public_token> of a team without an account
+        lands on its invite page (account and team in one step); entering
+        without an account still takes one tap and keeps ``next``."""
         resp = self.client.get(
             f"{reverse('app_login')}?t={self.team_protected.public_token}&next={reverse('app_rosa')}"
         )
+        invite = reverse("invite", args=[self.team_protected.public_token])
         self.assertEqual(resp.status_code, 302)
+        self.assertTrue(resp["Location"].startswith(invite))
+        resp = self.client.post(invite, {"action": "guest", "next": reverse("app_rosa")})
         self.assertEqual(resp["Location"], reverse("app_rosa"))
         self.assertEqual(self.client.session.get("participant_id"), self.team_protected.id)
 

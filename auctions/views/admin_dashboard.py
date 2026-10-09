@@ -303,7 +303,11 @@ def admin_dashboard(request, league_id=None, hub=False, auction_id=None):
             .order_by("-id")[:8]
         )
 
+    from ..services import mail, onboarding
     return render(request, "auctions/admin_dashboard.html", {
+        # «Prepara la lega» finché la lega non è pronta (_league_setup_card.html).
+        "setup_card": onboarding.setup_card(current_league) if current_league is not None and not selected else None,
+        "mail_ready": mail.is_ready(),
         "auctions":     auctions,
         "leagues":      leagues,
         "league_cards": league_cards,

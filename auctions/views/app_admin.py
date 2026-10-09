@@ -18,7 +18,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from .. import remote, services
-from ..services import mail, privacy
+from ..services import mail, onboarding, privacy
 from ..models import Auction, MarketBid, MarketSession, Participant, Player, Trade
 from .admin_dashboard import _classifica_standings
 from .admin_market import rule_choices, session_labels, session_manage_context, trades_manage_context
@@ -209,6 +209,7 @@ def app_regia(request):
         "active_auction": _app_active_auction(league),
         "manages_app_league": True,
         "todo": league_admin_digest(league),
+        "setup_card": onboarding.setup_card(league),
         "teams": teams,
         "kpi": {
             "teams": len(teams),

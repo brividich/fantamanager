@@ -1,0 +1,13 @@
+{% autoescape off %}Ciao,
+
+{{ sender }} ti ha invitato a gestire con lui la lega «{{ league.name }}» su FantaManager, come co-admin: squadre, aste, mercato e giornate.
+
+Accetta da qui (con il tuo account, o creane uno):
+{{ link }}
+
+Il link vale una volta sola. Non te lo aspettavi? Ignora questa email: non succede niente.
+
+--
+Ricevi questa email perché {{ sender }} ha scritto il tuo indirizzo per invitarti.
+Informativa privacy: {{ privacy_url }} · Termini: {{ terms_url }}
+{% endautoescape %}

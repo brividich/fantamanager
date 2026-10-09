@@ -1,22 +1,45 @@
-{% extends "auctions/base.html" %}
+{% extends page_frame|default:"auctions/_frame_console.html" %}{% load fm_pages %}
 {% comment %}
-"Nuova lega" — one guided page from the files to a ready auction.
+«Nuova lega» — l'unica strada per creare una lega, in console e nell'app
+(stessa view admin_setup, stesso template: cambia la cornice, page_frame).
 
-Three steps (File → Lega & squadre → Asta) with a live summary on the side.
-It tries to do the thinking for the user: the roster format is recognised from
-the file, the budget and the teams come from the roster, Mantra is suggested
-when the listone carries Mantra roles, presets set roster and pace in one tap,
-names can be pasted as a list, Enter moves forward instead of submitting half a
-form, and a draft survives a reload. The POST it sends is the same one
-admin_setup_create has always read.
+Quattro passi (Inizio → Squadre → Regole → Inviti) con il riepilogo dal vivo:
+il listone non serve (arriva quello generale), le squadre si incollano una per
+riga con l'email (stesso parser di services/onboarding.py:parse_team_lines),
+i preset riempiono budget e rosa, gli inviti partono con la lega. La bozza
+resta nel browser (localStorage, con try/catch); i file vanno ricaricati.
 {% endcomment %}
 {% block title %}Nuova lega — FantaManager{% endblock %}
-{% block bodyclass %}role-admin{% endblock %}
-{% block wrapclass %}wrap-wide{% endblock %}
 
-{% block content %}
+{% block page %}
 <style>
-    .sw { max-width: 1180px; margin: 0 auto; padding-bottom: 96px; }
+    .sw { max-width: 1180px; margin: 0 auto; padding-bottom: 24px; }
+    .sw-head h1 { margin: 0; font-size: 26px; }
+    .sw-head .sub { font-size: 13px; color: var(--fm-text-secondary); margin: 4px 0 12px; }
+    .start-cards .card-opt { padding: 16px; min-height: 92px; }
+    .start-cards .card-opt .t { font-size: 18px; }
+    .tp-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
+    .tp-table th { text-align: left; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--fm-text-muted); padding: 4px 6px; }
+    .tp-table td { padding: 4px 6px; border-top: 1px solid var(--line, rgba(85,160,230,.12)); vertical-align: middle; }
+    .tp-table td.ix { width: 26px; text-align: center; color: var(--fm-text-muted); font-weight: 800; }
+    .tp-table input { height: 36px; margin: 0; }
+    .tp-table .rm { width: 36px; height: 36px; padding: 0; color: var(--closed); border-color: rgba(248,113,113,.4); background: transparent; }
+    .tp-table tr.dup input.tp-name, .tp-table input.bad { border-color: var(--closed) !important; }
+    .tp-table .w { font-size: 11.5px; color: var(--paused); display: block; margin-top: 2px; }
+    .tp-table .from-mail { font-size: 11px; color: var(--fm-text-muted); }
+    @media (max-width: 640px) {
+        .tp-table thead { display: none; }
+        .tp-table tr { display: grid; grid-template-columns: minmax(0, 1fr) 40px; gap: 6px; padding: 8px 0; border-top: 1px solid var(--line, rgba(85,160,230,.12)); }
+        .tp-table td { border: 0; padding: 0; }
+        .tp-table td.ix { display: none; }
+        .tp-table td.em { grid-column: 1; }
+        .tp-table td.act { grid-row: 1; grid-column: 2; }
+    }
+    #teams-text { min-height: 150px; font-size: 14px; line-height: 1.5; }
+    .det-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 8px; align-items: center; margin-bottom: 6px; }
+    .det-row .nm { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .det-row .nm small { display: block; font-weight: 500; color: var(--muted); font-size: 11.5px; }
+    @media (max-width: 520px) { .det-row { grid-template-columns: minmax(0, 1fr); } }
 
     /* ---- Header + stepper ---------------------------------------------- */
     .sw-top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 4px 0 16px; }
@@ -193,9 +216,10 @@ admin_setup_create has always read.
     .ready.no { background: rgba(255,181,38,.10); color: var(--paused); }
 
     /* Sticky action bar */
-    .sw-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
-              background: rgba(3,18,38,.94); backdrop-filter: blur(8px); border-top: 1px solid var(--line);
-              padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); }
+    .sw-bar { position: sticky; bottom: 0; z-index: 60; margin-top: 18px;
+              background: rgba(3,18,38,.94); backdrop-filter: blur(8px); border: 1px solid var(--line); border-radius: 14px;
+              padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px)); }
+    @media (max-width: 879px) { body.app-mode .sw-bar { bottom: calc(66px + env(safe-area-inset-bottom, 0px)); } }
     .sw-bar-in { max-width: 1180px; margin: 0 auto; display: flex; align-items: center; gap: 10px; }
     .sw-bar .where { flex: 1; min-width: 0; font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .sw-bar .where b { color: #fff; }
@@ -217,16 +241,27 @@ admin_setup_create has always read.
     .draft-note span { flex: 1; }
     .draft-note button { height: 30px; font-size: 12px; }
 </style>
-
 <div class="sw">
-<div class="sw-top">
-    <div class="brand">
-        <div class="brand-icon"><svg class="ic" style="width:26px;height:26px"><use href="#i-trophy"/></svg></div>
-        <div class="brand-text"><div class="top">NUOVA</div><div class="bottom">LEGA</div><div class="sub">Dai file all'asta in 3 passi</div></div>
-    </div>
-    <span class="spacer"></span>
-    <a class="fm-btn fm-btn-ghost" href="{% url 'admin_dashboard' %}"><svg class="ic"><use href="#i-arrow-left"/></svg> Dashboard</a>
+<div class="sw-head">
+    <h1>Nuova lega</h1>
+    <div class="sub">Quattro passi, da telefono o da PC: da dove parti, le squadre (anche con le email), le regole, gli inviti.</div>
 </div>
+
+<details class="howto noprint">
+    <summary><svg class="ic"><use href="#i-shield"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        Crei la lega e mandi gli inviti in un colpo solo. I passi fatti si segnano con ✓ qui sopra.
+        <ol>
+            <li><b>Da dove parti?</b> Scrivi il nome della lega. «Lega nuova» va bene quasi sempre: il listone dei calciatori arriva da solo.
+                Hai già le rose (Fantapazz, Excel, Leghe Fantacalcio) o un listone tuo? Scegli quella strada e carica il file.</li>
+            <li><b>Squadre</b>: incolla l'elenco, una squadra per riga. Se ci metti l'email («Real Madrink; mario@email.it») la squadra riceve l'invito.
+                Controlla l'anteprima: i doppioni sono segnati.</li>
+            <li><b>Regole</b>: scegli Classic, Mantra o Dinasty. «Personalizza» apre budget e rosa, se ti serve.</li>
+            <li><b>Inviti e asta</b>: lascia spuntato «Invia gli inviti adesso», aggiungi un co-admin se vuoi, poi <b>Crea la lega</b>.</li>
+        </ol>
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Se chiudi la pagina a metà, quello che hai scritto resta (i file vanno ricaricati). Tutto resta modificabile anche dopo.</div>
+    </div>
+</details>
 
 {% if error %}
 <div class="err-box" role="alert"><b>Non ho creato niente.</b> {{ error }} I dati scritti sono ancora qui: ricarica solo il file.</div>
@@ -239,50 +274,59 @@ admin_setup_create has always read.
 </div>
 
 <ol class="sw-steps" id="steps" aria-label="Passi">
-    <li><button type="button" data-go="1" aria-current="step"><span class="n">1</span><span class="l"><b>File</b><small>Listone e rose</small></span></button></li>
-    <li><button type="button" data-go="2" disabled><span class="n">2</span><span class="l"><b>Lega</b><small>Regole e squadre</small></span></button></li>
-    <li><button type="button" data-go="3" disabled><span class="n">3</span><span class="l"><b>Asta</b><small>Asta, inviti e riepilogo</small></span></button></li>
+    <li><button type="button" data-go="1" aria-current="step"><span class="n">1</span><span class="l"><b>Inizio</b><small>Nome e file</small></span></button></li>
+    <li><button type="button" data-go="2" disabled><span class="n">2</span><span class="l"><b>Squadre</b><small>Una per riga</small></span></button></li>
+    <li><button type="button" data-go="3" disabled><span class="n">3</span><span class="l"><b>Regole</b><small>Classic, Mantra…</small></span></button></li>
+    <li><button type="button" data-go="4" disabled><span class="n">4</span><span class="l"><b>Inviti</b><small>e prima asta</small></span></button></li>
 </ol>
 
 <form id="wiz-form" method="post" action="{% url 'admin_setup_create' %}" enctype="multipart/form-data" novalidate>
     {% csrf_token %}
     <input type="hidden" name="participants_json" id="participants_json">
+    <input type="hidden" name="detected_emails_json" id="detected_emails_json">
     <input type="hidden" name="import_choice" id="import_choice" value="none">
     <input type="hidden" name="source_site" id="source_site" value="">
+    <input type="hidden" name="from" value="{% if in_app %}app{% else %}console{% endif %}">
 
 <div class="sw-layout">
 <div class="sw-main">
 
-    <!-- ============================ STEP 1 — FILE ============================ -->
+    <!-- ========================== STEP 1 — DA DOVE PARTI ========================== -->
     <section class="wstep panel active" data-step="1" aria-labelledby="s1-h">
-        <h2 id="s1-h" tabindex="-1">Da dove partiamo?</h2>
-        <p class="lead">Carica il <b>listone</b> delle quotazioni: è l'elenco dei giocatori da mettere all'asta. Se le squadre hanno già delle rose, aggiungi anche quelle: squadre, giocatori e crediti li leggo direttamente dal file.</p>
+        <h2 id="s1-h" tabindex="-1">Da dove parti?</h2>
+        <p class="lead">Il nome della lega e, se li hai, i file. Nella maggior parte dei casi non serve nessun file.</p>
 
-        <div class="blk">
-            <div class="blk-t"><svg class="ic"><use href="#i-list"/></svg> Listone quotazioni <span class="req">obbligatorio</span></div>
-            <label class="drop" id="drop-listone" for="listone_file">
-                <input type="file" name="listone_file" id="listone_file" accept=".xlsx,.xls,.csv" aria-describedby="listone-help listone-result">
-                <div class="row1">
-                    <div class="ico"><svg class="ic"><use href="#i-cloud-up"/></svg></div>
-                    <div class="txt"><b id="listone-name">Trascina qui il listone</b>
-                        <span id="listone-help">oppure <u>sceglilo dal computer</u> · il file <i>Quotazioni_Fantacalcio…xlsx</i> o un .csv con Nome, Ruolo, Squadra, Quotazione</span></div>
-                </div>
-                <div class="res" id="listone-result" aria-live="polite"></div>
-            </label>
+        <div class="blk field">
+            <label for="league-name">Nome della lega</label>
+            <input name="name" id="league-name" value="{{ cfg.name }}" placeholder="Es. Fantalega degli Amici" maxlength="120" autocomplete="off">
+            <div class="hint warn" id="name-dup" style="display:none">Hai già una lega con questo nome: sceglierne uno diverso evita confusione.</div>
         </div>
 
         <div class="blk">
-            <div class="blk-t"><svg class="ic"><use href="#i-users"/></svg> Rose già assegnate <span class="opt-tag">facoltativo</span></div>
+            <div class="cards start-cards" role="radiogroup" aria-label="Da dove parti">
+                <label class="card-opt"><input type="radio" name="start_choice" value="new" checked>
+                    <div class="t"><svg class="ic"><use href="#i-plus"/></svg> Lega nuova</div>
+                    <div class="d">Nessun file: il listone generale dei calciatori di Serie A arriva da solo e si aggiorna.</div></label>
+                <label class="card-opt"><input type="radio" name="start_choice" value="rose">
+                    <div class="t"><svg class="ic"><use href="#i-users"/></svg> Ho già le rose</div>
+                    <div class="d">Fantapazz, un Excel o il .csv di Leghe Fantacalcio: squadre, giocatori e crediti dal file.</div></label>
+                <label class="card-opt"><input type="radio" name="start_choice" value="listone">
+                    <div class="t"><svg class="ic"><use href="#i-list"/></svg> Ho il mio listone</div>
+                    <div class="d">Le quotazioni che usa la tua lega (.xlsx/.xls ufficiale o .csv).</div></label>
+            </div>
+        </div>
+
+        <div class="blk" id="rose-part" hidden>
+            <div class="blk-t"><svg class="ic"><use href="#i-users"/></svg> File delle rose</div>
             <label class="drop" id="drop-rose" for="rose_file">
                 <input type="file" name="rose_file" id="rose_file" accept=".xls,.xlsx,.csv" aria-describedby="rose-help rose-result">
                 <div class="row1">
                     <div class="ico"><svg class="ic"><use href="#i-import"/></svg></div>
-                    <div class="txt"><b id="rose-name">Trascina qui le rose</b>
+                    <div class="txt"><b id="rose-name">Tocca per scegliere le rose</b>
                         <span id="rose-help">Export di Fantapazz, un Excel con le rose o il .csv «Rose» di Leghe Fantacalcio: il formato lo riconosco io.</span></div>
                 </div>
                 <div class="res" id="rose-result" aria-live="polite"></div>
             </label>
-
             <div id="src-wrap" style="display:none;margin-top:12px">
                 <div class="hint" style="margin:0 0 6px">Formato del file rose <span id="src-auto" class="pill info" style="display:none">riconosciuto</span></div>
                 <div class="seg" role="radiogroup" aria-label="Formato del file rose">
@@ -291,146 +335,175 @@ admin_setup_create has always read.
                     <label><input type="radio" name="_src" value="leghe"><span>Leghe Fantacalcio (.csv)</span></label>
                 </div>
             </div>
-
             <div id="fp-extra" style="display:none;margin-top:12px">
-                <div class="grid2">
-                    <div class="field"><label for="external_id">ID lega su Fantapazz <span class="muted" style="text-transform:none;letter-spacing:0">(facoltativo)</span></label>
-                        <input name="external_id" id="external_id" placeholder="es. 332175" inputmode="numeric"></div>
-                </div>
+                <div class="field"><label for="external_id">ID lega su Fantapazz <span class="muted" style="text-transform:none;letter-spacing:0">(facoltativo)</span></label>
+                    <input name="external_id" id="external_id" placeholder="es. 332175" inputmode="numeric"></div>
             </div>
+        </div>
 
-            <p class="hint">Niente rose? Va benissimo: si parte tutti da zero e le squadre le scrivi al passo 2.</p>
+        <div class="blk" id="listone-part" hidden>
+            <div class="blk-t"><svg class="ic"><use href="#i-list"/></svg> Listone quotazioni <span class="opt-tag" id="listone-tag"></span></div>
+            <label class="drop" id="drop-listone" for="listone_file">
+                <input type="file" name="listone_file" id="listone_file" accept=".xlsx,.xls,.csv" aria-describedby="listone-help listone-result">
+                <div class="row1">
+                    <div class="ico"><svg class="ic"><use href="#i-cloud-up"/></svg></div>
+                    <div class="txt"><b id="listone-name">Tocca per scegliere il listone</b>
+                        <span id="listone-help">Il file <i>Quotazioni_Fantacalcio…xlsx</i> o un .csv con Nome, Ruolo, Squadra, Quotazione</span></div>
+                </div>
+                <div class="res" id="listone-result" aria-live="polite"></div>
+            </label>
         </div>
     </section>
 
-    <!-- ========================== STEP 2 — LEGA ========================== -->
+    <!-- ============================== STEP 2 — SQUADRE ============================== -->
     <section class="wstep panel" data-step="2" aria-labelledby="s2-h">
-        <h2 id="s2-h" tabindex="-1">La tua lega</h2>
-        <p class="lead">Nome, soldi e forma della rosa. I valori proposti sono quelli di una lega standard: cambia solo quello che ti serve.</p>
+        <h2 id="s2-h" tabindex="-1">Squadre</h2>
+        <p class="lead">Chi gioca. Con l'email, ogni squadra riceve il suo invito e si collega da sola al suo account.</p>
 
-        <div class="blk grid2">
+        <div id="detected-teams" style="display:none">
+            <p class="hint" style="margin-top:0"><span class="pill">✓ Dal file rose</span> queste squadre nascono con le loro rose e i loro crediti. Scrivi qui l'email di chi le guida (facoltativa).</p>
+            <div id="detected-teams-list" style="margin-top:8px"></div>
+        </div>
+
+        <div id="manual-teams">
             <div class="field">
-                <label for="league-name">Nome della lega</label>
-                <input name="name" id="league-name" value="{{ cfg.name }}" placeholder="Es. Fantalega degli Amici" maxlength="120" autocomplete="off">
-                <div class="hint warn" id="name-dup" style="display:none">Hai già una lega con questo nome: sceglierne uno diverso evita confusione.</div>
+                <label for="teams-text">Una squadra per riga <span class="muted" style="text-transform:none;letter-spacing:0">— nome e, se vuoi, email</span></label>
+                <textarea id="teams-text" name="teams_text" placeholder="Real Madrink; mario@email.it&#10;Atletico Ma Non Troppo, luca@email.it&#10;Inter Nazionale&#10;giulia.bianchi@email.it" autocapitalize="sentences" spellcheck="false"></textarea>
+                <div class="hint">L'email la riconosco ovunque nella riga; il resto è il nome. Solo l'email? Propongo il nome, che puoi cambiare qui sotto.</div>
             </div>
-            <div class="field">
-                <label for="budget">Crediti per squadra (FM)</label>
-                <input name="budget" id="budget" value="{{ cfg.budget|floatformat:0 }}" inputmode="numeric">
-                <div class="chips" data-for="budget">
-                    <button type="button" class="chip" data-v="250">250</button>
-                    <button type="button" class="chip" data-v="500">500</button>
-                    <button type="button" class="chip" data-v="1000">1000</button>
-                </div>
-                <div class="hint" id="budget-hint"></div>
+            <table class="tp-table" id="teams-preview" hidden>
+                <thead><tr><th></th><th>Squadra</th><th>Email</th><th></th></tr></thead>
+                <tbody></tbody>
+            </table>
+            <div class="hint bad" id="part-error" role="alert" style="display:none"></div>
+
+            {% if free_teams %}
+            <div class="blk-t" style="margin-top:18px">Squadre già esistenti senza lega</div>
+            <div class="glass attach-list">
+                {% for p in free_teams %}
+                <label class="attach-item">
+                    <input type="checkbox" name="attach_ids" value="{{ p.id }}" data-name="{{ p.display_name }}">
+                    <span style="flex:1">{{ p.display_name }}</span>
+                    <span class="muted" style="font-size:12px">{{ p.remaining_credits|floatformat:0 }} FM</span>
+                </label>
+                {% endfor %}
             </div>
+            {% endif %}
         </div>
+    </section>
 
-        <div class="blk">
-            <div class="blk-t"><svg class="ic"><use href="#i-ball"/></svg> Sistema di gioco</div>
-            <input type="hidden" name="game_mode" id="game_mode" value="{{ cfg.game_mode|default:'CLASSIC' }}">
-            <div class="cards" id="gm-cards" role="radiogroup" aria-label="Sistema di gioco">
-                <label class="card-opt"><input type="radio" name="_gm" value="CLASSIC">
-                    <div class="t"><svg class="ic"><use href="#i-shield"/></svg> Classic</div>
-                    <div class="d">Quattro ruoli: portiere, difensore, centrocampista, attaccante.</div></label>
-                <label class="card-opt"><input type="radio" name="_gm" value="MANTRA">
-                    <span class="badge" id="mantra-badge" style="display:none">✓ nel listone</span>
-                    <div class="t"><svg class="ic"><use href="#i-users"/></svg> Mantra</div>
-                    <div class="d">Ruoli reali e multipli (Dc, M/C, W;A), quotazioni Mantra e moduli ufficiali.</div></label>
-            </div>
-            <div class="hint" id="gm-hint" aria-live="polite"></div>
+    <!-- ============================== STEP 3 — REGOLE ============================== -->
+    <section class="wstep panel" data-step="3" aria-labelledby="s3-h">
+        <h2 id="s3-h" tabindex="-1">Regole</h2>
+        <p class="lead">Scegli il tipo di lega: riempio io budget, rosa e ritmo dell'asta. Tutto si cambia anche dopo, in Impostazioni.</p>
+
+        <div class="cards" id="preset-cards" role="radiogroup" aria-label="Tipo di lega">
+            {% for p in presets %}
+            <label class="card-opt"><input type="radio" name="_preset" value="{{ p.key }}"{% if forloop.first %} checked{% endif %}>
+                <div class="t">{{ p.label }}</div>
+                <div class="d">{{ p.desc }}</div></label>
+            {% endfor %}
         </div>
+        {{ presets|json_script:"rule-presets" }}
 
-        <div class="blk">
-            <div class="blk-t"><svg class="ic"><use href="#i-shirt"/></svg> Com'è fatta una rosa</div>
-            <input type="hidden" name="slot_limits" id="slot_limits" value="{% if cfg.slot_limits %}1{% else %}0{% endif %}">
-            <div class="seg" role="radiogroup" aria-label="Limiti della rosa">
-                <label><input type="radio" name="_slots" value="1"><span>Posti per ruolo</span></label>
-                <label><input type="radio" name="_slots" value="0"><span>Nessun limite (conta solo il budget)</span></label>
-            </div>
-            <div id="slots-wrap" style="margin-top:12px">
-                <div class="grid4" id="slots-classic">
-                    <div class="field"><label for="s-p">Portieri</label><input id="s-p" name="slots_p" value="{{ cfg.slots_p }}" inputmode="numeric"></div>
-                    <div class="field"><label for="s-d">Difensori</label><input id="s-d" name="slots_d" value="{{ cfg.slots_d }}" inputmode="numeric"></div>
-                    <div class="field"><label for="s-c">Centrocampisti</label><input id="s-c" name="slots_c" value="{{ cfg.slots_c }}" inputmode="numeric"></div>
-                    <div class="field"><label for="s-a">Attaccanti</label><input id="s-a" name="slots_a" value="{{ cfg.slots_a }}" inputmode="numeric"></div>
+        <details class="adv" id="custom-rules">
+            <summary><svg class="ic"><use href="#i-gear"/></svg> Personalizza <span class="muted" style="font-weight:500">— budget, sistema di gioco, rosa, contratti</span>
+                <svg class="ic chev"><use href="#i-chev-down"/></svg></summary>
+            <div class="adv-body">
+                <div class="field">
+                    <label for="budget">Crediti per squadra (FM)</label>
+                    <input name="budget" id="budget" value="{{ cfg.budget|floatformat:0 }}" inputmode="numeric">
+                    <div class="chips" data-for="budget">
+                        <button type="button" class="chip" data-v="250">250</button>
+                        <button type="button" class="chip" data-v="500">500</button>
+                        <button type="button" class="chip" data-v="1000">1000</button>
+                    </div>
+                    <div class="hint" id="budget-hint"></div>
                 </div>
-                <div class="grid2" id="slots-mantra" style="display:none">
-                    <div class="field"><label for="s-gk">Portieri</label><input id="s-gk" name="slots_gk" value="{{ cfg.slots_gk|default:3 }}" inputmode="numeric"></div>
-                    <div class="field"><label for="s-out">Giocatori di movimento</label><input id="s-out" name="slots_out" value="{{ cfg.slots_out|default:22 }}" inputmode="numeric"></div>
-                </div>
-                <div class="chips">
-                    <button type="button" class="chip" id="slots-std">Standard</button>
-                    <span class="hint" id="slots-total" style="margin:0;align-self:center"></span>
-                </div>
-            </div>
-            <div class="field" style="margin-top:12px">
-                <label for="s-gkclubs">Portieri: squadre di Serie A al massimo</label>
-                <input id="s-gkclubs" name="gk_max_clubs" value="{{ cfg.gk_max_clubs|default:0 }}" inputmode="numeric">
-                <div class="hint">0 = nessun limite. Con 2, chi ha già portieri di due squadre di Serie A può prendere solo portieri di quelle squadre (regolamento 2.02). Vale in asta e in ogni mercato.</div>
-            </div>
-        </div>
 
-        <div class="blk">
-            <div class="blk-t"><svg class="ic"><use href="#i-shield"/></svg> Squadre <span class="opt-tag" id="teams-count"></span></div>
-
-            <div id="detected-teams" style="display:none">
-                <p class="hint" style="margin-top:0"><span class="pill">✓ Dal file rose</span> queste squadre nascono con le loro rose e i loro crediti. Le email degli allenatori le aggiungi alla fine, nella pagina «Lega pronta».</p>
-                <div id="detected-teams-list" style="margin-top:8px"></div>
-            </div>
-
-            <div id="manual-teams">
-                <p class="hint" style="margin-top:0">Scrivi le squadre che partecipano. Invio passa alla riga successiva; i crediti partono dal budget della lega.
-                    L'<b>email</b> è facoltativa: serve per mandare a ogni allenatore il suo link personale.</p>
-                <div class="part-head" aria-hidden="true"><span>Squadra</span><span>Email allenatore</span><span>Crediti</span></div>
-                <div id="part-list"></div>
-                <div class="team-tools">
-                    <button type="button" class="fm-btn-secondary" onclick="teams.add()"><svg class="ic"><use href="#i-plus"/></svg> Aggiungi squadra</button>
-                    <button type="button" class="fm-btn-ghost" onclick="teams.togglePaste()" aria-expanded="false" id="paste-toggle"><svg class="ic"><use href="#i-copy"/></svg> Incolla un elenco</button>
+                <div class="blk">
+                    <div class="blk-t"><svg class="ic"><use href="#i-ball"/></svg> Sistema di gioco</div>
+                    <input type="hidden" name="game_mode" id="game_mode" value="{{ cfg.game_mode|default:'CLASSIC' }}">
+                    <div class="cards" id="gm-cards" role="radiogroup" aria-label="Sistema di gioco">
+                        <label class="card-opt"><input type="radio" name="_gm" value="CLASSIC">
+                            <div class="t"><svg class="ic"><use href="#i-shield"/></svg> Classic</div>
+                            <div class="d">Quattro ruoli: portiere, difensore, centrocampista, attaccante.</div></label>
+                        <label class="card-opt"><input type="radio" name="_gm" value="MANTRA">
+                            <span class="badge" id="mantra-badge" style="display:none">✓ nel listone</span>
+                            <div class="t"><svg class="ic"><use href="#i-users"/></svg> Mantra</div>
+                            <div class="d">Ruoli reali e multipli (Dc, M/C, W;A), quotazioni Mantra e moduli ufficiali.</div></label>
+                    </div>
+                    <div class="hint" id="gm-hint" aria-live="polite"></div>
                 </div>
-                <div class="paste-box" id="paste-box">
-                    <label for="paste-area">Un nome per riga (o separati da virgola)</label>
-                    <textarea id="paste-area" placeholder="Real Madrink&#10;Atletico Ma Non Troppo&#10;Inter Nazionale"></textarea>
-                    <div class="team-tools" style="margin-top:8px">
-                        <button type="button" class="btn-ok" onclick="teams.fromPaste()">Aggiungi all'elenco</button>
+
+                <div class="blk">
+                    <div class="blk-t"><svg class="ic"><use href="#i-shirt"/></svg> Com'è fatta una rosa</div>
+                    <input type="hidden" name="slot_limits" id="slot_limits" value="{% if cfg.slot_limits %}1{% else %}0{% endif %}">
+                    <div class="seg" role="radiogroup" aria-label="Limiti della rosa">
+                        <label><input type="radio" name="_slots" value="1"><span>Posti per ruolo</span></label>
+                        <label><input type="radio" name="_slots" value="0"><span>Nessun limite (conta solo il budget)</span></label>
+                    </div>
+                    <div id="slots-wrap" style="margin-top:12px">
+                        <div class="grid4" id="slots-classic">
+                            <div class="field"><label for="s-p">Portieri</label><input id="s-p" name="slots_p" value="{{ cfg.slots_p }}" inputmode="numeric"></div>
+                            <div class="field"><label for="s-d">Difensori</label><input id="s-d" name="slots_d" value="{{ cfg.slots_d }}" inputmode="numeric"></div>
+                            <div class="field"><label for="s-c">Centrocampisti</label><input id="s-c" name="slots_c" value="{{ cfg.slots_c }}" inputmode="numeric"></div>
+                            <div class="field"><label for="s-a">Attaccanti</label><input id="s-a" name="slots_a" value="{{ cfg.slots_a }}" inputmode="numeric"></div>
+                        </div>
+                        <div class="grid2" id="slots-mantra" style="display:none">
+                            <div class="field"><label for="s-gk">Portieri</label><input id="s-gk" name="slots_gk" value="{{ cfg.slots_gk|default:3 }}" inputmode="numeric"></div>
+                            <div class="field"><label for="s-out">Giocatori di movimento</label><input id="s-out" name="slots_out" value="{{ cfg.slots_out|default:22 }}" inputmode="numeric"></div>
+                        </div>
+                        <div class="hint" id="slots-total"></div>
+                    </div>
+                    <div class="field" style="margin-top:12px">
+                        <label for="s-gkclubs">Portieri: squadre di Serie A al massimo</label>
+                        <input id="s-gkclubs" name="gk_max_clubs" value="{{ cfg.gk_max_clubs|default:0 }}" inputmode="numeric">
+                        <div class="hint">0 = nessun limite. Con 2, chi ha già portieri di due squadre di Serie A può prendere solo portieri di quelle squadre (regolamento 2.02).</div>
                     </div>
                 </div>
-                <div class="hint bad" id="part-error" role="alert" style="display:none"></div>
 
-                {% if free_teams %}
-                <div class="blk-t" style="margin-top:18px">Squadre già esistenti senza lega</div>
-                <div class="glass attach-list">
-                    {% for p in free_teams %}
-                    <label class="attach-item">
-                        <input type="checkbox" name="attach_ids" value="{{ p.id }}" data-name="{{ p.display_name }}">
-                        <span style="flex:1">{{ p.display_name }}</span>
-                        <span class="muted" style="font-size:12px">{{ p.remaining_credits|floatformat:0 }} FM</span>
-                    </label>
-                    {% endfor %}
-                </div>
-                {% endif %}
+                <input type="hidden" name="contracts_enabled" value="0">
+                <label class="toggle-row">
+                    <input type="checkbox" name="contracts_enabled" value="1" id="contracts-toggle">
+                    <div><b>Contratti di permanenza</b>
+                        <span>Le rose restano da una stagione all'altra con dadi, scadenze e rinnovi (lega «Dinasty»).</span></div>
+                </label>
             </div>
-        </div>
+        </details>
     </section>
 
-    <!-- ========================== STEP 3 — ASTA ========================== -->
-    <section class="wstep panel" data-step="3" aria-labelledby="s3-h">
-        <h2 id="s3-h" tabindex="-1">L'asta</h2>
-        <p class="lead">Crea subito anche l'asta, oppure solo la lega se l'asta la fai più avanti (o la lega è già a stagione iniziata). Tutto resta modificabile anche dopo.</p>
+    <!-- ========================== STEP 4 — INVITI E ASTA ========================== -->
+    <section class="wstep panel" data-step="4" aria-labelledby="s4-h">
+        <h2 id="s4-h" tabindex="-1">Inviti e asta</h2>
+        <p class="lead">Gli inviti partono appena la lega è creata. L'asta la puoi creare adesso o più avanti.</p>
 
-        <div class="blk what">
-            <input type="hidden" name="create_auction" id="create_auction" value="1">
-            <div class="cards" role="radiogroup" aria-label="Cosa creare">
-                <label class="card-opt"><input type="radio" name="_what" value="1" checked>
-                    <div class="t"><svg class="ic"><use href="#i-gavel"/></svg> Lega e asta</div>
-                    <div class="d">Imposto adesso timer e regole: l'asta nasce pronta in regia.</div></label>
-                <label class="card-opt"><input type="radio" name="_what" value="0">
-                    <div class="t"><svg class="ic"><use href="#i-shield"/></svg> Solo la lega</div>
-                    <div class="d">Squadre, listone e rose. L'asta la crei quando serve, dal wizard asta o dal Mercato.</div></label>
-            </div>
+        <div class="blk">
+            <div class="blk-t"><svg class="ic"><use href="#i-mail"/></svg> Inviti alle squadre</div>
+            <label class="toggle-row" style="margin-top:0">
+                <input type="checkbox" name="send_invites" value="1" id="send-invites" checked>
+                <div><b>Invia gli inviti adesso</b>
+                    <span id="inv-note">{% if mail_ready %}Via email, alle squadre con un indirizzo. Alle altre li mandi dalla pagina successiva (WhatsApp, link, QR).{% else %}L'invio email non è attivo su questo sito: nella pagina successiva si apre la condivisione per squadra (WhatsApp, link, QR).{% endif %}</span></div>
+            </label>
         </div>
 
-        <div id="auction-part">
+        <div class="blk field">
+            <div class="blk-t"><svg class="ic"><use href="#i-shield"/></svg> Co-admin <span class="opt-tag">facoltativo</span></div>
+            <label for="coadmin-email">Email di chi ti aiuta a gestire la lega</label>
+            <input id="coadmin-email" type="email" name="coadmin_email" autocomplete="off" placeholder="es. vice@email.it">
+            <div class="hint">Riceve un invito: con il suo account entra nella Regia della lega. Il presidente resti tu.</div>
+        </div>
+
+        <div class="blk what">
+            <input type="hidden" name="create_auction" id="create_auction" value="0">
+            <label class="toggle-row">
+                <input type="checkbox" id="auction-toggle">
+                <div><b>Crea anche la prima asta</b>
+                    <span>Imposto adesso timer e regole: l'asta nasce pronta in regia. Se no, la crei quando serve dal Mercato.</span></div>
+            </label>
+        </div>
+
+        <div id="auction-part" hidden>
 
         <div class="blk">
             <div class="blk-t"><svg class="ic"><use href="#i-gavel"/></svg> Tipo di asta</div>
@@ -551,32 +624,17 @@ admin_setup_create has always read.
             </div>
         </details>
 
-        </div><!-- /auction-part -->
-
-        <div class="blk">
-            <div class="blk-t"><svg class="ic"><use href="#i-mail"/></svg> Inviti alle squadre</div>
-            {% if mail_ready %}
-            <label class="toggle-row" style="margin-top:0">
-                <input type="checkbox" name="send_invites" value="1" id="send-invites">
-                <div><b>Manda a ogni squadra il suo link via email</b>
-                    <span id="inv-note">Parte appena la lega è creata, a chi ha un'email.</span></div>
-            </label>
-            {% else %}
-            <p class="hint" style="margin:0">La posta non è configurata: i link li passi a mano (o con il QR) dalla pagina Squadre.
-                {% if request.user.is_superuser %}<a href="{% url 'admin_mail_settings' %}" target="_blank" rel="noopener">Configura la posta</a> per mandarli via email.{% else %}Per mandarli via email chiedi all'amministratore di configurare la posta.{% endif %}</p>
-            {% endif %}
-        </div>
-
-        <div class="blk" id="sum-inline-wrap">
-            <div class="blk-t"><svg class="ic"><use href="#i-list"/></svg> Riepilogo</div>
-            <div class="glass sum" id="sum-inline"></div>
-        </div>
-
         <label class="toggle-row start-box" id="start-box">
             <input type="checkbox" name="start_now" value="1">
             <div><b>Avvia subito l'asta</b>
                 <span>Altrimenti resta «Pronta» e la fai partire dalla regia quando la sala è pronta.</span></div>
         </label>
+        </div><!-- /auction-part -->
+
+        <div class="blk" id="sum-inline-wrap">
+            <div class="blk-t"><svg class="ic"><use href="#i-list"/></svg> Riepilogo</div>
+            <div class="glass sum" id="sum-inline"></div>
+        </div>
     </section>
 </div>
 
@@ -593,7 +651,7 @@ admin_setup_create has always read.
         <div class="where" id="where" aria-live="polite"></div>
         <button type="button" class="fm-btn-secondary" id="btn-prev" onclick="wiz.prev()"><svg class="ic"><use href="#i-arrow-left"/></svg> Indietro</button>
         <button type="button" class="btn-ok" id="btn-next" onclick="wiz.next()">Avanti <svg class="ic"><use href="#i-arrow-right"/></svg></button>
-        <button type="submit" class="btn-ok" id="btn-create" style="display:none"><span class="spin"></span><svg class="ic"><use href="#i-shield"/></svg> <span class="lbl">Crea lega e asta</span></button>
+        <button type="submit" class="btn-ok" id="btn-create" style="display:none"><span class="spin"></span><svg class="ic"><use href="#i-shield"/></svg> <span class="lbl">Crea la lega</span></button>
     </div>
 </div>
 </form>
@@ -606,17 +664,40 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const form = $("#wiz-form");
 const EXISTING = (JSON.parse($("#existing-names").textContent) || []).map(n => n.trim().toLowerCase());
+const PRESETS = JSON.parse($("#rule-presets").textContent) || [];
+const MAIL_READY = {% if mail_ready %}true{% else %}false{% endif %};
 const num = v => { const n = Number(String(v || "").replace(",", ".")); return isFinite(n) ? n : NaN; };
+// fmEsc (base.html) è definita in fondo alla pagina, dopo questo script: il
+// riepilogo si disegna subito, quindi serve la sua copia qui.
+const fmEsc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
 function getCsrf() {
     const m = document.cookie.match("(^|;)\\s*csrftoken\\s*=\\s*([^;]+)");
-    return m ? m.pop() : "{{ csrf_token }}";
+    return m ? m.pop() : (form.querySelector('[name="csrfmiddlewaretoken"]') || {}).value;
 }
 
 // ---------------------------------------------------------------- state
-const st = { listone: null, rose: null, source: "" };
+const st = { listone: null, rose: null, source: "", start: "new" };
 const SRC_LABEL = { "": "Nessuna", fantapazz: "Fantapazz", excel: "File Excel", leghe: "Leghe Fantacalcio" };
+const START_LABEL = { new: "Lega nuova (listone generale)", rose: "Dalle rose", listone: "Dal mio listone" };
 
-// ---------------------------------------------------------------- files
+// ---------------------------------------------------------------- passo 1: da dove parti
+function setStart(v) {
+    st.start = v;
+    $$('input[name="start_choice"]').forEach(i => { i.checked = i.value === v; });
+    $("#rose-part").hidden = v !== "rose";
+    listoneVisibility();
+    teams.sync();
+}
+function listoneVisibility() {
+    // Il listone serve con «Ho il mio listone», e con le rose di Leghe
+    // Fantacalcio (hanno solo gli Id ufficiali). Altrimenti c'è quello generale.
+    const need = st.start === "listone" || (st.start === "rose" && st.source === "leghe");
+    $("#listone-part").hidden = !need && !(st.start === "rose" && $("#listone_file").files[0]);
+    $("#listone-tag").textContent = need ? "obbligatorio" : "facoltativo";
+    refresh();
+}
+$$('input[name="start_choice"]').forEach(i => i.addEventListener("change", () => setStart(i.value)));
+
 function setDrop(id, cls, html, name) {
     const box = $(id);
     box.classList.remove("ok", "bad");
@@ -634,7 +715,7 @@ async function analyze(field, file) {
 async function onListone() {
     const file = $("#listone_file").files[0];
     st.listone = null;
-    if (!file) { setDrop("#drop-listone", "", "", "Trascina qui il listone"); refresh(); return; }
+    if (!file) { setDrop("#drop-listone", "", "", "Tocca per scegliere il listone"); refresh(); return; }
     setDrop("#drop-listone", "", '<span class="muted">Leggo il file…</span>', file.name);
     try {
         const d = await analyze("listone_file", file);
@@ -662,18 +743,12 @@ function setSource(s, auto) {
     $("#src-wrap").style.display = ($("#rose_file").files[0]) ? "" : "none";
     $("#src-auto").style.display = auto ? "" : "none";
     $("#fp-extra").style.display = s === "fantapazz" ? "" : "none";
-    refresh();
+    listoneVisibility();
 }
 async function onRose() {
     const file = $("#rose_file").files[0];
     st.rose = null;
-    const fp = $("#use-fp-cache");
-    if (!file) {
-        setDrop("#drop-rose", "", "", "Trascina qui le rose");
-        setSource(fp && fp.checked ? "fantapazz" : "", false);
-        teams.sync(); return;
-    }
-    if (fp) fp.checked = false;
+    if (!file) { setDrop("#drop-rose", "", "", "Tocca per scegliere le rose"); setSource("", false); teams.sync(); return; }
     setSource(guessSource(file.name), true);
     setDrop("#drop-rose", "", '<span class="muted">Leggo le rose…</span>', file.name);
     try {
@@ -685,7 +760,7 @@ async function onRose() {
             $("#budget").value = d.suggested_budget;
             html += ` <span class="muted">budget di partenza ${d.suggested_budget} FM</span>`;
         }
-        if (d.id_based && !st.listone) html += `<div class="hint warn">Queste rose usano gli Id ufficiali: servono abbinate al listone qui sopra.</div>`;
+        if (d.id_based) html += `<div class="hint warn">Queste rose usano gli Id ufficiali: carica anche il listone qui sotto.</div>`;
         setDrop("#drop-rose", "ok", html);
     } catch (e) {
         setDrop("#drop-rose", "bad", "✗ Non riesco a leggere il file (" + fmEsc(e.message) + ").");
@@ -695,15 +770,136 @@ async function onRose() {
 $("#listone_file").addEventListener("change", onListone);
 $("#rose_file").addEventListener("change", onRose);
 $$('input[name="_src"]').forEach(i => i.addEventListener("change", () => setSource(i.value, false)));
-const fpCache = $("#use-fp-cache");
-if (fpCache) fpCache.addEventListener("change", () => { if (!$("#rose_file").files[0]) setSource(fpCache.checked ? "fantapazz" : "", false); });
-// Drag & drop: highlight while a file hovers; the native input takes the drop.
 $$(".drop").forEach(box => {
     ["dragenter", "dragover"].forEach(ev => box.addEventListener(ev, () => box.classList.add("over")));
     ["dragleave", "drop"].forEach(ev => box.addEventListener(ev, () => box.classList.remove("over")));
 });
 
-// ---------------------------------------------------------------- lega
+// ---------------------------------------------------------------- passo 2: squadre
+// Lo stesso parser di services/onboarding.py:parse_team_lines.
+const EMAIL_RE = /[A-Za-z0-9._%+'-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/;
+const EDGE_SEP = /^[\s;,\t:\-–—|<>()\[\]]+|[\s;,\t:\-–—|<>()\[\]]+$/g;
+const MAIL_OK = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+function nameFromEmail(email) {
+    const local = email.split("@")[0];
+    const words = local.split(/[._+\-]+/).filter(Boolean);
+    return words.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ").slice(0, 80) || local.slice(0, 80);
+}
+function parseTeams(text) {
+    const rows = [];
+    (text || "").split(/\r?\n/).forEach(raw => {
+        const line = raw.trim();
+        if (!line) return;
+        const m = line.match(EMAIL_RE);
+        let email = "", name = line;
+        if (m) {
+            email = m[0].replace(/^\.+|\.+$/g, "");
+            name = (line.slice(0, m.index) + " " + line.slice(m.index + m[0].length)).trim().replace(EDGE_SEP, "").trim();
+        }
+        name = name.replace(/\s+/g, " ").slice(0, 80);
+        let fromEmail = false;
+        if (!name && email) { name = nameFromEmail(email); fromEmail = true; }
+        if (!name) return;
+        rows.push({ name, email: email.toLowerCase(), fromEmail });
+    });
+    return rows;
+}
+const teams = {
+    list: [],
+    detected() { return st.start === "rose" && !!(st.rose && st.rose.teams && st.rose.teams.length); },
+    fromText() { teams.list = parseTeams($("#teams-text").value); teams.render(); refresh(); },
+    toText() {
+        $("#teams-text").value = teams.list.map(r => r.email ? `${r.name}; ${r.email}` : r.name).join("\n");
+    },
+    render() {
+        const body = $("#teams-preview tbody");
+        body.innerHTML = "";
+        teams.list.forEach((r, i) => {
+            const tr = document.createElement("tr");
+            tr.innerHTML =
+                `<td class="ix">${i + 1}</td>` +
+                `<td><input class="tp-name" aria-label="Nome squadra" maxlength="80" value="${fmEsc(r.name)}">` +
+                `${r.fromEmail ? '<span class="from-mail">nome preso dall\'email: cambialo se vuoi</span>' : ""}<span class="w"></span></td>` +
+                `<td class="em"><input class="tp-mail" type="email" aria-label="Email" maxlength="254" placeholder="email (facoltativa)" value="${fmEsc(r.email)}"></td>` +
+                `<td class="act"><button type="button" class="rm" aria-label="Togli questa squadra" title="Togli">✕</button></td>`;
+            tr.querySelector(".tp-name").addEventListener("input", ev => { r.name = ev.target.value.trim(); r.fromEmail = false; teams.toText(); teams.marks(); refresh(); });
+            tr.querySelector(".tp-mail").addEventListener("input", ev => { r.email = ev.target.value.trim(); teams.toText(); teams.marks(); refresh(); });
+            tr.querySelector(".rm").addEventListener("click", () => { teams.list.splice(i, 1); teams.toText(); teams.render(); refresh(); });
+            body.appendChild(tr);
+        });
+        $("#teams-preview").hidden = !teams.list.length;
+        teams.marks();
+    },
+    marks() {
+        // Doppioni e email sbagliate, riga per riga: segnati, non tolti.
+        const names = {}, mails = {};
+        teams.list.forEach(r => { const k = r.name.toLowerCase(); names[k] = (names[k] || 0) + 1; if (r.email) mails[r.email.toLowerCase()] = (mails[r.email.toLowerCase()] || 0) + 1; });
+        $$("#teams-preview tbody tr").forEach((tr, i) => {
+            const r = teams.list[i]; if (!r) return;
+            const w = [];
+            if (names[r.name.toLowerCase()] > 1) w.push("nome ripetuto");
+            if (r.email && mails[r.email.toLowerCase()] > 1) w.push("email ripetuta");
+            if (r.email && !MAIL_OK.test(r.email)) w.push("email non valida");
+            tr.classList.toggle("dup", names[r.name.toLowerCase()] > 1);
+            tr.querySelector(".tp-mail").classList.toggle("bad", !!r.email && !MAIL_OK.test(r.email));
+            tr.querySelector(".w").textContent = w.length ? "⚠ " + w.join(" · ") : "";
+        });
+    },
+    collect() { return teams.list.filter(r => r.name).map(r => ({ name: r.name, email: r.email, credits: "" })); },
+    problem() {
+        const seen = new Set();
+        for (const r of teams.list) {
+            if (!r.name) return { msg: "C'è una riga senza nome: scrivilo o togli la riga." };
+            const k = r.name.toLowerCase();
+            if (seen.has(k)) return { msg: `«${r.name}» compare due volte: dai un nome diverso a ogni squadra.` };
+            seen.add(k);
+            if (r.email && !MAIL_OK.test(r.email)) return { msg: `L'email di «${r.name}» non sembra valida.` };
+        }
+        return null;
+    },
+    flag(p, text) {
+        const err = $("#part-error");
+        const msg = p ? p.msg : (text || "");
+        err.textContent = msg;
+        err.style.display = msg ? "" : "none";
+    },
+    detectedEmails() {
+        const out = {};
+        $$("#detected-teams-list input[data-team]").forEach(i => { if (i.value.trim()) out[i.dataset.team] = i.value.trim(); });
+        return out;
+    },
+    count() {
+        const attached = $$('input[name="attach_ids"]:checked').length;
+        return teams.detected() ? st.rose.teams.length : teams.collect().length + attached;
+    },
+    emails() {
+        return teams.detected() ? Object.keys(teams.detectedEmails()).length : teams.collect().filter(t => t.email).length;
+    },
+    sync() {
+        const det = teams.detected();
+        $("#detected-teams").style.display = det ? "" : "none";
+        $("#manual-teams").style.display = det ? "none" : "";
+        if (det) {
+            const keep = teams.detectedEmails();
+            const list = $("#detected-teams-list");
+            list.innerHTML = "";
+            st.rose.teams.forEach(t => {
+                const row = document.createElement("div");
+                row.className = "det-row";
+                row.innerHTML = `<div class="nm">${fmEsc(t.name)}<small>${t.n_players} gioc.${t.credits != null ? " · " + Math.round(t.credits) + " FM" : ""}</small></div>` +
+                    `<input type="email" data-team="${fmEsc(t.name)}" aria-label="Email di ${fmEsc(t.name)}" placeholder="email (facoltativa)" value="${fmEsc(keep[t.name] || "")}">`;
+                row.querySelector("input").addEventListener("input", refresh);
+                list.appendChild(row);
+            });
+        }
+        refresh();
+    },
+};
+let parseTimer = null;
+$("#teams-text").addEventListener("input", () => { clearTimeout(parseTimer); parseTimer = setTimeout(teams.fromText, 250); });
+$$('input[name="attach_ids"]').forEach(i => i.addEventListener("change", refresh));
+
+// ---------------------------------------------------------------- passo 3: regole
 function setGameMode(v) {
     $("#game_mode").value = v;
     $$('input[name="_gm"]').forEach(i => { i.checked = i.value === v; });
@@ -724,11 +920,10 @@ function gameModeHint() {
     } else if (!mantra && has) {
         h.textContent = "Il listone ha anche i ruoli Mantra: se la tua lega gioca a Mantra, sceglilo qui.";
     } else {
-        h.textContent = mantra ? "I ruoli Mantra arrivano dalla colonna RM del listone." : "";
+        h.textContent = mantra ? "I ruoli Mantra arrivano dal listone." : "";
     }
 }
 $$('input[name="_gm"]').forEach(i => i.addEventListener("change", () => setGameMode(i.value)));
-
 function setSlotMode(v) {
     $("#slot_limits").value = v;
     $$('input[name="_slots"]').forEach(i => { i.checked = i.value === v; });
@@ -736,11 +931,6 @@ function setSlotMode(v) {
     refresh();
 }
 $$('input[name="_slots"]').forEach(i => i.addEventListener("change", () => setSlotMode(i.value)));
-$("#slots-std").addEventListener("click", () => {
-    if ($("#game_mode").value === "MANTRA") { $("#s-gk").value = 3; $("#s-out").value = 22; }
-    else { $("#s-p").value = 3; $("#s-d").value = 8; $("#s-c").value = 8; $("#s-a").value = 6; }
-    refresh();
-});
 function slotTotal() {
     if ($("#slot_limits").value !== "1") return 0;
     const ids = $("#game_mode").value === "MANTRA" ? ["#s-gk", "#s-out"] : ["#s-p", "#s-d", "#s-c", "#s-a"];
@@ -749,100 +939,33 @@ function slotTotal() {
 $$('.chips[data-for] .chip').forEach(c => c.addEventListener("click", () => {
     $("#" + c.parentNode.dataset.for).value = c.dataset.v; refresh();
 }));
+function applyPreset(key) {
+    const p = PRESETS.find(x => x.key === key);
+    if (!p) return;
+    $$('input[name="_preset"]').forEach(i => { i.checked = i.value === key; });
+    $("#budget").value = p.budget;
+    setSlotMode("1");
+    setGameMode(p.game_mode);
+    if (p.game_mode === "MANTRA") { $("#s-gk").value = p.slots[0]; $("#s-out").value = p.slots[1]; }
+    else { $("#s-p").value = p.slots[0]; $("#s-d").value = p.slots[1]; $("#s-c").value = p.slots[2]; $("#s-a").value = p.slots[3]; }
+    $("#contracts-toggle").checked = !!p.contracts;
+    const pace = PACE[p.pace || "std"];
+    $("#f-dur").value = pace[0]; $("#f-anti").value = pace[1];
+    refresh();
+}
+$$('input[name="_preset"]').forEach(i => i.addEventListener("change", () => applyPreset(i.value)));
+function presetLabel() {
+    const i = form.querySelector('input[name="_preset"]:checked');
+    const p = i && PRESETS.find(x => x.key === i.value);
+    if (!p) return "Personalizzate";
+    // Personalizza ha cambiato qualcosa: lo dice il riepilogo.
+    const mantra = $("#game_mode").value === "MANTRA";
+    const same = String(num($("#budget").value)) === String(p.budget) && (mantra ? "MANTRA" : "CLASSIC") === p.game_mode
+        && $("#contracts-toggle").checked === !!p.contracts;
+    return same ? p.label : p.label + " (personalizzata)";
+}
 
-// ---------------------------------------------------------------- squadre
-const teams = {
-    rows() { return $$("#part-list .part-row"); },
-    add(name = "", credits = "", focus = true, email = "") {
-        const row = document.createElement("div");
-        row.className = "part-row";
-        row.innerHTML =
-            `<span class="ix"></span>` +
-            `<input class="p-name" placeholder="Nome squadra" aria-label="Nome squadra" maxlength="80" value="${fmEsc(name)}">` +
-            `<input class="p-mail" type="email" placeholder="email (facoltativa)" aria-label="Email allenatore" maxlength="254" value="${fmEsc(email)}">` +
-            `<input class="p-cred" placeholder="${fmEsc($("#budget").value || "Crediti")}" aria-label="Crediti" inputmode="numeric" value="${fmEsc(credits)}">` +
-            `<button type="button" class="rm" aria-label="Togli questa squadra" title="Togli">✕</button>`;
-        row.querySelector(".rm").addEventListener("click", () => { row.remove(); teams.renumber(); refresh(); });
-        row.querySelectorAll("input").forEach(i => i.addEventListener("input", () => { teams.flag(null); refresh(); }));
-        row.querySelector(".p-name").addEventListener("keydown", ev => {
-            if (ev.key === "Enter") { ev.preventDefault(); ev.stopPropagation(); if (ev.target.value.trim()) teams.add(); }
-        });
-        $("#part-list").appendChild(row);
-        teams.renumber();
-        if (focus) row.querySelector(".p-name").focus();
-        refresh();
-        return row;
-    },
-    renumber() { teams.rows().forEach((r, i) => { r.querySelector(".ix").textContent = i + 1; }); },
-    togglePaste() {
-        const box = $("#paste-box"), open = !box.classList.contains("open");
-        box.classList.toggle("open", open);
-        $("#paste-toggle").setAttribute("aria-expanded", open);
-        if (open) $("#paste-area").focus();
-    },
-    fromPaste() {
-        const names = $("#paste-area").value.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean);
-        const have = new Set(teams.collect().map(t => t.name.toLowerCase()));
-        // Drop the empty row the list may start with, then append.
-        teams.rows().forEach(r => { if (!r.querySelector(".p-name").value.trim() && !r.querySelector(".p-cred").value.trim() && !r.querySelector(".p-mail").value.trim()) r.remove(); });
-        let added = 0;
-        names.forEach(n => { if (!have.has(n.toLowerCase())) { have.add(n.toLowerCase()); teams.add(n, "", false); added++; } });
-        $("#paste-area").value = "";
-        teams.togglePaste();
-        teams.flag(null, added ? "" : "Nessun nome nuovo da aggiungere.");
-        refresh();
-    },
-    collect() {
-        return teams.rows().map(r => ({
-            name: r.querySelector(".p-name").value.trim(),
-            credits: r.querySelector(".p-cred").value.trim(),
-            email: r.querySelector(".p-mail").value.trim(),
-        })).filter(t => t.name);
-    },
-    problem() {
-        const seen = new Map();
-        for (const r of teams.rows()) {
-            const n = r.querySelector(".p-name"), c = r.querySelector(".p-cred");
-            const name = n.value.trim(), cred = c.value.trim();
-            if (!name) continue;
-            if (cred && (isNaN(num(cred)) || num(cred) < 0)) return { el: c, msg: `I crediti di «${name}» devono essere un numero.` };
-            const m = r.querySelector(".p-mail");
-            if (m.value.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(m.value.trim())) return { el: m, msg: `L'email di «${name}» non sembra valida.` };
-            const k = name.toLowerCase();
-            if (seen.has(k)) return { el: n, msg: `«${name}» compare due volte: dai un nome diverso a ogni squadra.` };
-            seen.set(k, true);
-        }
-        return null;
-    },
-    flag(p, text) {
-        const err = $("#part-error");
-        $$("#part-list input").forEach(i => i.classList.remove("bad"));
-        if (p) { p.el.classList.add("bad"); p.el.focus(); }
-        const msg = p ? p.msg : (text || "");
-        err.textContent = msg;
-        err.style.display = msg ? "" : "none";
-    },
-    detected() { return !!(st.rose && st.rose.teams && st.rose.teams.length); },
-    count() {
-        const attached = $$('input[name="attach_ids"]:checked').length;
-        return teams.detected() ? st.rose.teams.length : teams.collect().length + attached;
-    },
-    sync() {
-        const det = teams.detected();
-        $("#detected-teams").style.display = det ? "" : "none";
-        $("#manual-teams").style.display = det ? "none" : "";
-        if (det) {
-            $("#detected-teams-list").innerHTML = st.rose.teams.map(t =>
-                `<span class="team-chip">${fmEsc(t.name)}<small>${t.n_players} gioc.${t.credits != null ? " · " + Math.round(t.credits) + " FM" : ""}</small></span>`).join("");
-        } else if (!teams.rows().length) {
-            teams.add("", "", false);
-        }
-        refresh();
-    },
-};
-$$('input[name="attach_ids"]').forEach(i => i.addEventListener("change", refresh));
-
-// ---------------------------------------------------------------- asta
+// ---------------------------------------------------------------- passo 4: inviti e asta
 function flowChanged() {
     const flow = (form.querySelector('input[name="flow_mode"]:checked') || {}).value;
     $("#wz-order-wrap").style.display = flow === "call" ? "none" : "";
@@ -865,21 +988,16 @@ $$("#pace-chips .chip").forEach(c => c.addEventListener("click", () => {
 $("#wz-sealed-toggle").addEventListener("change", () => {
     $("#wz-sealed-wrap").style.display = $("#wz-sealed-toggle").checked ? "" : "none";
 });
-
-function setWhat(v) {
-    $("#create_auction").value = v;
-    $$('input[name="_what"]').forEach(i => { i.checked = i.value === v; });
-    $("#auction-part").hidden = v === "0";
-    $("#start-box").style.display = v === "0" ? "none" : "";
-    $("#btn-create .lbl").textContent = v === "0" ? "Crea la lega" : "Crea lega e asta";
+function setAuction(on) {
+    $("#auction-toggle").checked = on;
+    $("#create_auction").value = on ? "1" : "0";
+    $("#auction-part").hidden = !on;
+    $("#btn-create .lbl").textContent = on ? "Crea lega e asta" : "Crea la lega";
     refresh();
 }
-$$('input[name="_what"]').forEach(i => i.addEventListener("change", () => setWhat(i.value)));
-function nEmails() {
-    return teams.detected() ? 0 : teams.collect().filter(t => t.email).length;
-}
+$("#auction-toggle").addEventListener("change", () => setAuction($("#auction-toggle").checked));
 
-// ---------------------------------------------------------------- summary
+// ---------------------------------------------------------------- riepilogo
 function summaryRows() {
     const val = n => (form.querySelector(`[name="${n}"]`) || {}).value || "";
     const checkedLabel = n => {
@@ -887,71 +1005,58 @@ function summaryRows() {
         return i ? (i.closest(".card-opt").querySelector(".t").textContent || "").trim() : "—";
     };
     const mantra = $("#game_mode").value === "MANTRA";
-    const total = slotTotal();
-    const nTeams = teams.count();
+    const nTeams = teams.count(), nMail = teams.emails();
     const rows = [];
-    rows.push(["Listone", st.listone ? `✓ ${st.listone.total_players} giocatori`
-        : ($("#listone_file").files[0] ? "In lettura…" : "Manca (obbligatorio)"), st.listone ? "" : "bad"]);
-    const roseLabel = st.rose ? `✓ ${SRC_LABEL[st.source] || "File"} · ${st.rose.teams.length} squadre`
-        : (st.source === "fantapazz" && fpCache && fpCache.checked ? "Fantapazz (già scaricate)" : "Nessuna — si parte da zero");
-    rows.push(["Rose", roseLabel, ""]);
-    rows.push(["Lega", `${val("name").trim() || "Lega"} · ${val("budget") || "?"} FM`, ""]);
-    rows.push(["Sistema", mantra ? "Mantra" : "Classic", ""]);
+    rows.push(["Lega", val("name").trim() || "Lega", ""]);
+    let start = START_LABEL[st.start];
+    if (st.start === "rose") start = st.rose ? `✓ ${SRC_LABEL[st.source] || "File"} · ${st.rose.teams.length} squadre` : "Manca il file delle rose";
+    if (st.start === "listone") start = st.listone ? `✓ Listone · ${st.listone.total_players} giocatori` : "Manca il listone";
+    rows.push(["Partenza", start, (st.start === "rose" && !st.rose) || (st.start === "listone" && !st.listone) ? "bad" : ""]);
+    rows.push(["Squadre", nTeams ? `${nTeams}${nMail ? ` · ${nMail} con email` : ""}` : "Nessuna (le aggiungi dopo)", nTeams >= 2 ? "" : "warn"]);
+    rows.push(["Regole", `${presetLabel()} · ${val("budget") || "?"} FM`, ""]);
     rows.push(["Rosa", $("#slot_limits").value === "1"
-        ? (mantra ? `${val("slots_gk")} por + ${val("slots_out")} mov.` : `${val("slots_p")}/${val("slots_d")}/${val("slots_c")}/${val("slots_a")}`) + ` · ${total} giocatori`
+        ? (mantra ? `${val("slots_gk")} por + ${val("slots_out")} mov.` : `${val("slots_p")}/${val("slots_d")}/${val("slots_c")}/${val("slots_a")}`)
         : "Nessun limite di posti", ""]);
-    rows.push(["Squadre", nTeams ? String(nTeams) : "Nessuna (le aggiungi dopo)", nTeams >= 2 ? "" : "warn"]);
-    if ($("#create_auction").value === "0") {
-        rows.push(["Asta", "La crei dopo", ""]);
-    } else {
-        rows.push(["Asta", `${checkedLabel("mode")} · ${checkedLabel("flow_mode")}`, ""]);
-        rows.push(["Ritmo", `${val("duration_seconds")} s · +${val("antisnipe_seconds")} s all'ultimo · rilancio ${val("min_increment")} FM`, ""]);
-        rows.push(["Avvio", form.querySelector('[name="start_now"]').checked ? "Subito" : "Resta pronta", ""]);
-    }
-    const inv = $("#send-invites"), ne = nEmails();
-    rows.push(["Inviti", inv && inv.checked ? (ne ? `Email a ${ne} squadr${ne === 1 ? "a" : "e"}` : "Nessuna email inserita") : "A mano (link e QR)", inv && inv.checked && !ne ? "warn" : ""]);
+    const inv = $("#send-invites").checked;
+    rows.push(["Inviti", !inv ? "Li mandi dopo" : (MAIL_READY && nMail ? `Email a ${nMail}${nTeams > nMail ? `, condividi agli altri ${nTeams - nMail}` : ""}` : "Condividi per squadra (WhatsApp, link, QR)"), ""]);
+    const ca = val("coadmin_email").trim();
+    if (ca) rows.push(["Co-admin", ca, MAIL_OK.test(ca) ? "" : "bad"]);
+    rows.push(["Asta", $("#create_auction").value === "1" ? `${checkedLabel("mode")} · ${val("duration_seconds")} s` : "La crei dopo", ""]);
     return rows;
+}
+function startProblem() {
+    if (st.start === "rose" && !$("#rose_file").files[0]) return "Scegli il file delle rose, o torna su «Lega nuova».";
+    const needListone = st.start === "listone" || (st.start === "rose" && st.source === "leghe");
+    if (needListone && !$("#listone_file").files[0]) return "Carica il listone, o torna su «Lega nuova» per usare quello generale.";
+    return "";
 }
 function renderSummary(el) {
     const rows = summaryRows();
-    const ready = !!st.listone;
+    const p = startProblem() || (teams.detected() ? "" : (teams.problem() || {}).msg || "");
     el.innerHTML = rows.map(([k, v, c]) =>
         `<div class="sum-row"><span class="k">${fmEsc(k)}</span><span class="v ${c}">${fmEsc(v)}</span></div>`).join("")
-        + `<div class="ready ${ready ? "ok" : "no"}">${ready ? "✓ Pronto per creare la lega" : "Manca il listone: caricalo al passo 1"}</div>`;
+        + `<div class="ready ${p ? "no" : "ok"}">${p ? fmEsc(p) : "✓ Pronto: premi «Crea la lega»"}</div>`;
 }
 function refresh() {
-    // budget helper
     const b = num($("#budget").value), tot = slotTotal();
     $$('.chips[data-for="budget"] .chip').forEach(c => c.classList.toggle("on", String(b) === c.dataset.v));
     $("#budget-hint").textContent = (!isNaN(b) && tot) ? `≈ ${Math.round(b / tot)} FM a giocatore con ${tot} posti in rosa.` : "";
     $("#slots-total").textContent = tot ? `= ${tot} giocatori a squadra` : "";
-    // pace chips
     const d = String($("#f-dur").value), a = String($("#f-anti").value);
     $$("#pace-chips .chip").forEach(c => { const p = PACE[c.dataset.pace]; c.classList.toggle("on", String(p[0]) === d && String(p[1]) === a); });
-    // duplicate league name
     const nm = $("#league-name").value.trim().toLowerCase();
     $("#name-dup").style.display = nm && EXISTING.includes(nm) ? "" : "none";
-    // placeholder of empty credits follows the budget
-    $$("#part-list .p-cred").forEach(i => { i.placeholder = $("#budget").value || "Crediti"; });
-    const n = teams.count();
-    $("#teams-count").textContent = n ? `· ${n}` : "";
-    const invNote = $("#inv-note");
-    if (invNote) {
-        const ne = nEmails();
-        invNote.textContent = teams.detected() ? "Le squadre arrivano dal file: aggiungi le email nella pagina finale e invia da lì."
-            : ne ? `Parte appena la lega è creata, alle ${ne} squadr${ne === 1 ? "a" : "e"} con un'email.` : "Nessuna squadra ha un'email: aggiungila al passo 2.";
-    }
     renderSummary($("#sum-side"));
-    if (wiz.cur === 3) renderSummary($("#sum-inline"));
+    if (wiz.cur === wiz.max) renderSummary($("#sum-inline"));
     draft.save();
 }
 form.addEventListener("input", ev => { if (ev.target.type !== "file") refresh(); });
 form.addEventListener("change", ev => { if (ev.target.type !== "file") refresh(); });
 
-// ---------------------------------------------------------------- steps
-const STEP_NAMES = { 1: "File", 2: "Lega e squadre", 3: "Asta e riepilogo" };
+// ---------------------------------------------------------------- passi
+const STEP_NAMES = { 1: "Da dove parti", 2: "Squadre", 3: "Regole", 4: "Inviti e asta" };
 const wiz = {
-    cur: 1, max: 3, seen: 1,
+    cur: 1, max: 4, seen: 1,
     show(n, focus = true) {
         this.cur = Math.min(this.max, Math.max(1, n));
         this.seen = Math.max(this.seen, this.cur);
@@ -960,6 +1065,7 @@ const wiz = {
             const s = +b.dataset.go;
             b.disabled = s > this.seen;
             b.classList.toggle("done", s < this.cur);
+            b.querySelector(".n").textContent = s < this.cur ? "✓" : String(s);
             if (s === this.cur) b.setAttribute("aria-current", "step"); else b.removeAttribute("aria-current");
         });
         $("#btn-prev").style.visibility = this.cur > 1 ? "visible" : "hidden";
@@ -974,26 +1080,29 @@ const wiz = {
     prev() { this.show(this.cur - 1); },
     validate(step) {
         if (step === 1) {
-            if (!$("#listone_file").files[0]) {
-                setDrop("#drop-listone", "bad", "Senza listone non c'è niente da mettere all'asta: caricalo per proseguire.");
-                $("#listone_file").focus();
+            const p = startProblem();
+            if (p) {
+                const drop = st.start === "rose" && !$("#rose_file").files[0] ? "#drop-rose" : "#drop-listone";
+                setDrop(drop, "bad", fmEsc(p));
+                $(drop + " input").focus();
                 return false;
             }
         }
         if (step === 2 && !teams.detected()) {
+            teams.fromText();
             const p = teams.problem();
-            if (p) { teams.flag(p); return false; }
+            teams.flag(p);
+            if (p) return false;
         }
         return true;
     },
 };
 $$("#steps button").forEach(b => b.addEventListener("click", () => {
     const to = +b.dataset.go;
-    // Going forward through the stepper still passes each step's checks.
     for (let s = wiz.cur; s < to; s++) if (!wiz.validate(s)) { wiz.show(s); return; }
     wiz.show(to);
 }));
-// Enter moves forward instead of posting a half-filled wizard.
+// Invio va avanti invece di mandare un wizard a metà (nel riquadro delle squadre va a capo).
 form.addEventListener("keydown", ev => {
     if (ev.key !== "Enter" || ev.target.tagName === "TEXTAREA" || ev.target.type === "submit" || ev.target.type === "button") return;
     ev.preventDefault();
@@ -1002,64 +1111,73 @@ form.addEventListener("keydown", ev => {
 form.addEventListener("submit", ev => {
     for (const s of [1, 2]) if (!wiz.validate(s)) { ev.preventDefault(); wiz.show(s); return; }
     $("#participants_json").value = JSON.stringify(teams.detected() ? [] : teams.collect());
+    $("#detected_emails_json").value = JSON.stringify(teams.detected() ? teams.detectedEmails() : {});
+    // Squadre dal file delle rose: l'elenco scritto a mano (rimasto da prima) non si manda.
+    if (teams.detected()) $("#teams-text").disabled = true;
+    if (st.start === "new") { $("#import_choice").value = "none"; $("#source_site").value = ""; }
     const btn = $("#btn-create");
     btn.classList.add("busy"); btn.disabled = true;
     btn.querySelector(".lbl").textContent = "Sto creando la lega…";
     draft.clear();
 });
 
-// ---------------------------------------------------------------- draft
-// A reload (or a server-side error) must not cost the user everything they
-// typed. Files can't be stored; every other field and the team list can.
-const DRAFT_KEY = "fm_setup_draft_v2";
+// ---------------------------------------------------------------- bozza
+// Una pagina ricaricata (o un errore del server) non deve far perdere quello
+// che è stato scritto. I file non si possono salvare; tutto il resto sì.
+const DRAFT_KEY = "fm_setup_draft_v3";
+const KEEP_HIDDEN = ["game_mode", "slot_limits", "create_auction"];
 const draft = {
     ready: false,
     save() {
         if (!this.ready) return;
         try {
-            const data = { f: {}, teams: teams.collect(), step: wiz.seen };
-            $$("input, select", form).forEach(el => {
-                if (!el.name || el.type === "file" || el.type === "hidden" && !["game_mode", "slot_limits", "create_auction"].includes(el.name)) return;
-                if (el.name === "csrfmiddlewaretoken") return;
+            const data = { f: {}, emails: teams.detectedEmails(), step: wiz.seen };
+            $$("input, select, textarea", form).forEach(el => {
+                if (!el.name || el.type === "file" || el.name === "csrfmiddlewaretoken") return;
+                if (el.type === "hidden" && !KEEP_HIDDEN.includes(el.name)) return;
                 if (el.type === "checkbox") data.f[el.name + (el.name === "attach_ids" ? ":" + el.value : "")] = el.checked;
                 else if (el.type === "radio") { if (el.checked) data.f[el.name] = el.value; }
                 else data.f[el.name] = el.value;
             });
+            data.f.auction_on = $("#auction-toggle").checked;
             localStorage.setItem(DRAFT_KEY, JSON.stringify(data));
-        } catch (e) { /* storage off: the wizard still works */ }
+        } catch (e) { /* niente localStorage: il wizard funziona lo stesso */ }
     },
     load() {
         let data = null;
         try { data = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null"); } catch (e) { data = null; }
         if (!data || !data.f) return false;
-        $$("input, select", form).forEach(el => {
+        $$("input, select, textarea", form).forEach(el => {
             if (!el.name || el.type === "file") return;
             if (el.type === "checkbox") {
                 const k = el.name + (el.name === "attach_ids" ? ":" + el.value : "");
                 if (k in data.f) el.checked = !!data.f[k];
             } else if (el.type === "radio") {
                 if (el.name in data.f) el.checked = el.value === data.f[el.name];
-            } else if (el.name in data.f && el.type !== "hidden" || ["game_mode", "slot_limits", "create_auction"].includes(el.name) && el.name in data.f) {
+            } else if (el.name in data.f && (el.type !== "hidden" || KEEP_HIDDEN.includes(el.name))) {
                 el.value = data.f[el.name];
             }
         });
-        (data.teams || []).forEach(t => teams.add(t.name, t.credits, false, t.email || ""));
+        if ("auction_on" in data.f) $("#auction-toggle").checked = !!data.f.auction_on;
         return true;
     },
     clear() { try { localStorage.removeItem(DRAFT_KEY); } catch (e) {} },
     reset() { this.clear(); location.href = location.pathname; },
 };
 
-// ---------------------------------------------------------------- boot
+// ---------------------------------------------------------------- avvio
 const restored = draft.load();
 if (restored) $("#draft-note").classList.add("show");
 setSource("", false);
+const startSel = form.querySelector('input[name="start_choice"]:checked');
+setStart(startSel ? startSel.value : "new");
+if (!restored) applyPreset((PRESETS[0] || {}).key);
 setGameMode($("#game_mode").value || "CLASSIC");
 setSlotMode($("#slot_limits").value || "1");
-setWhat($("#create_auction").value || "1");
+setAuction($("#auction-toggle").checked);
 flowChanged();
 $("#wz-sealed-wrap").style.display = $("#wz-sealed-toggle").checked ? "" : "none";
-teams.sync();
+teams.fromText();
 draft.ready = true;
 wiz.show(1, false);
 window.wiz = wiz; window.teams = teams; window.draft = draft;
