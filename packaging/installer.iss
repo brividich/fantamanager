@@ -9,7 +9,7 @@
 ; Keep this in sync with __version__ in liveauction/__init__.py — that's the
 ; value shown inside the app (startup banner, log, console footer); this one
 ; is what Windows shows in Add/Remove Programs.
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "0.9.0"
 #define MyAppPublisher "FantaManager"
 #define MyAppExeName "FantaManager.exe"
 

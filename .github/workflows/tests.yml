@@ -7,9 +7,13 @@ on:
   push:
     branches: [ "main" ]
   workflow_dispatch:
+  # La pubblicazione dell'immagine Docker (docker-publish.yml) la chiama
+  # prima di pubblicare: niente immagine senza test verdi.
+  workflow_call:
 
 concurrency:
-  group: tests-${{ github.ref }}
+  # Chiamata da un altro workflow: il gruppo è il suo, così non si annullano a vicenda.
+  group: tests-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
