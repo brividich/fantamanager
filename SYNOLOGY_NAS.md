@@ -29,6 +29,26 @@ Nessun comando da terminale richiesto: tutto tramite il browser di DSM.
    ```
 5. Trascina ed estrai il file **`fantamanager-synology.zip`** all'interno di questa cartella, in modo che file come `docker-compose.yml`, `Dockerfile` e la cartella `data/` si trovino direttamente in `/docker/fantasy-contracts/`.
 
+### 1b. Scrivi il file `.env` (obbligatorio)
+Nella cartella del progetto copia `.env.docker.example` e rinominalo in **`.env`**
+(con *Impostazioni → Mostra file nascosti* lo vedi). Scrivi i valori del tuo NAS:
+
+```text
+DJANGO_ALLOWED_HOSTS=fanta.tuodominio.it,192.168.1.10
+FM_SITE_URL=https://fanta.tuodominio.it
+DJANGO_BEHIND_PROXY=True
+```
+
+- `DJANGO_ALLOWED_HOSTS`: il dominio con cui apri l'app da fuori e, se la apri anche in casa
+  dall'IP, l'IP del NAS. Senza questa riga il progetto non parte e lo dice.
+- `FM_SITE_URL`: l'indirizzo pubblico **https** (solo schema e dominio). Da qui partono i link
+  delle email (reset password, inviti).
+- `DJANGO_BEHIND_PROXY=True` **solo** se usi il reverse proxy del passo 4: la porta del container
+  risponde solo al NAS stesso (`127.0.0.1`) e solo il proxy ci arriva.
+
+Se usi l'app **solo in casa, senza proxy e senza dominio**: `DJANGO_ALLOWED_HOSTS=192.168.1.10`
+(l'IP del NAS), `FM_BIND=0.0.0.0`, `DJANGO_BEHIND_PROXY=False` e lascia vuota `FM_SITE_URL`.
+
 ---
 
 ### 2. Crea il Progetto in Container Manager
@@ -67,6 +87,19 @@ Le migrazioni del database partono da sole a ogni avvio del container.
 
 ---
 
+### 4. Accesso da internet: il reverse proxy di DSM
+Il container risponde solo al NAS stesso (porta `8088` su `127.0.0.1`); da fuori ci si arriva in
+HTTPS attraverso il proxy di DSM.
+1. **Pannello di controllo → Portale di accesso → Avanzate → Proxy inverso → Crea**.
+2. *Origine*: protocollo **HTTPS**, nome host `fanta.tuodominio.it`, porta `443`.
+3. *Destinazione*: protocollo **HTTP**, nome host `localhost`, porta `8088`.
+4. *Intestazione personalizzata → Crea → WebSocket* (serve all'asta live), poi **Salva**.
+5. **Pannello di controllo → Sicurezza → Certificato**: assegna un certificato (Let's Encrypt) a
+   `fanta.tuodominio.it`.
+6. Apri `https://fanta.tuodominio.it`: se vedi la pagina di accesso, è tutto a posto.
+
+---
+
 ## 💻 Metodo 2: Installazione Rapida tramite SSH
 
 Se preferisci usare il terminale:
@@ -99,26 +132,21 @@ Se preferisci usare il terminale:
 Una volta che il container è in stato **In esecuzione** (colore verde):
 
 - **Home / Portale di Accesso (Scelta & Login)**:  
-  👉 **`http://<IP_DEL_TUO_NAS>:8000/`**
+  👉 **`https://fanta.tuodominio.it/`** (il tuo `FM_SITE_URL`)
 - **Command Center / Dashboard Regia**:  
-  👉 **`http://<IP_DEL_TUO_NAS>:8000/dashboard/`**
-  *(PIN predefinito di sblocco: `123456`)*
+  👉 **`https://fanta.tuodominio.it/dashboard/`**
 - **Partecipanti all'Asta da Smartphone**:  
-  Tutti i partecipanti collegati al Wi-Fi di casa possono accedere inserendo nel browser del proprio telefono:  
-  👉 **`http://<IP_DEL_TUO_NAS>:8000/`**
+  dallo stesso indirizzo, da casa o da fuori.  
+  Solo in LAN senza proxy (`FM_BIND=0.0.0.0`): **`http://<IP_DEL_TUO_NAS>:8088/`**
 
 ---
 
 ## ⚠️ Note Utili e Risoluzione Problemi
 
-### 1. Se la porta 8000 è già occupata sul Synology
-Se sul tuo NAS hai già un altro servizio che usa la porta 8000 (es. Portainer):
-- Modifica la riga `ports` nel file `docker-compose.yml` su File Station:
-  ```yaml
-  ports:
-    - "8090:8000"
-  ```
-- Salva e l'app sarà raggiungibile su `http://<IP_DEL_TUO_NAS>:8090/`.
+### 1. Se la porta 8088 è già occupata sul Synology
+Se sul tuo NAS hai già un altro servizio che usa la porta 8088:
+- Nel file `.env` scrivi `PORT=8090` (non serve toccare `docker-compose.yml`).
+- Nel reverse proxy (passo 4) metti come destinazione `localhost:8090`, poi *Compila* il progetto.
 
 ### 2. Permessi di Scrittura su Synology DSM
 Container Manager esegue i container con permessi specifici. Se nei log vedi errori di permesso sul database (`sqlite3.OperationalError: attempt to write a readonly database`):

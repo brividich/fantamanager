@@ -217,3 +217,26 @@ class SalaLockGuard:
                     target, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
                 return redirect(target)
         return redirect("/")
+
+
+class ContentSecurityPolicy:
+    """Seconda difesa contro l'XSS: una Content-Security-Policy su ogni pagina.
+
+    Le pagine hanno ancora molti ``<script>`` e ``<style>`` in linea, quindi
+    ``script-src`` resta libero (una policy con nonce richiede prima di spostarli
+    in ``static/``). Intanto: niente plugin (``object-src``), niente ``<base>``
+    che dirotta i link relativi, i form mandano solo al sito stesso e nessun
+    altro sito incornicia le pagine (come ``X-Frame-Options``). Una risposta
+    che ha già la sua policy (i file caricati: ``sandbox``) la tiene.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+        frame = "'self'" if getattr(settings, "X_FRAME_OPTIONS", "DENY").upper() == "SAMEORIGIN" else "'none'"
+        self.policy = getattr(settings, "FM_CONTENT_SECURITY_POLICY", None) or (
+            f"object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors {frame}")
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        response.setdefault("Content-Security-Policy", self.policy)
+        return response

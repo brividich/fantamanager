@@ -26,9 +26,6 @@
         const m = document.getElementById("dash-rose-msg");
         m.style.display = "block"; m.style.color = color; m.textContent = text;
     }
-    function dashEsc(s) {
-        const d = document.createElement("div"); d.textContent = s == null ? "" : s; return d.innerHTML;
-    }
     async function dashImportRose(preview) {
         const file = document.getElementById("dash-rose-file").files[0];
         if (!file) { dashRoseMsg("Seleziona un file.", "var(--closed)"); return; }
@@ -47,12 +44,12 @@
 
         if (data.preview) {
             const rows = data.teams.map(t =>
-                `<tr><td style="font-weight:600">${dashEsc(t.name)}</td>` +
+                `<tr><td style="font-weight:600">${fmEsc(t.name)}</td>` +
                 `<td style="text-align:right">${t.n_players}</td>` +
                 `<td style="text-align:right" class="muted">${t.credits == null ? "—" : Math.round(t.credits)}</td></tr>`).join("");
             document.getElementById("dash-rose-preview").innerHTML =
                 `<div class="muted" style="font-size:12px;margin-bottom:8px">Formato rilevato: ` +
-                `<b style="color:var(--gold)">${dashEsc(data.source_label)}</b> · ${data.teams.length} squadre · ` +
+                `<b style="color:var(--gold)">${fmEsc(data.source_label)}</b> · ${data.teams.length} squadre · ` +
                 `${data.total_players} giocatori` + (data.n_listone ? ` · listone ${data.n_listone}` : "") + `</div>` +
                 `<div class="table-scroll"><table><thead><tr><th>Squadra</th>` +
                 `<th style="text-align:right">Giocatori</th><th style="text-align:right">Crediti residui</th>` +
@@ -65,7 +62,7 @@
 
         const parts = [`${data.teams} squadre`, `${data.players} giocatori assegnati`];
         if (data.listone_created) parts.push(`${data.listone_created} aggiunti al listone`);
-        dashRoseMsg(`✓ ${dashEsc(data.source_label)}: ` + parts.join(" · "), "var(--live)");
+        dashRoseMsg(`✓ ${fmEsc(data.source_label)}: ` + parts.join(" · "), "var(--live)");
         setTimeout(() => location.reload(), 1600);
     }
     document.getElementById("edit-participant-modal")

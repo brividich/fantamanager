@@ -56,7 +56,8 @@ def _sheet_rows(file_bytes: bytes, fname: str) -> List[tuple]:
     """Every row of the first sheet (Excel .xlsx/.xls) or of the CSV, as tuples."""
     if fname.endswith((".xlsx", ".xlsm")):
         import openpyxl
-        wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True, read_only=True)
+        from ..uploads import check_xlsx_bytes
+        wb = openpyxl.load_workbook(io.BytesIO(check_xlsx_bytes(file_bytes)), data_only=True, read_only=True)
         rows = [tuple(r) for r in islice(wb.worksheets[0].iter_rows(values_only=True), MAX_IMPORT_ROWS)]
         wb.close()
         return rows

@@ -89,7 +89,7 @@ window.FMDice = (function () {
         return e;
     }
     function wait(ms) { return new Promise(function (r) { setTimeout(r, reduced ? Math.min(ms, 150) : ms); }); }
-    function years(n) { return n + (n === 1 ? " anno" : " anni"); }
+    function years(n) { return fmEsc(n) + (n === 1 ? " anno" : " anni"); }
 
     function faceContent(face, value) {
         face.innerHTML = "";
@@ -177,7 +177,6 @@ window.FMDice = (function () {
             result.innerHTML = html;
             result.classList.add("fmd-show");
         }
-        function esc(s) { var d = el("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; }
 
         var started = Date.now();
         var answer;
@@ -190,7 +189,7 @@ window.FMDice = (function () {
                 var res = answer || {};
                 if (!res.ok) {
                     (colorDie || contractDie).scene.classList.remove("fmd-shake");
-                    show('<span class="fmd-bad">' + esc(res.message || res.feedback_message || "Tiro non riuscito") + "</span>");
+                    show('<span class="fmd-bad">' + fmEsc(res.message || res.feedback_message || "Tiro non riuscito") + "</span>");
                     return;
                 }
                 if (res.faces && res.faces.length) {
@@ -204,7 +203,7 @@ window.FMDice = (function () {
                     if (res.face == null) {  // blocco portieri: nessun tiro
                         contractDie.scene.classList.remove("fmd-shake");
                         show("<b>" + years(res.years) + "</b>" + '<span class="fmd-note">Blocco portieri: stesso contratto di '
-                             + esc(res.block) + ", nessun dado.</span>");
+                             + fmEsc(res.block) + ", nessun dado.</span>");
                         return;
                     }
                     return land(contractDie, res.face).then(function () {

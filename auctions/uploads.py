@@ -8,6 +8,7 @@ as a page. Import files get a size ceiling, so a crafted spreadsheet or PDF
 can't stall the single server process."""
 import io
 import uuid
+import zipfile
 
 from django.core.files.base import ContentFile
 from PIL import Image, UnidentifiedImageError
@@ -20,6 +21,14 @@ MAX_IMAGE_PIXELS = 4096 * 4096
 MAX_IMPORT_BYTES = 15 * 1024 * 1024
 MAX_IMPORT_ROWS = 20000
 MAX_PDF_PAGES = 60
+
+# An .xlsx is a zip: a few KB can declare gigabytes of XML. Checked from the
+# zip's own directory before openpyxl opens anything.
+MAX_XLSX_UNCOMPRESSED = 100 * 1024 * 1024
+MAX_XLSX_RATIO = 200          # uncompressed / compressed, for the entries that matter
+MAX_XLSX_ENTRIES = 5000
+XLSX_BOMB_ERROR = ("Il file Excel dichiara un contenuto troppo grande per un listone o una rosa "
+                   "(oltre 100 MB una volta aperto): salvalo di nuovo da Excel o esportalo in CSV e riprova.")
 
 IMAGE_ERROR = "L'immagine deve essere un PNG, JPG, WebP o GIF di massimo 5 MB."
 IMPORT_SIZE_ERROR = "Il file è troppo grande (massimo 15 MB)."
@@ -59,3 +68,29 @@ def check_import_file(upload):
     if upload is not None and (upload.size or 0) > MAX_IMPORT_BYTES:
         raise UploadRejected(IMPORT_SIZE_ERROR)
     return upload
+
+
+def check_xlsx_bytes(data):
+    """Refuse an .xlsx whose zip directory declares too much to unpack.
+
+    Sizes come from the zip directory, without decompressing: their sum stays
+    under ``MAX_XLSX_UNCOMPRESSED`` and no big entry is compressed more than
+    ``MAX_XLSX_RATIO`` times. zipfile (which openpyxl uses) never inflates an
+    entry past its declared size, so the declaration is the real ceiling. Not a
+    zip at all: left to the parser, which says the file is not readable.
+    """
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as zf:
+            infos = zf.infolist()
+    except (zipfile.BadZipFile, ValueError, OSError):
+        return data
+    if len(infos) > MAX_XLSX_ENTRIES:
+        raise UploadRejected(XLSX_BOMB_ERROR)
+    total = 0
+    for info in infos:
+        total += info.file_size
+        if total > MAX_XLSX_UNCOMPRESSED:
+            raise UploadRejected(XLSX_BOMB_ERROR)
+        if info.file_size > 1024 * 1024 and info.file_size > MAX_XLSX_RATIO * max(info.compress_size, 1):
+            raise UploadRejected(XLSX_BOMB_ERROR)
+    return data

@@ -101,7 +101,6 @@
     }
     const CSRF = getCsrfCookie();
     const TARGET_LEAGUE_ID = "{{ current_league.id|default:'' }}";
-    const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
     async function importRose(action) {
         const msg = document.getElementById("fp-msg");
@@ -142,15 +141,15 @@
         document.getElementById("fp-teams").innerHTML = data.teams.map(t =>
             `<span style="display:inline-block;margin:3px;padding:6px 12px;border-radius:8px;
              background:var(--accent-soft);border:1px solid var(--accent-line);font-size:13px;font-weight:700">
-             ${esc(t.name)} <span class="muted">· ${t.n_players} gioc.</span>
-             <span style="color:var(--accent);margin-left:4px">${esc(t.credits)} FM res.</span></span>`).join("");
+             ${fmEsc(t.name)} <span class="muted">· ${fmEsc(t.n_players)} gioc.</span>
+             <span style="color:var(--accent);margin-left:4px">${fmEsc(t.credits)} FM res.</span></span>`).join("");
         const rows = [];
         data.teams.forEach(t => t.players.forEach(p => rows.push(
-            `<tr><td class="muted" style="font-size:12px">${esc(t.name)}</td>
-             <td style="font-weight:600">${esc(p.name)}</td>
-             <td><span class="role-pill">${esc(p.role)}</span></td>
-             <td class="muted">${esc(p.club)}</td>
-             <td style="text-align:right;color:var(--accent);font-weight:700">${esc(p.cost)}</td></tr>`)));
+            `<tr><td class="muted" style="font-size:12px">${fmEsc(t.name)}</td>
+             <td style="font-weight:600">${fmEsc(p.name)}</td>
+             <td><span class="role-pill">${fmEsc(p.role)}</span></td>
+             <td class="muted">${fmEsc(p.club)}</td>
+             <td style="text-align:right;color:var(--accent);font-weight:700">${fmEsc(p.cost)}</td></tr>`)));
         document.getElementById("fp-player-rows").innerHTML = rows.join("");
         document.getElementById("fp-total").innerHTML =
             `Anteprima (primi 5 per squadra) · <button onclick="importRose('import')" class="btn-ok" style="padding:8px 18px;font-size:13px;margin-left:8px">Conferma import →</button>`;

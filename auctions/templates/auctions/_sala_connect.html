@@ -45,6 +45,8 @@ stili e il tasto «Copia» delle schede (_sala_card.html).
     @media (max-width:700px) { .sala-connect form { grid-template-columns:1fr; } }
 </style>
 
+{# Scaricare una lega fa partire una richiesta verso l'indirizzo scritto: solo sull'app del PC. #}
+{% if desktop_app %}
 <details class="fm-card sala-connect">
     <summary class="lg-sala" style="border:0;padding:0;margin:0"><svg class="ic"><use href="#i-download"/></svg> Asta in sala: scarica una lega dal sito</summary>
     <ol class="sala-steps" style="margin-top:12px">
@@ -65,6 +67,7 @@ stili e il tasto «Copia» delle schede (_sala_card.html).
             Riscarica anche se è già bloccata (il PC di prima si è perso: i suoi risultati non varranno più)</label>
     </form>
 </details>
+{% endif %}
 
 <script>
 // Il tasto «Copia» delle chiavi: le schede vengono dopo, quindi un solo ascolto sulla pagina.

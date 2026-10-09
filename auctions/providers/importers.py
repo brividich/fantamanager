@@ -13,7 +13,7 @@ from pathlib import Path
 from .. import mantra
 from ..models.participant import generate_access_code
 from ..services.sala import ensure_unlocked as _sala_guard
-from ..uploads import MAX_IMPORT_ROWS
+from ..uploads import MAX_IMPORT_ROWS, check_xlsx_bytes
 
 _SEP = ";"
 
@@ -729,7 +729,7 @@ def parse_listone_file(file_obj, filename):
         name = (filename or "").lower()
         if name.endswith(".xlsx") or name.endswith(".xls"):
             import openpyxl
-            raw = file_obj.read()
+            raw = check_xlsx_bytes(file_obj.read())
             wb = openpyxl.load_workbook(io.BytesIO(raw), data_only=True, read_only=True)
             ws = wb.active
             rows = list(islice(ws.iter_rows(values_only=True), MAX_IMPORT_ROWS))
@@ -847,7 +847,8 @@ def _tabular_rows(file_obj, filename):
     name = (filename or "").lower()
     if name.endswith(".xlsx"):
         import openpyxl
-        wb = openpyxl.load_workbook(io.BytesIO(file_obj.read()), data_only=True, read_only=True)
+        wb = openpyxl.load_workbook(io.BytesIO(check_xlsx_bytes(file_obj.read())), data_only=True,
+                                    read_only=True)
         ws = wb.active
         for row in islice(ws.iter_rows(values_only=True), MAX_IMPORT_ROWS):
             yield ["" if c is None else c for c in row]

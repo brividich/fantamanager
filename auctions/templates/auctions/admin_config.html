@@ -604,7 +604,7 @@ its name to be typed: it takes teams, listone, auctions and sessions with it.
         $("#del-list").innerHTML = [
             n("teams", "squadra", "squadre"), n("pool", "giocatore del listone", "giocatori del listone"),
             n("auctions", "asta", "aste"), n("sessions", "salvataggio", "salvataggi"),
-        ].map(t => `<li>${t}</li>`).join("");
+        ].map(t => `<li>${fmEsc(t)}</li>`).join("");
         confirmIn.value = ""; go.disabled = true;
         if (dlg.showModal) dlg.showModal(); else if (confirm(`Eliminare «${expected}» e tutto quello che contiene?`)) dlg.querySelector("form").submit();
         confirmIn.focus();

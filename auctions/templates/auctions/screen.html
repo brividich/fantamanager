@@ -701,7 +701,7 @@
             box.style.display = "block";
             box.innerHTML =
                 `<div class="sealed-kick">${sealed.round > 1
-                    ? "Spareggio alle buste · giro " + sealed.round
+                    ? "Spareggio alle buste · giro " + fmEsc(sealed.round)
                     : "Asta alle buste"}</div>` +
                 `<div class="sealed-line">Minimo ${fmEsc(money(sealed.floor))} FM · ` +
                 `${fmEsc(sealed.submitted || 0)} buste consegnate</div>`;

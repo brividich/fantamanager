@@ -28,7 +28,12 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "${PORT:-8088}:8000"
+      # Di default solo da questa macchina: davanti c'è il reverse proxy, che
+      # porta l'HTTPS. Su Synology: Pannello di controllo → Portale di accesso →
+      # Avanzate → Proxy inverso, da https://il-tuo-dominio a
+      # http://localhost:8088 (vedi SYNOLOGY_NAS.md). Solo in LAN, senza proxy:
+      # FM_BIND=0.0.0.0 nel .env e DJANGO_BEHIND_PROXY=False.
+      - "${FM_BIND:-127.0.0.1}:${PORT:-8088}:8000"
     environment:
       # Vuota = l'entrypoint ne genera una e la conserva in ./data/.secret_key.
       # Mai un valore scritto in questo file: il repository e' pubblico.
@@ -41,8 +46,16 @@ services:
       - DJANGO_SUPERUSER_USERNAME=${DJANGO_SUPERUSER_USERNAME:-}
       - DJANGO_SUPERUSER_PASSWORD=${DJANGO_SUPERUSER_PASSWORD:-}
       - DJANGO_SUPERUSER_EMAIL=${DJANGO_SUPERUSER_EMAIL:-}
-      - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS:-*}
-      - DJANGO_BEHIND_PROXY=True
+      # Obbligatoria: i nomi da cui si apre l'app, separati da virgola
+      # (es. fanta.example.it,192.168.1.10). Mai «*».
+      - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS:?imposta DJANGO_ALLOWED_HOSTS nel file .env}
+      # True SOLO dietro il reverse proxy, con la porta su 127.0.0.1: fidarsi di
+      # X-Forwarded-For con la porta aperta lascia a chiunque scriverlo (e
+      # aggirare il limite dei tentativi su login, reset e codici squadra).
+      - DJANGO_BEHIND_PROXY=${DJANGO_BEHIND_PROXY:-False}
+      # L'indirizzo pubblico https dell'installazione: da qui partono i link
+      # delle email (reset password, inviti) ed entra fra le origini CSRF.
+      - FM_SITE_URL=${FM_SITE_URL:-}
       - DJANGO_SECURE_SSL_REDIRECT=False
       - POSTGRES_DB=${POSTGRES_DB:-fantamanager}
       - POSTGRES_USER=${POSTGRES_USER:-fantamanager}
@@ -56,7 +69,8 @@ services:
       # Statistiche di stagione tue (facoltative), per esempio in ./data: vedi .env
       - FANTAMANAGER_STATS_FILE=${FANTAMANAGER_STATS_FILE:-}
       - FANTAMANAGER_STATS_SEASON=${FANTAMANAGER_STATS_SEASON:-}
-      - DJANGO_CSRF_TRUSTED_ORIGINS=${DJANGO_CSRF_TRUSTED_ORIGINS:-https://*.synology.me,http://*.synology.me,http://localhost:8088,http://127.0.0.1:8088}
+      # Altre origini da cui arrivano i form, oltre a FM_SITE_URL (niente «*»).
+      - DJANGO_CSRF_TRUSTED_ORIGINS=${DJANGO_CSRF_TRUSTED_ORIGINS:-http://localhost:8088,http://127.0.0.1:8088}
     volumes:
       # Il codice della cartella (lo stesso da cui si costruisce l'immagine):
       # un `git pull` + riavvio basta ad aggiornare. Per girare solo col codice
@@ -90,7 +104,8 @@ services:
     environment:
       - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-}
       - DJANGO_DEBUG=${DJANGO_DEBUG:-False}
-      - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS:-*}
+      - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS:-localhost}
+      - FM_SITE_URL=${FM_SITE_URL:-}
       - POSTGRES_DB=${POSTGRES_DB:-fantamanager}
       - POSTGRES_USER=${POSTGRES_USER:-fantamanager}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-fantamanager_secret_pass}

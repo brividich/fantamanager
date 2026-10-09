@@ -170,10 +170,46 @@ def league_recipients(league):
     return [p for p in teams if p.contact_email]
 
 
-def _app_link(request, participant, path_name="app_home"):
-    """Personal link that signs the team into the app and opens ``path_name``."""
+NO_LINK_BASE_MESSAGE = (
+    "Le email con un link non partono: manca l'indirizzo pubblico del sito. "
+    "Imposta FM_SITE_URL (es. https://fantamanager.example.it) nel file .env, "
+    "oppure elenca i domini in DJANGO_ALLOWED_HOSTS, e riavvia."
+)
+
+
+def link_base(request):
+    """Where links in emails point, or "" when no address can be trusted.
+
+    Never the bare Host header while ``ALLOWED_HOSTS`` accepts any host: a
+    password reset asked with ``Host: evil.tld`` would mail the victim a link
+    (token included) to evil.tld. In order: ``FM_SITE_URL``; the public tunnel
+    this machine opened; on the desktop app, its own wifi address; the request,
+    only when its host is one of ``ALLOWED_HOSTS``.
+    """
+    site = getattr(settings, "FM_SITE_URL", "")
+    if site:
+        return site.rstrip("/")
     from .. import remote
-    base = remote.best_base_url(request).rstrip("/")
+    public = remote.public_url()
+    if public:
+        return public.rstrip("/")
+    if request is None:
+        return ""
+    if getattr(settings, "DESKTOP_APP", False) and not remote.request_is_remote(request):
+        lan = remote.lan_url(request)
+        if lan:
+            return lan.rstrip("/")
+        # Already on the wifi address: trusted only when it is this machine's.
+        ip = remote.lan_ip()
+        if ip and request.get_host().split(":")[0] == ip:
+            return request.build_absolute_uri("/").rstrip("/")
+    if "*" in settings.ALLOWED_HOSTS:
+        return ""
+    return request.build_absolute_uri("/").rstrip("/")
+
+
+def _app_link(base, participant, path_name="app_home"):
+    """Personal link that signs the team into the app and opens ``path_name``."""
     nxt = reverse(path_name)
     return f"{base}{reverse('app_login')}?t={participant.public_token}&next={nxt}"
 
@@ -183,6 +219,12 @@ def _send_to_teams(request, teams, subject, template, extra):
     one connection. Returns ``{"sent", "failed", "skipped", "errors"}``."""
     report = {"sent": 0, "failed": 0, "skipped": 0, "errors": []}
     cfg = get_settings()
+    base = link_base(request)
+    if not base:
+        logger.warning("Email alle squadre non inviate: nessun indirizzo affidabile per i link")
+        report["errors"].append(NO_LINK_BASE_MESSAGE)
+        report["skipped"] = len(teams)
+        return report
     if not status(cfg)[0]:
         report["errors"].append("Posta non configurata.")
         report["skipped"] = len(teams)
@@ -200,7 +242,7 @@ def _send_to_teams(request, teams, subject, template, extra):
             if not address:
                 report["skipped"] += 1
                 continue
-            ctx = {"team": p, "league": p.league, **extra(p)}
+            ctx = {"team": p, "league": p.league, **extra(base, p)}
             text = render_to_string(f"auctions/email/{template}.txt", ctx)
             html = render_to_string(f"auctions/email/{template}.html", ctx)
             ok, error = send(subject, address, text, html=html, cfg=cfg, conn=conn)
@@ -223,7 +265,7 @@ def send_team_invites(request, league, teams=None):
     teams = league_recipients(league) if teams is None else teams
     return _send_to_teams(
         request, teams, f"Benvenuto in {league.name}", "invite",
-        lambda p: {"link": _app_link(request, p), "code": p.access_code},
+        lambda base, p: {"link": _app_link(base, p), "code": p.access_code},
     )
 
 
@@ -232,7 +274,7 @@ def send_market_notice(request, session):
     league = session.league
     return _send_to_teams(
         request, league_recipients(league), f"{league.name} · mercato a buste: {session.title}", "market_open",
-        lambda p: {"session": session, "link": _app_link(request, p, "app_mercato")},
+        lambda base, p: {"session": session, "link": _app_link(base, p, "app_mercato")},
     )
 
 
@@ -243,7 +285,7 @@ def send_competition_notice(request, competition):
         return {"sent": 0, "failed": 0, "skipped": 0, "errors": []}
     return _send_to_teams(
         request, league_recipients(league), f"{league.name} · Nuova Competizione: {competition.name}", "competition_open",
-        lambda p: {"competition": competition, "link": _app_link(request, p, "app_lega")},
+        lambda base, p: {"competition": competition, "link": _app_link(base, p, "app_lega")},
     )
 
 

@@ -24,12 +24,19 @@ docker compose version
 cd asta
 ```
 
-### 2. (Opzionale) Configura le variabili d'ambiente
-Puoi creare un file `.env` copiando il template:
+### 2. Configura le variabili d'ambiente (obbligatorio)
+Crea il file `.env` copiando il template e scrivi i valori della tua installazione:
 ```bash
 cp .env.docker.example .env
 ```
-*(Se non crei il file, verranno usati i valori predefiniti sicuri con porta 8000).*
+Senza `DJANGO_ALLOWED_HOSTS` il compose non parte e lo dice. Le righe da guardare:
+
+| Variabile | Cosa scrivere |
+| --- | --- |
+| `DJANGO_ALLOWED_HOSTS` | Il tuo dominio (e l'IP del NAS se lo apri anche in LAN), separati da virgola. Mai `*`. |
+| `FM_SITE_URL` | L'indirizzo pubblico https, es. `https://fantamanager.example.it`: da qui partono i link delle email. |
+| `DJANGO_BEHIND_PROXY` | `True` **solo** dietro un reverse proxy (porta su `127.0.0.1`). Altrimenti `False`. |
+| `FM_BIND` | Vuota = la porta risponde solo a `127.0.0.1` (dietro il proxy). `0.0.0.0` per un uso solo in LAN, senza proxy. |
 
 Lascia **vuota** la riga `DJANGO_SECRET_KEY=`: al primo avvio il container genera
 una chiave vera e la conserva in `./data/.secret_key`. Un valore copiato da un file
@@ -42,11 +49,11 @@ docker compose up -d --build
 
 ### 4. Apri l'applicazione nel browser
 - **Home / Portale di Accesso (Scelta & Login)**:  
-  👉 **[http://localhost:8000/](http://localhost:8000/)**
+  👉 **[http://localhost:8088/](http://localhost:8088/)** (dalla macchina stessa) o il tuo `FM_SITE_URL`
 - **Command Center / Dashboard (Regia)**:  
-  👉 **[http://localhost:8000/dashboard/](http://localhost:8000/dashboard/)**
-- **Collegamento smartphone partecipanti sullo stesso WiFi**:  
-  👉 `http://<IP_DEL_TUO_PC>:8000/`
+  👉 **[http://localhost:8088/dashboard/](http://localhost:8088/dashboard/)**
+- **Collegamento smartphone partecipanti**:  
+  👉 dal dominio (`FM_SITE_URL`); in LAN senza proxy, con `FM_BIND=0.0.0.0`: `http://<IP_DEL_TUO_PC>:8088/`
 
 ---
 
@@ -134,7 +141,9 @@ della pagina Formazione o Giornate. Un giro solo: `docker compose exec app pytho
 
 | Variabile | Default | A cosa serve |
 | --- | --- | --- |
-| `DJANGO_BEHIND_PROXY` | `False` (il compose la mette a `True`) | Fidarsi di `X-Forwarded-*` dal reverse proxy |
+| `DJANGO_BEHIND_PROXY` | `False` | Fidarsi di `X-Forwarded-*` dal reverse proxy: `True` solo con la porta su `127.0.0.1` |
+| `FM_SITE_URL` | vuota | Indirizzo pubblico https: link delle email e origine CSRF fidata. Senza, con `ALLOWED_HOSTS=*` le email con link non partono |
+| `FM_BIND` | `127.0.0.1` | Su quale indirizzo della macchina il compose pubblica la porta |
 | `DJANGO_PROXY_HOPS` | `1` | Quanti proxy aggiungono un indirizzo a `X-Forwarded-For` |
 | `FM_MAX_REQUEST_BYTES` | 25 MB | Dimensione massima di una richiesta (upload compresi) |
 | `FM_FIELD_ENCRYPTION_KEY` | derivata dalla `SECRET_KEY` | Chiave Fernet per i segreti salvati nel DB (password SMTP) |
@@ -149,6 +158,6 @@ cartelle `data`, `media`, `logs`, `backups`. Se il NAS non lo permette resta roo
 
 Per un servizio su internet aperto a più leghe (non il NAS di casa) avvia con
 `DJANGO_SETTINGS_MODULE=liveauction.settings_server`. Il profilo si rifiuta di partire con DEBUG
-acceso, `DJANGO_ALLOWED_HOSTS=*`, senza PostgreSQL o con la password d'esempio del database; forza
+acceso, `DJANGO_ALLOWED_HOSTS=*`, senza `FM_SITE_URL` https, senza PostgreSQL o con la password d'esempio del database; forza
 link squadra con token, cookie solo HTTPS, log su stdout, cache su Redis se c'è `REDIS_URL`, e
 spegne il tunnel cloudflared e la lettura delle classifiche da siti terzi.

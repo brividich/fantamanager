@@ -16,13 +16,17 @@ sito lo applica così com'è (``apply_results``) e si sblocca.
 Chi usa il PC da solo, senza sito, non passa mai di qui.
 """
 import hashlib
+import json
 import logging
 import secrets
+import socket
 import threading
 import uuid
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
+from urllib.parse import urlencode
 
+from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
@@ -55,6 +59,20 @@ ROSTER_FIELDS = (
 )
 _DECIMAL = {"budget", "credits", "spent_credits", "initial_price", "cost", "fvm", "avg_vote", "fanta_avg"}
 _DATETIME = {"acquired_at", "renewed_at"}
+
+
+# Tetti: una lega vera ne sta ben sotto; uno snapshot o un risultato oltre
+# viene rifiutato tutto, prima di creare o cambiare qualsiasi cosa.
+MAX_TEAMS = 40
+MAX_PLAYERS = 2000
+MAX_LOG_ENTRIES = 5000
+MAX_RESPONSE_BYTES = 10 * 1024 * 1024     # quello che il PC legge dal sito
+MAX_BODY_BYTES = 2 * 1024 * 1024          # quello che l'API del sito accetta dal PC
+
+PC_ONLY_MESSAGE = ("Scaricare una lega, rimandare i risultati e sbloccarla si fa dall'app "
+                   "FantaManager del PC in sala (Impostazioni → «Asta in sala»), non dal sito.")
+
+_resolve = socket.getaddrinfo   # i test lo sostituiscono: nessuna rete vera
 
 
 class SalaError(Exception):
@@ -223,6 +241,8 @@ def apply_results(league, lock_id, payload):
     lega, blocco scaduto) non cambia nulla. Ritorna quante squadre e quanti
     giocatori sono cambiati.
     """
+    check_ceilings(teams=payload.get("teams") or [], players=payload.get("players") or [],
+                   log=payload.get("log") or [])
     with transaction.atomic():
         league = League.objects.select_for_update().get(pk=league.pk)
         current = lock_info(league)
@@ -304,11 +324,14 @@ def set_live(league, lock_id, url, teams):
             raise SalaError("Questo blocco non è più valido: la lega è stata sbloccata o riscaricata.")
         sala = dict(league.sala or {})
         if url:
-            if not str(url).startswith("https://"):
-                raise SalaError("L'indirizzo dell'asta deve iniziare con https://.")
+            url = _tunnel_url(url)
+            if not url:
+                raise SalaError("L'indirizzo dell'asta deve essere quello del tunnel del PC "
+                                "(https://….trycloudflare.com): aggiorna FantaManager sul PC e riattiva "
+                                "l'accesso da internet.")
             own = set(Participant.objects.filter(league=league).values_list("id", flat=True))
             sala["live"] = {
-                "url": str(url).rstrip("/")[:200],
+                "url": url,
                 "teams": {str(k): str(v)[:64] for k, v in (teams or {}).items()
                           if str(k).isdigit() and int(k) in own and v},
                 "at": timezone.now().isoformat(),
@@ -317,6 +340,14 @@ def set_live(league, lock_id, url, teams):
             sala.pop("live", None)
         league.sala = sala
         league.save(update_fields=["sala", "updated_at"])
+
+
+def _tunnel_url(url):
+    """``url`` se è esattamente l'indirizzo di un tunnel del PC
+    (``https://<nome>.trycloudflare.com``, ``remote._URL_RE``), altrimenti ""."""
+    from ..remote import _URL_RE
+    url = str(url or "").strip().rstrip("/")
+    return url if _URL_RE.fullmatch(url) else ""
 
 
 def live_info(league):
@@ -329,7 +360,8 @@ def live_entry_url(participant):
         return None
     live = live_info(League.objects.filter(pk=participant.league_id).first())
     token = (live or {}).get("teams", {}).get(str(participant.id))
-    return f"{live['url']}/join/?t={token}" if token else None
+    base = _tunnel_url((live or {}).get("url"))
+    return f"{base}/join/?{urlencode({'t': token})}" if token and base else None
 
 
 # --- sul PC: la copia della lega e i risultati da rimandare -------------------
@@ -340,10 +372,22 @@ def link_info(league):
 
 
 @transaction.atomic
+def check_ceilings(*, teams=(), players=(), log=()):
+    """``SalaError`` se squadre, giocatori o voci del registro superano i tetti."""
+    for items, ceiling, what in ((teams, MAX_TEAMS, "squadre"), (players, MAX_PLAYERS, "giocatori"),
+                                 (log, MAX_LOG_ENTRIES, "voci del registro")):
+        if not isinstance(items, (list, tuple)):
+            raise SalaError(f"Dati non validi: l'elenco delle {what} non è una lista.")
+        if len(items) > ceiling:
+            raise SalaError(f"Troppe {what} ({len(items)}, al massimo {ceiling}): non è una lega "
+                            "di FantaManager. Controlla l'indirizzo del sito e la chiave.")
+
+
 def import_linked_league(snap, *, site, key, lock_id, owner=None):
     """Crea sul PC la copia della lega scaricata, collegata al sito."""
     if not isinstance(snap, dict) or snap.get("format") != FORMAT:
         raise SalaError("Il sito usa un formato diverso: aggiorna FantaManager su entrambi.")
+    check_ceilings(teams=snap.get("teams") or [], players=snap.get("players") or [])
     lg = snap.get("league") or {}
     league = League.objects.create(
         owner=owner,
@@ -420,22 +464,58 @@ def mark_sent(league, report):
 API_PATH = "/api/sala/v1/"
 
 
+def _read_capped(resp):
+    """Il corpo della risposta, letto a pezzi fino a ``MAX_RESPONSE_BYTES``."""
+    chunks, size = [], 0
+    try:
+        for chunk in resp.iter_content(chunk_size=64 * 1024):
+            size += len(chunk)
+            if size > MAX_RESPONSE_BYTES:
+                raise SalaError("La risposta del sito è troppo grande per una lega: controlla "
+                                "l'indirizzo del sito.")
+            chunks.append(chunk)
+    finally:
+        resp.close()
+    return b"".join(chunks)
+
+
 def _call(site, key, action, data=None, timeout=30):
     """POST a ``<site>/api/sala/v1/<action>/`` con la chiave; il JSON di
-    risposta, o ``SalaError`` con un messaggio da mostrare."""
+    risposta, o ``SalaError`` con un messaggio da mostrare.
+
+    Solo dall'app del PC: sul server sarebbe una richiesta verso un indirizzo
+    scelto da chi compila il form. Anche sul PC solo verso indirizzi pubblici
+    (``standings.url_is_fetchable``), senza seguire redirect, leggendo al più
+    ``MAX_RESPONSE_BYTES``.
+    """
     import requests
 
+    from ..providers.standings import url_is_fetchable
+
+    if not getattr(settings, "DESKTOP_APP", False):
+        raise SalaError(PC_ONLY_MESSAGE)
     site = (site or "").strip().rstrip("/")
     if not site.startswith(("http://", "https://")):
         raise SalaError("Indirizzo del sito non valido: deve iniziare con http:// o https://.")
+    url = f"{site}{API_PATH}{action}/"
+    if not url_is_fetchable(url, _resolve):
+        raise SalaError("Questo indirizzo non è un sito su internet (rete locale o indirizzo interno): "
+                        "scrivi l'indirizzo pubblico del sito, per esempio https://fantamanager.example.it.")
     try:
-        resp = requests.post(f"{site}{API_PATH}{action}/", json=data or {}, timeout=timeout,
+        resp = requests.post(url, json=data or {}, timeout=timeout, allow_redirects=False, stream=True,
                              headers={"Authorization": f"Bearer {key}"})
     except requests.RequestException:
         raise SalaError("Il sito non risponde: controlla l'indirizzo e la connessione a internet.")
+    if 300 <= resp.status_code < 400:
+        resp.close()
+        raise SalaError("Il sito ha risposto con un reindirizzamento: scrivi l'indirizzo esatto del "
+                        "sito (con https:// e senza percorsi).")
+    raw = _read_capped(resp)
     try:
-        body = resp.json()
-    except ValueError:
+        body = json.loads(raw or b"{}")
+    except (ValueError, UnicodeDecodeError):
+        body = {}
+    if not isinstance(body, dict):
         body = {}
     if resp.status_code == 401:
         raise SalaError("Chiave non valida: generane una nuova dalla pagina Impostazioni della lega sul sito.")
@@ -530,6 +610,11 @@ def _publish_one(league, url):
     except SalaError as exc:
         error = str(exc)
         logger.warning("Asta in sala: indirizzo non comunicato a %s: %s", link["site"], exc)
+    _record_live(league, url, error)
+    return error
+
+
+def _record_live(league, url, error):
     league.refresh_from_db()
     sala = dict(league.sala or {})
     current = dict(sala.get("link") or {})
@@ -537,7 +622,6 @@ def _publish_one(league, url):
     sala["link"] = current
     league.sala = sala
     league.save(update_fields=["sala", "updated_at"])
-    return error
 
 
 def publish_live(url, wait=False):
@@ -546,6 +630,11 @@ def publish_live(url, wait=False):
     sottofondo: il tunnel non aspetta il sito. ``wait`` per i test."""
     leagues = _open_links()
     if not leagues:
+        return
+    if url and not _tunnel_url(url):
+        # Solo l'indirizzo del tunnel del PC: il sito rifiuterebbe comunque.
+        for league in leagues:
+            _record_live(league, "", "L'indirizzo non è quello del tunnel del PC (https://….trycloudflare.com).")
         return
     def _run():
         for league in leagues:

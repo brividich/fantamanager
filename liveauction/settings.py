@@ -52,23 +52,41 @@ ALLOWED_HOSTS = [h.strip() for h in os.getenv("DJANGO_ALLOWED_HOSTS", "*").split
 if "*" not in ALLOWED_HOSTS:
     ALLOWED_HOSTS += [h for h in ("localhost", "127.0.0.1") if h not in ALLOWED_HOSTS]
 
+# The public address of this installation (e.g. https://fantamanager.example.it):
+# every link that leaves the site in an email (password reset, invites, market
+# notices) starts from here, never from the Host header of the request.
+def _site_url(raw):
+    from urllib.parse import urlsplit
+    raw = (raw or "").strip().rstrip("/")
+    if not raw:
+        return ""
+    parts = urlsplit(raw)
+    if parts.scheme not in ("http", "https") or not parts.hostname or parts.path or parts.query:
+        from django.core.exceptions import ImproperlyConfigured
+        raise ImproperlyConfigured(
+            f"FM_SITE_URL={raw!r} non è un indirizzo valido: scrivi solo schema e dominio, "
+            "per esempio https://fantamanager.example.it")
+    return raw
+
+
+FM_SITE_URL = _site_url(os.getenv("FM_SITE_URL", ""))
+
 # Trust the local network origins and DDNS domains for CSRF over WebSocket/forms if needed.
 _csrf = os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "").strip()
 if _csrf:
     CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf.split(",") if o.strip()]
 else:
+    # No wildcards: "*.synology.me" trusted every other Synology user's
+    # subdomain, over plain http too. A NAS lists its own domain (FM_SITE_URL).
     CSRF_TRUSTED_ORIGINS = [
-        "https://*.synology.me",
-        "http://*.synology.me",
-        "https://*.direct.quickconnect.to",
-        "http://*.direct.quickconnect.to",
-        "https://*.local",
-        "http://*.local",
         "http://localhost:8000",
         "http://localhost:8088",
         "http://127.0.0.1:8000",
         "http://127.0.0.1:8088",
     ]
+# The installation's own public address is always a trusted origin.
+if FM_SITE_URL and FM_SITE_URL not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.append(FM_SITE_URL)
 
 # Trust a TLS-terminating reverse proxy (Synology Reverse Proxy, Nginx, Caddy)
 # only when told so: without a proxy in front, X-Forwarded-* come from the
@@ -104,6 +122,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # Content-Security-Policy minima su ogni risposta (seconda difesa all'XSS).
+    "auctions.middleware.ContentSecurityPolicy",
     # Uploads over FM_MAX_REQUEST_BYTES are refused before anything parses them.
     "auctions.middleware.UploadSizeLimit",
     "django.contrib.sessions.middleware.SessionMiddleware",

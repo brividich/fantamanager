@@ -546,7 +546,7 @@ mostra la cornice.
             {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
             <input type="hidden" name="action" value="link">
             <h4>Oppure collega un account esistente</h4>
-            <p>Se l'allenatore si è già registrato sul portale.</p>
+            <p>Un account che gioca già in una tua lega o che hai creato tu. Se l'allenatore si è registrato da solo, dagli il codice della squadra: lo inserisce nell'app e la squadra si collega al suo account.</p>
             <label for="acc-li-{{ r.p.id }}">Nome utente o email</label>
             <input id="acc-li-{{ r.p.id }}" name="identifier" required autocomplete="off">
             <div class="row-actions"><button type="submit" class="fm-btn fm-btn-secondary fm-btn-sm">

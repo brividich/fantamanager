@@ -13,7 +13,8 @@ PROBE = ("import django; django.setup(); from django.conf import settings as s; 
 
 
 def _run(**env):
-    base = {k: v for k, v in os.environ.items() if not k.startswith(("DJANGO_", "POSTGRES_", "FANTAMANAGER_"))}
+    base = {k: v for k, v in os.environ.items()
+            if not k.startswith(("DJANGO_", "POSTGRES_", "FANTAMANAGER_", "FM_SITE_URL"))}
     base.update({"DJANGO_SETTINGS_MODULE": "liveauction.settings_server",
                  "DJANGO_SECRET_KEY": "test-only-" + "x" * 40}, **env)
     return subprocess.run([sys.executable, "-c", PROBE], cwd=ROOT, env=base,
@@ -33,8 +34,16 @@ class ServerProfileTests(SimpleTestCase):
         self.assertNotEqual(res.returncode, 0)
         self.assertIn("POSTGRES_PASSWORD", res.stderr)
 
+    def test_the_public_https_address_is_required(self):
+        for site in ("", "http://fanta.example.com"):
+            with self.subTest(site=site):
+                res = _run(DJANGO_ALLOWED_HOSTS="fanta.example.com", POSTGRES_DB="fm",
+                           POSTGRES_PASSWORD="una-password-vera", FM_SITE_URL=site)
+                self.assertNotEqual(res.returncode, 0)
+                self.assertIn("FM_SITE_URL", res.stderr)
+
     def test_a_proper_server_boots_locked_down(self):
         res = _run(DJANGO_ALLOWED_HOSTS="fanta.example.com", POSTGRES_DB="fm",
-                   POSTGRES_PASSWORD="una-password-vera")
+                   POSTGRES_PASSWORD="una-password-vera", FM_SITE_URL="https://fanta.example.com")
         self.assertEqual(res.returncode, 0, res.stderr)
         self.assertEqual(res.stdout.split(), ["True", "False", "True", "False"])

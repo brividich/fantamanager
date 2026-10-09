@@ -1,6 +1,7 @@
 """Configuration and session management views."""
 from decimal import Decimal, InvalidOperation
 
+from django.conf import settings
 from django.contrib import messages
 from django.db.models import Count, Q
 from django.http import HttpResponseForbidden
@@ -227,6 +228,10 @@ def _sala_action(request, action):
     rimandare i risultati (``sala_send``) o lasciar perdere (``sala_release``).
     """
     user = request.user
+    if action in ("sala_connect", "sala_send", "sala_release") and not settings.DESKTOP_APP:
+        # Sul server sarebbero richieste HTTP verso indirizzi scelti nel form.
+        messages.error(request, sala.PC_ONLY_MESSAGE)
+        return _config_back(request)
     if action == "sala_connect":
         site = (request.POST.get("site") or "").strip()
         key = (request.POST.get("key") or "").strip()

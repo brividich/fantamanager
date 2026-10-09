@@ -219,8 +219,8 @@ function addPart(name = "", credits = "") {
     const div = document.createElement("div");
     div.className = "part-row";
     div.innerHTML =
-        `<input class="p-name" placeholder="Nome squadra" value="${name}">` +
-        `<input class="p-cred" placeholder="Crediti" inputmode="decimal" value="${credits || defaultCredits()}">` +
+        `<input class="p-name" placeholder="Nome squadra" value="${fmEsc(name)}">` +
+        `<input class="p-cred" placeholder="Crediti" inputmode="decimal" value="${fmEsc(credits || defaultCredits())}">` +
         `<button type="button" class="rm-btn" onclick="this.parentNode.remove(); flagPartRow(null)">✕</button>`;
     document.getElementById("part-list").appendChild(div);
     div.querySelectorAll("input").forEach(i =>

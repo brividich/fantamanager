@@ -10,7 +10,9 @@ from django.urls import reverse
 from ..models import MailSettings
 
 
-@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+# I link delle email partono dall'indirizzo pubblico del sito (FM_SITE_URL).
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+                   FM_SITE_URL="http://testserver")
 class PasswordResetTests(TestCase):
     def setUp(self):
         cache.clear()

@@ -31,7 +31,7 @@
     <details class="howto noprint" style="text-align:left">
         <summary><svg class="ic"><use href="#i-lock"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
         <div class="howto-body">
-            Stai aprendo la regia da internet: serve il PIN a 6 cifre.
+            Stai aprendo la regia da internet: serve il PIN della regia.
             <ol>
                 <li>Sul PC che ospita l'asta apri <b>Accesso remoto</b> dal menu della console.</li>
                 <li>Leggi il numero nel riquadro <b>PIN regia</b>.</li>
@@ -48,13 +48,13 @@
             {% csrf_token %}
             <input type="hidden" name="next" value="{{ next }}">
             <input class="pin-input" type="text" name="pin" inputmode="numeric"
-                   pattern="[0-9]*" maxlength="6" placeholder="——————"
-                   autofocus aria-label="PIN a 6 cifre">
+                   pattern="[0-9]*" maxlength="8" placeholder="——————"
+                   autofocus aria-label="PIN della regia">
             <button type="submit" style="width:100%;margin:0">Sblocca</button>
         </form>
         <div class="unlock-note">
             Stai raggiungendo la regia <strong style="color:var(--ink)">da internet</strong>.
-            Il PIN a 6 cifre è mostrato sul PC che ospita l'asta, nel pannello
+            Il PIN (6 o 8 cifre) è mostrato sul PC che ospita l'asta, nel pannello
             “Accesso da internet”.
         </div>
     </div>
