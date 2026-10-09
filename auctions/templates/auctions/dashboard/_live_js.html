@@ -409,23 +409,19 @@
     const $callResults = document.getElementById("call-results");
     let callTimer = null, callSeq = 0, callActive = -1;
 
-    function callEsc(v) {
-        const d = document.createElement("div"); d.textContent = v == null ? "" : v;
-        return d.innerHTML;
-    }
     function callRender(rows, total, q) {
         if (!$callResults) return;
         if (!rows.length) {
-            $callResults.innerHTML = `<div class="fm-empty">Nessuno svincolato per “${callEsc(q)}”.</div>`;
+            $callResults.innerHTML = `<div class="fm-empty">Nessuno svincolato per “${fmEsc(q)}”.</div>`;
         } else {
             $callResults.innerHTML = rows.map((p, i) => `
                 <div class="call-row" role="option" id="call-opt-${i}" tabindex="-1"
-                     aria-selected="false" data-id="${callEsc(p.id)}">
-                    <span class="role-badge role-${fmRole(p.role)}">${callEsc(p.role)}</span>
-                    <span class="call-nm">${callEsc(p.name)}<small>${callEsc(p.team)}</small></span>
+                     aria-selected="false" data-id="${fmEsc(p.id)}">
+                    <span class="role-badge role-${fmRole(p.role)}">${fmEsc(p.role)}</span>
+                    <span class="call-nm">${fmEsc(p.name)}<small>${fmEsc(p.team)}</small></span>
                     <span class="call-q">${Math.round(p.quotation)} FM</span>
                     <button type="button" class="fm-btn fm-btn-primary fm-btn-sm"
-                            aria-label="Chiama ${callEsc(p.name)}">
+                            aria-label="Chiama ${fmEsc(p.name)}">
                         <svg class="ic"><use href="#i-gavel"/></svg> Chiama</button>
                 </div>`).join("") +
                 (total > rows.length
@@ -551,7 +547,6 @@
             tbody.innerHTML = '<tr><td colspan="4" class="fm-empty">Coda vuota. Premi “Ricostruisci coda”.</td></tr>';
             return;
         }
-        function esc(s) { const d = document.createElement("div"); d.textContent = s == null ? "" : s; return d.innerHTML; }
         tbody.innerHTML = items.map((it, idx) => {
             const rec = it.is_recovery
                 ? '<span class="role-badge" style="background:#f59e0b;color:#fff;margin-left:4px;font-size:10px" title="Giro di recupero">REC</span>'
@@ -560,11 +555,11 @@
             return `<tr data-player-id="${pid}">
                 <td class="muted" style="width:26px">${idx + 1}</td>
                 <td style="width:30px">
-                    <span class="role-badge role-${fmRole(it.role)}">${esc(it.role)}</span>${rec}
+                    <span class="role-badge role-${fmRole(it.role)}">${fmEsc(it.role)}</span>${rec}
                 </td>
-                <td style="font-weight:600">${esc(it.name)}<div class="muted" style="font-size:11px">${esc(it.team || "")}</div></td>
+                <td style="font-weight:600">${fmEsc(it.name)}<div class="muted" style="font-size:11px">${fmEsc(it.team || "")}</div></td>
                 <td style="text-align:right;font-weight:700;white-space:nowrap">
-                    <span>${esc(it.price)} FM</span>
+                    <span>${fmEsc(it.price)} FM</span>
                     <span class="q-actions">
                         <button type="button" class="fm-btn-icon" title="Metti come prossimo" onclick="prioritizeQueuePlayer(${pid})">⚡</button>
                         <button type="button" class="fm-btn-icon" title="Rimanda a fine reparto" onclick="postponeQueuePlayer(${pid})">⏭</button>

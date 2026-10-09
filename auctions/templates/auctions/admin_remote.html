@@ -176,7 +176,7 @@
         const labels = { off:"Non attivo", preparing:"Preparazione…", starting:"Apertura…", on:"Attivo", error:"Errore" };
 
         const pill = document.getElementById("rmp-pill");
-        pill.innerHTML = '<span class="dot"></span>' + (labels[r.status] || r.status);
+        pill.innerHTML = '<span class="dot"></span>' + fmEsc(labels[r.status] || r.status);
         pill.className = "fm-badge " + (on ? "is-ok" : r.status === "error" ? "is-live" : "is-off");
 
         document.getElementById("rmp-on").style.display  = on ? "" : "none";

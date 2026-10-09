@@ -104,6 +104,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # Content-Security-Policy minima su ogni risposta (seconda difesa all'XSS).
+    "auctions.middleware.ContentSecurityPolicy",
     # Uploads over FM_MAX_REQUEST_BYTES are refused before anything parses them.
     "auctions.middleware.UploadSizeLimit",
     "django.contrib.sessions.middleware.SessionMiddleware",

@@ -559,7 +559,6 @@ salvataggio finché non si preme «Salva»). Solo superuser.
     const vf = (x) => (x === null || x === undefined) ? "s.v." : nf(x, 1);
     const signed = (x, d = 2) => (x > 0 ? "+" : x < 0 ? "−" : "±") + nf(Math.abs(x), d);
     const cls = (x) => x > 0.0005 ? "va-up" : x < -0.0005 ? "va-down" : "va-flat";
-    const esc = (s) => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
     function get(obj, path) { return path.split(".").reduce((o, k) => (o == null ? undefined : o[k]), obj); }
     function set(obj, path, val) {
@@ -728,7 +727,7 @@ salvataggio finché non si preme «Salva»). Solo superuser.
         // ruoli
         document.getElementById("va-roles").innerHTML = d.by_role.map(r => {
             const delta = (r.after.mean ?? 0) - (r.before.mean ?? 0);
-            return `<tr class="${r.role === "Tutti" ? "tot" : ""}"><td>${esc(r.label)}</td>
+            return `<tr class="${r.role === "Tutti" ? "tot" : ""}"><td>${fmEsc(r.label)}</td>
                 <td>${nf(r.before.mean)}<span class="arrow">→</span>${nf(r.after.mean)}</td>
                 <td class="${cls(delta)}">${signed(delta)}</td>
                 <td>${nf(r.before.sd)}<span class="arrow">→</span>${nf(r.after.sd)}</td></tr>`;
@@ -737,9 +736,9 @@ salvataggio finché non si preme «Salva»). Solo superuser.
         // parametri
         const pf = document.getElementById("va-pf");
         pf.innerHTML = d.per_field.length ? d.per_field.map(f => `
-            <div class="it"><div class="l" title="${esc(f.label)}">${esc(f.label)}</div>
+            <div class="it"><div class="l" title="${fmEsc(f.label)}">${fmEsc(f.label)}</div>
                 <div class="d ${cls(f.mean_delta)}">${signed(f.mean_delta, 3)}</div>
-                <div class="s">${esc(nfAny(f.from))} → ${esc(nfAny(f.to))} · ${f.changed} voti cambiati (<span class="va-up">↑${f.up}</span> <span class="va-down">↓${f.down}</span>)</div></div>`).join("")
+                <div class="s">${fmEsc(nfAny(f.from))} → ${fmEsc(nfAny(f.to))} · ${f.changed} voti cambiati (<span class="va-up">↑${f.up}</span> <span class="va-down">↓${f.down}</span>)</div></div>`).join("")
             : `<div class="va-empty">Nessun parametro diverso dai valori in uso: modificane uno per vederne l'effetto.</div>`;
 
         // movimenti
@@ -749,7 +748,7 @@ salvataggio finché non si preme «Salva»). Solo superuser.
             const bb = m.breakdown_before || {}, ba = m.breakdown_after || {};
             const det = PARTS.filter(([k]) => k in bb || k in ba).map(([k, l]) =>
                 `<span>${l}</span><b>${bb.sv ? "s.v." : nf(bb[k] ?? 0)}</b><span>→</span><b>${ba.sv ? "s.v." : nf(ba[k] ?? 0)}</b>`).join("");
-            return `<tr class="va-mvrow" data-i="${i}"><td class="who">${esc(m.name)} <small>${esc(m.role)} · ${esc(m.team)} · ${m.minutes ?? 0}'</small></td>
+            return `<tr class="va-mvrow" data-i="${i}"><td class="who">${fmEsc(m.name)} <small>${fmEsc(m.role)} · ${fmEsc(m.team)} · ${fmEsc(m.minutes ?? 0)}'</small></td>
                 <td>${vf(m.before)}</td><td>${vf(m.after)}</td>
                 <td class="${cls(m.delta ?? 0)}">${m.delta === null ? "s.v." : signed(m.delta, 1)}</td></tr>
                 <tr class="va-mvdet" data-d="${i}" hidden><td colspan="4"><div class="va-bd"><span></span><span>in uso</span><span></span><span>bozza</span>${det}</div></td></tr>`;
@@ -790,11 +789,11 @@ salvataggio finché non si preme «Salva»). Solo superuser.
         kpi("c-corr", b.corr, a.corr, 2, "", (x, y) => y > x);
         const arrow = (x, y, d = 2) => `${nf(x, d)}<span class="arrow">→</span>${nf(y, d)}`;
         document.getElementById("c-roles").innerHTML = c.by_role.map(r =>
-            `<tr><td>${esc(r.label)}</td><td>${arrow(r.before && r.before.mae, r.after && r.after.mae)}</td>
+            `<tr><td>${fmEsc(r.label)}</td><td>${arrow(r.before && r.before.mae, r.after && r.after.mae)}</td>
              <td>${arrow(r.before && r.before.bias, r.after && r.after.bias)}</td><td>${r.after ? r.after.n : 0}</td></tr>`).join("")
             || `<tr><td colspan="4" class="va-empty">Nessun giocatore con voto in entrambi.</td></tr>`;
         document.getElementById("c-groups").innerHTML = c.groups.map(g =>
-            `<tr><td>${esc(g.dim)}: ${esc(g.group)}</td>
+            `<tr><td>${fmEsc(g.dim)}: ${fmEsc(g.group)}</td>
              <td class="${Math.abs(g.after.bias) < Math.abs(g.before ? g.before.bias : 0) ? "va-up" : "va-flat"}">${arrow(g.before && g.before.bias, g.after.bias)}</td>
              <td>${arrow(g.before && g.before.mae, g.after.mae)}</td><td>${g.after.n}</td></tr>`).join("")
             || `<tr><td colspan="4" class="va-empty">Servono almeno 10 giocatori per gruppo.</td></tr>`;
@@ -815,7 +814,7 @@ salvataggio finché non si preme «Salva»). Solo superuser.
             `<tr><th>Algoritmo s.v.</th><td>${sv.ref_only}</td><td>${sv.none}</td></tr>`;
         const wt = document.getElementById("c-worst");
         wt.innerHTML = c.disagreements.length ? c.disagreements.map((w, i) =>
-            `<tr class="va-mvrow" data-i="${i}"><td class="who">${esc(w.name)} <small>${esc(w.role)} · ${esc(w.team)} · ${esc(w.minutes ?? 0)}'</small></td>
+            `<tr class="va-mvrow" data-i="${i}"><td class="who">${fmEsc(w.name)} <small>${fmEsc(w.role)} · ${fmEsc(w.team)} · ${fmEsc(w.minutes ?? 0)}'</small></td>
              <td>${vf(w.before)}</td><td>${vf(w.after)}</td><td>${nf(w.ref, 1)}</td></tr>
              <tr class="va-mvdet" data-d="${i}" hidden><td colspan="4"><div class="va-bd"><span></span><span>in uso</span><span></span><span>bozza</span>${breakdownRows(w.breakdown_before, w.breakdown_after)}</div></td></tr>`).join("")
             : `<tr><td colspan="4" class="va-empty">Nessun disaccordo.</td></tr>`;
@@ -838,7 +837,7 @@ salvataggio finché non si preme «Salva»). Solo superuser.
         }));
         const opts = [["media", "Media dei riferimenti"], ...Array.from(labels.values()).map(l => [l, l])];
         if (!opts.some(([v]) => v.toLowerCase() === refMode.toLowerCase())) refMode = "media";
-        sel.innerHTML = opts.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join("");
+        sel.innerHTML = opts.map(([v, l]) => `<option value="${fmEsc(v)}">${fmEsc(l)}</option>`).join("");
         sel.value = opts.find(([v]) => v.toLowerCase() === refMode.toLowerCase())[0];
     }
     const cmpBox = document.getElementById("va-cmp-samples");
@@ -859,7 +858,7 @@ salvataggio finché non si preme «Salva»). Solo superuser.
     if (fitCard) {
         const groupsBox = document.getElementById("va-fit-groups");
         groupsBox.innerHTML = COMPARE.groups.map(g =>
-            `<label><input type="checkbox" value="${esc(g.key)}" checked> ${esc(g.label)}</label>`).join("");
+            `<label><input type="checkbox" value="${fmEsc(g.key)}" checked> ${fmEsc(g.label)}</label>`).join("");
         const prud = document.getElementById("va-prud"), prudV = document.getElementById("va-prud-v");
         const PRESETS = [["bassa", "Bassa"], ["media", "Media"], ["alta", "Alta"]];
         document.getElementById("va-prud-presets").innerHTML = PRESETS.map(([k, l]) =>
@@ -904,20 +903,20 @@ salvataggio finché non si preme «Salva»). Solo superuser.
             const cal = d.calibration, calNow = d.calibration_current;
             res.hidden = false;
             res.innerHTML =
-                (d.warning ? `<div class="va-warn">La proposta ${esc(d.warning)}.</div>` : "") +
+                (d.warning ? `<div class="va-warn">La proposta ${fmEsc(d.warning)}.</div>` : "") +
                 `<div class="va-kpis" style="padding:0">
                     <div class="va-kpi"><div class="k">MAE in taratura</div><div class="v">${nf(f.mae_after)}</div><div class="s">in uso ${nf(f.mae_before)} · ${f.n} giocatori</div></div>
-                    <div class="va-kpi"><div class="k">MAE in verifica</div><div class="v ${v.gain >= 0.02 ? "va-up" : ""}">${nf(v.mae_after)}</div><div class="s">in uso ${nf(v.mae_before)} · ${esc(how)}</div></div>
+                    <div class="va-kpi"><div class="k">MAE in verifica</div><div class="v ${v.gain >= 0.02 ? "va-up" : ""}">${nf(v.mae_after)}</div><div class="s">in uso ${nf(v.mae_before)} · ${fmEsc(how)}</div></div>
                     <div class="va-kpi"><div class="k">Giocatori usati</div><div class="v">${d.rows_used}</div><div class="s">${d.rows_capped} esclusi per un tetto attivo · ${d.iterations} ${d.iterations === 1 ? "iterazione" : "iterazioni"}${d.iterations_stop === "stabile" ? "" : " (tetti non stabili: tenuta la proposta con l'errore più basso)"}</div></div>
                     <div class="va-kpi"><div class="k">Prudenza</div><div class="v">λ ${nfAny(Number(d.lambda.toPrecision(2)))}</div><div class="s">verso i valori della bozza</div></div>
                 </div>` +
                 `<div class="va-table-wrap"><table class="va-rt va-fittab"><thead><tr><th>Parametro</th><th>Attuale</th><th>Proposto</th><th>Δ</th></tr></thead><tbody>` +
-                (changed.length ? changed.map(p => `<tr><td>${esc(p.label)}${p.flags.map(fl => `<span class="va-flag">${esc(fl)}</span>`).join("")}</td>
-                    <td>${esc(nfAny(p.current))}</td><td><b>${esc(nfAny(p.proposed))}</b></td><td class="${cls(p.delta)}">${signed(p.delta, 3)}</td></tr>`).join("")
+                (changed.length ? changed.map(p => `<tr><td>${fmEsc(p.label)}${p.flags.map(fl => `<span class="va-flag">${fmEsc(fl)}</span>`).join("")}</td>
+                    <td>${fmEsc(nfAny(p.current))}</td><td><b>${fmEsc(nfAny(p.proposed))}</b></td><td class="${cls(p.delta)}">${signed(p.delta, 3)}</td></tr>`).join("")
                     : `<tr><td colspan="4" class="va-empty">Nessun parametro da cambiare.</td></tr>`) +
                 `</tbody></table></div>` +
                 `<div class="va-note">Le etichette gialle sono i vincoli raggiunti: range del campo, spostamento massimo (±0,5; ±0,15 per i pesi del rendimento) o segno di bonus e malus. Calcolata senza calibrazione: caricandola, scala e spostamento tornano 1 e 0.</div>` +
-                (cal ? `<div class="va-note">Calibrazione sui voti di riferimento (media ${nf(cal.target_mean)}, dev. std ${nf(cal.target_sd)}): scala ${esc(nfAny(cal.calib_scale))}, spostamento ${esc(nfAny(cal.calib_shift))}${calNow ? ` · sui valori attuali: scala ${esc(nfAny(calNow.calib_scale))}, spostamento ${esc(nfAny(calNow.calib_shift))}` : ""}.</div>` : "") +
+                (cal ? `<div class="va-note">Calibrazione sui voti di riferimento (media ${nf(cal.target_mean)}, dev. std ${nf(cal.target_sd)}): scala ${fmEsc(nfAny(cal.calib_scale))}, spostamento ${fmEsc(nfAny(cal.calib_shift))}${calNow ? ` · sui valori attuali: scala ${fmEsc(nfAny(calNow.calib_scale))}, spostamento ${fmEsc(nfAny(calNow.calib_shift))}` : ""}.</div>` : "") +
                 `<div class="fm-onerow" style="display:flex;gap:8px">
                     <button type="button" data-fit="tune" class="${d.warning ? "fm-btn-secondary" : ""}" ${changed.length ? "" : "disabled"}>Carica nella bozza</button>
                     <button type="button" data-fit="both" class="fm-btn-secondary" ${cal ? "" : "disabled"}>Carica anche la calibrazione</button>

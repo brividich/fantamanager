@@ -19,7 +19,7 @@ the same status endpoint with a different DOM.
         const busy = r.status === "preparing" || r.status === "starting";
 
         const labels = { off: "Non attivo", preparing: "Preparazione…", starting: "Apertura…", on: "Attivo", error: "Errore" };
-        pill.innerHTML = '<span class="dot"></span>' + (labels[r.status] || r.status);
+        pill.innerHTML = '<span class="dot"></span>' + fmEsc(labels[r.status] || r.status);
         pill.className = "fm-badge " + (on ? "is-ok" : r.status === "error" ? "is-live" : "is-off");
 
         fmRemoteUrl = r.url || "";

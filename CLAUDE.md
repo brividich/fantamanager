@@ -91,6 +91,17 @@ connessione senza risposta per 10 s chiusa e riaperta. Il timer parte da
 `performance.now() - live.lagMs()`: lo stato è partito dal server un attimo
 prima. Mai un `new WebSocket` in una pagina.
 
+## Dati del server nell'HTML: solo con `fmEsc`
+
+Nomi di squadre, giocatori, club e ogni altro dato che arriva da import o da
+input degli utenti, se finisce in `innerHTML`, `insertAdjacentHTML` o in una
+template string HTML, passa da `fmEsc()` (`base.html`, l'unica funzione di
+escape: niente copie locali); altrimenti si scrive con `textContent`. Un ruolo
+diventa una classe CSS solo con `fmRole()` (P D C A, altrimenti nessuna).
+`InnerHtmlStaticTests` (`test_xss_templates.py`) controlla tutti i template.
+La Content-Security-Policy (`middleware.ContentSecurityPolicy`) è la seconda
+difesa, non la prima.
+
 ## Asta live: il database che si ferma
 
 Sul PC tutte le chiamate al database passano da una coda sola e SQLite ha un

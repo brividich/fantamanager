@@ -606,7 +606,6 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const form = $("#wiz-form");
 const EXISTING = (JSON.parse($("#existing-names").textContent) || []).map(n => n.trim().toLowerCase());
-const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const num = v => { const n = Number(String(v || "").replace(",", ".")); return isFinite(n) ? n : NaN; };
 function getCsrf() {
     const m = document.cookie.match("(^|;)\\s*csrftoken\\s*=\\s*([^;]+)");
@@ -639,13 +638,13 @@ async function onListone() {
     setDrop("#drop-listone", "", '<span class="muted">Leggo il file…</span>', file.name);
     try {
         const d = await analyze("listone_file", file);
-        if (!d.ok) { setDrop("#drop-listone", "bad", "✗ " + esc(d.error)); refresh(); return; }
+        if (!d.ok) { setDrop("#drop-listone", "bad", "✗ " + fmEsc(d.error)); refresh(); return; }
         st.listone = d;
         const r = d.roles || {};
         setDrop("#drop-listone", "ok",
             `<span class="pill">✓ ${d.total_players} giocatori</span> <span class="muted">${r.P || 0} P · ${r.D || 0} D · ${r.C || 0} C · ${r.A || 0} A${d.mantra ? " · ruoli Mantra presenti" : ""}</span>`);
     } catch (e) {
-        setDrop("#drop-listone", "bad", "✗ Non riesco a leggere il file (" + esc(e.message) + ").");
+        setDrop("#drop-listone", "bad", "✗ Non riesco a leggere il file (" + fmEsc(e.message) + ").");
     }
     gameModeHint();
     refresh();
@@ -679,7 +678,7 @@ async function onRose() {
     setDrop("#drop-rose", "", '<span class="muted">Leggo le rose…</span>', file.name);
     try {
         const d = await analyze("rose_file", file);
-        if (!d.ok) { setDrop("#drop-rose", "bad", "✗ " + esc(d.error)); teams.sync(); return; }
+        if (!d.ok) { setDrop("#drop-rose", "bad", "✗ " + fmEsc(d.error)); teams.sync(); return; }
         st.rose = d;
         let html = `<span class="pill">✓ ${d.teams.length} squadre · ${d.total_players} giocatori</span>`;
         if (d.suggested_budget) {
@@ -689,7 +688,7 @@ async function onRose() {
         if (d.id_based && !st.listone) html += `<div class="hint warn">Queste rose usano gli Id ufficiali: servono abbinate al listone qui sopra.</div>`;
         setDrop("#drop-rose", "ok", html);
     } catch (e) {
-        setDrop("#drop-rose", "bad", "✗ Non riesco a leggere il file (" + esc(e.message) + ").");
+        setDrop("#drop-rose", "bad", "✗ Non riesco a leggere il file (" + fmEsc(e.message) + ").");
     }
     teams.sync();
 }
@@ -759,9 +758,9 @@ const teams = {
         row.className = "part-row";
         row.innerHTML =
             `<span class="ix"></span>` +
-            `<input class="p-name" placeholder="Nome squadra" aria-label="Nome squadra" maxlength="80" value="${esc(name)}">` +
-            `<input class="p-mail" type="email" placeholder="email (facoltativa)" aria-label="Email allenatore" maxlength="254" value="${esc(email)}">` +
-            `<input class="p-cred" placeholder="${esc($("#budget").value || "Crediti")}" aria-label="Crediti" inputmode="numeric" value="${esc(credits)}">` +
+            `<input class="p-name" placeholder="Nome squadra" aria-label="Nome squadra" maxlength="80" value="${fmEsc(name)}">` +
+            `<input class="p-mail" type="email" placeholder="email (facoltativa)" aria-label="Email allenatore" maxlength="254" value="${fmEsc(email)}">` +
+            `<input class="p-cred" placeholder="${fmEsc($("#budget").value || "Crediti")}" aria-label="Crediti" inputmode="numeric" value="${fmEsc(credits)}">` +
             `<button type="button" class="rm" aria-label="Togli questa squadra" title="Togli">✕</button>`;
         row.querySelector(".rm").addEventListener("click", () => { row.remove(); teams.renumber(); refresh(); });
         row.querySelectorAll("input").forEach(i => i.addEventListener("input", () => { teams.flag(null); refresh(); }));
@@ -834,7 +833,7 @@ const teams = {
         $("#manual-teams").style.display = det ? "none" : "";
         if (det) {
             $("#detected-teams-list").innerHTML = st.rose.teams.map(t =>
-                `<span class="team-chip">${esc(t.name)}<small>${t.n_players} gioc.${t.credits != null ? " · " + Math.round(t.credits) + " FM" : ""}</small></span>`).join("");
+                `<span class="team-chip">${fmEsc(t.name)}<small>${t.n_players} gioc.${t.credits != null ? " · " + Math.round(t.credits) + " FM" : ""}</small></span>`).join("");
         } else if (!teams.rows().length) {
             teams.add("", "", false);
         }
@@ -917,7 +916,7 @@ function renderSummary(el) {
     const rows = summaryRows();
     const ready = !!st.listone;
     el.innerHTML = rows.map(([k, v, c]) =>
-        `<div class="sum-row"><span class="k">${esc(k)}</span><span class="v ${c}">${esc(v)}</span></div>`).join("")
+        `<div class="sum-row"><span class="k">${fmEsc(k)}</span><span class="v ${c}">${fmEsc(v)}</span></div>`).join("")
         + `<div class="ready ${ready ? "ok" : "no"}">${ready ? "✓ Pronto per creare la lega" : "Manca il listone: caricalo al passo 1"}</div>`;
 }
 function refresh() {

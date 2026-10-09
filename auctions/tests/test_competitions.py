@@ -620,21 +620,23 @@ class FixtureModalXssTests(TestCase):
         from pathlib import Path
         from django.conf import settings
         partial = Path(settings.BASE_DIR, "auctions/templates/auctions/_fixture_modal_js.html").read_text(encoding="utf-8")
-        self.assertIn("function esc(s)", partial)
+        # Un solo escape condiviso, fmEsc() di base.html: niente copie locali.
+        self.assertNotIn("function esc(s)", partial)
+        self.assertIn("fmEsc(p.name)", partial)
         for value in ("p.name", "p.team", "p.starter_name", "p.role", "fix.home.name", "fix.away.name",
                       "s.name", "team.name", "fix.status_display"):
-            # concatenato in una stringa senza passare da esc(
+            # concatenato in una stringa senza passare da fmEsc(
             self.assertIsNone(re.search(r"\+\s*" + re.escape(value) + r"\b", partial), value)
             self.assertIsNone(re.search(r"\$\{\s*" + re.escape(value) + r"\b", partial), value)
         self.assertNotIn("scLine.innerHTML", partial)
-        self.assertIn("fixRole(p.role)", partial)
+        self.assertIn("fmRole(p.role)", partial)
 
     def test_both_pages_use_the_shared_partial(self):
         self.client.force_login(self.owner)
         for name in ("admin_competitions", "app_lega"):
             html = self.client.get(reverse(name) + f"?league={self.league.id}").content.decode()
             self.assertEqual(html.count("function renderPlayersList"), 1, name)
-            self.assertIn("function esc(s)", html)
+            self.assertIn("function fmEsc(s)", html)
             self.assertNotIn(self.EVIL, html)                   # il server lo scrive sempre escapato
         console = self.client.get(reverse("admin_competitions") + f"?league={self.league.id}").content.decode()
         app = self.client.get(reverse("app_lega") + f"?league={self.league.id}").content.decode()

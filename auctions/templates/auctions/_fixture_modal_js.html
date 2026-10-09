@@ -6,24 +6,16 @@ esiste solo nel modale dell'app.
 
 Sicurezza: nomi di giocatori e squadre arrivano dai dati della lega (listone
 importato, nomi scelti dai manager). Ogni valore dinamico che finisce in HTML
-passa da ``esc()``; i testi semplici si scrivono con ``textContent``; il ruolo
+passa da ``fmEsc()`` (base.html); i testi semplici si scrivono con ``textContent``; il ruolo
 diventa una classe CSS solo se è P/D/C/A.
 {% endcomment %}
 <script>
     const fixtureDetailsCache = {};
     const FIXTURE_DETAIL_URL = '{% if fixture_modal_app %}{% url "app_fixture_detail" 0 %}{% else %}{% url "admin_fixture_detail" 0 %}{% endif %}';
 
-    function esc(s) {
-        return String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
-    }
-
     function fixNum(x, digits) {
         const n = Number(x);
         return Number.isFinite(n) ? n.toFixed(digits) : '—';
-    }
-
-    function fixRole(role) {
-        return ['P', 'D', 'C', 'A'].includes(role) ? role : 'C';
     }
 
     function openFixtureDetailModal(fixtureId) {
@@ -167,21 +159,21 @@ diventa una classe CSS solo se è P/D/C/A.
         }
 
         cont.innerHTML = players.map(p => {
-            const voteStr = p.has_vote && p.vote != null ? esc(fixNum(p.vote, 1)) : '<span style="color:var(--muted);font-size:11px;">s.v.</span>';
-            const fvStr = p.has_vote && p.fantavoto != null ? 'FV: ' + esc(fixNum(p.fantavoto, 1)) : '';
-            const role = fixRole(p.role);
-            const roleCls = 'role-badge role-' + role;
+            const voteStr = p.has_vote && p.vote != null ? fmEsc(fixNum(p.vote, 1)) : '<span style="color:var(--muted);font-size:11px;">s.v.</span>';
+            const fvStr = p.has_vote && p.fantavoto != null ? 'FV: ' + fmEsc(fixNum(p.fantavoto, 1)) : '';
+            const role = fmRole(p.role);
+            const roleCls = 'role-badge' + (role ? ' role-' + role : '');
 
             let subHtml = '';
             if (p.is_subbed) {
-                subHtml = '<div style="font-size:10px;font-weight:700;color:#93c5fd;margin-top:2px;">🔄 Subentrato per ' + esc(p.starter_name || 'titolare') + ' (s.v.)</div>';
+                subHtml = '<div style="font-size:10px;font-weight:700;color:#93c5fd;margin-top:2px;">🔄 Subentrato per ' + fmEsc(p.starter_name || 'titolare') + ' (s.v.)</div>';
             } else if (p.subbed_in) {
                 subHtml = '<span style="font-size:9.5px;font-weight:800;background:rgba(34,197,94,0.2);color:#4ade80;padding:1px 5px;border-radius:4px;margin-left:4px;">IN CAMPO</span>';
             }
 
             const bonuses = [];
-            if (p.goals) bonuses.push('<span title="Gol">⚽ ' + esc(Number(p.goals) || 0) + '</span>');
-            if (p.assists) bonuses.push('<span title="Assist">🎯 ' + esc(Number(p.assists) || 0) + '</span>');
+            if (p.goals) bonuses.push('<span title="Gol">⚽ ' + fmEsc(Number(p.goals) || 0) + '</span>');
+            if (p.assists) bonuses.push('<span title="Assist">🎯 ' + fmEsc(Number(p.assists) || 0) + '</span>');
             if (p.yellow) bonuses.push('<span title="Ammonito">🟨</span>');
             if (p.red) bonuses.push('<span title="Espulso">🟥</span>');
 
@@ -189,15 +181,15 @@ diventa una classe CSS solo se è P/D/C/A.
             let whyAttr = '';
             if (p.why && window.fmVoteWhy) {
                 window.fmVoteWhy.register({[p.id]: p.why});
-                whyAttr = ' data-why-pid="' + esc(p.id) + '" data-why-name="' + esc(p.name) + '" role="button" tabindex="0" title="Perché questo voto"';
+                whyAttr = ' data-why-pid="' + fmEsc(p.id) + '" data-why-name="' + fmEsc(p.name) + '" role="button" tabindex="0" title="Perché questo voto"';
             }
 
             return '<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:var(--panel-2);border:1px solid var(--line-soft, rgba(255,255,255,0.04));border-radius:8px;">' +
                 '<div style="display:flex;align-items:center;gap:8px;min-width:0;flex:1;">' +
-                    '<span class="' + roleCls + '" style="font-size:10px;padding:2px 6px;">' + role + '</span>' +
+                    '<span class="' + roleCls + '" style="font-size:10px;padding:2px 6px;">' + fmEsc(p.role) + '</span>' +
                     '<div style="min-width:0;overflow:hidden;text-overflow:ellipsis;">' +
-                        '<span style="font-weight:800;font-size:13px;color:var(--ink);">' + esc(p.name) + '</span>' +
-                        (p.team ? '<small style="color:var(--muted);font-size:10.5px;text-transform:uppercase;margin-left:3px;">' + esc(String(p.team).slice(0, 3)) + '</small>' : '') +
+                        '<span style="font-weight:800;font-size:13px;color:var(--ink);">' + fmEsc(p.name) + '</span>' +
+                        (p.team ? '<small style="color:var(--muted);font-size:10.5px;text-transform:uppercase;margin-left:3px;">' + fmEsc(String(p.team).slice(0, 3)) + '</small>' : '') +
                         subHtml +
                         (bonuses.length > 0 ? '<div style="display:flex;gap:4px;font-size:11px;margin-top:2px;">' + bonuses.join('') + '</div>' : '') +
                     '</div>' +

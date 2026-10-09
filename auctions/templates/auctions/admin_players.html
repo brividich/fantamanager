@@ -512,12 +512,12 @@
 
         if (data.preview) {
             const rows = data.teams.map(t =>
-                `<tr><td style="font-weight:600">${esc(t.name)}</td>` +
+                `<tr><td style="font-weight:600">${fmEsc(t.name)}</td>` +
                 `<td style="text-align:right">${t.n_players}</td>` +
                 `<td style="text-align:right" class="muted">${t.credits == null ? "—" : Math.round(t.credits)}</td></tr>`).join("");
             document.getElementById("rose-preview").innerHTML =
                 `<div class="muted" style="font-size:12px;margin-bottom:8px">` +
-                `Formato rilevato: <b style="color:var(--accent-bright)">${esc(data.source_label)}</b> · ` +
+                `Formato rilevato: <b style="color:var(--accent-bright)">${fmEsc(data.source_label)}</b> · ` +
                 `${data.teams.length} squadre · ${data.total_players} giocatori in rosa` +
                 (data.n_listone ? ` · listone ${data.n_listone}` : "") + `</div>` +
                 `<div class="table-scroll"><table><thead><tr><th>Squadra</th>` +
@@ -531,13 +531,9 @@
 
         const parts = [`${data.teams} squadre`, `${data.players} giocatori assegnati`];
         if (data.listone_created) parts.push(`${data.listone_created} aggiunti al listone`);
-        showRoseMsg(`✓ ${esc(data.source_label)}: ` + parts.join(" · ") +
+        showRoseMsg(`✓ ${fmEsc(data.source_label)}: ` + parts.join(" · ") +
             (data.warning ? " · ⚠ " + data.warning : ""), "var(--live)");
         setTimeout(() => location.reload(), 1800);
-    }
-
-    function esc(s) {
-        const d = document.createElement("div"); d.textContent = s == null ? "" : s; return d.innerHTML;
     }
 
     // --- Schede squadra -------------------------------------------------------
@@ -563,27 +559,27 @@
     function sheetList(label, items, color) {
         if (!items || !items.length) return "";
         return `<div style="margin-top:4px"><span style="color:${color};font-weight:700">${label}:</span> ` +
-            items.map(esc).join(", ") + `</div>`;
+            items.map(fmEsc).join(", ") + `</div>`;
     }
 
     function renderSheets(data) {
         const teams = data.teams || [];
         const cards = data.sheets.map(s => {
             const pick = s.skipped ? "skip" : (s.team_id ? String(s.team_id) : (s.created_team ? "new" : ""));
-            const opts = teams.map(t => `<option value="${t.id}" ${String(t.id) === pick ? "selected" : ""}>${esc(t.name)}</option>`).join("");
+            const opts = teams.map(t => `<option value="${t.id}" ${String(t.id) === pick ? "selected" : ""}>${fmEsc(t.name)}</option>`).join("");
             const info = s.info || {};
-            const head = [info.president && `Presidente ${esc(info.president)}`,
-                          info.coach && `allenatore ${esc(info.coach)}`,
-                          info.stadium && `stadio ${esc(info.stadium)}${info.capacity ? " (" + info.capacity + ")" : ""}`]
+            const head = [info.president && `Presidente ${fmEsc(info.president)}`,
+                          info.coach && `allenatore ${fmEsc(info.coach)}`,
+                          info.stadium && `stadio ${fmEsc(info.stadium)}${info.capacity ? " (" + fmEsc(info.capacity) + ")" : ""}`]
                 .filter(Boolean).join(" · ");
             const counts = s.skipped ? "scheda saltata" :
                 `${s.players} giocatori` + (s.reserved ? ` · ${s.reserved} in lista ceduti` : "") +
                 (s.loans ? ` · ${s.loans} prestiti` : "") +
-                (s.images && s.images.length ? ` · immagini: ${s.images.map(k => ({logo: "logo", kit_home: "prima maglia", kit_away: "seconda maglia"})[k] || k).join(", ")}` : "");
+                (s.images && s.images.length ? ` · immagini: ${s.images.map(k => ({logo: "logo", kit_home: "prima maglia", kit_away: "seconda maglia"})[k] || fmEsc(k)).join(", ")}` : "");
             return `<div style="padding:12px 14px;border:1px solid var(--fm-border);border-radius:10px;margin-bottom:10px">` +
                 `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">` +
-                `<b style="flex:1 1 200px">${esc(s.title || "(senza titolo)")}</b>` +
-                `<span class="muted" style="font-size:12px">${esc(s.source)}</span>` +
+                `<b style="flex:1 1 200px">${fmEsc(s.title || "(senza titolo)")}</b>` +
+                `<span class="muted" style="font-size:12px">${fmEsc(s.source)}</span>` +
                 `<select data-sheet-map="${s.index}" style="width:auto;min-width:190px;margin:0">` +
                 `<option value="">Riconosci dal titolo</option>${opts}` +
                 `<option value="new" ${pick === "new" ? "selected" : ""}>➕ Nuova squadra</option>` +
@@ -599,7 +595,7 @@
         }).join("");
         const box = document.getElementById("sheet-preview");
         box.innerHTML = cards + (data.errors && data.errors.length
-            ? `<div style="color:var(--closed);font-size:12.5px">${data.errors.map(esc).join("<br>")}</div>` : "");
+            ? `<div style="color:var(--closed);font-size:12.5px">${data.errors.map(fmEsc).join("<br>")}</div>` : "");
         box.style.display = "block";
     }
 
