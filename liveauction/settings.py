@@ -76,18 +76,17 @@ _csrf = os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "").strip()
 if _csrf:
     CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf.split(",") if o.strip()]
 else:
+    # No wildcards: "*.synology.me" trusted every other Synology user's
+    # subdomain, over plain http too. A NAS lists its own domain (FM_SITE_URL).
     CSRF_TRUSTED_ORIGINS = [
-        "https://*.synology.me",
-        "http://*.synology.me",
-        "https://*.direct.quickconnect.to",
-        "http://*.direct.quickconnect.to",
-        "https://*.local",
-        "http://*.local",
         "http://localhost:8000",
         "http://localhost:8088",
         "http://127.0.0.1:8000",
         "http://127.0.0.1:8088",
     ]
+# The installation's own public address is always a trusted origin.
+if FM_SITE_URL and FM_SITE_URL not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.append(FM_SITE_URL)
 
 # Trust a TLS-terminating reverse proxy (Synology Reverse Proxy, Nginx, Caddy)
 # only when told so: without a proxy in front, X-Forwarded-* come from the
