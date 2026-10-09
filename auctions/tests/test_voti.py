@@ -425,6 +425,10 @@ class GiornatePageTests(TestCase):
         self.assertTemplateUsed(app, "auctions/app_giornate.html")
         self.assertContains(console, "Blocca formazioni")
         self.assertEqual(self._part(console), self._part(app))
+        for tab in ("risultati", "formazioni", "voti", "regole"):
+            self.assertContains(console, f'data-gv-panel="{tab}"')
+        # An open giornata with nothing scored opens on the lineups.
+        self.assertEqual(console.context["gv_tab"], "formazioni")
 
     def test_season_is_named_after_the_football_year(self):
         import datetime
@@ -697,6 +701,25 @@ class ManualScoresTests(TestCase):
         self.assertContains(resp, "inserito a mano")
         board = {row["participant"].id: row["total"] for row in resp.context["leaderboard"]}
         self.assertEqual(board[self.home.id], Decimal("85.5"))
+
+    def test_giornate_page_tells_typed_totals_from_votes(self):
+        """La giornata a mano non si presenta come «ufficiale con 0 voti»; le
+        partite della giornata si vedono con il risultato; la Battle Royale
+        solo se la lega la gioca."""
+        from django.urls import reverse
+        from ..models import Competition
+        self._post({f"score_{self.home.id}": "85,5", f"score_{self.away.id}": "69,5"})
+        resp = self.client.get(reverse("admin_giornate") + f"?league={self.league.id}&giornata=1")
+        self.assertContains(resp, "Calcolata · punteggi a mano")
+        self.assertNotContains(resp, "0 voti ufficiali")
+        self.assertEqual(resp.context["gv_tab"], "risultati")
+        self.assertEqual([g["name"] for g in resp.context["fixture_groups"]], ["Campionato"])
+        self.assertContains(resp, "4 – 1")
+        self.assertEqual(resp.context["battle_royale"], [])
+        Competition.objects.create(season=self.g.season, name="Coppa Tutti", kind=Competition.Type.BATTLE_ROYALE)
+        resp = self.client.get(reverse("admin_giornate") + f"?league={self.league.id}&giornata=1")
+        self.assertEqual(len(resp.context["battle_royale"]), 2)
+        self.assertContains(resp, "Coppa Tutti · tutti contro tutti")
 
 
 class ScoringRulesTests(TestCase):

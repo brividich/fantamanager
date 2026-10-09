@@ -10,7 +10,7 @@ dell'app (_giornate_manage.html): qui c'è solo la cornice.
 {% block content %}
 {% include "auctions/_console_head.html" %}
 <div style="margin:6px 0 14px">
-    <h1 style="margin:0;font-size:26px">Giornate, voti e calcolo partite</h1>
+    <h1 style="margin:0;font-size:26px">Giornate e voti</h1>
     <div style="font-size:12.5px;color:var(--fm-text-secondary)"><b>{{ current_league.name }}</b> · {{ season.name }}</div>
 </div>
 {% for m in messages %}<div class="msg {% if m.tags %}{{ m.tags }}{% endif %}">{{ m }}</div>{% endfor %}
