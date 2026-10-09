@@ -141,6 +141,15 @@ Una volta che il container è in stato **In esecuzione** (colore verde):
 
 ---
 
+## 🔄 Aggiornare l'app sul NAS
+
+App e scheduler usano la stessa immagine, senza il codice della cartella montato sopra.
+- Con `docker-compose.yml` (immagine costruita sul NAS): copia i file nuovi nella cartella (o
+  `git pull`), poi **Container Manager → Progetto → Azione → Compila** (via SSH:
+  `sudo docker compose up -d --build`). Il solo riavvio non basta più.
+- Con `docker-compose.ghcr.yml` (immagine già pronta): *Azione → Compila* scarica l'immagine nuova
+  (via SSH: `sudo docker compose -f docker-compose.ghcr.yml pull` e `up -d`).
+
 ## ⚠️ Note Utili e Risoluzione Problemi
 
 ### 1. Se la porta 8088 è già occupata sul Synology

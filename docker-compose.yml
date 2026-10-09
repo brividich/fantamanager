@@ -20,6 +20,9 @@ services:
 
   app:
     container_name: fantamanager
+    # Costruita una volta dal sorgente e usata così com'è da app e scheduler:
+    # aggiornare = `git pull` e `docker compose up -d --build`.
+    image: fantamanager:local
     build:
       context: .
       dockerfile: Dockerfile
@@ -72,15 +75,12 @@ services:
       # Altre origini da cui arrivano i form, oltre a FM_SITE_URL (niente «*»).
       - DJANGO_CSRF_TRUSTED_ORIGINS=${DJANGO_CSRF_TRUSTED_ORIGINS:-http://localhost:8088,http://127.0.0.1:8088}
     volumes:
-      # Il codice della cartella (lo stesso da cui si costruisce l'immagine):
-      # un `git pull` + riavvio basta ad aggiornare. Per girare solo col codice
-      # dell'immagine usare docker-compose.ghcr.yml.
-      - .:/app
+      # Solo i dati: il codice è quello dell'immagine. Per sviluppare col
+      # sorgente montato: docker-compose.override.yml.example.
       - ./data:/app/data
       - ./media:/app/media
       - ./logs:/app/logs
       - ./backups:/app/backups
-      - /app/staticfiles
     healthcheck:
       # /healthz/ risponde 503 se il database non risponde.
       test: ["CMD", "curl", "-fsS", "http://localhost:8000/healthz/"]
@@ -94,9 +94,9 @@ services:
   # scadenza della giornata. Stessa immagine e stesso database dell'app.
   scheduler:
     container_name: fantamanager-scheduler
-    build:
-      context: .
-      dockerfile: Dockerfile
+    # La stessa immagine dell'app: mai due versioni del codice sullo stesso database.
+    image: fantamanager:local
+    pull_policy: never      # non esiste su un registro: la costruisce il servizio app
     restart: unless-stopped
     depends_on:
       app:
@@ -115,7 +115,6 @@ services:
       # Niente migrazioni, superadmin o static: li fa il container dell'app.
       - FM_SCHEDULER_ONLY=1
     volumes:
-      - .:/app
       - ./data:/app/data
       - ./logs:/app/logs
     command: ["python", "manage.py", "run_scheduler"]

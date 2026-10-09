@@ -1,0 +1,23 @@
+# Solo per sviluppare: il sorgente della cartella montato sopra l'immagine,
+# così una modifica al codice vale al riavvio senza ricostruire.
+# Per usarlo: copia questo file in docker-compose.override.yml (Docker
+# Compose lo legge da solo accanto a docker-compose.yml). In produzione
+# (NAS) NON va usato: app e scheduler devono girare sul codice dell'immagine.
+services:
+  app:
+    volumes:
+      - .:/app
+      - ./data:/app/data
+      - ./media:/app/media
+      - ./logs:/app/logs
+      - ./backups:/app/backups
+      # Gli static raccolti nell'immagine, non coperti dal sorgente montato.
+      - /app/staticfiles
+    environment:
+      - DJANGO_DEBUG=True
+
+  scheduler:
+    volumes:
+      - .:/app
+      - ./data:/app/data
+      - ./logs:/app/logs

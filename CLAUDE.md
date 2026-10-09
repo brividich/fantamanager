@@ -115,6 +115,11 @@ offerte e ticker insieme.
   lotto e delle buste i secondi persi, una volta sola (`services/stall.py`);
   la regia lo vede nell'avviso del ticker. **Una nuova chiamata del live che
   guarda il tempo riceve quando è partita e passa da `stall.give_back`.**
+- Lo scheduler (`run_scheduler`, un altro processo) non chiude i lotti di
+  un'asta il cui ticker è vivo: il ticker scrive `Auction.ticker_seen_at` al
+  massimo ogni 2 s, lo scheduler salta le aste col battito più giovane di
+  10 s e altrimenti chiude con `as_of` e 3 s di margine (`CLOSE_GRACE`,
+  `services/scheduler.py`).
 - Un errore del database non chiude la connessione: l'offerta torna indietro
   con `server_busy` («rilancia di nuovo»).
 - Tante offerte insieme (`consumers.py`): offerte, buste e sync girano a parte

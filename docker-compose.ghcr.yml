@@ -87,6 +87,8 @@ services:
   # scadenza della giornata. Stessa immagine e stesso database dell'app.
   scheduler:
     container_name: fantamanager-scheduler
+    # La stessa immagine e lo stesso tag dell'app (DOCKER_IMAGE): mai due
+    # versioni del codice sullo stesso database.
     image: ${DOCKER_IMAGE:-ghcr.io/brividich/fantamanager:latest}
     restart: unless-stopped
     depends_on:
