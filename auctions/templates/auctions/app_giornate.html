@@ -9,7 +9,7 @@ della console (_giornate_manage.html): qui c'è solo la cornice.
 {% block app %}
 <div class="tab-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
     <div>
-        <h1>Giornate, voti e calcolo partite</h1>
+        <h1>Giornate e voti</h1>
         <p><b>{{ current_league.name }}</b> · {{ season.name }}</p>
     </div>
     <a class="fm-btn fm-btn-secondary" href="{% url 'app_regia' %}?league={{ current_league.id }}">
