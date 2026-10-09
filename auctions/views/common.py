@@ -37,9 +37,9 @@ def staff_member_required(view):
     return wrapped
 
 
-def regia_pin_lockout_error():
-    """The message to show while PIN attempts are locked out, else ""."""
-    remaining = remote.regia_pin_lockout_remaining()
+def regia_pin_lockout_error(request=None):
+    """The message to show while this client's PIN attempts are locked out, else ""."""
+    remaining = remote.regia_pin_lockout_remaining(request)
     return f"Troppi tentativi. Riprova tra {int(remaining)} secondi." if remaining > 0 else ""
 
 
@@ -47,20 +47,20 @@ def try_regia_pin(request):
     """Check the posted ``pin`` against the one minted for the tunnel.
 
     Returns "" once the session is unlocked, else the error to show. Every PIN
-    form goes through here so they all share the process-wide lockout (see
-    ``regia_unlock``). There is no fallback PIN: until a tunnel has minted one,
+    form goes through here so they all share the same per-client lockout (see
+    ``remote.regia_pin_register_failure``). There is no fallback PIN: until a tunnel has minted one,
     nothing unlocks.
     """
-    error = regia_pin_lockout_error()
+    error = regia_pin_lockout_error(request)
     if error:
         return error
     given = re.sub(r"\D", "", request.POST.get("pin", ""))
     if given and given == remote.regia_pin():
-        remote.regia_pin_register_success()
+        remote.regia_pin_register_success(request)
         request.session["regia_unlocked"] = True
         return ""
-    remote.regia_pin_register_failure()
-    return regia_pin_lockout_error() or "PIN errato."
+    remote.regia_pin_register_failure(request)
+    return regia_pin_lockout_error(request) or "PIN errato: controllalo sul PC che ospita l'asta e riprova."
 
 
 def safe_next(request, fallback):

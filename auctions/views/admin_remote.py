@@ -150,7 +150,7 @@ def regia_unlock(request):
         if not error:
             return redirect(target)
     else:
-        error = regia_pin_lockout_error()
+        error = regia_pin_lockout_error(request)
 
     return render(request, "auctions/regia_unlock.html",
                   {"error": error, "next": target}, status=200 if not error else 401)

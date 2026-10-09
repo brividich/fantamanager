@@ -71,13 +71,24 @@ _STATE = {
 _PROC = None
 _SAVED = {}              # settings we override while the tunnel is up
 
-# Regia PIN brute-force throttle — process-global, not per-session. The PIN
-# gate used to count failed attempts in request.session, which a caller can
-# simply not send back (a fresh request with no cookie resets the count to
-# zero every time), making the "5 tries then 60s lockout" trivially
-# bypassable. A global, in-memory counter has nothing for the client to shed.
+# Regia PIN brute-force throttle, in memory. Not in request.session alone: a
+# caller can simply not send the cookie back (a fresh request resets the count
+# every time), making the "5 tries then 60s lockout" trivially bypassable.
+#
+# Not one process-wide counter either: a single process-wide counter let anybody with
+# the tunnel link lock the regia for everyone, forever, five guesses a minute.
+# A client is its address (CF-Connecting-IP through the tunnel, the address
+# cloudflared got from Cloudflare's edge — every tunnel request reaches us from
+# 127.0.0.1) *and* its session: shedding the cookie still leaves the address.
+# A higher global ceiling stays as the last defence against many addresses.
 _PIN_LOCK = threading.Lock()
-_PIN_STATE = {"tries": 0, "locked_until": 0.0}
+_PIN_STATE = {"clients": {}, "recent": [], "global_until": 0.0}
+PIN_CLIENT_TRIES = 5          # wrong PINs in a row from one client...
+PIN_CLIENT_LOCK_S = 60        # ...lock that client out for this long
+PIN_GLOBAL_TRIES = 50         # wrong PINs from anyone within PIN_GLOBAL_WINDOW_S...
+PIN_GLOBAL_WINDOW_S = 600
+PIN_GLOBAL_LOCK_S = 300       # ...lock everybody out for this long
+_PIN_MAX_CLIENTS = 5000
 
 
 # --- cloudflared binary -----------------------------------------------------
@@ -313,26 +324,68 @@ def regia_pin():
         return _STATE["pin"]
 
 
-def regia_pin_lockout_remaining():
-    """Seconds left before the next PIN attempt is allowed (0 if none)."""
+def new_regia_pin():
+    """A fresh regia PIN: 8 digits. One already minted stays as it is."""
+    return f"{secrets.randbelow(90_000_000) + 10_000_000}"
+
+
+def _pin_clients(request):
+    """The keys a PIN attempt is counted under: address and session."""
+    if request is None:
+        return []
+    from . import throttle
+
+    ip = ""
+    if request_is_remote(request):
+        ip = (request.META.get("HTTP_CF_CONNECTING_IP") or "").strip()
+    keys = ["ip:" + (ip or throttle.client_ip(request))]
+    session = getattr(request, "session", None)
+    if session is not None and session.session_key:
+        keys.append("s:" + session.session_key)
+    return keys
+
+
+def regia_pin_lockout_remaining(request=None):
+    """Seconds before this client may try a PIN again (0 if it may now)."""
+    now = time.time()
     with _PIN_LOCK:
-        remaining = _PIN_STATE["locked_until"] - time.time()
-        return max(0.0, remaining)
+        until = _PIN_STATE["global_until"]
+        for key in _pin_clients(request):
+            until = max(until, _PIN_STATE["clients"].get(key, {}).get("until", 0.0))
+        return max(0.0, until - now)
 
 
-def regia_pin_register_failure():
-    """Count one failed attempt; lock out for 60s after the 5th in a row."""
+def regia_pin_register_failure(request=None):
+    """Count one failed attempt for this client (and for the global ceiling)."""
+    now = time.time()
     with _PIN_LOCK:
-        _PIN_STATE["tries"] += 1
-        if _PIN_STATE["tries"] >= 5:
-            _PIN_STATE["locked_until"] = time.time() + 60
-            _PIN_STATE["tries"] = 0
+        recent = [t for t in _PIN_STATE["recent"] if now - t < PIN_GLOBAL_WINDOW_S] + [now]
+        if len(recent) >= PIN_GLOBAL_TRIES:
+            _PIN_STATE["global_until"] = now + PIN_GLOBAL_LOCK_S
+            recent = []
+        _PIN_STATE["recent"] = recent
+        clients = _PIN_STATE["clients"]
+        if len(clients) > _PIN_MAX_CLIENTS:
+            for key in [k for k, v in clients.items() if v.get("until", 0.0) < now]:
+                clients.pop(key, None)
+        for key in _pin_clients(request):
+            entry = clients.setdefault(key, {"tries": 0, "until": 0.0})
+            entry["tries"] += 1
+            if entry["tries"] >= PIN_CLIENT_TRIES:
+                entry["until"] = now + PIN_CLIENT_LOCK_S
+                entry["tries"] = 0
 
 
-def regia_pin_register_success():
+def regia_pin_register_success(request=None):
+    """The right PIN: this client starts counting from zero again."""
     with _PIN_LOCK:
-        _PIN_STATE["tries"] = 0
-        _PIN_STATE["locked_until"] = 0.0
+        for key in _pin_clients(request):
+            _PIN_STATE["clients"].pop(key, None)
+
+
+def _reset_pin_attempts():
+    with _PIN_LOCK:
+        _PIN_STATE.update(clients={}, recent=[], global_until=0.0)
 
 
 def request_is_remote(request):
@@ -458,7 +511,7 @@ def start(port):
         if _STATE["status"] in ("on", "starting", "preparing"):
             return status()
         _STATE.update(status="preparing", url="", host="", error="", detail="", wanted=True,
-                      port=int(port), pin=_STATE["pin"] or f"{secrets.randbelow(900000) + 100000}")
+                      port=int(port), pin=_STATE["pin"] or new_regia_pin())
 
     def _run():
         global _PROC
@@ -519,8 +572,7 @@ def stop():
     with _LOCK:
         _STATE.update(status="off", url="", host="", error="", detail="",
                       port=None, started_at=None)
-    with _PIN_LOCK:
-        _PIN_STATE.update(tries=0, locked_until=0.0)
+    _reset_pin_attempts()
     if was_on:
         _notify(None)
     return status()
