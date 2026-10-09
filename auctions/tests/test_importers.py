@@ -27,12 +27,7 @@ from ..models import (Auction, AuctionCycleResult, AuctionQueueItem, Bid, Format
 from .common import make_live_auction
 
 class ProviderTests(TestCase):
-    """Provider registry + DB importers on mock/local data (no network)."""
-
-    def test_get_provider_unknown_raises(self):
-        from ..providers import ProviderError, get_provider
-        with self.assertRaises(ProviderError):
-            get_provider("does-not-exist")
+    """DB importers on mock/local data (no network)."""
 
     def test_import_rose_data_reconstructs_budget(self):
         from ..providers import importers

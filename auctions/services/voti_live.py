@@ -80,14 +80,27 @@ def fetch_apifootball_live(giornata_num: int) -> List[Dict[str, Any]]:
     return apifootball.matchday_live_rows(giornata_num)
 
 
-def fetch_simulation_live(giornata_num: int) -> List[Dict[str, Any]]:
+def simulation_allowed(user) -> bool:
+    """Voti finti a caso: solo per le prove (DEBUG) o per il superadmin."""
+    from django.conf import settings
+    return bool(settings.DEBUG or getattr(user, "is_superuser", False))
+
+
+def fetch_simulation_live(giornata_num: int, leagues=None) -> List[Dict[str, Any]]:
     """Generate realistic live provisional ratings for testing and off-hours demonstration.
 
     Le squadre di Serie A dei giocatori si affrontano a coppie: ogni riga ha
     minuti e risultato della squadra (``team_goals_for``/``team_goals_against``),
-    così anche il voto algoritmico si prova senza chiave API."""
+    così anche il voto algoritmico si prova senza chiave API. I giocatori sono
+    solo quelli delle leghe ``leagues`` (None: le leghe con una stagione in
+    corso), mai di altre leghe."""
     import random
-    sample_players = list(Player.objects.filter(abroad_list=False).values("name", "team", "role")[:80])
+    pool = Player.objects.filter(abroad_list=False)
+    if leagues is not None:
+        pool = pool.filter(league__in=leagues)
+    else:
+        pool = pool.filter(league__seasons__is_current=True).distinct()
+    sample_players = list(pool.order_by("id").values("name", "team", "role")[:80])
     clubs = sorted({p["team"] or "" for p in sample_players})
     # Coppie di club; un club spaiato gioca contro un avversario fuori elenco.
     result = {}
@@ -258,7 +271,7 @@ class LiveSyncManager:
         # Fetch ratings from provider
         self.provider = normalize_provider(self.provider)
         if self.provider == "simulation":
-            rows = fetch_simulation_live(target_num)
+            rows = fetch_simulation_live(target_num, leagues=leagues)
         else:
             try:
                 rows = fetch_apifootball_live(target_num)

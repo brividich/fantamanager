@@ -1,10 +1,17 @@
-"""Roster-import providers (Fantapazz today; Fantacalcio.it / Leghe / Excel later).
+"""Le fonti dei dati della lega: file caricati (``importers``, ``voti``,
+``team_sheet_import``), API-Football (``apifootball``), ranking UEFA/FIFA
+(``uefa``), classifiche da un link pubblico (``standings``).
 
-The provider layer isolates *where roster data comes from* (a website, an
-uploaded file) from *how the app stores it* (see ``importers``) and from the
-HTTP/session glue (see ``views``). Add a new site by subclassing
-``RosterProvider`` and registering it in ``get_provider``.
+Le rose, da qualunque fonte, arrivano a ``importers.import_rose_data`` in una
+forma sola, una lista di squadre::
+
+    {
+        "name": "GELSI UNITED",
+        "credits": 2168,            # crediti rimasti sulla fonte, o None
+        "external_id": "1449",      # id della squadra sulla fonte, facoltativo
+        "players": [
+            {"role": "P", "name": "Falcone", "cost": 9, "club": "Lecce"},
+            ...
+        ],
+    }
 """
-from .base import ProviderError, RosterProvider, get_provider
-
-__all__ = ["ProviderError", "RosterProvider", "get_provider"]
