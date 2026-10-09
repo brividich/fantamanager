@@ -589,7 +589,8 @@ class SetupWizardTests(TestCase):
         page = self.client.get(resp["Location"])
         self.assertContains(page, "Crea l'asta")
 
-    @override_settings(EMAIL_HOST="smtp.env.local")
+    # I link degli inviti partono dall'indirizzo pubblico del sito (FM_SITE_URL).
+    @override_settings(EMAIL_HOST="smtp.env.local", FM_SITE_URL="http://testserver")
     def test_setup_sends_the_invites_when_asked(self):
         from django.core import mail as outbox
         resp = self._post_setup(send_invites="1")

@@ -96,6 +96,24 @@ class EmailLinksTests(TestCase):
         self.assertContains(resp, "FM_SITE_URL")
 
 
+class DesktopLinkBaseTests(SimpleTestCase):
+    """L'app del PC: i link usano l'indirizzo wifi della macchina, mai un Host qualsiasi."""
+
+    def _request(self, host):
+        from django.test import RequestFactory
+        return RequestFactory().get("/", HTTP_HOST=host)
+
+    @override_settings(FM_SITE_URL="", ALLOWED_HOSTS=["*"], DESKTOP_APP=True)
+    def test_own_wifi_address_yes_any_other_host_no(self):
+        with mock.patch("auctions.remote.lan_ip", return_value="192.168.1.50"):
+            self.assertEqual(mail.link_base(self._request("localhost:8000")), "http://192.168.1.50:8000")
+            self.assertEqual(mail.link_base(self._request("192.168.1.50:8000")), "http://192.168.1.50:8000")
+            # L'indirizzo lo decide la macchina: un Host inventato non entra nel link.
+            self.assertNotIn("evil", mail.link_base(self._request("evil.tld")))
+        with mock.patch("auctions.remote.lan_ip", return_value=""):
+            self.assertEqual(mail.link_base(self._request("evil.tld")), "")
+
+
 class MailPageWarnsTests(TestCase):
     def setUp(self):
         self.client.force_login(User.objects.create_superuser("root", "r@x.it", "pw-root-123"))

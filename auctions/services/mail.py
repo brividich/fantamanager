@@ -199,6 +199,10 @@ def link_base(request):
         lan = remote.lan_url(request)
         if lan:
             return lan.rstrip("/")
+        # Already on the wifi address: trusted only when it is this machine's.
+        ip = remote.lan_ip()
+        if ip and request.get_host().split(":")[0] == ip:
+            return request.build_absolute_uri("/").rstrip("/")
     if "*" in settings.ALLOWED_HOSTS:
         return ""
     return request.build_absolute_uri("/").rstrip("/")
