@@ -114,6 +114,16 @@ write-only. Only superusers reach this page.
 <div class="msg {% if m.tags %}{{ m.tags }}{% endif %}" role="status">{{ m }}</div>
 {% endfor %}
 
+{% if link_base %}
+<div class="msg info" role="note">I link nelle email (reset password, inviti, avvisi) puntano a <b>{{ link_base }}</b>.</div>
+{% else %}
+<div class="msg warning" role="alert"><b>Le email con un link non partono.</b>
+    Manca l'indirizzo pubblico del sito, e il server accetta qualsiasi nome di dominio: un link costruito
+    dalla richiesta potrebbe portare altrove. Per rimediare: 1. nel file <code>.env</code> scrivi
+    <code>FM_SITE_URL=https://il-tuo-dominio</code> (oppure elenca i domini in <code>DJANGO_ALLOWED_HOSTS</code>);
+    2. riavvia (<code>docker compose up -d</code>); 3. torna qui: questo avviso sparisce.</div>
+{% endif %}
+
 <div class="ml-state {% if ready %}ok{% else %}off{% endif %}">
     <span class="dot" aria-hidden="true"></span>
     <span class="txt">

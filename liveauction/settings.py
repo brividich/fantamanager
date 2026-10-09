@@ -52,6 +52,25 @@ ALLOWED_HOSTS = [h.strip() for h in os.getenv("DJANGO_ALLOWED_HOSTS", "*").split
 if "*" not in ALLOWED_HOSTS:
     ALLOWED_HOSTS += [h for h in ("localhost", "127.0.0.1") if h not in ALLOWED_HOSTS]
 
+# The public address of this installation (e.g. https://fantamanager.example.it):
+# every link that leaves the site in an email (password reset, invites, market
+# notices) starts from here, never from the Host header of the request.
+def _site_url(raw):
+    from urllib.parse import urlsplit
+    raw = (raw or "").strip().rstrip("/")
+    if not raw:
+        return ""
+    parts = urlsplit(raw)
+    if parts.scheme not in ("http", "https") or not parts.hostname or parts.path or parts.query:
+        from django.core.exceptions import ImproperlyConfigured
+        raise ImproperlyConfigured(
+            f"FM_SITE_URL={raw!r} non è un indirizzo valido: scrivi solo schema e dominio, "
+            "per esempio https://fantamanager.example.it")
+    return raw
+
+
+FM_SITE_URL = _site_url(os.getenv("FM_SITE_URL", ""))
+
 # Trust the local network origins and DDNS domains for CSRF over WebSocket/forms if needed.
 _csrf = os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "").strip()
 if _csrf:

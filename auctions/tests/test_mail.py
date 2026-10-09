@@ -89,7 +89,8 @@ class MailSettingsPageTests(TestCase):
         self.assertEqual(mail.send("x", "a@x.it", "y"), (False, "Posta non configurata."))
 
 
-@override_settings(EMAIL_HOST="smtp.env.local")
+# I link delle email partono dall'indirizzo pubblico del sito (FM_SITE_URL).
+@override_settings(EMAIL_HOST="smtp.env.local", FM_SITE_URL="http://testserver")
 class LeagueEmailTests(TestCase):
     """With the env fallback the test runner's locmem backend receives the mail."""
 

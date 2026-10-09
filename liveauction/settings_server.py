@@ -6,8 +6,9 @@ on the home LAN or the desktop app).
 ``settings`` stays permissive on purpose: on a LAN everybody in the room
 plays, and the desktop app needs DEBUG to serve files from one process.
 This profile starts from it and refuses to boot with what is only safe at
-home: DEBUG on, any host, the repository's example database password,
-anonymous teams on /join/. It also turns off what only the desktop app
+home: DEBUG on, any host, no public https address (FM_SITE_URL) for the
+links in emails, the repository's example database password, anonymous
+teams on /join/. It also turns off what only the desktop app
 needs (the cloudflared tunnel, the first-login superadmin) and the scraping
 of third-party standings pages, and logs to stdout for the container.
 """
@@ -18,7 +19,7 @@ os.environ.setdefault("DJANGO_DEBUG", "False")
 from django.core.exceptions import ImproperlyConfigured  # noqa: E402
 
 from .settings import *  # noqa: E402,F401,F403
-from .settings import ALLOWED_HOSTS, DATABASES, DEBUG, DESKTOP_APP, LOGGING  # noqa: E402
+from .settings import ALLOWED_HOSTS, DATABASES, DEBUG, DESKTOP_APP, FM_SITE_URL, LOGGING  # noqa: E402
 
 _problems = []
 if DEBUG:
@@ -27,6 +28,9 @@ if DESKTOP_APP:
     _problems.append("FANTAMANAGER_DESKTOP non va impostata su un server")
 if not ALLOWED_HOSTS or "*" in ALLOWED_HOSTS:
     _problems.append("DJANGO_ALLOWED_HOSTS deve elencare i domini del servizio (niente '*')")
+if not FM_SITE_URL.startswith("https://"):
+    _problems.append("FM_SITE_URL deve essere l'indirizzo pubblico https del servizio "
+                     "(es. https://fantamanager.example.it): da lì partono i link delle email")
 _db = DATABASES["default"]
 if "postgresql" not in _db["ENGINE"]:
     _problems.append("serve PostgreSQL (POSTGRES_DB, POSTGRES_HOST, POSTGRES_USER, POSTGRES_PASSWORD)")

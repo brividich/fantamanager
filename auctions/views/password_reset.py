@@ -37,21 +37,29 @@ def password_reset_request(request):
             return render(request, "auctions/password_reset.html", {
                 "error": "La posta della piattaforma non è configurata: chiedi all'amministratore di "
                          "reimpostare la password."})
+        base = mail.link_base(request)
+        if not base:
+            # The link would be built from whatever Host the request claims.
+            logger.warning("Reset password rifiutato: %s", mail.NO_LINK_BASE_MESSAGE)
+            return render(request, "auctions/password_reset.html", {
+                "error": "Il reset via email non è attivo su questa installazione: chi la gestisce "
+                         "deve impostare FM_SITE_URL (l'indirizzo pubblico del sito). Intanto chiedi "
+                         "all'amministratore di reimpostarti la password."})
         throttle.failure(request, "login")        # every request counts: no free probing
         if identifier:
             User = get_user_model()
             users = User.objects.filter(Q(username__iexact=identifier) | Q(email__iexact=identifier),
                                         is_active=True).exclude(email="")
             for user in users[:3]:
-                _send_link(request, user)
+                _send_link(base, user)
         return render(request, "auctions/password_reset.html", {"sent": True, "message": SENT_MESSAGE})
     return render(request, "auctions/password_reset.html", {})
 
 
-def _send_link(request, user):
+def _send_link(base, user):
     uid = urlsafe_base64_encode(force_bytes(user.pk))
     token = default_token_generator.make_token(user)
-    link = request.build_absolute_uri(reverse("password_reset_confirm", args=[uid, token]))
+    link = base + reverse("password_reset_confirm", args=[uid, token])
     ctx = {"user": user, "link": link}
     ok, error = mail.send("Nuova password — FantaManager", user.email,
                           render_to_string("auctions/email/password_reset.txt", ctx))

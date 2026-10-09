@@ -116,6 +116,7 @@ def admin_mail_settings(request):
         "providers": MailSettings.Provider.choices,
         "securities": MailSettings.Security.choices,
         "presets": mail.PRESETS,
+        "link_base": mail.link_base(request),
         "current_league": current_league(request),
         "leagues": manageable_leagues(request.user),
         "console_section": "Posta",
