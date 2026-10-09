@@ -7,10 +7,11 @@ from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
 
-from .. import throttle
+from .. import legal, throttle
 
-from ..models import Auction, League, Participant
+from ..models import AccountPrivacy, Auction, League, Participant
 from ..models.participant import AMBIGUOUS_CODE_MESSAGE, find_team_by_code
+from ..services import privacy
 from .common import SESSION_LEAGUE_KEY, _session_participant, manageable_leagues, safe_next
 
 logger = logging.getLogger(__name__)
@@ -107,6 +108,7 @@ def portal_view(request):
             "active_auction": None,
             "live_auctions": live_auctions,
             "next": request.GET.get("next", ""),
+            **_legal_form_ctx(),
         },
     )
 
@@ -159,6 +161,7 @@ def login_view(request):
             "next": next_url,
             "active_tab": "login",
             "live_auctions": _spectator_auctions(Auction.Status.LIVE, Auction.Status.PAUSED),
+            **_legal_form_ctx(),
         },
     )
 
@@ -187,17 +190,28 @@ def register_view(request):
         return redirect("home")
 
     error = None
+    form = {}
+    need_legal = privacy.legal_required()
     if request.method == "POST":
         username = (request.POST.get("username") or "").strip()
         email = (request.POST.get("email") or "").strip()
         password = request.POST.get("password") or ""
         password_confirm = request.POST.get("password_confirm") or ""
         first_name = (request.POST.get("first_name") or "").strip()
+        form = {"username": username, "email": email, "first_name": first_name}
 
         if not username or not password:
             error = "Nome utente e password sono obbligatori."
         elif len(username) < 3:
             error = "Il nome utente deve contenere almeno 3 caratteri."
+        elif need_legal and not email:
+            error = "Scrivi la tua email: serve a confermare l'account e a recuperare la password."
+        elif email and not _valid_email(email):
+            error = "L'email non sembra valida: controllala (es. nome@esempio.it)."
+        elif need_legal and not request.POST.get("accept_terms"):
+            error = "Per registrarti spunta «Ho letto l'informativa privacy e accetto i termini»."
+        elif need_legal and not request.POST.get("accept_age"):
+            error = f"Per registrarti devi avere almeno {legal.MIN_AGE} anni: spunta la casella."
         elif password != password_confirm:
             error = "Le due password non coincidono."
         elif (weak := _password_problem(password, username, email, first_name)):
@@ -218,9 +232,19 @@ def register_view(request):
                     is_superuser=is_first,
                     is_staff=is_first,
                 )
+                if request.POST.get("accept_terms") and request.POST.get("accept_age"):
+                    privacy.record_acceptance(user, throttle.client_ip(request))
+                if need_legal:
+                    # Registrato da solo: l'email va confermata (link di 48 ore).
+                    AccountPrivacy.objects.create(user=user, self_registered=True)
                 login(request, user)
                 logger.info("Nuovo utente registrato: %s (superuser=%s)", user.username, is_first)
-                messages.success(request, f"Benvenuto, {user.first_name or user.username}!")
+                welcome = f"Benvenuto, {user.first_name or user.username}!"
+                if need_legal and email:
+                    sent, _err = privacy.send_verification(request, user, email)
+                    if sent:
+                        welcome += f" Ti abbiamo scritto a {email}: apri il link per confermare l'email."
+                messages.success(request, welcome)
 
                 if is_first:
                     return redirect("supervisor_dashboard")
@@ -235,9 +259,26 @@ def register_view(request):
         {
             "error": error,
             "active_tab": "register",
+            "form": form,
             "live_auctions": _spectator_auctions(Auction.Status.LIVE, Auction.Status.PAUSED),
+            **_legal_form_ctx(),
         },
     )
+
+
+def _legal_form_ctx():
+    return {"legal_required": privacy.legal_required(), "min_age": legal.MIN_AGE}
+
+
+def _valid_email(email):
+    from django.core.exceptions import ValidationError
+    from django.core.validators import validate_email
+
+    try:
+        validate_email(email)
+    except ValidationError:
+        return False
+    return True
 
 
 def logout_view(request):

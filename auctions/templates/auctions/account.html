@@ -1,0 +1,157 @@
+{% extends page_frame|default:"auctions/_frame_console.html" %}{% load fm_pages %}
+{% block title %}Il mio account — FantaManager{% endblock %}
+{% comment %}
+«Il mio account»: i diritti dell'interessato (GDPR) in una pagina. La stessa
+view e lo stesso template in console (/account/) e nell'app (/app/account/);
+cambia la cornice (views/privacy.py:_account_frame).
+{% endcomment %}
+{% block page %}
+<style>
+    .acc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 14px; }
+    .acc-card h2 { margin: 0 0 6px; font-size: 16px; }
+    .acc-card p { margin: 6px 0; font-size: 13px; color: var(--fm-text-secondary); line-height: 1.55; }
+    .acc-kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; font-size: 13px; margin: 8px 0; }
+    .acc-kv dt { color: var(--fm-text-muted); }
+    .acc-kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+    .acc-tag { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 800; }
+    .acc-tag.ok { background: rgba(22,217,104,.15); color: var(--fm-success); }
+    .acc-tag.warn { background: rgba(250,204,21,.15); color: #facc15; }
+    .acc-form { display: grid; gap: 8px; margin-top: 8px; }
+    .acc-form label { margin: 4px 0 0; }
+    .acc-list { margin: 6px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.6; }
+    .acc-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .acc-table th { text-align: left; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--fm-text-muted); padding: 6px; }
+    .acc-table td { padding: 6px; border-top: 1px solid var(--fm-border); vertical-align: top; }
+    .acc-danger { border-color: rgba(239,68,68,.35); }
+    .acc-msg { padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+    .acc-msg.error { background: rgba(239,68,68,.15); color: #f87171; border: 1px solid rgba(239,68,68,.3); }
+    .acc-msg.ok { background: rgba(34,197,94,.12); color: #4ade80; border: 1px solid rgba(34,197,94,.3); }
+    .acc-msg.info { background: rgba(8,124,240,.10); border: 1px solid var(--fm-border); }
+</style>
+
+<div style="margin-bottom:14px">
+    <h1 style="margin:0;font-size:26px">Il mio account</h1>
+    <div class="muted" style="font-size:13px;margin-top:4px">I tuoi dati su FantaManager: vederli, scaricarli, correggerli o cancellarli.</div>
+</div>
+
+{% for msg in messages %}
+<div class="acc-msg {% if msg.tags == 'error' %}error{% elif msg.tags == 'info' or msg.tags == 'warning' %}info{% else %}ok{% endif %}" role="status">{{ msg }}</div>
+{% endfor %}
+
+<details class="howto noprint">
+    <summary><svg class="ic"><use href="#i-shield"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        Qui gestisci i tuoi dati personali.
+        <ol>
+            {% if email_unverified %}<li>Prima conferma la tua email: apri il link che ti abbiamo mandato, oppure premi <b>Rimanda il link</b>.</li>{% endif %}
+            <li>Vuoi una copia di tutto quello che il sito tiene su di te? Premi <b>Scarica i miei dati</b>: arriva un file JSON.</li>
+            <li>Email cambiata? Scrivi la nuova in <b>Cambia email</b> e premi <b>Cambia</b>{% if mail_ready %}: vale dopo che apri il link di conferma{% endif %}.</li>
+            <li>Vuoi andare via? In fondo, <b>Elimina il mio account</b>: segui i passi. Le tue squadre restano alla lega, senza di te.</li>
+        </ol>
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Come usiamo i dati è scritto nell'<a href="{% url 'privacy' %}">informativa privacy</a>.</div>
+    </div>
+</details>
+
+<div class="acc-grid">
+    <section class="fm-card acc-card">
+        <h2>Il tuo account</h2>
+        <dl class="acc-kv">
+            <dt>Nome utente</dt><dd><b>{{ account_user.username }}</b></dd>
+            {% if account_user.first_name %}<dt>Nome</dt><dd>{{ account_user.first_name }} {{ account_user.last_name }}</dd>{% endif %}
+            <dt>Email</dt><dd>{% if account_user.email %}{{ account_user.email }}
+                {% if email_unverified %}<span class="acc-tag warn">da confermare</span>{% elif privacy_row.email_verified_at %}<span class="acc-tag ok">confermata</span>{% endif %}
+                {% else %}<span class="muted">nessuna</span>{% endif %}</dd>
+            {% if pending_email %}<dt>Nuova email</dt><dd>{{ pending_email }} <span class="acc-tag warn">aspetta la conferma</span></dd>{% endif %}
+            <dt>Registrato il</dt><dd>{{ account_user.date_joined|date:"d/m/Y" }}</dd>
+        </dl>
+        {% if email_unverified or pending_email %}
+        <form method="post" action="{% url 'account_resend' %}">{% csrf_token %}
+            <input type="hidden" name="next" value="{{ here }}">
+            <button type="submit" class="fm-btn fm-btn-secondary fm-btn-sm">Rimanda il link di conferma</button>
+        </form>
+        {% endif %}
+
+        <h2 style="margin-top:16px">Cambia email</h2>
+        <form method="post" action="{% url 'account_email' %}" class="acc-form">{% csrf_token %}
+            <input type="hidden" name="next" value="{{ here }}">
+            <label for="acc-email">Nuova email</label>
+            <input id="acc-email" type="email" name="email" required autocomplete="email" placeholder="nome@esempio.it">
+            <button type="submit" class="fm-btn fm-btn-primary fm-btn-sm" style="justify-self:start">Cambia</button>
+        </form>
+    </section>
+
+    <section class="fm-card acc-card">
+        <h2>Squadre e leghe</h2>
+        {% if teams %}
+        <ul class="acc-list">{% for t in teams %}<li><b>{{ t.display_name }}</b>{% if t.league %} · {{ t.league.name }}{% endif %}{% if not t.is_active %} <span class="muted">(non attiva)</span>{% endif %}</li>{% endfor %}</ul>
+        {% else %}<p>Nessuna squadra collegata al tuo account.</p>{% endif %}
+        {% if managed or co_managed %}
+        <p style="margin-top:12px"><b>Leghe che gestisci</b></p>
+        <ul class="acc-list">
+            {% for lg in managed %}<li>{{ lg.name }} — presidente</li>{% endfor %}
+            {% for lg in co_managed %}<li>{{ lg.name }} — co-admin</li>{% endfor %}
+        </ul>
+        {% endif %}
+
+        <h2 style="margin-top:16px">Informativa e termini</h2>
+        {% if acceptances %}
+        <ul class="acc-list">{% for a in acceptances %}<li>{{ a.get_doc_display }} · versione {{ a.version }} · {{ a.accepted_at|date:"d/m/Y H:i" }}</li>{% endfor %}</ul>
+        {% else %}<p>Non hai ancora confermato informativa e termini.</p>{% endif %}
+        {% if acceptance_state != "ok" %}<a class="fm-btn fm-btn-secondary fm-btn-sm" href="{% url 'legal_reaccept' %}">Leggi e accetta</a>{% endif %}
+        <p><a href="{% url 'privacy' %}">Informativa privacy</a> (v. {{ privacy_version }}) · <a href="{% url 'terms' %}">Termini d'uso</a> (v. {{ terms_version }})</p>
+    </section>
+
+    <section class="fm-card acc-card">
+        <h2>Scarica i miei dati</h2>
+        <p>Un file JSON con account, accettazioni, squadre, offerte, buste, formazioni e scambi proposti. Delle altre squadre compare solo il nome, dove serve a capire un'offerta o uno scambio.</p>
+        <form method="post" action="{% url 'account_export' %}">{% csrf_token %}
+            <button type="submit" class="fm-btn fm-btn-primary fm-btn-sm"><svg class="ic"><use href="#i-download"/></svg> Scarica i miei dati</button>
+        </form>
+    </section>
+
+    <section class="fm-card acc-card">
+        <h2>Registro delle azioni sul tuo account</h2>
+        <p>Quando un amministratore ha guardato il sito come te, ha cambiato le tue credenziali, o quando hai scaricato i tuoi dati.</p>
+        {% if audit_rows %}
+        <div class="table-scroll"><table class="acc-table">
+            <thead><tr><th>Quando</th><th>Cosa</th><th>Chi</th></tr></thead>
+            <tbody>{% for a in audit_rows %}<tr><td>{{ a.created_at|date:"d/m/Y H:i" }}</td><td>{{ a.get_action_display }}{% if a.detail %} <span class="muted">· {{ a.detail }}</span>{% endif %}</td><td>{% if a.actor_id == account_user.id %}tu{% else %}{{ a.actor_name|default:"il sistema" }}{% endif %}</td></tr>{% endfor %}</tbody>
+        </table></div>
+        {% else %}<p class="muted">Ancora niente.</p>{% endif %}
+    </section>
+</div>
+
+<section class="fm-card acc-card acc-danger" style="margin-top:14px" id="elimina">
+    <h2>Elimina il mio account</h2>
+    <p>L'account sparisce. Le tue squadre restano alla lega (le altre hanno giocato contro di te) senza collegamenti a te; offerte e risultati restano senza indirizzo IP né dispositivo. Non si torna indietro.</p>
+    <ol class="fm-steps">
+        <li class="{% if blockers %}now{% else %}done{% endif %}"><span class="n">{% if blockers %}1{% else %}✓{% endif %}</span><div>
+            <b>Passa le tue leghe a un altro presidente</b>
+            {% if blockers %}
+            <span class="warn">Sei il presidente di {{ blockers|length }} leg{{ blockers|length|pluralize:"a,he" }} con altre squadre: prima nomina presidente un'altra persona (pagina Squadre, «Account» della sua squadra → ruolo <b>Presidente</b>) oppure elimina la lega (Impostazioni).</span>
+            <div class="fm-onerow">
+                {% for lg in blockers %}
+                <a class="fm-btn fm-btn-secondary fm-btn-sm" href="{% purl 'admin_participants' %}?league={{ lg.id }}">Squadre di {{ lg.name }}</a>
+                <a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% purl 'admin_config' %}?league={{ lg.id }}">Impostazioni di {{ lg.name }}</a>
+                {% endfor %}
+            </div>
+            {% else %}<span>Nessuna lega da passare.</span>{% endif %}
+        </div></li>
+        <li class="{% if blockers %}{% else %}now{% endif %}"><span class="n">2</span><div>
+            <b>Conferma con nome utente e password</b>
+            {% if blockers %}<span>Dopo il passo 1.</span>{% else %}
+            <span>Scrivi <b>{{ account_user.username }}</b> e la tua password, poi premi <b>Elimina definitivamente</b>.{% if account_user.email %} Ti mandiamo un'email di conferma.{% endif %}</span>
+            <form method="post" action="{% url 'account_delete' %}" class="acc-form"
+                  onsubmit="return confirm('Eliminare per sempre il tuo account? Non si torna indietro.');">{% csrf_token %}
+                <input type="hidden" name="next" value="{{ here }}">
+                <label for="acc-del-user">Nome utente</label>
+                <input id="acc-del-user" type="text" name="confirm_username" required autocomplete="off" autocapitalize="none" spellcheck="false">
+                <label for="acc-del-pw">Password</label>
+                <input id="acc-del-pw" type="password" name="password" required autocomplete="current-password">
+                <button type="submit" class="fm-btn fm-btn-danger fm-btn-sm" style="justify-self:start">Elimina definitivamente</button>
+            </form>
+            {% endif %}
+        </div></li>
+    </ol>
+</section>
+{% endblock %}

@@ -28,6 +28,8 @@ FRAMED_PAGES = [
     ("admin_market_repair", "app_regia_market_auction"),
     ("admin_market_moves", "app_regia_moves"),
     ("admin_auction_wizard", "app_regia_auction_wizard"),
+    # Il mio account (privacy): per chi gestisce leghe la console, nell'app l'app.
+    ("account", "app_account"),
 ]
 
 

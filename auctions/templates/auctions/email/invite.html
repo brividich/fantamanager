@@ -1,6 +1,6 @@
 {% include "auctions/email/_layout_top.html" %}
 <p style="margin:0 0 12px;font-size:15px">Ciao <b>{{ team.display_name }}</b>,</p>
-<p style="margin:0 0 18px;font-size:14px;line-height:1.55">sei nella lega <b>{{ league.name }}</b>. Dall'app vedi la tua rosa, prepari la formazione, fai le offerte al mercato e segui l'asta dal telefono.</p>
+<p style="margin:0 0 18px;font-size:14px;line-height:1.55"><b>{{ sender }}</b> ti ha invitato nella lega <b>{{ league.name }}</b> con questa squadra. Dall'app vedi la tua rosa, prepari la formazione, fai le offerte al mercato e segui l'asta dal telefono.</p>
 <p style="margin:0 0 20px;text-align:center">
   <a href="{{ link }}" style="display:inline-block;background:#087cf0;color:#ffffff;text-decoration:none;font-weight:800;font-size:15px;padding:13px 26px;border-radius:10px">Entra nella tua squadra</a>
 </p>

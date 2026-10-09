@@ -572,6 +572,8 @@ APP_PAGES = {
     "admin_auction_wizard": "app_regia_auction_wizard",
     # La Dashboard della console nell'app è la Regia.
     "admin_dashboard": "app_regia",
+    # Il mio account (privacy): per tutti, non solo per chi gestisce leghe.
+    "account": "app_account",
 }
 
 

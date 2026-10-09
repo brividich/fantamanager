@@ -455,6 +455,9 @@
     <a href="?tab=live_sync" class="super-tab-link {% if tab == 'live_sync' %}active{% endif %}" style="border:1px solid rgba(234,179,8,0.3)">
         ⚡ Live Matchday & Voti
     </a>
+    <a href="?tab=audit" class="super-tab-link {% if tab == 'audit' %}active{% endif %}">
+        🛡️ Registro privacy
+    </a>
     <a href="{% url 'supervisor_algo' %}" class="super-tab-link">
         🎚️ Voto algoritmico
     </a>
@@ -484,6 +487,9 @@
             <li><b>Svuota Cache Ora</b>, <b>Esegui VACUUM</b> ed <b>Elimina Sessioni</b> fanno pulizia: usali se il sito rallenta o il database cresce troppo.</li>
             {% elif tab == 'logs' %}
             <li>Scegli il livello o scrivi una parola e premi <b>Filtra</b>; ↻ ricarica il log.</li>
+            {% elif tab == 'audit' %}
+            <li>Ogni riga è un'azione sensibile: «Vedi come», credenziali cambiate da un admin, export dei dati, email tolte, disiscrizioni, account eliminati.</li>
+            <li>Se un utente chiede chi ha guardato o cambiato il suo account, cercalo qui: lui vede le sue righe in <b>Il mio account</b>.</li>
             {% elif tab == 'live_sync' %}
             <li>{% if live_sync.is_enabled %}La sincronizzazione è attiva: <b>Arresta Sincronizzazione Background</b> la ferma.{% else %}Scegli frequenza, provider e giornata e premi <b>Avvia Background Sync</b>: i voti live si aggiornano da soli.{% endif %}</li>
             <li><b>Esegui Ora</b> aggiorna subito una giornata; a giornata finita <b>Consolida Definitivo</b> rende ufficiali i voti per tutte le leghe.</li>
@@ -1298,6 +1304,28 @@
         {% empty %}
             <div style="color:var(--muted);text-align:center">Nessun log trovato con i filtri correnti in {{ log_filename|default:"fantamanager.log" }}.</div>
         {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- TAB: REGISTRO PRIVACY (azioni sensibili) -->
+{% if tab == 'audit' %}
+<div class="super-table-wrap">
+    <div class="super-table-head">
+        <h2 class="super-table-title">Registro delle azioni sensibili (ultime {{ audit_rows|length }})</h2>
+    </div>
+    <div style="overflow-x:auto">
+    <table class="super-table">
+        <thead><tr><th>Quando</th><th>Chi</th><th>Azione</th><th>Su chi</th><th>Lega</th><th>Dettaglio</th></tr></thead>
+        <tbody>
+        {% for a in audit_rows %}
+            <tr><td>{{ a.created_at|date:"d/m/Y H:i" }}</td><td>{{ a.actor_name|default:"—" }}</td><td>{{ a.get_action_display }}</td>
+                <td>{{ a.target_name|default:"—" }}</td><td>{{ a.league.name|default:"—" }}</td><td>{{ a.detail }}</td></tr>
+        {% empty %}
+            <tr><td colspan="6" style="text-align:center;color:var(--muted)">Nessuna azione registrata.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
     </div>
 </div>
 {% endif %}

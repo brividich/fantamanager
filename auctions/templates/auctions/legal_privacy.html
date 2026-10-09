@@ -1,0 +1,107 @@
+{% extends "auctions/base.html" %}
+{% block title %}Informativa privacy — FantaManager{% endblock %}
+{% block content %}
+<article class="fm-legal">
+    <div class="fm-onerow noprint" style="margin:8px 0 14px">
+        <a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% url 'home' %}"><svg class="ic"><use href="#i-arrow-left"/></svg> Home</a>
+        <a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% url 'terms' %}">Termini d'uso</a>
+        {% if user.is_authenticated %}<a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% url 'account' %}">Il mio account</a>{% endif %}
+    </div>
+
+    <details class="howto noprint">
+        <summary><svg class="ic"><use href="#i-shield"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+        <div class="howto-body">
+            Qui c'è scritto quali dati tiene FantaManager, perché e per quanto.
+            <ol>
+                <li>Leggi le sezioni: chi tratta i dati, quali, perché, a chi arrivano, per quanto restano.</li>
+                <li>Vuoi una copia dei tuoi dati, cambiare email o eliminare l'account? Vai in <b>Il mio account</b>.</li>
+                <li>Per tutto il resto scrivi al contatto privacy indicato qui sotto.</li>
+            </ol>
+        </div>
+    </details>
+
+    <h1>Informativa privacy</h1>
+    <div class="legal-meta">Versione {{ privacy_version }} · aggiornata il {{ legal_date|date:"j F Y" }}</div>
+    <div class="legal-draft">BOZZA — testo da far rivedere a un professionista prima di aprire il servizio a utenti esterni.</div>
+
+    <h2>1. Chi tratta i dati (titolare)</h2>
+    <p>
+        {% if owner %}<b>{{ owner }}</b>, che gestisce questa installazione di FantaManager.
+        {% else %}<b>Titolare non ancora indicato</b>: chi gestisce questa installazione deve impostarlo (<code>FM_PRIVACY_OWNER</code>).{% endif %}
+        Contatto per la privacy:
+        {% if privacy_email %}<a href="mailto:{{ privacy_email }}">{{ privacy_email }}</a>.
+        {% else %}<b>non ancora indicato</b> (<code>FM_PRIVACY_EMAIL</code>).{% endif %}
+    </p>
+    <p>Il presidente di ogni lega decide chi invitare e scrive i dati delle squadre della sua lega (nomi, email):
+        per questi dati agisce come organizzatore della lega e risponde di averli raccolti correttamente.</p>
+
+    <h2>2. Quali dati</h2>
+    <ul>
+        <li><b>Account</b>: nome utente, nome (se lo scrivi), email, password (salvata solo in forma cifrata, non leggibile), date di registrazione e di ultimo accesso.</li>
+        <li><b>Squadre</b>: nome della squadra, email della squadra se il presidente la scrive, codice e link d'accesso, crediti, rosa, contratti.</li>
+        <li><b>Gioco</b>: offerte in asta (importo, ora), buste del mercato, formazioni, scambi proposti, risultati.</li>
+        <li><b>Dati tecnici delle offerte in asta</b>: indirizzo IP e tipo di dispositivo/browser (user-agent), per verificare contestazioni e abusi.</li>
+        <li><b>Log del server</b>: indirizzo IP e pagine richieste in caso di errori, nomi utente in accesso e uscita. Mai password.</li>
+        <li><b>Accettazioni</b>: quale versione di informativa e termini hai accettato, quando, da quale IP.</li>
+        <li><b>Registro delle azioni sensibili</b>: quando un amministratore guarda il sito come te («Vedi come»), cambia le tue credenziali o quando scarichi i tuoi dati.</li>
+    </ul>
+
+    <h2>3. Perché e su quale base</h2>
+    <div class="table-scroll"><table>
+        <thead><tr><th>Finalità</th><th>Base giuridica</th></tr></thead>
+        <tbody>
+            <tr><td>Far funzionare il servizio: account, leghe, aste, mercato, formazioni, punteggi.</td><td>Esecuzione del contratto (i termini d'uso che accetti), art. 6.1.b GDPR.</td></tr>
+            <tr><td>Sicurezza e antifrode: IP e dispositivo delle offerte, log, limiti ai tentativi di accesso, registro delle azioni sensibili.</td><td>Legittimo interesse a un servizio sicuro e a un'asta regolare, art. 6.1.f GDPR.</td></tr>
+            <tr><td>Inviti e avvisi della lega mandati dal presidente (invito, mercato aperto, nuove competizioni).</td><td>Legittimo interesse della lega a organizzare il gioco fra i suoi partecipanti, art. 6.1.f GDPR. Puoi smettere di riceverli dal link in fondo a ogni email.</td></tr>
+            <tr><td>Conservare la prova del consenso a informativa e termini.</td><td>Obbligo di dimostrare il consenso, art. 7.1 GDPR.</td></tr>
+        </tbody>
+    </table></div>
+    <p>Non facciamo pubblicità, profilazione né vendita di dati.</p>
+
+    <h2>4. A chi arrivano i dati</h2>
+    <ul>
+        <li><b>Gli altri partecipanti della tua lega</b> vedono il nome della tua squadra, la rosa, le offerte in asta e i risultati. Il presidente e i co-admin della lega vedono anche l'email della squadra e l'account collegato.</li>
+        <li><b>Il fornitore della posta</b> configurato da chi gestisce il sito (per esempio un servizio SMTP) riceve indirizzo e testo delle email che partono.</li>
+        <li><b>Il fornitore dell'hosting</b> su cui gira il sito (server, NAS o VPS) conserva database e backup.</li>
+        <li><b>Cloudflare</b>, solo quando una lega fa l'asta da un PC in sala e lo apre a chi gioca da fuori: il traffico di quelle pagine passa dal tunnel di Cloudflare.</li>
+        <li><b>API-Football</b> fornisce l'elenco dei calciatori: <b>non riceve dati personali</b>. Foto e stemmi passano dal nostro server, così il tuo browser non si collega a loro.</li>
+        <li>I caratteri tipografici sono serviti dal sito stesso: nessuna richiesta a Google o ad altri.</li>
+    </ul>
+    <p>I fornitori agiscono come responsabili del trattamento. L'elenco aggiornato è disponibile scrivendo al contatto privacy.</p>
+
+    <h2>5. Per quanto tempo</h2>
+    <div class="table-scroll"><table>
+        <thead><tr><th>Dato</th><th>Quanto resta</th></tr></thead>
+        <tbody>
+            <tr><td>Account e dati di gioco</td><td>Finché l'account esiste. Quando lo elimini, le squadre restano alla lega senza riferimenti a te.</td></tr>
+            <tr><td>IP e dispositivo delle offerte</td><td>{{ bid_ip_days }} giorni, poi azzerati automaticamente (l'offerta resta, senza quei dati).</td></tr>
+            <tr><td>Account registrati e mai confermati, senza squadre né leghe</td><td>{{ unverified_days }} giorni, poi cancellati.</td></tr>
+            <tr><td>Sessioni di accesso scadute</td><td>Cancellate ogni giorno.</td></tr>
+            <tr><td>Link di conferma email</td><td>Validi 48 ore.</td></tr>
+            <tr><td>Link di reset password</td><td>Valgono una volta sola e scadono da soli.</td></tr>
+            <tr><td>Log del server</td><td>Ruotano: al massimo {{ log_files }} file da 5 MB, i più vecchi vengono sovrascritti.</td></tr>
+            <tr><td>Backup del database</td><td>Gli ultimi {{ backup_keep }} (uno ogni {{ backup_hours }} ore, circa {% widthratio backup_keep 24 backup_hours %} giorni).</td></tr>
+            <tr><td>Accettazioni e registro delle azioni sensibili</td><td>Finché l'account esiste; dopo, senza il tuo nome.</td></tr>
+        </tbody>
+    </table></div>
+
+    <h2>6. I tuoi diritti</h2>
+    <p>Puoi chiedere accesso, copia (portabilità), correzione, cancellazione, limitazione e opporti al trattamento basato sul legittimo interesse. Gran parte la fai da solo in <a href="{% url 'account' %}"><b>Il mio account</b></a>:</p>
+    <ul>
+        <li><b>Scarica i miei dati</b>: un file JSON con account, squadre, offerte, buste, formazioni e scambi.</li>
+        <li><b>Cambia email</b>, con conferma del nuovo indirizzo.</li>
+        <li><b>Elimina il mio account</b>.</li>
+        <li>Per le email della lega: il link «Non voglio più ricevere email da questa lega» in fondo a ogni email.</li>
+    </ul>
+    <p>Per tutto il resto scrivi al contatto privacy: rispondiamo entro un mese. Puoi anche reclamare al Garante per la protezione dei dati personali (<a href="https://www.garanteprivacy.it" rel="noopener">www.garanteprivacy.it</a>).</p>
+
+    <h2>7. Età minima</h2>
+    <p>Per registrarti devi avere almeno <b>{{ min_age }} anni</b> (art. 2-quinquies del Codice privacy). Se sei più giovane, l'account lo crea per te un genitore o chi ne fa le veci.</p>
+
+    <h2>8. Cookie</h2>
+    <p>Usiamo solo <b>cookie tecnici</b>, necessari a far funzionare il sito: quello della sessione (per restare collegato) e quello di protezione dei moduli (CSRF). Nessun cookie di statistica, pubblicità o profilazione, quindi nessun banner. Il sito ricorda nel tuo browser (localStorage) alcune preferenze, come il tema chiaro o scuro e le bozze dei moduli: restano sul tuo dispositivo.</p>
+
+    <h2>9. Modifiche</h2>
+    <p>Se questa informativa cambia in modo sostanziale, al primo accesso ti chiederemo di leggerla e accettarla di nuovo. La versione e la data sono in cima alla pagina.</p>
+</article>
+{% endblock %}

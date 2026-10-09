@@ -15,17 +15,11 @@
     <link rel="manifest" href="{% static 'manifest.json' %}">
     <meta name="format-detection" content="telephone=no">
     <title>{% block title %}FantaManager — Asta Live{% endblock %}</title>
-    <!-- Webfonts are a nicety, not a dependency: FantaManager runs on a LAN
-         with no internet at all. They load without blocking rendering, and the
-         stacks below fall back to fonts every OS already ships. -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" media="print" onload="this.media='all'"
-          href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Inter:wght@400;500;600;700;800;900&display=swap">
-    <noscript>
-        <link rel="stylesheet"
-              href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Inter:wght@400;500;600;700;800;900&display=swap">
-    </noscript>
+    <!-- Font serviti dal sito stesso (static/fonts, licenza OFL): nessuna
+         richiesta a Google o ad altri, quindi nessun terzo riceve l'IP di chi
+         apre la pagina, e vanno anche in sala senza internet. Se mancano, le
+         famiglie in console.css ripiegano sui font di sistema. -->
+    <link rel="stylesheet" href="{% static 'fonts/fonts.css' %}">
     {% load static %}
     <link rel="stylesheet" href="{% static 'css/console.css' %}">
     <script>
@@ -52,9 +46,33 @@
     </div>
     {% endif %}
     <div class="role-edge"></div>
+    {% block privacy_notice %}{% if privacy_notice %}
+    <div class="fm-privacy-notice noprint" role="status">
+        {% if privacy_notice.legal %}
+        <span>📄 Leggi l'<a href="{% url 'privacy' %}">informativa privacy</a> e i <a href="{% url 'terms' %}">termini</a> e conferma che li accetti.</span>
+        <a class="fm-btn fm-btn-secondary fm-btn-xs" href="{% url 'legal_reaccept' %}?next={{ request.get_full_path|urlencode }}">Leggi e accetta</a>
+        {% endif %}
+        {% if privacy_notice.email %}
+        {% if privacy_notice.mail_ready %}
+        <span>✉️ Conferma la tua email <b>{{ privacy_notice.email }}</b>: apri il link che ti abbiamo mandato. Finché non lo fai non ricevi avvisi e non puoi recuperare la password.</span>
+        <form method="post" action="{% url 'account_resend' %}">{% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button type="submit" class="fm-btn fm-btn-secondary fm-btn-xs">Rimanda il link</button>
+        </form>
+        {% else %}
+        <span>✉️ La tua email <b>{{ privacy_notice.email }}</b> non è ancora confermata: l'invio email non è attivo su questo sito, il link arriverà quando lo sarà. Intanto l'account funziona.</span>
+        {% endif %}
+        {% endif %}
+    </div>
+    {% endif %}{% endblock %}
     <div class="wrap {% block wrapclass %}{% endblock %}">
         {% block content %}{% endblock %}
     </div>
+    {% block legal_footer %}
+    <footer class="fm-legal-foot noprint">
+        <a href="{% url 'privacy' %}">Privacy</a><a href="{% url 'terms' %}">Termini</a>{% if user.is_authenticated %}<a href="{% url 'account' %}">Il mio account</a>{% endif %}
+    </footer>
+    {% endblock %}
 
     <div id="extend-banner" class="extend-banner"><svg class="ic"><use href="#i-shield"/></svg> Tempo esteso — l'asta continua</div>
     <div id="toast" class="toast"></div>

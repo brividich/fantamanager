@@ -513,25 +513,6 @@
         }
     }
 
-    function openCredentialsSummaryModal() {
-        const m = document.getElementById('modal-credentials-summary');
-        if (m) m.style.display = 'flex';
-    }
-
-    function copyAllCredentialsToClipboard() {
-        const raw = document.getElementById('credentials-summary-raw')?.value || '';
-        if (raw) {
-            copyToClipboard(raw, 'Credenziali di tutti gli iscritti copiate negli appunti!');
-        }
-    }
-
-    function prepareWhatsAppAllLink(event, anchor) {
-        const raw = document.getElementById('credentials-summary-raw')?.value || '';
-        if (raw && anchor) {
-            anchor.href = 'https://api.whatsapp.com/send?text=' + encodeURIComponent(raw);
-        }
-    }
-
     // Restore tab from URL query param or hash on page load
     document.addEventListener('DOMContentLoaded', () => {
         const urlParams = new URLSearchParams(window.location.search);

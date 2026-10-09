@@ -10,3 +10,4 @@ Vai al mercato:
 
 — FantaManager · {{ league.name }}
 {% endautoescape %}
+{% include "auctions/email/_footer.txt" %}

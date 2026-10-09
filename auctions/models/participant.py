@@ -3,6 +3,7 @@ import secrets
 from decimal import Decimal
 
 from django.conf import settings
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import models
 from django.db.models import Q
 
@@ -71,6 +72,10 @@ class Participant(models.Model):
     # Where the league writes to the team (invites, market notices). An
     # account linked to the team has its own email: this one wins when set.
     email         = models.EmailField(blank=True)
+    # La squadra ha chiesto di non ricevere più email dalla lega (link nelle
+    # email): l'indirizzo è stato tolto e quello dell'account collegato non si
+    # usa più finché il presidente non ne scrive uno nuovo.
+    email_opt_out_at = models.DateTimeField(null=True, blank=True)
     # Strong, unguessable join credential (the human-friendly access_code stays
     # for manual entry; this token backs shareable join links).
     public_token  = models.CharField(max_length=64, blank=True, db_index=True)
@@ -109,8 +114,19 @@ class Participant(models.Model):
         """The address the league's emails go to ("" when there is none)."""
         if self.email:
             return self.email
+        if self.email_opt_out_at is not None:
+            return ""
         user = self.user if self.user_id else None
-        return (user.email or "") if user is not None else ""
+        if user is None or not user.email:
+            return ""
+        # Un'email registrata e non ancora confermata non riceve avvisi.
+        try:
+            privacy = user.privacy
+        except ObjectDoesNotExist:
+            privacy = None
+        if privacy is not None and privacy.self_registered and privacy.email_verified_at is None:
+            return ""
+        return user.email
 
     @property
     def remaining_credits(self):

@@ -18,7 +18,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from .. import remote, services
-from ..services import mail
+from ..services import mail, privacy
 from ..models import Auction, MarketBid, MarketSession, Participant, Player, Trade
 from .admin_dashboard import _classifica_standings
 from .admin_market import rule_choices, session_labels, session_manage_context, trades_manage_context
@@ -247,6 +247,10 @@ def app_view_as(request, participant_id):
     request.session["participant_id"] = team.id
     request.session["display_name"] = team.display_name
     request.session[SESSION_LEAGUE_KEY] = team.league_id
+    if team.user_id and team.user_id != request.user.id:
+        # Il manager di quella squadra lo vede in «Il mio account».
+        privacy.audit(request.user, "view_as", target_user=team.user, league=team.league,
+                      detail=f"Squadra {team.display_name}")
     # No flash message: the shell's "Vista admin" banner already says it.
     return redirect("app_home")
 

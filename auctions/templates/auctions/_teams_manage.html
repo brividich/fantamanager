@@ -173,6 +173,7 @@ mostra la cornice.
     .mail-row { display: flex; gap: 4px; align-items: center; margin: 6px 0 0; max-width: 260px; }
     .mail-row input { height: 30px; font-size: 12px; padding: 0 8px; min-width: 0; flex: 1; }
     .mail-row .fm-btn { height: 30px; width: 30px; padding: 0; flex: 0 0 auto; }
+    .opt-out-note { margin: 6px 0 0; max-width: 260px; font-size: 11.5px; line-height: 1.45; color: #facc15; }
 </style>
 
 <div class="pg-head noprint">
@@ -274,6 +275,9 @@ mostra la cornice.
                             <button type="submit" name="invite" value="1" class="fm-btn fm-btn-ghost fm-btn-sm" title="Salva e invia l'invito{% if r.p.email or accounts_ok %} a {{ r.p.contact_email }}{% endif %}" aria-label="Invia invito"><svg class="ic"><use href="#i-mail"/></svg></button>
                             {% endif %}
                         </form>
+                        {% if r.p.email_opt_out_at and not r.p.email %}
+                        <div class="opt-out-note" role="note">✋ Ha chiesto di non ricevere più email della lega il {{ r.p.email_opt_out_at|date:"d/m/Y" }}: niente inviti né avvisi. Scrivi un'email solo se te lo chiede la squadra.</div>
+                        {% endif %}
                         <button type="button" class="fm-btn fm-btn-secondary fm-btn-sm noprint" style="margin-top:6px"
                                 data-open-sheet="sheet-dlg-{{ r.p.id }}">
                             <svg class="ic"><use href="#i-shield"/></svg> Scheda</button>

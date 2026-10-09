@@ -34,7 +34,7 @@ import django
 from .. import backup
 from ..models import Auction, Bid, League, MailSettings, Participant, Player
 from ..consumers import _ROOM_TICKERS
-from ..services import mail
+from ..services import mail, privacy
 from ..services.voti_live import LiveSyncManager, normalize_provider
 from .common import form_int, password_problem
 
@@ -452,6 +452,9 @@ def supervisor_dashboard(request):
 
             if password_changed and user_obj == request.user:
                 update_session_auth_hash(request, user_obj)
+            if user_obj != request.user:
+                privacy.audit(request.user, "credentials", target_user=user_obj,
+                              detail="Supervisor: profilo" + (" e password" if password_changed else ""))
 
             # Assegnazione o rimozione presidenza lega (opzionale da supervisor)
             assign_owner_lid = request.POST.get("assign_owner_league_id")
@@ -491,6 +494,7 @@ def supervisor_dashboard(request):
 
             admin_id = request.user.id
             admin_name = request.user.username
+            privacy.audit(request.user, "impersonate", target_user=target_user, detail="Supervisor «Vedi come»")
             login(request, target_user)
             request.session["supervisor_impersonator_id"] = admin_id
             request.session["supervisor_impersonator_name"] = admin_name
@@ -789,11 +793,15 @@ def supervisor_dashboard(request):
     stalled_auctions = pending_recovery(exclude_ids=watched)
     system_settings = _get_system_settings_info()
 
+    from ..models import AuditLog
+    audit_rows = AuditLog.objects.select_related("league").all()[:300] if tab == "audit" else []
+
     return render(
         request,
         "auctions/supervisor.html",
         {
             "tab": tab,
+            "audit_rows": audit_rows,
             "metrics": metrics,
             "users": users,
             "leagues": leagues,

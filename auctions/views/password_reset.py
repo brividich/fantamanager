@@ -19,7 +19,7 @@ from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 
 from .. import throttle
-from ..services import mail
+from ..services import mail, privacy
 from .common import password_problem
 
 logger = logging.getLogger("auctions.auth")
@@ -48,8 +48,10 @@ def password_reset_request(request):
         throttle.failure(request, "login")        # every request counts: no free probing
         if identifier:
             User = get_user_model()
+            # Un'email registrata ma mai confermata non riceve il link: potrebbe
+            # non essere di chi ha creato l'account.
             users = User.objects.filter(Q(username__iexact=identifier) | Q(email__iexact=identifier),
-                                        is_active=True).exclude(email="")
+                                        is_active=True).exclude(email="").filter(privacy.VERIFIED_Q)
             for user in users[:3]:
                 _send_link(base, user)
         return render(request, "auctions/password_reset.html", {"sent": True, "message": SENT_MESSAGE})
@@ -60,7 +62,7 @@ def _send_link(base, user):
     uid = urlsafe_base64_encode(force_bytes(user.pk))
     token = default_token_generator.make_token(user)
     link = base + reverse("password_reset_confirm", args=[uid, token])
-    ctx = {"user": user, "link": link}
+    ctx = {"user": user, "link": link, **privacy.legal_links(base)}
     ok, error = mail.send("Nuova password — FantaManager", user.email,
                           render_to_string("auctions/email/password_reset.txt", ctx))
     if not ok:

@@ -1,0 +1,30 @@
+{% extends "auctions/base.html" %}
+{% block title %}Conferma email — FantaManager{% endblock %}
+{% block privacy_notice %}{% endblock %}
+{% block content %}
+{% include "auctions/_auth_style.html" %}
+<div class="auth-card">
+    <div class="auth-brand">
+        <div class="auth-title">{% if ok_message %}Email confermata{% else %}Link non valido{% endif %}</div>
+    </div>
+    <details class="howto">
+        <summary><svg class="ic"><use href="#i-shield"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+        <div class="howto-body">
+            {% if ok_message %}Fatto: non serve altro. Torna all'app o alla console e continua da dove eri.
+            {% else %}
+            <ol>
+                <li>Entra nel tuo account.</li>
+                <li>Premi <b>Rimanda il link</b> nell'avviso in alto, o in <b>Il mio account</b>.</li>
+                <li>Apri il link nuovo entro 48 ore, dall'ultima email che ricevi.</li>
+            </ol>
+            {% endif %}
+        </div>
+    </details>
+    {% if ok_message %}<div class="auth-success" role="status">{{ ok_message }}</div>
+    {% else %}<div class="auth-error" role="alert">{{ error }}</div>{% endif %}
+    <p style="text-align:center;margin:18px 0 0;font-size:13px">
+        {% if user.is_authenticated %}<a href="{% url 'account' %}">Il mio account</a> · <a href="{% url 'home' %}">Home</a>
+        {% else %}<a href="{% url 'login' %}">Accedi</a>{% endif %}
+    </p>
+</div>
+{% endblock %}

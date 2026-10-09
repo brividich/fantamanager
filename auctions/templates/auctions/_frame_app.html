@@ -7,7 +7,11 @@ views/common.py:page_frame dall'indirizzo (/app/regia/…).
 {% block mainclass %}console-page{% endblock %}
 {% block app %}
 <div class="fm-onerow noprint" style="margin-bottom:6px">
+    {% if frame_back_url %}
+    <a class="fm-btn fm-btn-ghost fm-btn-sm" href="{{ frame_back_url }}"><svg class="ic"><use href="#i-arrow-left"/></svg> {{ frame_back_label }}</a>
+    {% else %}
     <a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% url 'app_regia' %}{% if app_league %}?league={{ app_league.id }}{% endif %}"><svg class="ic"><use href="#i-arrow-left"/></svg> Regia</a>
+    {% endif %}
 </div>
 <!-- page:start -->{% block page %}{% endblock %}<!-- page:end -->
 {% endblock %}

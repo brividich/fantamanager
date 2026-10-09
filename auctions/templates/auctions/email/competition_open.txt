@@ -5,3 +5,5 @@ Ciao {{ team.display_name }},
 
 Accedi all'app per visualizzare il calendario, le sfide e le classifiche:
 {{ link }}
+
+{% include "auctions/email/_footer.txt" %}

@@ -1,0 +1,23 @@
+{% extends "auctions/base.html" %}
+{% block title %}Account eliminato — FantaManager{% endblock %}
+{% block content %}
+{% include "auctions/_auth_style.html" %}
+<div class="auth-card">
+    <div class="auth-brand">
+        <div class="auth-title">Account eliminato</div>
+        <div class="auth-subtitle">Il tuo account «{{ report.username }}» non esiste più.</div>
+    </div>
+    <details class="howto" open>
+        <summary><svg class="ic"><use href="#i-shield"/></svg> Cosa è successo <span class="chev">▼</span></summary>
+        <div class="howto-body">
+            <ol class="fm-steps">
+                <li class="done"><span class="n">✓</span><div><b>Account cancellato</b><span>Nome utente, email e password non ci sono più.</span></div></li>
+                <li class="done"><span class="n">✓</span><div><b>Squadre scollegate</b><span>{% if report.teams %}{{ report.teams }} squadr{{ report.teams|pluralize:"a,e" }} rest{{ report.teams|pluralize:"a,ano" }} alla lega, senza riferimenti a te.{% else %}Non avevi squadre collegate.{% endif %}</span></div></li>
+                <li class="done"><span class="n">✓</span><div><b>Offerte anonime</b><span>Offerte e risultati restano alla lega senza indirizzo IP né dispositivo.</span></div></li>
+            </ol>
+            <div class="tip">Vuoi tornare a giocare? Registra un account nuovo e chiedi al presidente della tua lega il link della tua squadra.</div>
+        </div>
+    </details>
+    <p style="text-align:center;margin:18px 0 0;font-size:13px"><a href="{% url 'home' %}">Torna alla home</a></p>
+</div>
+{% endblock %}

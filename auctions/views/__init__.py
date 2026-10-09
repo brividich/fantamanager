@@ -236,7 +236,20 @@ from .auth import (
     register_view,
 )
 from .history import admin_storico, app_storico
+from .images import remote_image
 from .password_reset import password_reset_confirm, password_reset_request
+from .privacy import (
+    account_delete,
+    account_email,
+    account_export,
+    account_page,
+    account_resend,
+    account_verify,
+    email_unsubscribe,
+    legal_reaccept,
+    privacy_page,
+    terms_page,
+)
 from .algo_settings import (
     supervisor_algo,
     supervisor_algo_calibrate,
@@ -264,6 +277,17 @@ __all__ = [
     "login_view",
     "admin_storico",
     "app_storico",
+    "remote_image",
+    "account_delete",
+    "account_email",
+    "account_export",
+    "account_page",
+    "account_resend",
+    "account_verify",
+    "email_unsubscribe",
+    "legal_reaccept",
+    "privacy_page",
+    "terms_page",
     "password_reset_confirm",
     "password_reset_request",
     "register_view",

@@ -1,4 +1,5 @@
 {% extends "auctions/app_base.html" %}
+{% load fm_privacy %}
 {% block title %}{% if is_mine %}Rosa{% else %}Rosa {{ viewed_participant.display_name }}{% endif %} — FantaManager{% endblock %}
 {% block mainclass %}fit{% endblock %}
 {% block app %}
@@ -202,7 +203,7 @@
             <div class="pl-row" title="{% if pl.avg_vote %}Mv {{ pl.avg_vote|floatformat:2 }} · {% endif %}{% if pl.presences %}{{ pl.presences }} presenze · {% endif %}{% if pl.goals %}{{ pl.goals }} gol · {% endif %}{% if pl.assists %}{{ pl.assists }} assist · {% endif %}Quotazione {{ pl.initial_price|floatformat:0 }}">
                 <div class="pl-id" onclick="openPlayerModal('{{ pl.name|escapejs }}', '{{ pl.role }}', '{{ pl.team|escapejs }}', '{{ pl.fanta_avg|floatformat:2|default:'' }}', '{{ pl.goals|default:0 }}', '{{ pl.assists|default:0 }}', '{{ pl.initial_price|floatformat:0 }}')">
                     {% if pl.photo_url %}
-                    <span class="pl-ava"><img src="{{ pl.photo_url }}" alt="" loading="lazy"></span>
+                    <span class="pl-ava"><img src="{{ pl.photo_url|local_img }}" alt="" loading="lazy"></span>
                     {% else %}
                     <span class="pl-ava"><span class="role-badge role-{{ pl.role }}" style="font-size:10px;padding:2px 4px;">{{ pl.role }}</span></span>
                     {% endif %}

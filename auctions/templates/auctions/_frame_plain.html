@@ -1,0 +1,13 @@
+{% extends "auctions/base.html" %}
+{% comment %}
+Cornice semplice per le pagine di tutti (Il mio account) aperte dal PC da chi
+non gestisce leghe: niente barra della console, solo la via di casa.
+Come _frame_console.html / _frame_app.html, la pagina riempie il blocco «page».
+{% endcomment %}
+{% block content %}
+<div class="fm-onerow noprint" style="margin:14px 0 10px">
+    <a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% url 'home' %}"><svg class="ic"><use href="#i-arrow-left"/></svg> Home</a>
+    <a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% url 'logout' %}">Esci</a>
+</div>
+<!-- page:start -->{% block page %}{% endblock %}<!-- page:end -->
+{% endblock %}

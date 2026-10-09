@@ -24,7 +24,7 @@ from ..models import Auction, League, ManagedAccount, Participant, Player
 from ..models.participant import custom_code_error, generate_access_code
 from .. import remote, team_sheets
 from ..uploads import UploadRejected, clean_image
-from ..services import mail
+from ..services import mail, privacy
 from ..services.sala import ensure_unlocked as _sala_guard
 from .common import (
     FORBIDDEN_LEAGUE_MSG,
@@ -159,8 +159,17 @@ def admin_participant_email(request, participant_id):
                 messages.error(request, f"«{email}» non è un indirizzo email valido.")
                 return redirect(back)
         if email != p.email:
+            removed = bool(p.email) and not email
             p.email = email
-            p.save(update_fields=["email"])
+            fields = ["email"]
+            if email and p.email_opt_out_at is not None:
+                # Un indirizzo nuovo scritto dal presidente: la disiscrizione di prima non vale più.
+                p.email_opt_out_at = None
+                fields.append("email_opt_out_at")
+            p.save(update_fields=fields)
+            if removed:
+                privacy.audit(request.user, "email_removed", target_user=p.user, league=p.league,
+                              detail=f"Squadra {p.display_name}", target_name=p.display_name)
             messages.success(request, f"Email di «{p.display_name}» {'salvata' if email else 'rimossa'}.")
     if request.POST.get("invite") == "1":
         if not p.contact_email:
@@ -769,6 +778,8 @@ def admin_participant_account(request, participant_id):
                 uname = account.username
                 p.user = None
                 p.save(update_fields=["user"])
+                privacy.audit(request.user, "unlink", target_user=account, league=p.league,
+                              detail=f"Squadra {p.display_name}")
                 messages.success(request, f"Account «{uname}» scollegato da «{p.display_name}».")
             return redirect(back)
 
@@ -883,6 +894,9 @@ def admin_participant_account(request, participant_id):
             p.save(update_fields=["user"])
         elif wants_change:
             account.save()
+            if account.pk != request.user.pk:
+                privacy.audit(request.user, "credentials", target_user=account, league=p.league,
+                              detail="Dati dell'account" + (" e password" if pwd_reset_done else ""))
 
         # Update League Role
         league_role = request.POST.get("league_role")
@@ -912,6 +926,8 @@ def admin_participant_account(request, participant_id):
     if action == "unlink":
         p.user = None
         p.save(update_fields=["user"])
+        privacy.audit(request.user, "unlink", target_user=account, league=p.league,
+                      detail=f"Squadra {p.display_name}")
         messages.success(
             request,
             f"Account «{account.username}» scollegato da «{p.display_name}»: "
@@ -933,6 +949,9 @@ def admin_participant_account(request, participant_id):
         account.email = email
         account.first_name = (request.POST.get("first_name") or "").strip()[:150]
         account.save(update_fields=["username", "email", "first_name"])
+        if account.pk != request.user.pk:
+            privacy.audit(request.user, "credentials", target_user=account, league=p.league,
+                          detail="Nome utente, email o nome")
         messages.success(request, f"Account «{account.username}» aggiornato.")
         return redirect(back)
 
@@ -947,6 +966,8 @@ def admin_participant_account(request, participant_id):
         account.save(update_fields=["password"])
         if account.pk == request.user.pk:
             update_session_auth_hash(request, account)   # don't log yourself out
+        else:
+            privacy.audit(request.user, "credentials", target_user=account, league=p.league, detail="Password")
         if generated:
             _remember_secret(request, p, account, password)
         messages.success(

@@ -1,0 +1,39 @@
+{% extends "auctions/base.html" %}
+{% block title %}Informativa e termini — FantaManager{% endblock %}
+{% block privacy_notice %}{% endblock %}
+{% block content %}
+{% include "auctions/_auth_style.html" %}
+<div class="auth-card">
+    <div class="auth-brand">
+        <div class="auth-title">{% if state == "outdated" %}Abbiamo aggiornato i testi{% else %}Informativa e termini{% endif %}</div>
+        <div class="auth-subtitle">
+            {% if state == "outdated" %}L'informativa privacy o i termini d'uso sono cambiati da quando li hai accettati. Leggili e conferma per continuare.
+            {% else %}Per usare il tuo account conferma di aver letto l'informativa privacy e di accettare i termini d'uso.{% endif %}
+        </div>
+    </div>
+
+    <details class="howto">
+        <summary><svg class="ic"><use href="#i-shield"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+        <div class="howto-body">
+            <ol>
+                <li>Apri e leggi l'<b>informativa privacy</b> (versione {{ privacy_version }}) e i <b>termini d'uso</b> (versione {{ terms_version }}).</li>
+                <li>Spunta le due caselle e premi <b>Accetto e continuo</b>: torni alla pagina che stavi aprendo.</li>
+                <li>Non sei d'accordo? Puoi eliminare il tuo account da <a href="{% url 'account' %}">Il mio account</a>.</li>
+            </ol>
+        </div>
+    </details>
+
+    {% if error %}<div class="auth-error" role="alert" style="color:#f87171;font-weight:700;margin-bottom:14px">{{ error }}</div>{% endif %}
+
+    <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ next }}">
+        <label class="auth-check"><input type="checkbox" name="accept_terms" value="1" required>
+            <span>Ho letto l'<a href="{% url 'privacy' %}" target="_blank" rel="noopener">informativa privacy</a> e accetto i <a href="{% url 'terms' %}" target="_blank" rel="noopener">termini d'uso</a></span></label>
+        <label class="auth-check"><input type="checkbox" name="accept_age" value="1" required>
+            <span>Dichiaro di avere almeno {{ min_age }} anni</span></label>
+        <button type="submit" class="btn-submit" style="margin-top:18px">Accetto e continuo</button>
+    </form>
+    <p style="text-align:center;margin:18px 0 0;font-size:13px"><a href="{% url 'logout' %}">Esci</a></p>
+</div>
+{% endblock %}

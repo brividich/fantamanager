@@ -15,6 +15,8 @@ app through one of their teams — a banner with the way back.
 {% endcomment %}
 {% block bodyclass %}role-player app-mode{% endblock %}
 {% block wrapclass %}app-wrap{% endblock %}
+{# I link legali stanno in fondo al contenuto: sotto, la barra dell'app li coprirebbe. #}
+{% block legal_footer %}{% endblock %}
 
 {% block content %}
 <style>
@@ -651,6 +653,9 @@ window.toggleFmTheme = function(e) {
     </div>
     {% endif %}
     {% block app %}{% endblock %}
+    <footer class="fm-legal-foot noprint">
+        <a href="{% url 'privacy' %}">Privacy</a><a href="{% url 'terms' %}">Termini</a>{% if user.is_authenticated %}<a href="{% url 'app_account' %}">Il mio account</a>{% endif %}
+    </footer>
 </main>
 
 <nav class="app-nav{% if is_app_admin and participant %} is-wide{% endif %}" aria-label="Sezioni dell'app">

@@ -1,0 +1,5 @@
+{% autoescape off %}--
+Te l'ha mandata {{ sender }}, che organizza la lega {{ league.name }} su FantaManager: ricevi questa email perché ha inserito il tuo indirizzo per la squadra {{ team.display_name }}.
+{% if unsubscribe_url %}Non vuoi più ricevere email da questa lega? {{ unsubscribe_url }}
+{% endif %}{% if privacy_url %}Informativa privacy: {{ privacy_url }} · Termini: {{ terms_url }}
+{% endif %}{% endautoescape %}

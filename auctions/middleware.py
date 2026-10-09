@@ -240,3 +240,38 @@ class ContentSecurityPolicy:
         response = self.get_response(request)
         response.setdefault("Content-Security-Policy", self.policy)
         return response
+
+
+class LegalGate:
+    """Informativa o termini sono cambiati da quando l'account li ha accettati:
+    alla prima pagina si chiede di nuovo (``legal_reaccept``), una volta.
+
+    Solo pagine aperte dal browser (GET che chiede HTML): le chiamate dei
+    pulsanti, le API del PC in sala e l'asta dal vivo non si fermano. Gli
+    account che non hanno mai accettato (nati prima del consenso, o creati
+    dall'admin per una squadra) non sono bloccati: vedono un avviso in cima
+    alla pagina (context processor ``privacy_notice``).
+    """
+
+    EXEMPT = ("/privacy/", "/termini/", "/logout/", "/app/logout/", "/static/", "/media/", "/healthz/",
+              "/api/", "/account/verifica/", "/email/disiscrivi/", "/img/", "/django-admin/")
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        user = getattr(request, "user", None)
+        if (request.method == "GET" and user is not None and user.is_authenticated
+                and "text/html" in request.META.get("HTTP_ACCEPT", "")
+                and request.headers.get("x-requested-with") != "XMLHttpRequest"
+                and not request.path.startswith(self.EXEMPT)):
+            from .services import privacy
+
+            if privacy.legal_required() and privacy.acceptance_state(user) == "outdated":
+                from urllib.parse import urlencode
+
+                from django.shortcuts import redirect
+                from django.urls import reverse
+
+                return redirect(f"{reverse('legal_reaccept')}?{urlencode({'next': request.get_full_path()})}")
+        return self.get_response(request)
