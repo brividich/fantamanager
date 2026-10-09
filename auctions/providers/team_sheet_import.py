@@ -24,7 +24,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from ..models.participant import generate_access_code
-from ..uploads import MAX_IMPORT_ROWS, MAX_PDF_PAGES, UploadRejected, clean_image_bytes
+from ..uploads import MAX_IMPORT_ROWS, MAX_PDF_PAGES, UploadRejected, check_xlsx_bytes, clean_image_bytes
 from .importers import _find_match, _name_parts, _norm, _shorts_compatible, _team_code
 
 ROLE_BY_TITLE = {"PORTIERI": "P", "DIFENSORI": "D", "CENTROCAMPISTI": "C", "ATTACCANTI": "A"}
@@ -239,6 +239,12 @@ def _drop_block(row):
 def parse_team_sheet_xlsx(data, filename=""):
     import openpyxl
 
+    # Full mode on purpose (cell colours mark loans and sold players): the zip
+    # is checked first, so a crafted file can't unpack gigabytes.
+    try:
+        check_xlsx_bytes(data)
+    except UploadRejected as exc:
+        raise SheetError(f"{filename}: {exc}")
     try:
         wb = openpyxl.load_workbook(io.BytesIO(data), data_only=True)
     except Exception as exc:

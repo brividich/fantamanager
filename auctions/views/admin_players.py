@@ -10,6 +10,7 @@ from ..models import Auction, League, LeagueConfig, Participant, Player
 from ..providers import importers
 from .. import services
 from ..services.sala import ensure_unlocked as _sala_guard
+from ..uploads import UploadRejected
 from .common import (
     broadcast_state,
     current_auction,
@@ -143,7 +144,10 @@ def admin_apply_photos(request):
     backfilled = 0
     f = request.FILES.get("listone_file")
     if f is not None:
-        rows, _errors = importers.parse_listone_file(f, f.name)
+        try:
+            rows, _errors = importers.parse_listone_file(f, f.name)
+        except UploadRejected as exc:
+            return JsonResponse({"ok": False, "error": str(exc)}, status=400)
         backfilled = importers.backfill_ext_ids(rows, league=league)
 
     report = importers.apply_photos(league=league, template=template, only_missing=only_missing)
@@ -171,7 +175,10 @@ def admin_import_stats(request):
         return denied
     f = request.FILES.get("stats_file")
     if f:
-        rows, errors = importers.parse_stats_file(f, f.name)
+        try:
+            rows, errors = importers.parse_stats_file(f, f.name)
+        except UploadRejected as exc:
+            return JsonResponse({"ok": False, "error": str(exc)}, status=400)
         source = f.name
     else:
         if importers.server_stats_path() is None:
@@ -206,7 +213,10 @@ def admin_import_players(request):
     # longer listed (left Serie A). Defaults on; owned players are never pruned.
     prune = request.POST.get("prune", "1") == "1"
 
-    parsed, errors = importers.parse_listone_file(f, f.name)
+    try:
+        parsed, errors = importers.parse_listone_file(f, f.name)
+    except UploadRejected as exc:
+        return JsonResponse({"ok": False, "error": str(exc)}, status=400)
 
     # Reconcile against the existing pool: matches existing players (preserving
     # roster ownership), creates free agents for the rest, and prunes departed
