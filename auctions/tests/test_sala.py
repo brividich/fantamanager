@@ -9,7 +9,7 @@ from decimal import Decimal
 from unittest import mock
 
 from django.contrib.auth.models import User
-from django.test import Client, TestCase, TransactionTestCase
+from django.test import Client, TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 
 from ..models import League, Participant, Player, RosterLog
@@ -26,7 +26,25 @@ class _Resp:
     def json(self):
         return json.loads(self._body)
 
+    def iter_content(self, chunk_size=65536):
+        yield self._body
 
+    def close(self):
+        pass
+
+
+# Il PC vero è l'app desktop (DESKTOP_APP), e il sito ha un indirizzo pubblico:
+# qui la rete è finta, quindi anche la risoluzione del nome.
+_PUBLIC = [(2, 1, 6, "", ("93.184.216.34", 443))]
+
+
+def _as_the_pc(test):
+    resolve = mock.patch("auctions.services.sala._resolve", return_value=_PUBLIC)
+    resolve.start()
+    test.addCleanup(resolve.stop)
+
+
+@override_settings(DESKTOP_APP=True)
 class _SalaSite(TestCase):
     """Un sito con una lega e la sua chiave; le chiamate del PC vanno all'API."""
 
@@ -47,8 +65,9 @@ class _SalaSite(TestCase):
         patcher = mock.patch("requests.post", side_effect=self._post)
         patcher.start()
         self.addCleanup(patcher.stop)
+        _as_the_pc(self)
 
-    def _post(self, url, json=None, timeout=None, headers=None):
+    def _post(self, url, json=None, timeout=None, headers=None, **kwargs):
         assert url.startswith(SITE + sala.API_PATH), url
         resp = self.http.post(url[len(SITE):], data=json or {}, content_type="application/json",
                               HTTP_AUTHORIZATION=(headers or {}).get("Authorization", ""))
@@ -244,6 +263,7 @@ class SalaLockGuardTests(TestCase):
         self.assertTrue(res["ok"])
 
 
+@override_settings(DESKTOP_APP=True)
 class SalaPageTests(TestCase):
     """I tasti dell'asta in sala nella pagina Impostazioni (console e app)."""
 
@@ -258,8 +278,9 @@ class SalaPageTests(TestCase):
         patcher = mock.patch("requests.post", side_effect=self._post)
         patcher.start()
         self.addCleanup(patcher.stop)
+        _as_the_pc(self)
 
-    def _post(self, url, json=None, timeout=None, headers=None):
+    def _post(self, url, json=None, timeout=None, headers=None, **kwargs):
         resp = self.http.post(url[len(SITE):], data=json or {}, content_type="application/json",
                               HTTP_AUTHORIZATION=(headers or {}).get("Authorization", ""))
         return _Resp(resp)

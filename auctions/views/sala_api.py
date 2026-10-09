@@ -36,6 +36,14 @@ def _api(view):
         league = _league_or_401(request)
         if league is None:
             return JsonResponse({"ok": False, "error": "Chiave non valida."}, status=401)
+        try:
+            length = int(request.META.get("CONTENT_LENGTH") or 0)
+        except ValueError:
+            length = 0
+        if length > sala.MAX_BODY_BYTES or len(request.body) > sala.MAX_BODY_BYTES:
+            return JsonResponse({"ok": False, "error": (
+                "Richiesta troppo grande per una lega: aggiorna FantaManager sul PC e riprova.")},
+                status=413)
         data = _body(request)
         if data is None:
             return JsonResponse({"ok": False, "error": "Richiesta non valida."}, status=400)
