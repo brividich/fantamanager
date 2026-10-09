@@ -24,6 +24,7 @@ import threading
 import uuid
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
+from urllib.parse import urlencode
 
 from django.conf import settings
 from django.db import transaction
@@ -323,11 +324,14 @@ def set_live(league, lock_id, url, teams):
             raise SalaError("Questo blocco non è più valido: la lega è stata sbloccata o riscaricata.")
         sala = dict(league.sala or {})
         if url:
-            if not str(url).startswith("https://"):
-                raise SalaError("L'indirizzo dell'asta deve iniziare con https://.")
+            url = _tunnel_url(url)
+            if not url:
+                raise SalaError("L'indirizzo dell'asta deve essere quello del tunnel del PC "
+                                "(https://….trycloudflare.com): aggiorna FantaManager sul PC e riattiva "
+                                "l'accesso da internet.")
             own = set(Participant.objects.filter(league=league).values_list("id", flat=True))
             sala["live"] = {
-                "url": str(url).rstrip("/")[:200],
+                "url": url,
                 "teams": {str(k): str(v)[:64] for k, v in (teams or {}).items()
                           if str(k).isdigit() and int(k) in own and v},
                 "at": timezone.now().isoformat(),
@@ -336,6 +340,14 @@ def set_live(league, lock_id, url, teams):
             sala.pop("live", None)
         league.sala = sala
         league.save(update_fields=["sala", "updated_at"])
+
+
+def _tunnel_url(url):
+    """``url`` se è esattamente l'indirizzo di un tunnel del PC
+    (``https://<nome>.trycloudflare.com``, ``remote._URL_RE``), altrimenti ""."""
+    from ..remote import _URL_RE
+    url = str(url or "").strip().rstrip("/")
+    return url if _URL_RE.fullmatch(url) else ""
 
 
 def live_info(league):
@@ -348,7 +360,8 @@ def live_entry_url(participant):
         return None
     live = live_info(League.objects.filter(pk=participant.league_id).first())
     token = (live or {}).get("teams", {}).get(str(participant.id))
-    return f"{live['url']}/join/?t={token}" if token else None
+    base = _tunnel_url((live or {}).get("url"))
+    return f"{base}/join/?{urlencode({'t': token})}" if token and base else None
 
 
 # --- sul PC: la copia della lega e i risultati da rimandare -------------------
@@ -597,6 +610,11 @@ def _publish_one(league, url):
     except SalaError as exc:
         error = str(exc)
         logger.warning("Asta in sala: indirizzo non comunicato a %s: %s", link["site"], exc)
+    _record_live(league, url, error)
+    return error
+
+
+def _record_live(league, url, error):
     league.refresh_from_db()
     sala = dict(league.sala or {})
     current = dict(sala.get("link") or {})
@@ -604,7 +622,6 @@ def _publish_one(league, url):
     sala["link"] = current
     league.sala = sala
     league.save(update_fields=["sala", "updated_at"])
-    return error
 
 
 def publish_live(url, wait=False):
@@ -613,6 +630,11 @@ def publish_live(url, wait=False):
     sottofondo: il tunnel non aspetta il sito. ``wait`` per i test."""
     leagues = _open_links()
     if not leagues:
+        return
+    if url and not _tunnel_url(url):
+        # Solo l'indirizzo del tunnel del PC: il sito rifiuterebbe comunque.
+        for league in leagues:
+            _record_live(league, "", "L'indirizzo non è quello del tunnel del PC (https://….trycloudflare.com).")
         return
     def _run():
         for league in leagues:

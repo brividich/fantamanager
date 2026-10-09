@@ -134,7 +134,7 @@ def app_sala_enter(request):
     participant, ctx = _app_ctx(request, "home")
     if participant is None:
         return _redirect_login(request, ctx)
-    url = sala.live_entry_url(participant)
+    url = sala.live_entry_url(participant)   # solo un tunnel https://….trycloudflare.com
     if not url:
         messages.info(request, "L'asta in sala non è raggiungibile da internet in questo momento: "
                                "riprova tra poco o chiedi a chi la conduce di attivare l'accesso da internet.")

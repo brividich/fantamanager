@@ -165,3 +165,50 @@ class SalaConnectFormTests(TestCase):
             with self.subTest(desktop=desktop), self.settings(DESKTOP_APP=desktop):
                 html = self.client.get(reverse("admin_config")).content.decode()
                 self.assertEqual('value="sala_connect"' in html, shown)
+
+
+from .test_sala import SITE, _SalaSite  # noqa: E402
+
+
+class SalaLiveAddressTests(_SalaSite):
+    """Il sito accetta come indirizzo dell'asta solo un tunnel *.trycloudflare.com."""
+
+    TUNNEL = "https://abc-def.trycloudflare.com"
+
+    def test_a_foreign_address_is_refused(self):
+        copy = sala.connect(SITE, self.key)
+        self.league.refresh_from_db()
+        lock_id = sala.lock_info(self.league)["id"]
+        for bad in ("https://evil.example", "https://trycloudflare.com.evil.example",
+                    "https://x.trycloudflare.com.evil.example", "https://x.trycloudflare.com/../evil",
+                    "https://x.trycloudflare.com@evil.example"):
+            with self.subTest(url=bad), self.assertRaisesMessage(sala.SalaError, "trycloudflare.com"):
+                sala.set_live(self.league, lock_id, bad, {str(self.alfa.id): "a"})
+        sala.publish_live("https://evil.example", wait=True)
+        self.league.refresh_from_db()
+        self.assertIsNone(sala.live_info(self.league))
+        self.assertTrue(sala.link_info(League.objects.get(pk=copy.pk))["live_error"])
+
+    def test_app_never_redirects_outside_the_tunnel(self):
+        # Un indirizzo salvato prima di questo controllo: l'app non ci manda nessuno.
+        sala.connect(SITE, self.key)
+        self.league.refresh_from_db()
+        info = dict(self.league.sala)
+        info["live"] = {"url": "https://evil.example", "teams": {str(self.alfa.id): "tok"}}
+        League.objects.filter(pk=self.league.pk).update(sala=info)
+        self.assertIsNone(sala.live_entry_url(self.alfa))
+        app = self.client_class()
+        s = app.session
+        s["participant_id"] = self.alfa.id
+        s.save()
+        resp = app.get(reverse("app_sala_enter"))
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp["Location"], reverse("app_home"))
+
+    def test_the_token_is_encoded(self):
+        sala.connect(SITE, self.key)
+        self.league.refresh_from_db()
+        lock_id = sala.lock_info(self.league)["id"]
+        sala.set_live(self.league, lock_id, self.TUNNEL, {str(self.alfa.id): "a b&next=//evil"})
+        self.assertEqual(sala.live_entry_url(self.alfa),
+                         f"{self.TUNNEL}/join/?t=a+b%26next%3D%2F%2Fevil")
