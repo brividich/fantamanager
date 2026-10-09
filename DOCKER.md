@@ -57,6 +57,24 @@ docker compose up -d --build
 
 ---
 
+## 🔄 Aggiornare: due modi, sempre una sola versione del codice
+
+App e scheduler girano **sulla stessa immagine**, senza il sorgente montato sopra: mai due
+versioni del codice sullo stesso database.
+
+| File | Da dove viene l'immagine | Per aggiornare |
+| --- | --- | --- |
+| `docker-compose.yml` | costruita dal sorgente della cartella (`fantamanager:local`) | `git pull` e poi `docker compose up -d --build` |
+| `docker-compose.ghcr.yml` | `ghcr.io/brividich/fantamanager` (`DOCKER_IMAGE`, di default `:latest`) | `docker compose -f docker-compose.ghcr.yml pull` e `up -d` (o da solo con watchtower) |
+
+Con `docker-compose.ghcr.yml` puoi fissare una versione: `DOCKER_IMAGE=ghcr.io/brividich/fantamanager:0.9.0`
+nel `.env`. Le immagini si pubblicano solo dopo test verdi e un avvio di prova
+(`CHANGELOG.md` dice come si rilascia una versione).
+
+**Per sviluppare** col sorgente montato (una modifica vale al riavvio, senza ricostruire):
+`cp docker-compose.override.yml.example docker-compose.override.yml`. Docker Compose lo legge da
+solo; non va usato sul NAS.
+
 ## 💾 Persistenza dei Dati (Volumi & PostgreSQL)
 
 Lo stack Docker include **PostgreSQL 16 Alpine** come motore di database principale e ad alta concorrenza, oltre ai volumi per file media e log:

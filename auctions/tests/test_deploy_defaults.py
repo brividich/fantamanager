@@ -72,6 +72,28 @@ class ComposeDefaultsTests(SimpleTestCase):
         self.assertNotIn("DJANGO_ALLOWED_HOSTS=*", src)
 
 
+class ComposeOneImageTests(SimpleTestCase):
+    """App e scheduler sulla stessa immagine, senza il sorgente montato sopra."""
+
+    def _image(self, name, service):
+        m = re.search(r"^    image: (\S+)$", _service(name, service), re.M)
+        return m.group(1) if m else None
+
+    def test_app_and_scheduler_share_the_image(self):
+        for name in COMPOSES:
+            with self.subTest(compose=name):
+                self.assertIsNotNone(self._image(name, "app"))
+                self.assertEqual(self._image(name, "app"), self._image(name, "scheduler"))
+                self.assertNotIn("build:", _service(name, "scheduler"))
+
+    def test_no_source_bind_in_production(self):
+        for name in COMPOSES:
+            with self.subTest(compose=name):
+                self.assertNotIn(".:/app", (ROOT / name).read_text(encoding="utf-8"))
+        override = (ROOT / "docker-compose.override.yml.example").read_text(encoding="utf-8")
+        self.assertIn(".:/app", override)
+
+
 class CsrfOriginsTests(SimpleTestCase):
     def _settings_with(self, **env):
         base = {"DJANGO_CSRF_TRUSTED_ORIGINS": "", "FM_SITE_URL": ""}

@@ -320,6 +320,10 @@ LOGIN_URL = "admin:login"
 BID_MIN_INTERVAL_MS = int(os.getenv("BID_MIN_INTERVAL_MS", "300"))
 # How often (seconds) the server pushes a timer sync over WebSocket.
 TIMER_SYNC_INTERVAL_SECONDS = float(os.getenv("TIMER_SYNC_INTERVAL_SECONDS", "2"))
+# The room ticker's heartbeat for the scheduler process (services/scheduler.py).
+# The desktop app runs no scheduler: no extra write in its single database queue.
+FM_TICKER_HEARTBEAT = os.getenv("FM_TICKER_HEARTBEAT", "False" if DESKTOP_APP else "True").lower() in (
+    "1", "true", "yes")
 # NB: the pause between two lots used to live here as a global constant. It is
 # now per-auction (``Auction.cycle_break_seconds``, same default of 4s), set from
 # the console under Impostazioni, so a slow league and a fast one can differ.

@@ -65,3 +65,6 @@ auctions/data/*.csv
 data/*.xlsx
 data/*.xls
 data/*.csv
+
+# Override di sviluppo di Docker Compose (vedi docker-compose.override.yml.example)
+docker-compose.override.yml

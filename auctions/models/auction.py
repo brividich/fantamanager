@@ -229,6 +229,9 @@ class Auction(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    # Il ticker del processo web scrive qui al massimo ogni 2 s mentre la sala
+    # è collegata: lo scheduler (un altro processo) lascia a lui le aste vive.
+    ticker_seen_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["-created_at"]

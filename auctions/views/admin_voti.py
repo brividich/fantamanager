@@ -568,12 +568,17 @@ def _live_league(request):
 @require_POST
 def admin_live_voti_sync(request):
     """Trigger on-demand live matchday rating synchronization."""
-    from ..services.voti_live import PROVIDERS, LiveSyncManager, normalize_provider
+    from ..services.voti_live import PROVIDERS, LiveSyncManager, normalize_provider, simulation_allowed
     league = _live_league(request)
     if league is None:
         return HttpResponseForbidden("Non hai i permessi per gestire questa lega.")
     giornata_num = form_int(request.POST.get("giornata_number"), 1, min_value=1)
     provider = normalize_provider(request.POST.get("provider"))
+    if provider == "simulation" and not simulation_allowed(request.user):
+        # Voti a caso al posto di quelli veri: solo per le prove.
+        messages.error(request, "La simulazione dei voti serve solo per le prove e la usa il superadmin: "
+                                "per i voti veri scegli API-Football o carica il file dei voti.")
+        return redirect(_back(request, _giornate_url(request, giornata_num)))
 
     mgr = LiveSyncManager.get_instance()
     mgr.provider = provider

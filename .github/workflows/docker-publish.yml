@@ -1,17 +1,122 @@
 name: Build and Publish Docker Image
 
+# L'immagine si pubblica solo dopo che:
+#   1. la suite completa è verde (SQLite e PostgreSQL: tests.yml);
+#   2. l'immagine appena costruita parte davvero con un PostgreSQL accanto,
+#      /healthz/ risponde 200 e `manage.py check --deploy` del profilo server
+#      non trova errori.
+#
+# Tag dell'immagine:
+#   - push su main     → :main e :sha-<commit> (e :latest, vedi sotto);
+#   - tag git vX.Y.Z   → :X.Y.Z, :X.Y e :latest.
+# LATEST_FROM_MAIN: oggi :latest segue main, come prima (il NAS con
+# docker-compose.ghcr.yml e watchtower si aggiorna da lì). Messo a "false",
+# :latest segue solo i rilasci vX.Y.Z.
 on:
   push:
     branches: [ "main" ]
     tags: [ 'v*.*.*' ]
+  # Una PR che tocca l'immagine fa l'avvio di prova (smoke), senza pubblicare;
+  # i test li fa già il workflow «Tests».
+  pull_request:
+    paths:
+      - Dockerfile
+      - entrypoint.sh
+      - requirements.txt
+      - liveauction/settings*.py
+      - .github/workflows/docker-publish.yml
   workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  LATEST_FROM_MAIN: "true"
+
+concurrency:
+  group: docker-publish-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
+  tests:
+    if: github.event_name != 'pull_request'
+    uses: ./.github/workflows/tests.yml
+
+  smoke:
+    # L'immagine che verrà pubblicata deve partire e dichiararsi sana.
+    needs: tests
+    if: ${{ !cancelled() && (needs.tests.result == 'success' || (github.event_name == 'pull_request' && needs.tests.result == 'skipped')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: fantamanager
+          POSTGRES_USER: fantamanager
+          POSTGRES_PASSWORD: smoke-only-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fantamanager -d fantamanager"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build the image (amd64, local)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          load: true
+          tags: fantamanager:smoke
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Start the image next to PostgreSQL
+        run: |
+          docker run -d --name fm-smoke --network host \
+            -e DJANGO_SECRET_KEY=smoke-${{ github.run_id }} \
+            -e DJANGO_DEBUG=False \
+            -e DJANGO_ALLOWED_HOSTS=localhost \
+            -e FM_SITE_URL=https://smoke.example.it \
+            -e POSTGRES_DB=fantamanager -e POSTGRES_USER=fantamanager \
+            -e POSTGRES_PASSWORD=smoke-only-password \
+            -e POSTGRES_HOST=127.0.0.1 -e POSTGRES_PORT=5432 \
+            fantamanager:smoke
+
+      - name: Wait for /healthz/ = 200
+        run: |
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/healthz/ || true)
+            if [ "$code" = "200" ]; then echo "healthz 200 dopo ${i}x2 s"; exit 0; fi
+            sleep 2
+          done
+          echo "L'immagine non risponde 200 su /healthz/ (ultimo codice: $code)" >&2
+          docker logs fm-smoke >&2
+          exit 1
+
+      - name: manage.py check --deploy (profilo server)
+        run: |
+          docker exec \
+            -e DJANGO_SETTINGS_MODULE=liveauction.settings_server \
+            -e DJANGO_ALLOWED_HOSTS=fantamanager.example.it \
+            -e FM_SITE_URL=https://fantamanager.example.it \
+            fm-smoke python manage.py check --deploy
+
+      - name: Container log
+        if: always()
+        run: docker logs fm-smoke || true
+
   build-and-push:
+    needs: smoke
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -39,11 +144,14 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          flavor: |
+            latest=false
           tags: |
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-            type=ref,event=branch
+            type=raw,value=main,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,format=short,enable=${{ github.ref == 'refs/heads/main' }}
             type=semver,pattern={{version}}
-            type=sha,format=short
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') || (github.ref == 'refs/heads/main' && env.LATEST_FROM_MAIN == 'true') }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
