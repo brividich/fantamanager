@@ -11,6 +11,7 @@ from django.utils.dateparse import parse_datetime
 from django.views.decorators.http import require_POST
 
 from ..models import Formation, Giornata, League, Participant, Season
+from ..services import voto_algo
 from ..services.competitions import season_name
 from .. import scoring as scoring_engine
 from ..services.scoring import recompute_season, set_manual_scores
@@ -335,10 +336,15 @@ _RULE_LIMITS = {"conv_base": (1, 200), "conv_step": (Decimal("0.5"), 50), "max_s
                 "captain_bonus_threshold": (0, 10), "captain_malus_threshold": (0, 10)}
 
 
+# Chiavi di Season.rules che non sono bonus/malus: la fonte del voto base e i
+# ritocchi della lega all'algoritmo (sezione «Voto base» dello stesso form).
+VOTE_BASE_KEYS = ("vote_source", "algo")
+
+
 def _rules_form(season):
     raw = dict(season.rules or {}) if season else {}
     off = set(raw.get("off") or [])
-    values = {**scoring_engine.DEFAULTS, **{k: v for k, v in raw.items() if k != "off"}}
+    values = {**scoring_engine.DEFAULTS, **{k: v for k, v in raw.items() if k != "off" and k not in VOTE_BASE_KEYS}}
     groups = []
     for title, items in RULE_GROUPS:
         rows = []
@@ -355,8 +361,40 @@ def _rules_form(season):
         "captain_on": bool(values.get("captain_enabled")),
         "modif_rows": [{"i": i, "avg": _decimal_text(Decimal(str(a))) if a != "" else "",
                         "bonus": _decimal_text(Decimal(str(b))) if b != "" else ""} for i, (a, b) in enumerate(table)],
-        "rules_custom": bool(raw),
+        "rules_custom": any(k not in VOTE_BASE_KEYS for k in raw),
+        **_vote_base_form(season),
     }
+
+
+def _vote_base_form(season):
+    """Sezione «Voto base»: la fonte del voto e i ritocchi della lega
+    all'algoritmo (sopra i valori di piattaforma del Supervisor)."""
+    source = voto_algo.vote_source_for(season)
+    return {
+        "vote_source": source,
+        "vote_source_algo": voto_algo.is_algo_source(source),
+        "vote_sources": [{"value": v, "label": label, "help": help_text, "checked": v == source}
+                         for v, label, help_text in voto_algo.VOTE_SOURCES],
+        "algo_fields": voto_algo.league_algo_fields(season),
+    }
+
+
+def _vote_base_from_post(request, season):
+    """``(fonte, ritocchi, errori)`` dalla sezione «Voto base» del form; None
+    se il form non la contiene (resta tutto com'è)."""
+    if not request.POST.get("vote_base_form"):
+        return None
+    current = season.rules or {}
+    source = request.POST.get("vote_source") or voto_algo.vote_source_for(season)
+    errors = []
+    if source not in {v for v, *_ in voto_algo.VOTE_SOURCES}:
+        errors.append("Fonte del voto base")
+        source = voto_algo.vote_source_for(season)
+    values = {key: (None if request.POST.get(f"algo_platform_{key}") else request.POST.get(f"algo_{key}"))
+              for key in voto_algo.LEAGUE_FIELDS}
+    algo, bad = voto_algo.clean_league_algo(current.get("algo"), values)
+    errors += list(bad.values())
+    return source, algo, errors
 
 
 @staff_member_required
@@ -372,12 +410,26 @@ def admin_scoring_rules(request):
     season = _current_season(league)
     back = _back(request, _giornate_url(request))
 
+    old_rules = dict(season.rules or {})
+    old_vote_base = (voto_algo.vote_source_for(season), old_rules.get("algo") or {})
     if request.POST.get("reset"):
-        season.rules = {}
+        # I valori classici riguardano bonus e malus: la fonte del voto base resta.
+        season.rules = {k: v for k, v in old_rules.items() if k in VOTE_BASE_KEYS}
         season.save(update_fields=["rules"])
         messages.success(request, "Regole di punteggio riportate ai valori classici del Fantacalcio.")
     else:
-        rules, off, bad = {}, [], []
+        keep = {k: v for k, v in old_rules.items()
+                if k in ("captain_enabled",) or k.startswith("captain_") or k in VOTE_BASE_KEYS}
+        rules, off, bad = keep, [], []
+        vote_base = _vote_base_from_post(request, season)
+        if vote_base is not None:
+            source, algo, algo_bad = vote_base
+            bad += algo_bad
+            rules["vote_source"] = source
+            if algo:
+                rules["algo"] = algo
+            else:
+                rules.pop("algo", None)
         for _title, items in RULE_GROUPS:
             for key, label, _hint, switchable, optional in items:
                 raw = (request.POST.get(f"rule_{key}") or "").strip().replace(",", ".")
@@ -419,10 +471,18 @@ def admin_scoring_rules(request):
         season.rules = rules
         season.save(update_fields=["rules"])
         messages.success(request, "Regole di punteggio della lega salvate.")
-    if request.POST.get("recompute"):
-        n = recompute_season(season)
+    # Un voto base diverso cambia i voti delle giornate giocate: si ricalcolano
+    # sempre (il form chiede conferma prima di inviare).
+    vote_base_changed = (voto_algo.vote_source_for(season), (season.rules or {}).get("algo") or {}) != old_vote_base
+    if request.POST.get("recompute") or vote_base_changed:
+        summary = {}
+        n = recompute_season(season, summary=summary)
         messages.info(request, f"Ricalcolate {n} giornate già giocate con le nuove regole." if n
                       else "Nessuna giornata già giocata da ricalcolare.")
+        if summary.get("algo_missing"):
+            days = ", ".join(str(x) for x in summary["algo_missing_giornate"])
+            messages.warning(request, f"Voto algoritmico: {summary['algo_missing']} voti senza i dati della partita "
+                             f"(giornate {days}) sono rimasti com'erano.")
     return redirect(back)
 
 
@@ -470,6 +530,11 @@ def admin_upload_voti(request):
             messages.error(request, "Il file caricato non contiene righe di voti riconoscibili o è vuoto.")
             return redirect(back)
 
+        season = giornata.season
+        if voto_algo.vote_source_for(season) == "algoritmico" and not request.POST.get("replace_algo"):
+            messages.error(request, "La lega usa il voto algoritmico come definitivo: per sostituirlo con i voti "
+                           "del file spunta «Sostituisci i voti algoritmici con quelli del file».")
+            return redirect(back)
         report = import_voti_giornata(parsed_rows, giornata, league=league, recompute=True)
         # Mark as official
         giornata.performances.filter(giornata=giornata).update(is_live=False, live_source="official_upload")

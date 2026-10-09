@@ -192,15 +192,29 @@ def set_manual_scores(giornata, entries):
                 .select_related("participant").order_by("-total"))
 
 
-def recompute_season(season):
+def recompute_season(season, summary=None):
     """Apply the league's (new) rules to every giornata already played: those
     with votes are computed again; those scored by hand keep their totals and
     get their goals again from the thresholds, unless the goals were typed in.
-    Returns how many giornate changed."""
+    Returns how many giornate changed.
+
+    Con il voto algoritmico i voti si rifanno prima dalla riga salvata in
+    ``vote_detail`` (nessuna chiamata all'API); chi non ha la riga tiene il
+    voto che aveva. ``summary`` (un dict, se passato) riceve
+    ``algo_regenerated``, ``algo_missing`` e ``algo_missing_giornate``."""
+    from . import voto_algo
     rules = scoring.effective_rules(season.rules)
+    algo_rules = voto_algo.algo_rules_for(season) if voto_algo.is_algo_source(voto_algo.vote_source_for(season)) else None
+    report = {"algo_regenerated": 0, "algo_missing": 0, "algo_missing_giornate": []}
     done = 0
     for giornata in season.giornate.filter(status=Giornata.Status.SCORED).order_by("number"):
         if giornata.performances.exists():
+            if algo_rules is not None:
+                regenerated, missing = voto_algo.regenerate_votes(giornata, algo_rules)
+                report["algo_regenerated"] += regenerated
+                report["algo_missing"] += missing
+                if missing:
+                    report["algo_missing_giornate"].append(giornata.number)
             compute_giornata(giornata)
         else:
             for gs in GiornataScore.objects.filter(giornata=giornata):
@@ -210,4 +224,6 @@ def recompute_season(season):
                     gs.save(update_fields=["goals"])
             _resolve_fixtures(giornata)
         done += 1
+    if summary is not None:
+        summary.update(report)
     return done

@@ -1,0 +1,101 @@
+{% comment %}
+«Perché questo voto»: il pannello che spiega un voto algoritmico (base,
+risultato, reparto, eventi, rendimento, calibrazione). Uno solo per console e
+app: Live (app_live.html) e dettaglio partita (admin_competitions.html,
+app_lega.html). Un voto con la spiegazione ha ``data-why-pid`` = id del
+giocatore; i dati arrivano da ``why_map`` (json_script) o, nel dettaglio
+partita, da ``fmVoteWhy.register(...)`` con il campo ``why`` del JSON
+(``voto_algo.vote_why``).
+{% endcomment %}
+<style>
+    [data-why-pid] { cursor:pointer; text-decoration:underline dotted; text-underline-offset:3px; }
+    .fm-why-back { position:fixed; inset:0; z-index:10050; background:rgba(0,0,0,.45);
+                   display:flex; align-items:flex-end; justify-content:center; padding:16px; }
+    .fm-why-back[hidden] { display:none; }
+    .fm-why { width:min(360px, 100%); background:var(--panel, #111); color:var(--ink, #fff);
+              border:1px solid var(--line, #333); border-radius:14px; padding:14px 16px;
+              box-shadow:0 10px 30px rgba(0,0,0,.35); margin-bottom:max(16px, env(safe-area-inset-bottom)); }
+    @media (min-width:700px) { .fm-why-back { align-items:center; } }
+    .fm-why-head { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+    .fm-why-head b { font-size:15px; }
+    .fm-why-head .fm-why-vote { font-family:var(--display, inherit); font-size:24px; font-weight:900; }
+    .fm-why-name { font-size:12px; color:var(--muted, #999); margin-top:2px; }
+    .fm-why table { width:100%; border-collapse:collapse; margin-top:10px; font-size:13px; }
+    .fm-why td { padding:5px 0; border-bottom:1px solid var(--line, #333); }
+    .fm-why td.v { text-align:right; font-variant-numeric:tabular-nums; font-weight:700; }
+    .fm-why td.v.neg { color:#ef4444; }
+    .fm-why td.v.pos { color:#22c55e; }
+    .fm-why-foot { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:10px;
+                   font-size:11px; color:var(--muted, #999); }
+</style>
+<div class="fm-why-back" id="fm-why" hidden>
+    <div class="fm-why" role="dialog" aria-modal="true" aria-labelledby="fm-why-title">
+        <div class="fm-why-head">
+            <b id="fm-why-title">Perché questo voto</b>
+            <span class="fm-why-vote" id="fm-why-vote"></span>
+        </div>
+        <div class="fm-why-name" id="fm-why-name"></div>
+        <table><tbody id="fm-why-rows"></tbody></table>
+        <div class="fm-why-foot">
+            <span>Voto calcolato da FantaManager</span>
+            <button type="button" class="fm-btn fm-btn-ghost fm-btn-sm" data-why-close>Chiudi</button>
+        </div>
+    </div>
+</div>
+{% if why_map %}{{ why_map|json_script:"fm-why-data" }}{% endif %}
+<script>
+(function () {
+    if (window.fmVoteWhy) return;
+    var data = {};
+    var back = document.getElementById('fm-why');
+    function fmt(n) {
+        var s = Math.abs(n).toFixed(2).replace('.', ',');
+        return (n < 0 ? '−' : '+') + s;
+    }
+    function open(pid, name) {
+        var w = data[String(pid)];
+        if (!w || !back) return;
+        document.getElementById('fm-why-vote').textContent = w.vote.toFixed(1).replace('.', ',');
+        document.getElementById('fm-why-name').textContent = name || '';
+        var body = document.getElementById('fm-why-rows');
+        body.innerHTML = '';
+        w.parts.forEach(function (p) {
+            var tr = document.createElement('tr');
+            var label = document.createElement('td');
+            label.textContent = p.label;
+            var val = document.createElement('td');
+            val.className = 'v' + (p.key === 'base' ? '' : (p.value < 0 ? ' neg' : (p.value > 0 ? ' pos' : '')));
+            val.textContent = p.key === 'base' ? p.value.toFixed(2).replace('.', ',') : fmt(p.value);
+            tr.appendChild(label);
+            tr.appendChild(val);
+            body.appendChild(tr);
+        });
+        back.hidden = false;
+    }
+    function close() { if (back) back.hidden = true; }
+    window.fmVoteWhy = {
+        register: function (map) { Object.keys(map || {}).forEach(function (k) { if (map[k]) data[k] = map[k]; }); },
+        open: open,
+        close: close,
+    };
+    var initial = document.getElementById('fm-why-data');
+    if (initial) { try { window.fmVoteWhy.register(JSON.parse(initial.textContent)); } catch (e) {} }
+    document.addEventListener('click', function (ev) {
+        var el = ev.target.closest('[data-why-pid]');
+        if (el) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            open(el.getAttribute('data-why-pid'), el.getAttribute('data-why-name'));
+            return;
+        }
+        if (ev.target === back || ev.target.closest('[data-why-close]')) close();
+    }, true);
+    document.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Escape') close();
+        if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.matches && ev.target.matches('[data-why-pid]')) {
+            ev.preventDefault();
+            open(ev.target.getAttribute('data-why-pid'), ev.target.getAttribute('data-why-name'));
+        }
+    });
+})();
+</script>

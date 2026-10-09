@@ -141,6 +141,15 @@
     </style>
 
     <script>
+        // HTML escape for every value from league/user data that ends up in
+        // innerHTML or a template string (player and team names, messages…).
+        function fmEsc(s) {
+            return String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+        }
+        // A role only becomes a CSS class (role-P…) when it is one of ours.
+        function fmRole(r) {
+            return ["P", "D", "C", "A"].includes(r) ? r : "C";
+        }
         // One-row bars (.fm-onerow, console.css, and the app's .a-seg): tell the CSS on which side
         // there is more to scroll, and bring the active item into view.
         (function () {
@@ -274,7 +283,13 @@
         }
         function showAlert(icon, msg, durationMs) {
             const b = document.getElementById("alert-banner");
-            b.innerHTML = `<span class="alert-icon">${icon}</span><span>${msg}</span>`;
+            b.textContent = "";
+            const ic = document.createElement("span");
+            ic.className = "alert-icon";
+            ic.textContent = icon;
+            const tx = document.createElement("span");
+            tx.textContent = msg;
+            b.append(ic, tx);
             b.classList.add("show");
             clearTimeout(window.__alertT);
             window.__alertT = setTimeout(() => b.classList.remove("show"), durationMs || 6000);

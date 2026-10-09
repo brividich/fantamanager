@@ -729,6 +729,11 @@ def get_fixture_details(fixture):
         home_bonus = float(settings.get("home_bonus") or 0)
     except (TypeError, ValueError):
         home_bonus = 0.0
+    # «Perché questo voto» per i voti dell'algoritmo (None per le altre fonti).
+    from .voto_algo import vote_why
+    why_map = {pid: vote_why(detail, vote) for pid, detail, vote in
+               PlayerPerformance.objects.filter(giornata=giornata, vote_detail__isnull=False)
+               .values_list("player_id", "vote_detail", "vote")}
 
     def _team_detail(part, fx_total=None, fx_goals=None, bonus=0.0):
         if not part:
@@ -785,6 +790,7 @@ def get_fixture_details(fixture):
                 "has_vote": l["has_vote"],
                 "is_subbed": bool(sub_p),
                 "starter_name": starter_p.name if starter_p else "",
+                "why": why_map.get(active_p.id) if (active_p and l["has_vote"]) else None,
                 "goals": goals,
                 "assists": ast,
                 "yellow": yel,
@@ -808,6 +814,7 @@ def get_fixture_details(fixture):
                 "fantavoto": float(b_fv) if b_fv is not None else None,
                 "has_vote": b_has,
                 "subbed_in": b["id"] in subbed_in_pids,
+                "why": why_map.get(bp.id) if b_has else None,
                 "goals": b_perf.get("goals", 0),
                 "assists": b_perf.get("assists", 0),
                 "yellow": bool(b_perf.get("yellow", False)),
