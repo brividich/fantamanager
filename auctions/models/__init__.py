@@ -38,6 +38,7 @@ from .market import (
     MarketSession,
 )
 from .participant import (
+    CoAdminInvite,
     ManagedAccount,
     Participant,
     Watch,
@@ -65,6 +66,7 @@ __all__ = [
     "AuctionCycleResult",
     "Participant",
     "ManagedAccount",
+    "CoAdminInvite",
     "AccountPrivacy",
     "AuditLog",
     "LegalAcceptance",

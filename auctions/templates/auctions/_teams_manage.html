@@ -8,7 +8,7 @@ colonne, azioni e testi si cambiano qui, valgono per entrambe.
 Dati da views/admin_participants.py:teams_manage_context. Ogni form manda
 next = questa pagina, così l'azione torna lì (console o app). I messaggi li
 mostra la cornice.
-{% endcomment %}
+{% endcomment %}{% load fm_pages %}
 <!-- teams:start -->
 <style>
     .pg-head { display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap; margin:6px 0 14px; }
@@ -183,16 +183,26 @@ mostra la cornice.
     </div>
     <span class="spacer"></span>
     <div class="pg-head-actions fm-onerow">
-        <a class="fm-btn fm-btn-secondary" href="{% url 'admin_players' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
+        <a class="fm-btn fm-btn-secondary" href="{% purl 'admin_players' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
             <svg class="ic"><use href="#i-import"/></svg> Importa rose</a>
-        <a class="fm-btn fm-btn-primary" href="{% url 'admin_dashboard' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
-            <svg class="ic"><use href="#i-plus"/></svg> Aggiungi squadra</a>
+        {% if current_league %}
+        <button type="button" class="fm-btn fm-btn-primary" data-open-add-team>
+            <svg class="ic"><use href="#i-plus"/></svg> Aggiungi squadra</button>
+        {% endif %}
         {% if current_league and rows %}
+        {% if mail_ready and missing_count %}
+        <form method="post" action="{% url 'admin_invite_missing' current_league.id %}" style="margin:0"
+              onsubmit="return confirm('Rimandare l\'invito alle squadre che non sono ancora entrate?');">
+            {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button type="submit" class="fm-btn fm-btn-secondary" title="Solo a chi non è ancora entrato con il suo account, e ha un'email">
+                <svg class="ic"><use href="#i-mail"/></svg> Reinvia a chi non è ancora entrato ({{ missing_count }})</button>
+        </form>
+        {% endif %}
         <form method="post" action="{% url 'admin_invite_teams' %}" style="margin:0"
               {% if mail_ready and reachable %}onsubmit="return confirm('Inviare a {{ reachable }} squadr{{ reachable|pluralize:"a,e" }} il link personale e il codice?');"{% endif %}>
             {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="league_id" value="{{ current_league.id }}">
             <button type="submit" class="fm-btn fm-btn-secondary"{% if not mail_ready or not reachable %} disabled{% endif %}
-                    title="{% if not mail_ready %}Posta non configurata{% if request.user.is_superuser %}: Altro → Posta{% endif %}{% elif not reachable %}Aggiungi l'email delle squadre qui sotto{% else %}Email con link personale e codice a {{ reachable }} squadre{% endif %}">
+                    title="{% if not mail_ready %}{{ mail_off_message }}{% elif not reachable %}Aggiungi l'email delle squadre qui sotto{% else %}Email con link personale e codice a {{ reachable }} squadre{% endif %}">
                 <svg class="ic"><use href="#i-mail"/></svg> Invia inviti{% if reachable %} ({{ reachable }}){% endif %}</button>
         </form>
         {% endif %}
@@ -222,6 +232,8 @@ mostra la cornice.
     <div class="howto-body">
         L'elenco delle squadre della lega, con crediti, rosa e <b>link di accesso personale</b>.
         <ol>
+            <li>In <b>Inviti, squadra per squadra</b> manda a ogni allenatore il suo invito: <b>Invia email</b>, <b>Condividi</b> (WhatsApp o il menu del telefono) o <b>Copia link</b>.
+                Lo stato passa da «Da invitare» a «Entrata ✓» quando collega la squadra al suo account.</li>
             <li>Passa a ogni allenatore il <b>suo</b> link (o fagli inquadrare il QR): entra
                 {% if target_auction %}direttamente nell'asta <b>{{ target_auction.title }}</b>{% else %}già riconosciuto{% endif %}
                 come la sua squadra, senza digitare codici.</li>
@@ -237,9 +249,22 @@ mostra la cornice.
                 e quello <b>da internet</b> per chi è altrove.</li>
             {% endif %}
         </ol>
-        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Il link è personale: chi ce l'ha offre a nome di quella squadra. Le squadre si creano e si modificano dalla dashboard.</div>
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Il link è personale: chi ce l'ha offre a nome di quella squadra. Una squadra nuova la aggiungi con <b>Aggiungi squadra</b>, qui in alto.</div>
     </div>
 </details>
+
+{% if current_league and not mail_ready %}
+<div class="fm-card noprint" role="note" style="margin-bottom:14px;font-size:13px">✉️ {{ mail_off_message }}</div>
+{% endif %}
+
+{% if current_league and invite_rows %}
+<details class="fm-card noprint" id="inviti" style="margin-bottom:14px" open>
+    <summary style="cursor:pointer;font-weight:800;font-size:15px;list-style:none">
+        <svg class="ic"><use href="#i-share"/></svg> Inviti, squadra per squadra
+        <span class="muted" style="font-weight:600;font-size:12.5px">· entrate {{ joined_count }} su {{ invite_rows|length }}</span></summary>
+    <div style="margin-top:10px">{% include "auctions/_team_invites.html" %}</div>
+</details>
+{% endif %}
 
 <div class="fm-card tm-box">
     {% if rows %}
@@ -348,7 +373,7 @@ mostra la cornice.
     {% else %}
     <div class="empty-state">
         Nessuna squadra in questa lega.<br>
-        Aggiungile dalla dashboard o dal wizard di creazione lega.
+        Premi <b>Aggiungi squadra</b> qui in alto, o crea la lega con il wizard «Nuova lega».
     </div>
     {% endif %}
 </div>
@@ -596,6 +621,41 @@ mostra la cornice.
             }
         });
     }
+})();
+</script>
+{% endif %}
+
+{% if current_league %}
+<dialog class="acc-dlg" id="add-team-dlg" aria-labelledby="add-team-title">
+    <div class="acc-dlg-head">
+        <h3 id="add-team-title">Aggiungi una squadra a {{ current_league.name }}</h3>
+        <button type="button" class="fm-btn fm-btn-ghost x" data-close-dialog aria-label="Chiudi"><svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
+    <form class="acc-dlg-body" method="post" action="{% url 'admin_create_participant' %}">
+        {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <input type="hidden" name="league_id" value="{{ current_league.id }}">
+        <div class="acc-sec">
+            <label for="add-team-name">Nome della squadra</label>
+            <input id="add-team-name" name="display_name" required maxlength="80" placeholder="es. Real Madrink">
+            <label for="add-team-email">Email dell'allenatore <span class="muted" style="text-transform:none;letter-spacing:0">(facoltativa: serve per l'invito)</span></label>
+            <input id="add-team-email" type="email" name="email" maxlength="254" placeholder="nome@email.it">
+            <label for="add-team-credits">Crediti</label>
+            <input id="add-team-credits" name="credits" inputmode="numeric" value="{{ current_league.budget|floatformat:0 }}">
+        </div>
+        <div class="acc-sec row-actions">
+            <button type="submit" class="fm-btn fm-btn-primary fm-btn-sm"><svg class="ic"><use href="#i-plus"/></svg> Aggiungi</button>
+        </div>
+    </form>
+</dialog>
+<script>
+(function () {
+    var dlg = document.getElementById("add-team-dlg");
+    if (!dlg) return;
+    document.querySelectorAll('[data-open-add-team]').forEach(function (b) {
+        b.addEventListener("click", function () { if (dlg.showModal) dlg.showModal(); });
+    });
+    dlg.querySelectorAll("[data-close-dialog]").forEach(function (b) { b.addEventListener("click", function () { dlg.close(); }); });
+    dlg.addEventListener("click", function (e) { if (e.target === dlg) dlg.close(); });
 })();
 </script>
 {% endif %}

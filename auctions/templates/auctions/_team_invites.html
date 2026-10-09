@@ -1,0 +1,106 @@
+{% comment %}
+Gli inviti, squadra per squadra: stato («Da invitare» / «Invitata il …» /
+«Aperto» / «Entrata ✓») e le azioni di una squadra sola — email, Condividi
+(il menu del telefono, altrimenti WhatsApp), copia link, QR, rigenera link.
+Ogni testo condiviso contiene il link di quella squadra soltanto.
+
+UNICO per la pagina Squadre (_teams_manage.html, console e app) e per «Lega
+pronta» (setup_done.html). Dati: ``invite_rows`` (views/admin_participants.py:
+invite_rows), ``mail_ready``.
+{% endcomment %}
+<style>
+    .ti-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; container-type: inline-size; }
+    .ti-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; align-items: center;
+              padding: 10px 12px; border-radius: 10px; border: 1px solid var(--fm-border); background: rgba(255,255,255,.02); }
+    .ti-row .nm { min-width: 0; }
+    .ti-row .nm b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ti-row .nm small { font-size: 11.5px; color: var(--fm-text-muted); overflow-wrap: anywhere; }
+    .ti-badge { display: inline-block; margin-top: 3px; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 800; }
+    .ti-badge.todo { background: rgba(250,204,21,.14); color: #facc15; }
+    .ti-badge.sent { background: rgba(8,124,240,.15); color: var(--fm-primary-light); }
+    .ti-badge.open { background: rgba(168,85,247,.16); color: #c084fc; }
+    .ti-badge.in { background: rgba(22,217,104,.15); color: var(--fm-success); }
+    .ti-acts { display: flex; gap: 6px; flex-wrap: nowrap; min-width: 0; }
+    .ti-acts form { margin: 0; }
+    @container (max-width: 560px) { .ti-row { grid-template-columns: minmax(0, 1fr); } }
+</style>
+<ul class="ti-list">
+    {% for r in invite_rows %}
+    <li class="ti-row" data-invite-row="{{ r.p.id }}">
+        <div class="nm">
+            <b>{{ r.p.display_name }}</b>
+            <small>{% if r.p.email %}{{ r.p.email }}{% elif r.p.contact_email %}email dell'account{% else %}senza email{% endif %}</small><br>
+            <span class="ti-badge {{ r.status }}" data-invite-badge>{{ r.status_label }}</span>
+        </div>
+        <div class="ti-acts fm-onerow noprint">
+            {% if mail_ready and r.p.contact_email and r.status != "in" %}
+            <form method="post" action="{% url 'admin_participant_email' r.p.id %}">{% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="invite" value="1">
+                <button type="submit" class="fm-btn fm-btn-secondary fm-btn-sm"><svg class="ic"><use href="#i-mail"/></svg> Invia email</button>
+            </form>
+            {% endif %}
+            <button type="button" class="fm-btn {% if r.status == 'todo' %}fm-btn-primary{% else %}fm-btn-secondary{% endif %} fm-btn-sm"
+                    data-inv-share data-text="{{ r.text }}" data-wa="{{ r.wa_url }}" data-mark="{% url 'admin_invite_mark' r.p.id %}">
+                <svg class="ic"><use href="#i-share"/></svg> Condividi</button>
+            <button type="button" class="fm-btn fm-btn-ghost fm-btn-sm" data-inv-copy="{{ r.link }}" data-mark="{% url 'admin_invite_mark' r.p.id %}"
+                    title="Copia il link d'invito di {{ r.p.display_name }}"><svg class="ic"><use href="#i-copy"/></svg> Copia link</button>
+            <a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% url 'participant_qr' r.p.id %}" target="_blank" rel="noopener"
+               data-inv-qr data-mark="{% url 'admin_invite_mark' r.p.id %}"><svg class="ic"><use href="#i-scan"/></svg> QR</a>
+            <form method="post" action="{% url 'admin_reset_team_pin' r.p.id %}"
+                  onsubmit="return confirm('Rigenerare il link di {{ r.p.display_name|escapejs }}? Quello di prima smette di funzionare: dovrai mandare quello nuovo.');">
+                {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <input type="hidden" name="pin" value="{{ r.p.access_code }}"><input type="hidden" name="regenerate_token" value="1">
+                <button type="submit" class="fm-btn fm-btn-ghost fm-btn-sm" title="Il link di prima smette di funzionare"><svg class="ic"><use href="#i-refresh"/></svg> Rigenera link</button>
+            </form>
+        </div>
+    </li>
+    {% endfor %}
+</ul>
+<script>
+(function () {
+    if (window.__fmInvites) return;            // il partial può comparire più volte
+    window.__fmInvites = true;
+    function csrf() { var m = document.cookie.match("(^|;)\\s*csrftoken\\s*=\\s*([^;]+)"); return m ? m.pop() : ""; }
+    function mark(btn, channel) {
+        var url = btn.getAttribute("data-mark");
+        if (!url) return;
+        var body = new FormData(); body.append("channel", channel);
+        fetch(url, { method: "POST", body: body, headers: { "X-CSRFToken": csrf(), "X-Requested-With": "XMLHttpRequest" } })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (d) {
+                if (!d || !d.ok) return;
+                var row = btn.closest("[data-invite-row]"), badge = row && row.querySelector("[data-invite-badge]");
+                if (badge) { badge.textContent = d.label; badge.className = "ti-badge " + d.status; }
+            }).catch(function () {});
+    }
+    function copy(text, done) {
+        if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(text).then(done); return; }
+        var ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select();
+        try { document.execCommand("copy"); done(); } catch (e) {}
+        ta.remove();
+    }
+    document.addEventListener("click", function (e) {
+        var share = e.target.closest("[data-inv-share]");
+        if (share) {
+            var text = share.getAttribute("data-text");
+            if (navigator.share) {
+                navigator.share({ text: text }).then(function () { mark(share, "share"); }).catch(function () {});
+            } else {
+                window.open(share.getAttribute("data-wa"), "_blank", "noopener");
+                mark(share, "whatsapp");
+            }
+            return;
+        }
+        var cp = e.target.closest("[data-inv-copy]");
+        if (cp) {
+            copy(cp.getAttribute("data-inv-copy"), function () {
+                if (window.showToast) showToast("Link d'invito copiato", "info");
+                mark(cp, "copy");
+            });
+            return;
+        }
+        var qr = e.target.closest("[data-inv-qr]");
+        if (qr) mark(qr, "qr");
+    });
+})();
+</script>

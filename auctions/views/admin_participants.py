@@ -24,7 +24,7 @@ from ..models import Auction, League, ManagedAccount, Participant, Player
 from ..models.participant import custom_code_error, generate_access_code
 from .. import remote, team_sheets
 from ..uploads import UploadRejected, clean_image
-from ..services import mail, privacy
+from ..services import mail, onboarding, privacy
 from ..services.sala import ensure_unlocked as _sala_guard
 from .common import (
     FORBIDDEN_LEAGUE_MSG,
@@ -128,9 +128,16 @@ def teams_manage_context(request, current_league):
     # lands on, and then forgotten: only the login's hash is stored.
     secret = request.session.pop(SESSION_ACCOUNT_SECRET_KEY, None) if accounts_ok else None
 
+    teams = [r["p"] for r in rows if r["p"].is_active]
+    from .admin_onboarding import mail_off_message
     return {
         "current_league": current_league,
         "rows": rows,
+        # Gli inviti, una squadra alla volta (_team_invites.html).
+        "invite_rows": invite_rows(request, teams) if current_league is not None else [],
+        "joined_count": sum(1 for t in teams if t.user_id),
+        "missing_count": sum(1 for t in teams if not t.user_id and t.contact_email),
+        "mail_off_message": mail_off_message(request),
         "accounts_ok": accounts_ok,
         "account_secret": secret,
         "portal_login_url": remote.best_base_url(request).rstrip("/") + reverse("app_login"),
@@ -139,6 +146,40 @@ def teams_manage_context(request, current_league):
         "mail_ready": mail.is_ready(),
         "reachable": sum(1 for r in rows if r["p"].contact_email and r["p"].is_active),
     }
+
+
+def invite_rows(request, teams, sender=""):
+    """Per ogni squadra il suo invito, da solo: stato, link /invito/<token>/,
+    testo da condividere (WhatsApp, Condividi del telefono) e QR. Mai i link
+    di più squadre insieme: ogni testo ha il link di una squadra sola."""
+    from urllib.parse import quote
+
+    base = remote.best_base_url(request).rstrip("/")
+    sender = sender or (mail.sender_name(request, teams[0].league) if teams else "")
+    rows = []
+    for p in teams:
+        link = base + onboarding.invite_path(p)
+        text = onboarding.invite_text(p, link, sender)
+        code, label = onboarding.invite_status(p)
+        rows.append({"p": p, "link": link, "text": text, "status": code, "status_label": label,
+                     "wa_url": "https://api.whatsapp.com/send?text=" + quote(text)})
+    return rows
+
+
+@staff_member_required
+@require_POST
+def admin_invite_mark(request, participant_id):
+    """Il presidente ha condiviso l'invito di una squadra (WhatsApp, Condividi,
+    link copiato, QR): lo segna nello stato dell'invito."""
+    p, denied = managed_or_403(request, Participant, participant_id)
+    if denied:
+        return denied
+    channel = request.POST.get("channel", "")
+    if channel not in Participant.InviteChannel.values:
+        return JsonResponse({"ok": False, "error": "canale"}, status=400)
+    onboarding.mark_invite_sent([p], channel)
+    code, label = onboarding.invite_status(p)
+    return JsonResponse({"ok": True, "status": code, "label": label})
 
 
 @staff_member_required
@@ -175,7 +216,8 @@ def admin_participant_email(request, participant_id):
         if not p.contact_email:
             messages.error(request, f"«{p.display_name}» non ha un indirizzo email.")
         elif not mail.is_ready():
-            messages.error(request, "La posta non è configurata: impostala in Impostazioni → Posta.")
+            from .admin_onboarding import mail_off_message
+            messages.error(request, mail_off_message(request))
         elif p.league is None:
             messages.error(request, "La squadra non è in nessuna lega.")
         else:
@@ -197,7 +239,8 @@ def admin_invite_teams(request):
         return redirect("admin_participants")
     back = safe_next(request, reverse("admin_participants") + f"?league={league.id}")
     if not mail.is_ready():
-        messages.error(request, "La posta non è configurata: impostala in Impostazioni → Posta.")
+        from .admin_onboarding import mail_off_message
+        messages.error(request, mail_off_message(request))
         return redirect(back)
     report = mail.send_team_invites(request, league)
     (messages.success if report["sent"] and not report["failed"] else messages.warning)(
@@ -231,11 +274,19 @@ def admin_create_participant(request):
         return HttpResponseForbidden(FORBIDDEN_LEAGUE_MSG)
     _sala_guard(league)
 
+    email = (request.POST.get("email") or "").strip()[:254]
+    if email:
+        try:
+            validate_email(email)
+        except ValidationError:
+            messages.error(request, f"«{email}» non è un indirizzo email valido.")
+            return redirect(safe_next(request, fallback))
     p = Participant(
         league=league,
         display_name=request.POST.get("display_name", "").strip()[:80] or "Squadra",
         access_code=request.POST.get("access_code", "").strip()[:20],
         credits=dec("credits", str(league.budget) if league else "500"),
+        email=email,
         is_active=True,
     )
     code_error = p.access_code and custom_code_error(p.access_code)

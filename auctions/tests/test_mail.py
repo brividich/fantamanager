@@ -112,7 +112,8 @@ class LeagueEmailTests(TestCase):
         self.assertContains(resp, "2 email inviate")
         self.assertEqual(len(outbox.outbox), 2)
         msg = next(m for m in outbox.outbox if m.to == ["alfa@x.it"])
-        self.assertIn(f"t={self.a.public_token}", msg.body)
+        # Un solo link per squadra: la pagina d'invito.
+        self.assertIn(reverse("invite", args=[self.a.public_token]), msg.body)
         self.assertIn("AL01", msg.body)
         self.assertEqual(msg.subject, "Benvenuto in Lega Mail")
 

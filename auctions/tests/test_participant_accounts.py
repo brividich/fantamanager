@@ -440,7 +440,17 @@ class TeamsPageTests(TestCase):
     def _part(resp):
         html = resp.content.decode()
         part = html[html.index("<!-- teams:start -->"):html.index("<!-- teams:end -->")]
-        return re.sub(r'name="(next|csrfmiddlewaretoken)" value="[^"]*"', "", part)
+        part = re.sub(r'name="(next|csrfmiddlewaretoken)" value="[^"]*"', "", part)
+        # I link verso pagine che l'app ha ({% purl %}): console o app, stessa pagina.
+        from ..views.common import APP_PAGES
+        for console_name, app_name in APP_PAGES.items():
+            try:
+                urls = (reverse(console_name), reverse(app_name))
+            except Exception:  # noqa: BLE001 — pagine con argomenti
+                continue
+            for url in urls:
+                part = re.sub('"' + re.escape(url) + r'(?=["?#])', f'"PAGE:{console_name}', part)
+        return part
 
     def test_same_screen_in_console_and_app(self):
         self.client.force_login(self.owner)

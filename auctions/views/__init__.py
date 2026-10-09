@@ -100,6 +100,7 @@ from .admin_participants import (
     admin_edit_participant,
     admin_invite_teams,
     admin_participant_account,
+    admin_invite_mark,
     admin_participant_email,
     admin_participant_roster,
     admin_participants,
@@ -237,6 +238,8 @@ from .auth import (
 )
 from .history import admin_storico, app_storico
 from .images import remote_image
+from .invite import coadmin_invite, invite
+from .admin_onboarding import admin_coadmin, admin_invite_missing, admin_setup_card
 from .password_reset import password_reset_confirm, password_reset_request
 from .privacy import (
     account_delete,
@@ -278,6 +281,11 @@ __all__ = [
     "admin_storico",
     "app_storico",
     "remote_image",
+    "coadmin_invite",
+    "admin_coadmin",
+    "admin_invite_missing",
+    "admin_setup_card",
+    "invite",
     "account_delete",
     "account_email",
     "account_export",
@@ -416,6 +424,7 @@ __all__ = [
     "participant_qr",
     "admin_participant_roster",
     "admin_participant_account",
+    "admin_invite_mark",
     "admin_participant_email",
     "admin_invite_teams",
     # bidder

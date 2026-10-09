@@ -188,11 +188,15 @@ def join(request):
             public_token=token, is_active=True
         ).first()
         if recognized:
+            target = _auction_for_join(recognized, request.GET.get("a"), joinable)
+            if target is None and recognized.user_id is None:
+                # Nessuna asta in corso e squadra senza account: è un invito.
+                # La pagina d'invito collega la squadra (o fa entrare senza account).
+                return redirect("invite", token=recognized.public_token)
             request.session["participant_id"] = recognized.id
             request.session["display_name"]   = recognized.display_name
             if recognized.league_id is not None:
                 request.session[SESSION_LEAGUE_KEY] = recognized.league_id
-            target = _auction_for_join(recognized, request.GET.get("a"), joinable)
             if target is not None:
                 return redirect("bid", auction_id=target.id)
 
