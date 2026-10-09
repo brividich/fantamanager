@@ -140,19 +140,29 @@ class ParticipantAccountTests(TestCase):
     # --- Link / unlink -----------------------------------------------------
 
     def test_link_by_username_or_email_and_unlink(self):
+        # Mario plays in the league (Alfa Real): his login is the president's to link.
         self._as(self.owner)
+        self._post(self.free_team, action="link", identifier="MARIO@x.local")
+        self.free_team.refresh_from_db()
+        self.assertEqual(self.free_team.user, self.coach)
+
         self._post(self.team, action="unlink")
         self.team.refresh_from_db()
         self.assertIsNone(self.team.user_id)
         self.assertTrue(User.objects.filter(pk=self.coach.pk).exists())   # unlinked, not deleted
 
-        self._post(self.free_team, action="link", identifier="MARIO@x.local")
-        self.free_team.refresh_from_db()
-        self.assertEqual(self.free_team.user, self.coach)
-
         self._post(self.team, action="link", identifier="Mario")
         self.team.refresh_from_db()
         self.assertEqual(self.team.user, self.coach)
+
+    def test_a_self_registered_login_outside_the_league_is_not_linked(self):
+        """Once Mario plays in none of the president's leagues, his login is not theirs to link:
+        he joins with the team code himself."""
+        self._as(self.owner)
+        self._post(self.team, action="unlink")
+        self._post(self.free_team, action="link", identifier="MARIO@x.local")
+        self.free_team.refresh_from_db()
+        self.assertIsNone(self.free_team.user_id)
 
     def test_link_unknown_account_changes_nothing(self):
         self._as(self.owner)

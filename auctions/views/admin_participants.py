@@ -572,6 +572,33 @@ def _is_managed(account):
         return False
 
 
+LINK_REFUSED_MSG = (
+    "Non puoi collegare questo account: da qui si collegano solo gli account che "
+    "giocano già in una tua lega o che hai creato tu. Se l'allenatore si è "
+    "registrato da solo, dagli il codice della squadra (o il link/QR): lo inserisce "
+    "nell'app e la squadra si collega al suo account. Oppure creagli un account nuovo."
+)
+
+
+def _find_linkable(actor, uid=None, ident=None):
+    """The login ``actor`` may tie to a team, by pk or by username/email.
+
+    Only among ``linkable_users``: a stranger's username typed in the form
+    finds nothing, exactly like a username that does not exist.
+    """
+    pool = linkable_users(actor)
+    uid = str(uid or "").strip()
+    ident = (ident or "").strip()
+    if uid:
+        return pool.filter(pk=int(uid)).first() if uid.isdigit() else None
+    if not ident:
+        return None
+    found = pool.filter(username__iexact=ident).first()
+    if found is None and "@" in ident:
+        found = pool.filter(email__iexact=ident).first()
+    return found
+
+
 def account_lock_reason(actor, account, action=None):
     """Why ``actor`` may not change ``account``'s credentials, "" when they may.
 
@@ -601,8 +628,6 @@ def account_lock_reason(actor, account, action=None):
         return "Guida anche squadre di leghe che non gestisci."
 
     if not _is_managed(account):
-        if action == "manage":
-            return ""
         return ("L'allenatore se l'è registrato da solo: password, nome utente ed email "
                 "li può cambiare solo il superadmin.")
     return ""
@@ -729,14 +754,9 @@ def admin_participant_account(request, participant_id):
     if action == "link":
         if account is not None:
             return fail(f"«{p.display_name}» ha già un account: scollegalo prima di collegarne un altro.")
-        ident = (request.POST.get("identifier") or "").strip()
-        found = None
-        if ident:
-            found = User.objects.filter(username__iexact=ident).first()
-            if found is None and "@" in ident:
-                found = User.objects.filter(email__iexact=ident).first()
+        found = _find_linkable(request.user, ident=request.POST.get("identifier"))
         if found is None:
-            return fail("Nessun account con questo nome utente o email.")
+            return fail(LINK_REFUSED_MSG)
         p.user = found
         p.save(update_fields=["user"])
         messages.success(request, f"Account «{found.username}» collegato a «{p.display_name}».")
@@ -753,23 +773,19 @@ def admin_participant_account(request, participant_id):
             return redirect(back)
 
         # Team has no account linked yet: create or link
+        linking = False
         if account is None:
             subaction = request.POST.get("manage_subaction", "")
             link_uid = request.POST.get("link_user_id")
             link_ident = (request.POST.get("link_identifier") or "").strip()
             if subaction == "link" or link_uid or link_ident:
-                found = None
-                if link_uid:
-                    found = User.objects.filter(pk=link_uid).first()
-                elif link_ident:
-                    found = User.objects.filter(username__iexact=link_ident).first()
-                    if found is None and "@" in link_ident:
-                        found = User.objects.filter(email__iexact=link_ident).first()
+                # Linking ties an existing login to the team and nothing more:
+                # its username, email and password are not the president's.
+                found = _find_linkable(request.user, uid=link_uid, ident=link_ident)
                 if found is None:
-                    return fail("Nessun account utente valido trovato da collegare.")
-                p.user = found
-                p.save(update_fields=["user"])
+                    return fail(LINK_REFUSED_MSG)
                 account = found
+                linking = True
             else:
                 # Create brand-new user
                 username, error = _clean_username(request.POST.get("username"))
@@ -797,13 +813,32 @@ def admin_participant_account(request, participant_id):
                 if gen_pwd:
                     _remember_secret(request, p, account, password)
 
-        # Verify permissions on this account
-        lock = account_lock_reason(request.user, account, action="manage")
-        if lock:
-            return fail(f"Non puoi modificare l'account «{account.username}». {lock}")
+        # Verify permissions on this account before anything is written. A
+        # login the president may not edit (self-registered, an admin's, one
+        # with teams elsewhere) still gets its league role, never new
+        # credentials.
+        lock = "" if linking else account_lock_reason(request.user, account, action="manage")
+        req_username = request.POST.get("username")
+        req_email = request.POST.get("email")
+        req_first_name = request.POST.get("first_name")
+        req_active = request.POST.get("is_active")
+        new_password = (request.POST.get("password") or "").strip()
+        gen_pwd = request.POST.get("generate_password") == "1"
+        if linking:
+            req_username = req_email = req_first_name = req_active = None
+            new_password, gen_pwd = "", False
+        wants_change = bool(
+            (req_username and req_username.strip() != account.username)
+            or (req_email is not None and req_email.strip() != account.email)
+            or (req_first_name is not None and req_first_name.strip()[:150] != account.first_name)
+            or (req_active is not None and (req_active in ("1", "on", "true")) != account.is_active)
+            or new_password or gen_pwd)
+        if lock and wants_change:
+            return fail(f"Non puoi modificare l'account «{account.username}». {lock} "
+                        "Puoi collegarlo, scollegarlo o cambiargli il ruolo nella lega; "
+                        "per la password l'allenatore usa «Password dimenticata?» al login.")
 
         # Update username
-        req_username = request.POST.get("username")
         if req_username and req_username.strip() != account.username:
             new_u, err = _clean_username(req_username, exclude=account)
             if err:
@@ -811,7 +846,6 @@ def admin_participant_account(request, participant_id):
             account.username = new_u
 
         # Update email
-        req_email = request.POST.get("email")
         if req_email is not None and req_email.strip() != account.email:
             new_e, err = _clean_email(req_email, exclude=account)
             if err:
@@ -819,12 +853,10 @@ def admin_participant_account(request, participant_id):
             account.email = new_e
 
         # Update first_name
-        req_first_name = request.POST.get("first_name")
         if req_first_name is not None:
             account.first_name = req_first_name.strip()[:150]
 
         # Update is_active
-        req_active = request.POST.get("is_active")
         if req_active is not None:
             new_active = (req_active in ("1", "on", "true", True))
             if account.pk == request.user.pk and not new_active:
@@ -833,8 +865,6 @@ def admin_participant_account(request, participant_id):
                 account.is_active = new_active
 
         # Reset password if requested or generated
-        new_password = (request.POST.get("password") or "").strip()
-        gen_pwd = request.POST.get("generate_password") == "1"
         pwd_reset_done = False
         if gen_pwd and not new_password:
             new_password = generate_password()
@@ -848,7 +878,11 @@ def admin_participant_account(request, participant_id):
             if gen_pwd:
                 _remember_secret(request, p, account, new_password)
 
-        account.save()
+        if linking:
+            p.user = account
+            p.save(update_fields=["user"])
+        elif wants_change:
+            account.save()
 
         # Update League Role
         league_role = request.POST.get("league_role")

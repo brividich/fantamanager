@@ -373,12 +373,21 @@ def linkable_users(user):
     already play in one of their leagues or that they created themselves:
     anyone can sign up, so the full list of usernames and emails is not theirs
     to browse. A newcomer links their own account with the team code.
+    Never a platform admin (superuser, staff) nor the president or co-admin of
+    a league the organiser does not run: those logins are not theirs to hold.
     """
-    qs = get_user_model().objects.all()
+    User = get_user_model()
+    qs = User.objects.all()
     if not user.is_superuser:
+        mine = League.objects.filter(Q(owner=user) | Q(admins=user)).values("pk")
+        foreign = League.objects.exclude(pk__in=mine)
+        foreign_admins = User.objects.filter(
+            Q(leagues__in=foreign) | Q(managed_leagues__in=foreign)).values("pk")
         qs = qs.filter(Q(pk=user.pk) | Q(teams__league__owner=user)
                        | Q(teams__league__admins=user)
                        | Q(managed_account__created_by=user)).distinct()
+        qs = qs.exclude(~Q(pk=user.pk) & (Q(is_superuser=True) | Q(is_staff=True)
+                                          | Q(pk__in=foreign_admins)))
     return qs.order_by("username")
 
 
