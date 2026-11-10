@@ -1042,6 +1042,9 @@ class MarketAfterResolutionTests(TestCase):
     def test_admin_preview_page(self):
         self.client.force_login(self.root)
         place_market_bid(self.session.id, self.a.id, self.x.id, 25)
+        # L'anteprima si apre a consegna chiusa (SealedUntilClosedTests).
+        self.session.status = MarketSession.Status.CLOSED
+        self.session.save()
         url = reverse("admin_market_session", args=[self.session.id]) + "?preview=1"
         resp = self.client.get(url)
         self.assertContains(resp, "Anteprima:")
@@ -1393,6 +1396,55 @@ class RegolamentoBusteTests(TestCase):
         self.assertContains(resp, "pari ruolo")
         self.assertContains(resp, 'data-same-role="1"')
         self.assertNotContains(resp, "Priorità di scelta")
+
+
+class SealedUntilClosedTests(TestCase):
+    """L'admin ha una sua squadra: finché la consegna è aperta non vede le
+    offerte degli altri, e una volta viste la consegna non si riapre."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user("presidente", password="pw")
+        self.league = League.objects.create(name="Lega Segreta", owner=self.owner, slots_c=8)
+        self.mine = Participant.objects.create(display_name="Squadra Admin", league=self.league,
+                                               credits=Decimal("200"), user=self.owner)
+        self.rival = Participant.objects.create(display_name="Rivali FC", league=self.league, credits=Decimal("200"))
+        self.boban = Player.objects.create(name="Boban", role="C", league=self.league)
+        self.session = MarketSession.objects.create(league=self.league, title="Buste", status=MarketSession.Status.OPEN)
+        self.assertTrue(place_market_bid(self.session.id, self.rival.id, self.boban.id, 87)["ok"])
+        self.client.force_login(self.owner)
+        self.url = reverse("admin_market_session", args=[self.session.id])
+
+    def test_open_session_hides_amounts_from_the_admin(self):
+        for page in (self.url, reverse("app_regia_market_session", args=[self.session.id])):
+            for q in ("?reveal=1", "?preview=1"):
+                resp = self.client.get(page + q)
+                self.assertEqual(resp.status_code, 200)
+                self.assertNotContains(resp, "87 FM")
+                self.assertNotContains(resp, "Tutte le buste ricevute")
+                self.assertNotContains(resp, 'href="?preview=1"')
+                self.assertNotContains(resp, "Esito previsto")
+            self.assertContains(resp, "restano segrete anche per te")
+            self.assertContains(resp, "Rivali FC")        # chi ha consegnato sì
+
+    def test_closed_session_shows_them_and_cannot_reopen_after(self):
+        self.client.post(reverse("admin_market_status", args=[self.session.id]), {"status": "closed"})
+        resp = self.client.get(self.url)
+        self.assertContains(resp, "Riapri finestra")      # non ancora viste: si riapre
+        resp = self.client.get(self.url + "?reveal=1")
+        self.assertContains(resp, "87 FM")
+        self.assertNotContains(resp, "Riapri finestra")
+        resp = self.client.post(reverse("admin_market_status", args=[self.session.id]), {"status": "open"}, follow=True)
+        self.assertContains(resp, "già state viste")
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.status, MarketSession.Status.CLOSED)
+
+    def test_undone_count_cannot_be_reopened_either(self):
+        self.client.post(reverse("admin_market_status", args=[self.session.id]), {"status": "closed"})
+        self.client.post(reverse("admin_market_resolve", args=[self.session.id]))
+        self.client.post(reverse("admin_market_undo", args=[self.session.id]))
+        self.client.post(reverse("admin_market_status", args=[self.session.id]), {"status": "open"})
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.status, MarketSession.Status.CLOSED)
 
 
 class MarketManageParityTests(TestCase):
