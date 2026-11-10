@@ -1,0 +1,66 @@
+{% load fm_pages %}{% comment %}
+«Prepara la lega»: la checklist della lega appena creata, finché non è pronta.
+UNICA per la dashboard della console, la Regia dell'app e «Lega pronta»
+(setup_done.html). Dati da services/onboarding.py:setup_card → ``setup_card``
+({league, steps, done, total}); None = tutto fatto o nascosta, niente card.
+
+Passi numerati: fatti con ✓, quello di adesso evidenziato con il suo tasto,
+i successivi spiegati. Ogni form manda next = questa pagina (console o app).
+{% endcomment %}
+{% if setup_card %}{% with lg=setup_card.league %}
+<section class="fm-card lsc noprint" id="prepara-lega" aria-labelledby="lsc-h">
+    <style>
+        .lsc { margin-bottom: 14px; }
+        .lsc-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .lsc-head h2 { margin: 0; font-size: 17px; flex: 1; min-width: 0; }
+        .lsc-head .prog { font-size: 12px; font-weight: 800; color: var(--fm-text-secondary); }
+        .lsc .fm-steps .acts { display: flex; gap: 6px; flex-wrap: nowrap; }
+        .lsc .fm-steps form { margin: 0; }
+    </style>
+    <div class="lsc-head">
+        <h2 id="lsc-h">Prepara la lega · {{ lg.name }}</h2>
+        <span class="prog">{{ setup_card.done }} di {{ setup_card.total }} fatti</span>
+        <form method="post" action="{% url 'admin_setup_card' lg.id %}">{% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="action" value="hide">
+            <button type="submit" class="fm-btn fm-btn-ghost fm-btn-sm" title="Nascondi questa card">Nascondi</button>
+        </form>
+    </div>
+    <ol class="fm-steps">
+        {% for s in setup_card.steps %}
+        <li class="{% if s.done %}done{% elif s.now %}now{% elif s.optional %}later{% endif %}">
+            <span class="n">{% if s.done %}✓{% else %}{{ forloop.counter }}{% endif %}</span>
+            <div>
+                <b>{{ s.title }}{% if s.optional %} <small>(facoltativo)</small>{% endif %}</b>
+                <span>{{ s.text }}</span>
+                {% if not s.done %}
+                <div class="acts fm-onerow">
+                {% if s.key == "teams" %}
+                    <a class="fm-btn fm-btn-primary fm-btn-sm" href="{% purl 'admin_participants' %}?league={{ lg.id }}"><svg class="ic"><use href="#i-plus"/></svg> Aggiungi squadre</a>
+                {% elif s.key == "invites" %}
+                    {% if s.pending and mail_ready %}
+                    <form method="post" action="{% url 'admin_invite_missing' lg.id %}">{% csrf_token %}
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                        <button type="submit" class="fm-btn fm-btn-primary fm-btn-sm"><svg class="ic"><use href="#i-mail"/></svg> Reinvia a chi manca ({{ s.pending }})</button>
+                    </form>
+                    {% endif %}
+                    <a class="fm-btn {% if mail_ready %}fm-btn-secondary{% else %}fm-btn-primary{% endif %} fm-btn-sm" href="{% purl 'admin_participants' %}?league={{ lg.id }}"><svg class="ic"><use href="#i-share"/></svg> Condividi gli inviti</a>
+                {% elif s.key == "rules" %}
+                    <a class="fm-btn fm-btn-secondary fm-btn-sm" href="{% purl 'admin_config' %}?league={{ lg.id }}#lg-{{ lg.id }}"><svg class="ic"><use href="#i-gear"/></svg> Apri le regole</a>
+                    <form method="post" action="{% url 'admin_setup_card' lg.id %}">{% csrf_token %}
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="action" value="rules_checked">
+                        <button type="submit" class="fm-btn {% if s.now %}fm-btn-primary{% else %}fm-btn-ghost{% endif %} fm-btn-sm">✓ Le ho controllate</button>
+                    </form>
+                {% elif s.key == "auction" %}
+                    <a class="fm-btn {% if s.now %}fm-btn-primary{% else %}fm-btn-secondary{% endif %} fm-btn-sm" href="{% purl 'admin_auction_wizard' %}?league={{ lg.id }}"><svg class="ic"><use href="#i-gavel"/></svg> Crea l'asta</a>
+                    <a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% purl 'admin_market_dashboard' %}?league={{ lg.id }}"><svg class="ic"><use href="#i-swap"/></svg> Mercato</a>
+                {% elif s.key == "coadmin" %}
+                    <a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% purl 'admin_config' %}?league={{ lg.id }}#coadmin-{{ lg.id }}"><svg class="ic"><use href="#i-users"/></svg> Invita un co-admin</a>
+                {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </li>
+        {% endfor %}
+    </ol>
+</section>
+{% endwith %}{% endif %}

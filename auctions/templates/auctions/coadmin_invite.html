@@ -1,0 +1,76 @@
+{% extends "auctions/base.html" %}
+{% comment %}
+L'invito a co-admin di una lega (/invito-admin/<token>/, views/invite.py).
+Stesso flusso dell'invito di una squadra: account nuovo o esistente, poi
+l'account entra in league.admins.
+{% endcomment %}
+{% block title %}{% if invalid %}Invito non valido{% else %}Co-admin di {{ league.name }}{% endif %} — FantaManager{% endblock %}
+{% block content %}
+{% include "auctions/_auth_style.html" %}
+<div class="auth-card">
+{% if invalid %}
+    <div class="auth-brand">
+        <div class="auth-title">{% if used %}Invito già usato{% else %}Invito non valido{% endif %}</div>
+        <div class="auth-subtitle">{% if used %}Questo link è stato accettato o ritirato dal presidente.{% else %}Il link è incompleto o non esiste.{% endif %}</div>
+    </div>
+    <details class="howto" open>
+        <summary><svg class="ic"><use href="#i-shield"/></svg> Cosa fare adesso <span class="chev">▼</span></summary>
+        <div class="howto-body"><ol>
+            <li>Se hai già accettato, entra con il tuo account: trovi la lega nella Regia.</li>
+            <li>Altrimenti chiedi al presidente della lega un invito nuovo (Impostazioni della lega → Co-admin).</li>
+        </ol></div>
+    </details>
+    <p class="auth-legal"><a href="{% url 'login' %}">Accedi</a></p>
+{% else %}
+    <div class="auth-brand">
+        <div class="auth-logo-badge"><svg class="ic" style="width:14px;height:14px"><use href="#i-shield"/></svg> Co-admin</div>
+        <div class="auth-subtitle" style="font-size:15px"><b>{{ inviter }}</b> ti ha invitato a gestire <b>{{ league.name }}</b> come co-admin.</div>
+    </div>
+    <details class="howto">
+        <summary><svg class="ic"><use href="#i-shield"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+        <div class="howto-body"><ol>
+            <li>{% if account %}Premi <b>Accetta</b>: la lega compare nella tua Regia.{% else %}Crea l'account (o entra con quello che hai): diventi co-admin subito dopo.{% endif %}</li>
+            <li>Da co-admin gestisci squadre, aste, mercato e giornate; il presidente resta lui.</li>
+        </ol></div>
+    </details>
+    {% if error %}<div class="auth-error" role="alert">{{ error }}</div>{% endif %}
+    {% if account %}
+        {% if already %}<p style="font-size:13.5px">Gestisci già questa lega.</p>
+        <a class="btn-submit" style="display:block;text-align:center;text-decoration:none" href="{% url 'dashboard_league' league.id %}">Apri la lega →</a>
+        {% else %}
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="accept">
+            <p style="font-size:13.5px">Sei dentro come <b>{{ account.username }}</b>.</p>
+            <button type="submit" class="btn-submit">Accetta e diventa co-admin →</button>
+        </form>
+        {% endif %}
+        <p class="auth-legal"><a href="{% url 'logout' %}">Non sei tu? Esci</a></p>
+    {% else %}
+    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="signup">
+        <div class="form-group"><label for="ca-user">Nome utente</label>
+            <input id="ca-user" name="username" value="{{ suggested_username }}" required autocomplete="username" autocapitalize="none"></div>
+        <div class="form-group"><label for="ca-email">Email</label>
+            <input id="ca-email" type="email" name="email" value="{{ suggested_email }}" autocomplete="email"{% if legal_required %} required{% endif %}></div>
+        <div class="form-group"><label for="ca-pw">Password</label>
+            <input id="ca-pw" type="password" name="password" required autocomplete="new-password" placeholder="Almeno 8 caratteri"></div>
+        {% if legal_required %}
+        <label class="auth-check"><input type="checkbox" name="accept_terms" value="1" required>
+            <span>Ho letto l'<a href="{% url 'privacy' %}" target="_blank" rel="noopener">informativa privacy</a> e accetto i <a href="{% url 'terms' %}" target="_blank" rel="noopener">termini d'uso</a></span></label>
+        <label class="auth-check"><input type="checkbox" name="accept_age" value="1" required>
+            <span>Dichiaro di avere almeno {{ min_age }} anni</span></label>
+        {% endif %}
+        <button type="submit" class="btn-submit" style="margin-top:16px">Crea l'account e accetta →</button>
+    </form>
+    <details style="margin-top:16px">
+        <summary style="cursor:pointer;font-weight:700;font-size:13px">Ho già un account</summary>
+        <form method="post" style="margin-top:10px">{% csrf_token %}<input type="hidden" name="action" value="login">
+            <div class="form-group"><label for="ca-id">Nome utente o email</label>
+                <input id="ca-id" name="identifier" required autocomplete="username" autocapitalize="none"></div>
+            <div class="form-group"><label for="ca-lpw">Password</label>
+                <input id="ca-lpw" type="password" name="password" required autocomplete="current-password"></div>
+            <button type="submit" class="btn-submit" style="margin-top:12px">Entra e accetta →</button>
+        </form>
+    </details>
+    {% endif %}
+{% endif %}
+</div>
+{% endblock %}

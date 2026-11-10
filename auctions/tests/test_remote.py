@@ -150,7 +150,8 @@ class RemoteAccessTests(TestCase):
         self._open()
         r = self.client.get("/admin-auction/participants/")
         body = r.content.decode()
-        self.assertIn(f"https://abc-def.trycloudflare.com/join/?t={self.p.public_token}", body)
+        # Senza un'asta il link della squadra è il suo invito (/invito/<token>/).
+        self.assertIn(f"https://abc-def.trycloudflare.com/invito/{self.p.public_token}/", body)
 
     def test_participants_page_is_gated_through_the_tunnel_too(self):
         self._open()
@@ -426,7 +427,7 @@ class LocalAddressTests(TestCase):
         # Tunnel on: the same seat, reachable over the wifi, token included.
         request = self._tunnelled_request()
         url = participant_lan_join_url(request, self.p)
-        self.assertTrue(url.startswith(f"http://{ip}:8123/join/"))
+        self.assertTrue(url.startswith(f"http://{ip}:8123/invito/"))
         self.assertIn(self.p.public_token, url)
 
     def test_team_page_shows_both_doors_while_the_tunnel_is_open(self):

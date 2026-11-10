@@ -16,7 +16,7 @@
                 controllo, conduzione aste live, mercato e rose.</p>
         </div>
         <div class="fm-sport-header-actions fm-onerow">
-            <a class="fm-btn fm-btn-primary fm-glow-btn fm-btn-sm" href="{% url 'admin_create_league' %}">
+            <a class="fm-btn fm-btn-primary fm-glow-btn fm-btn-sm" href="{% url 'admin_setup' %}">
                 <svg class="ic">
                     <use href="#i-plus" />
                 </svg> Nuova Lega
@@ -104,7 +104,7 @@
                 </svg></div>
             <div class="empty-title">Nessuna Lega Creata</div>
             <div class="empty-desc">Crea la tua prima lega per configurare squadre, budget e listone.</div>
-            <a class="fm-btn fm-btn-primary" href="{% url 'admin_create_league' %}">
+            <a class="fm-btn fm-btn-primary" href="{% url 'admin_setup' %}">
                 <svg class="ic">
                     <use href="#i-plus" />
                 </svg> Registra Nuova Lega
@@ -112,7 +112,7 @@
         </div>
         {% endfor %}
 
-        <a class="fm-hub-card is-create-slot" href="{% url 'admin_create_league' %}">
+        <a class="fm-hub-card is-create-slot" href="{% url 'admin_setup' %}">
             <div class="create-slot-inner">
                 <div class="create-slot-icon"><svg class="ic">
                         <use href="#i-plus" />
@@ -167,6 +167,9 @@
             </button>
         </div>
     </div>
+
+    {# «Prepara la lega»: la stessa card della Regia dell'app e di «Lega pronta». #}
+    {% include "auctions/_league_setup_card.html" %}
 
     <!-- 2. HYBRID FANTACALCIO TABS BAR -->
     <div class="fm-league-tabs-bar">
@@ -1063,14 +1066,10 @@
                     Gestione anagrafica allenatori, cambio email, reset password, ruoli di lega, PIN personali e QR code.
                 </div>
             </div>
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                <button type="button" class="fm-btn fm-btn-secondary fm-btn-sm" onclick="copyLeaguePublicInvite()">
-                    📋 Copia Link Invito
-                </button>
-                <a class="fm-btn fm-btn-ghost fm-btn-sm" style="color:#22c55e"
-                    href="https://api.whatsapp.com/send?text=Unisciti%20alla%20mia%20lega%20{{ current_league.name|urlencode }}%20su%20FantaManager!%20Accedi%20dal%20portale:%20{{ request.build_absolute_uri|urlencode }}"
-                    target="_blank">
-                    💬 Condividi su WhatsApp
+            <div class="fm-onerow" style="gap:8px">
+                {# Gli inviti si mandano squadra per squadra (link personale): pagina Squadre, uguale nell'app. #}
+                <a class="fm-btn fm-btn-secondary fm-btn-sm" href="{% url 'admin_participants' %}?league={{ current_league.id }}#inviti">
+                    <svg class="ic"><use href="#i-share" /></svg> Inviti per squadra
                 </a>
                 <button type="button" class="fm-btn fm-btn-primary fm-btn-sm" onclick="openAddTeamModal()">
                     <svg class="ic">

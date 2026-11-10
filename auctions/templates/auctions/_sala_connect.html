@@ -47,7 +47,8 @@ stili e il tasto «Copia» delle schede (_sala_card.html).
 
 {# Scaricare una lega fa partire una richiesta verso l'indirizzo scritto: solo sull'app del PC. #}
 {% if desktop_app %}
-<details class="fm-card sala-connect">
+{# id: l'onboarding del PC («Scarico una lega dal sito») porta qui e lo apre. #}
+<details class="fm-card sala-connect" id="sala-connect">
     <summary class="lg-sala" style="border:0;padding:0;margin:0"><svg class="ic"><use href="#i-download"/></svg> Asta in sala: scarica una lega dal sito</summary>
     <ol class="sala-steps" style="margin-top:12px">
         <li class="done"><span class="n">1</span><div><b>Sul sito, genera la chiave</b>
@@ -83,3 +84,13 @@ document.addEventListener("click", function (e) {
     ta.remove();
 });
 </script>
+{% if desktop_app %}
+<script>
+(function () {
+    if (location.hash === "#sala-connect") {
+        var d = document.getElementById("sala-connect");
+        if (d) { d.open = true; d.scrollIntoView({ block: "start" }); }
+    }
+})();
+</script>
+{% endif %}

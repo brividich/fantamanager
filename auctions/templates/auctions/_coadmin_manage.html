@@ -1,0 +1,60 @@
+{% comment %}
+I co-admin di una lega, nella sua scheda della pagina Impostazioni (console e
+app: stessa pagina). Chi aiuta il presidente a gestire la lega: lo inviti per
+email (o gli passi il link), lui accetta con il suo account. Il presidente non
+si toglie. Dati: views/admin_onboarding.py:coadmin_context → ``ca``; ``lg``.
+{% endcomment %}
+<details class="lg-sala" id="coadmin-{{ lg.id }}">
+    <summary><svg class="ic"><use href="#i-users"/></svg> Co-admin
+        {% if ca.coadmins %}<span class="tag ok">{{ ca.coadmins|length }}</span>{% endif %}
+        {% if ca.coadmin_invites %}<span class="tag live">{{ ca.coadmin_invites|length }} invit{{ ca.coadmin_invites|length|pluralize:"o,i" }}</span>{% endif %}</summary>
+    <ol class="fm-steps">
+        <li class="{% if ca.coadmins %}done{% else %}now{% endif %}"><span class="n">{% if ca.coadmins %}✓{% else %}1{% endif %}</span><div>
+            <b>Invita chi ti aiuta</b>
+            <span>Scrivi la sua email e premi <b>Invita</b>: riceve un link, entra con il suo account (o lo crea) e la lega compare nella sua Regia. Senza email ti do il link da passargli.</span>
+            <form method="post" action="{% url 'admin_coadmin' lg.id %}" style="display:flex;gap:6px;align-items:center;width:100%;max-width:420px">
+                {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}#coadmin-{{ lg.id }}">
+                <input type="hidden" name="action" value="invite">
+                <input type="email" name="email" placeholder="email (facoltativa)" aria-label="Email del co-admin" style="flex:1;min-width:0;height:34px">
+                <button type="submit" class="fm-btn fm-btn-primary fm-btn-sm" style="flex:0 0 auto"><svg class="ic"><use href="#i-mail"/></svg> Invita</button>
+            </form>
+        </div></li>
+        {% if ca.coadmin_invites %}
+        <li class="now"><span class="n">2</span><div>
+            <b>Inviti in attesa</b>
+            {% for inv in ca.coadmin_invites %}
+            <span>{{ inv.email|default:"Link senza email" }} · {{ inv.created_at|date:"d/m/Y" }} · <code style="user-select:all;overflow-wrap:anywhere">{{ ca.coadmin_base }}{% url 'coadmin_invite' inv.token %}</code></span>
+            <form method="post" action="{% url 'admin_coadmin' lg.id %}">{% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}#coadmin-{{ lg.id }}">
+                <input type="hidden" name="action" value="revoke"><input type="hidden" name="invite_id" value="{{ inv.id }}">
+                <button type="submit" class="fm-btn fm-btn-ghost fm-btn-sm">Ritira l'invito</button>
+            </form>
+            {% endfor %}
+        </div></li>
+        {% endif %}
+        <li class="{% if ca.coadmins %}done{% else %}later{% endif %}"><span class="n">{% if ca.coadmins %}✓{% else %}·{% endif %}</span><div>
+            <b>Co-admin della lega</b>
+            {% if ca.coadmins %}
+            {% for u in ca.coadmins %}
+            <span>{{ u.username }}{% if u.first_name %} ({{ u.first_name }}){% endif %}</span>
+            <form method="post" action="{% url 'admin_coadmin' lg.id %}"
+                  onsubmit="return confirm('Togliere {{ u.username|escapejs }} dai co-admin di {{ lg.name|escapejs }}?');">{% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}#coadmin-{{ lg.id }}">
+                <input type="hidden" name="action" value="remove"><input type="hidden" name="user_id" value="{{ u.id }}">
+                <button type="submit" class="fm-btn fm-btn-ghost fm-btn-sm">Togli</button>
+            </form>
+            {% endfor %}
+            {% else %}<span>Ancora nessuno. Il presidente{% if lg.owner %} ({{ lg.owner.username }}){% endif %} resta sempre.</span>{% endif %}
+        </div></li>
+    </ol>
+</details>
+<script>
+(function () {
+    if (window.__fmCoadminHash) return;
+    window.__fmCoadminHash = true;
+    document.addEventListener("DOMContentLoaded", function () {
+        var d = location.hash && location.hash.indexOf("#coadmin-") === 0 && document.getElementById(location.hash.slice(1));
+        if (d) { d.open = true; d.scrollIntoView({ block: "center" }); }
+    });
+})();
+</script>

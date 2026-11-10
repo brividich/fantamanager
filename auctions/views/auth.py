@@ -1,17 +1,19 @@
 """Authentication & Onboarding views for the SaaS platform."""
 import logging
+import re
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
+from django.urls import reverse
 
 from .. import legal, throttle
 
 from ..models import AccountPrivacy, Auction, League, Participant
 from ..models.participant import AMBIGUOUS_CODE_MESSAGE, find_team_by_code
-from ..services import privacy
+from ..services import onboarding, privacy
 from .common import SESSION_LEAGUE_KEY, _session_participant, manageable_leagues, safe_next
 
 logger = logging.getLogger(__name__)
@@ -78,6 +80,11 @@ def portal_view(request):
 
         # Check if user has teams
         teams = Participant.objects.filter(user=request.user, is_active=True)
+        if teams.count() > 1:
+            # Più squadre (in leghe diverse): sceglie l'allenatore, mai l'ordine del database.
+            from urllib.parse import urlencode
+            nxt = reverse("app_home") if is_mobile else reverse("home_portal")
+            return redirect(f"{reverse('app_login')}?{urlencode({'switch': 1, 'next': nxt})}")
         if teams.exists():
             team = teams.first()
             request.session["participant_id"] = team.id
@@ -89,6 +96,11 @@ def portal_view(request):
             return redirect("home_portal")
 
         return redirect("onboarding")
+
+    # Primo avvio dell'app del PC: nessun account ancora. Prima schermata:
+    # «Crea l'amministratore di questo PC», poi «Cosa fai con questo PC?».
+    if settings.DESKTOP_APP and not User.objects.exists():
+        return redirect("register")
 
     # Unauthenticated visitor:
     if is_mobile:
@@ -246,8 +258,8 @@ def register_view(request):
                         welcome += f" Ti abbiamo scritto a {email}: apri il link per confermare l'email."
                 messages.success(request, welcome)
 
-                if is_first:
-                    return redirect("supervisor_dashboard")
+                # Anche il primo account del PC (superadmin) parte da «Cosa
+                # vuoi fare?»: nuova lega, lega scaricata dal sito o backup.
                 return redirect("onboarding")
             except Exception as e:
                 logger.exception("Errore durante la registrazione: %s", e)
@@ -260,6 +272,7 @@ def register_view(request):
             "error": error,
             "active_tab": "register",
             "form": form,
+            "first_run": settings.DESKTOP_APP and not User.objects.exists(),
             "live_auctions": _spectator_auctions(Auction.Status.LIVE, Auction.Status.PAUSED),
             **_legal_form_ctx(),
         },
@@ -288,73 +301,60 @@ def logout_view(request):
     return redirect("home")
 
 
+_TOKEN_IN_LINK = re.compile(r"(?:/invito/|[?&]t=)([A-Za-z0-9_\-]{16,})")
+
+
 @login_required(login_url="login")
 def onboarding_view(request):
-    """Onboarding guide for new users: Create a League OR Join an existing League."""
+    """«Cosa vuoi fare?»: la prima schermata dopo la registrazione.
+
+    1. Creo una lega → il wizard (nell'app da telefono).
+    2. Mi hanno invitato → incolla il link o scrivi il codice: il link apre la
+       pagina d'invito, il codice collega la squadra (``onboarding.link_team``).
+    3. Solo nell'app del PC: scarico una lega dal sito per l'asta in sala.
+    """
     error = None
-    success = None
+    is_mobile = getattr(request, "is_mobile", False)
 
     if request.method == "POST":
         action = request.POST.get("action")
-
         if action == "create_league":
-            name = (request.POST.get("name") or "").strip()
-            game_mode = request.POST.get("game_mode", League.GameMode.CLASSIC)
-            try:
-                budget = int(request.POST.get("budget", 500))
-            except (ValueError, TypeError):
-                budget = 500
+            # Il vecchio mini-form: oggi la lega nasce solo dal wizard.
+            return redirect("app_setup" if is_mobile else "admin_setup")
 
-            if not name:
-                error = "Inserisci un nome valido per la tua lega."
-            else:
-                league = League.objects.create(
-                    name=name,
-                    owner=request.user,
-                    game_mode=game_mode,
-                    budget=budget,
-                )
-                request.session[SESSION_LEAGUE_KEY] = league.id
-                logger.info("Lega creata dall'utente %s: %s (id=%s)", request.user.username, league.name, league.id)
-                messages.success(request, f"Lega '{league.name}' creata con successo! Benvenuto nella regia.")
-                return redirect("dashboard_league", league_id=league.id)
-
-        elif action == "join_team":
-            code = (request.POST.get("access_code") or "").strip()
-            if not code:
-                error = "Inserisci il codice squadra ricevuto dal presidente di lega."
+        if action == "join_team":
+            raw = (request.POST.get("access_code") or "").strip()
+            m = _TOKEN_IN_LINK.search(raw)
+            if m:
+                return redirect("invite", token=m.group(1))
+            if not raw:
+                error = "Incolla il link che ti ha mandato il presidente, o scrivi il codice della squadra."
             elif throttle.blocked(request, "code"):
                 error = throttle.MESSAGE
             else:
-                participant, ambiguous = find_team_by_code(code)
+                participant, ambiguous = find_team_by_code(raw)
                 if ambiguous:
                     error = AMBIGUOUS_CODE_MESSAGE
                 elif not participant:
                     throttle.failure(request, "code")
-                    error = "Codice squadra non valido o non riconosciuto."
-                elif participant.user_id is not None and participant.user_id != request.user.id:
-                    # Same rule as the app login: a code does not take a team
-                    # away from the account it is already linked to.
-                    error = "Questa squadra è già associata a un altro account utente."
+                    error = "Codice squadra non valido o non riconosciuto: controllalo, o usa il link dell'invito."
                 else:
-                    # Link participant to user
-                    participant.user = request.user
-                    participant.save(update_fields=["user"])
-
-                    request.session["participant_id"] = participant.id
-                    request.session["display_name"] = participant.display_name
-                    if participant.league_id:
-                        request.session[SESSION_LEAGUE_KEY] = participant.league_id
-
-                    logger.info("Squadra '%s' associata all'utente %s", participant.display_name, request.user.username)
-                    messages.success(request, f"Sei ora al comando di {participant.display_name}!")
-                    return redirect("app_home")
+                    outcome = onboarding.link_team(request.user, participant)
+                    if outcome == "taken":
+                        error = onboarding.TAKEN_MESSAGE
+                    else:
+                        onboarding.enter_team(request, participant)
+                        logger.info("Squadra '%s' aperta da %s (%s)", participant.display_name,
+                                    request.user.username, outcome)
+                        messages.success(request, f"Sei ora al comando di {participant.display_name}!")
+                        return redirect("app_home")
 
     return render(
         request,
         "auctions/onboarding.html",
         {
             "error": error,
-            "success": success,
+            "setup_url": reverse("app_setup") if is_mobile else reverse("admin_setup"),
+            "desktop_app": settings.DESKTOP_APP,
         },
     )

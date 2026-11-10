@@ -83,10 +83,17 @@ class AppLoginNextTests(TestCase):
                 self.assertRedirects(r, "/app/", fetch_redirect_response=False)
 
     def test_offsite_next_after_a_token_link_falls_back_to_the_app(self):
+        # Il link con il token di una squadra senza account porta alla sua
+        # pagina d'invito: anche lì un «next» fuori dal sito vale /app/.
+        invite = f"/invito/{self.team.public_token}/"
         for target in OFFSITE:
             with self.subTest(target=target):
                 query = urlencode({"t": self.team.public_token, "next": target})
                 r = self.client_class().get("/app/login/?" + query)
+                self.assertRedirects(r, invite + "?" + urlencode({"next": "/app/"}),
+                                     fetch_redirect_response=False)
+                c = self.client_class()
+                r = c.post(invite, {"action": "guest", "next": target})
                 self.assertRedirects(r, "/app/", fetch_redirect_response=False)
 
     def test_same_site_next_is_kept(self):

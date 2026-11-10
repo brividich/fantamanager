@@ -100,6 +100,8 @@ button) and everything else opens as a full-screen menu: ``.fm-chrome`` is
     <a class="fm-btn fm-nav-cta" href="{% url 'admin_auction_wizard' %}">
         <svg class="ic"><use href="#i-plus"/></svg> Nuova asta</a>
 
+    <a class="fm-nav-link {% if console_active == 'setup' %}is-active{% endif %}" href="{% url 'admin_setup' %}" title="Crea una lega: squadre, regole e inviti in quattro passi">
+        <svg class="ic"><use href="#i-trophy"/></svg> Nuova lega</a>
     <a class="fm-nav-link" href="{% url 'home' %}" title="Torna al Portale Iniziale (Home / Scelta & Login)">
         <svg class="ic"><use href="#i-home"/></svg> Home</a>
     {% if request.user.is_superuser %}
@@ -148,7 +150,6 @@ button) and everything else opens as a full-screen menu: ``.fm-chrome`` is
             <svg class="ic" style="width:13px;height:13px"><use href="#i-chev-down"/></svg></summary>
         <div class="fm-nav-more-body">
             <div class="fm-nav-spill" hidden></div>
-            <a class="fm-nav-link" href="{% url 'admin_setup' %}"><svg class="ic"><use href="#i-trophy"/></svg> Nuova lega</a>
             <form method="post" action="{% url 'admin_resume_latest' %}" style="display:contents">
                 {% csrf_token %}
                 <button type="submit" class="fm-nav-link"><svg class="ic"><use href="#i-play"/></svg> Riprendi sessione</button>

@@ -27,8 +27,8 @@ dentro _giornate_manage.html: uguale in console e app. Dati da _rules_form
     .sr-algo .sr-plat label { font-size:11px; font-weight:600; color:var(--muted); display:flex; gap:6px; align-items:center; }
     .sr-algo .sr-plat input { width:14px; height:14px; }
 </style>
-<details id="rules-section" class="upload-card" style="margin-top:16px;">
-    <summary style="cursor:pointer;font-size:18px;font-weight:800;">⚙️ Regole di punteggio della lega {% if rules_custom %}<span class="badge blue" style="vertical-align:middle">personalizzate</span>{% else %}<span class="badge" style="vertical-align:middle">classiche</span>{% endif %}</summary>
+<div id="rules-section" class="upload-card">
+    <h3 style="margin:0;font-size:16px;font-weight:800;color:var(--ink);">Regole di punteggio della lega {% if rules_custom %}<span class="badge blue" style="vertical-align:middle">personalizzate</span>{% else %}<span class="badge" style="vertical-align:middle">classiche</span>{% endif %}</h3>
     <div class="muted" style="font-size:13px;margin-top:6px;">
         Valgono per tutta la stagione di {{ current_league.name }}: soglie dei gol, bonus e malus di ogni evento.
         Togli la spunta per non contare una voce. I numeri con la virgola vanno bene (es. -0,5).
@@ -109,7 +109,7 @@ dentro _giornate_manage.html: uguale in console e app. Dati da _rules_form
             </div>
         </div>
     </form>
-</details>
+</div>
 <script>
 (function () {
     // «Voto base»: i ritocchi si vedono solo con il voto algoritmico; cambiare

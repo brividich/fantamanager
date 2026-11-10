@@ -1,0 +1,143 @@
+{% extends "auctions/base.html" %}
+{% comment %}
+L'invito di una squadra (/invito/<token>/, views/invite.py): chi ti ha
+invitato, in quale lega, con quale squadra, e le tre strade per entrare.
+Un clic sul link più un modulo: la squadra resta collegata all'account.
+{% endcomment %}
+{% block title %}{% if invalid %}Invito non valido{% else %}Invito in {{ league.name }}{% endif %} — FantaManager{% endblock %}
+{% block content %}
+{% include "auctions/_auth_style.html" %}
+<style>
+    .inv-hero { text-align: center; margin-bottom: 18px; }
+    .inv-hero .who { font-size: 15px; line-height: 1.5; color: var(--fm-text-secondary); }
+    .inv-hero .who b { color: var(--fm-text); }
+    .inv-team { display: inline-block; margin-top: 10px; padding: 6px 14px; border-radius: 999px; font-weight: 800;
+                background: rgba(8,124,240,.14); border: 1px solid var(--fm-border-active); }
+    .inv-live { margin: 0 0 16px; padding: 12px 14px; border-radius: 10px; border: 1px solid rgba(22,217,104,.45);
+                background: rgba(22,217,104,.10); font-size: 13.5px; }
+    .inv-live form { margin-top: 8px; }
+    .inv-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 4px 0 14px; }
+    .inv-tabs button { min-height: 48px; height: auto; padding: 6px 8px; font-size: 12.5px; font-weight: 800; line-height: 1.25;
+                       white-space: normal; overflow-wrap: anywhere; min-width: 0; text-align: center;
+                       border-radius: 10px; border: 1px solid var(--fm-border); background: rgba(255,255,255,.03); color: var(--fm-text-secondary); cursor: pointer; }
+    .inv-tabs button[aria-selected="true"] { border-color: var(--fm-border-active); background: rgba(8,124,240,.14); color: var(--fm-text); }
+    .inv-pane[hidden] { display: none; }
+    .inv-pane p { font-size: 13px; color: var(--fm-text-secondary); line-height: 1.55; }
+    .inv-taken { padding: 10px 12px; border-radius: 8px; background: rgba(250,204,21,.10); border: 1px solid rgba(250,204,21,.35); font-size: 13px; margin-bottom: 12px; }
+</style>
+<div class="auth-card">
+{% if invalid %}
+    <div class="auth-brand">
+        <div class="auth-title">Questo invito non vale più</div>
+        <div class="auth-subtitle">Il link è incompleto, è stato rigenerato dal presidente, o la squadra non c'è più.</div>
+    </div>
+    <details class="howto" open>
+        <summary><svg class="ic"><use href="#i-shield"/></svg> Cosa fare adesso <span class="chev">▼</span></summary>
+        <div class="howto-body">
+            <ol>
+                <li>Chiedi al presidente della lega un <b>link nuovo</b> (lui lo trova nella pagina Squadre: «Condividi» o «Copia link»).</li>
+                <li>Hai il <b>codice della squadra</b>? Scrivilo nella pagina d'accesso: <a href="{% url 'app_login' %}?mode=code">entra con il codice</a>.</li>
+            </ol>
+        </div>
+    </details>
+{% else %}
+    <div class="inv-hero">
+        <div class="auth-logo-badge"><svg class="ic" style="width:14px;height:14px"><use href="#i-trophy"/></svg> Invito</div>
+        <div class="who"><b>{{ inviter }}</b> ti ha invitato in <b>{{ league.name|default:"una lega" }}</b> come</div>
+        <div class="inv-team">{{ team.display_name }}</div>
+    </div>
+
+    <details class="howto">
+        <summary><svg class="ic"><use href="#i-shield"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+        <div class="howto-body">
+            <ol>
+                <li><b>Crea l'account</b> (consigliato): nome utente e password, e la squadra resta tua da qualsiasi telefono o PC.</li>
+                <li>Hai già un account FantaManager? <b>Ho già un account</b>: entri e la squadra si collega.</li>
+                <li>Solo per stasera? <b>Solo l'asta</b>: entri senza account, come la squadra, da questo dispositivo.</li>
+            </ol>
+            <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Il link è solo tuo: non inoltrarlo, chi lo apre gioca al tuo posto.</div>
+        </div>
+    </details>
+
+    {% if live %}
+    <div class="inv-live" role="status">
+        ⚡ L'asta <b>{{ live.title }}</b> è in corso: puoi entrare subito e creare l'account dopo.
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="guest">
+            <button type="submit" class="btn-submit" style="background:linear-gradient(135deg,#16a34a,#15803d)">Entra subito nell'asta →</button></form>
+    </div>
+    {% endif %}
+
+    {% if error %}<div class="auth-error" role="alert">{{ error }}</div>{% endif %}
+
+    {% if taken %}
+    <div class="inv-taken">Questa squadra è già collegata a un account. Se è il tuo, entra con nome utente e password. Altrimenti chiedi al presidente.</div>
+    {% endif %}
+
+    {% if account %}
+    {# Già dentro con un account: un tasto collega la squadra. #}
+    <form method="post">{% csrf_token %}
+        <input type="hidden" name="action" value="link"><input type="hidden" name="next" value="{{ next }}">
+        <p style="font-size:13.5px">Sei dentro come <b>{{ account.username }}</b>.</p>
+        <button type="submit" class="btn-submit"{% if taken %} disabled{% endif %}>Collega {{ team.display_name }} al mio account ed entra →</button>
+    </form>
+    <p class="auth-legal"><a href="{% url 'logout' %}">Non sei tu? Esci</a></p>
+    {% else %}
+    <div class="inv-tabs" role="tablist">
+        <button type="button" role="tab" data-pane="signup" aria-selected="{% if active_mode == 'signup' %}true{% else %}false{% endif %}">Crea l'account ed entra</button>
+        <button type="button" role="tab" data-pane="login" aria-selected="{% if active_mode == 'login' %}true{% else %}false{% endif %}">Ho già un account</button>
+        <button type="button" role="tab" data-pane="guest" aria-selected="{% if active_mode == 'guest' %}true{% else %}false{% endif %}">Solo l'asta, senza account</button>
+    </div>
+
+    <div class="inv-pane" data-pane="signup"{% if active_mode != 'signup' %} hidden{% endif %}>
+        <form method="post">{% csrf_token %}
+            <input type="hidden" name="action" value="signup"><input type="hidden" name="next" value="{{ next }}">
+            <div class="form-group"><label for="inv-user">Nome utente</label>
+                <input id="inv-user" name="username" value="{{ suggested_username }}" required autocomplete="username" autocapitalize="none" spellcheck="false"></div>
+            <div class="form-group"><label for="inv-email">Email{% if not legal_required %} <small>(facoltativa)</small>{% endif %}</label>
+                <input id="inv-email" type="email" name="email" value="{{ suggested_email }}" autocomplete="email"{% if legal_required %} required{% endif %}></div>
+            <div class="form-group"><label for="inv-pw">Password</label>
+                <input id="inv-pw" type="password" name="password" required autocomplete="new-password" placeholder="Almeno 8 caratteri"></div>
+            {% if legal_required %}
+            <label class="auth-check"><input type="checkbox" name="accept_terms" value="1" required>
+                <span>Ho letto l'<a href="{% url 'privacy' %}" target="_blank" rel="noopener">informativa privacy</a> e accetto i <a href="{% url 'terms' %}" target="_blank" rel="noopener">termini d'uso</a></span></label>
+            <label class="auth-check"><input type="checkbox" name="accept_age" value="1" required>
+                <span>Dichiaro di avere almeno {{ min_age }} anni</span></label>
+            {% endif %}
+            <button type="submit" class="btn-submit" style="margin-top:16px"{% if taken %} disabled{% endif %}>Crea l'account ed entra →</button>
+        </form>
+    </div>
+
+    <div class="inv-pane" data-pane="login"{% if active_mode != 'login' %} hidden{% endif %}>
+        <form method="post">{% csrf_token %}
+            <input type="hidden" name="action" value="login"><input type="hidden" name="next" value="{{ next }}">
+            <div class="form-group"><label for="inv-id">Nome utente o email</label>
+                <input id="inv-id" name="identifier" required autocomplete="username" autocapitalize="none" spellcheck="false"></div>
+            <div class="form-group"><label for="inv-lpw">Password</label>
+                <input id="inv-lpw" type="password" name="password" required autocomplete="current-password"></div>
+            <button type="submit" class="btn-submit" style="margin-top:16px">Entra e collega la squadra →</button>
+            <p style="text-align:center;margin:12px 0 0;font-size:13px"><a href="{% url 'password_reset' %}">Password dimenticata?</a></p>
+        </form>
+    </div>
+
+    <div class="inv-pane" data-pane="guest"{% if active_mode != 'guest' %} hidden{% endif %}>
+        <p>Entri come <b>{{ team.display_name }}</b> solo da questo dispositivo, senza nome utente. Per tornare ti serve di nuovo questo link (o il codice della squadra).</p>
+        <form method="post">{% csrf_token %}
+            <input type="hidden" name="action" value="guest"><input type="hidden" name="next" value="{{ next }}">
+            <button type="submit" class="btn-submit">Entra senza account →</button>
+        </form>
+    </div>
+    <script>
+    (function () {
+        var tabs = document.querySelectorAll(".inv-tabs [data-pane]");
+        tabs.forEach(function (b) {
+            b.addEventListener("click", function () {
+                tabs.forEach(function (o) { o.setAttribute("aria-selected", o === b ? "true" : "false"); });
+                document.querySelectorAll(".inv-pane").forEach(function (p) { p.hidden = p.dataset.pane !== b.dataset.pane; });
+            });
+        });
+    })();
+    </script>
+    {% endif %}
+{% endif %}
+</div>
+{% endblock %}

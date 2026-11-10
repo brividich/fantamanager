@@ -258,7 +258,10 @@ class ViewTests(TestCase):
 
 class CreateLeagueFlowTests(TestCase):
     """Fase J — 'Nuova lega': create the season-long container (name + teams +
-    platform). Distinct from creating an auction, which runs *on* a league."""
+    platform). Distinct from creating an auction, which runs *on* a league.
+
+    The old form (``admin_create_league``) now redirects to the wizard, the
+    only way to create a league: the same checks run on the wizard."""
 
     def setUp(self):
         self.user = User.objects.create_superuser("admin", "a@b.c", "pass12345")
@@ -266,12 +269,13 @@ class CreateLeagueFlowTests(TestCase):
 
     def test_league_form_loads(self):
         resp = self.client.get("/admin-auction/league/new/")
-        self.assertEqual(resp.status_code, 200)
+        self.assertRedirects(resp, reverse("admin_setup"), fetch_redirect_response=False)
+        self.assertEqual(self.client.get(reverse("admin_setup")).status_code, 200)
 
     def test_create_league_builds_league_and_teams(self):
         orphan = Participant.objects.create(display_name="Senza Lega")  # league=None
-        resp = self.client.post("/admin-auction/league/new/", {
-            "name": "Lega Test", "budget": "300",
+        resp = self.client.post(reverse("admin_setup_create"), {
+            "name": "Lega Test", "budget": "300", "start_choice": "new", "create_auction": "0",
             "source_site": "fantapazz", "external_id": "332175",
             "slots_p": "3", "slots_d": "8", "slots_c": "8", "slots_a": "6",
             "participants_json": json.dumps(
@@ -295,13 +299,13 @@ class CreateLeagueFlowTests(TestCase):
         orphan.refresh_from_db()
         self.assertEqual(orphan.league_id, league.id)     # folded in via attach
 
-        # No auction is created by the league flow.
+        # «Solo la lega»: no auction.
         self.assertEqual(Auction.objects.filter(league=league).count(), 0)
 
     def test_create_league_remembers_config(self):
         from ..models import LeagueConfig
-        self.client.post("/admin-auction/league/new/", {
-            "name": "Lega Memoria", "budget": "420",
+        self.client.post(reverse("admin_setup_create"), {
+            "name": "Lega Memoria", "budget": "420", "start_choice": "new", "create_auction": "0",
             "slots_p": "2", "slots_d": "7", "slots_c": "7", "slots_a": "5",
             "participants_json": "[]",
         })
@@ -309,8 +313,8 @@ class CreateLeagueFlowTests(TestCase):
         self.assertEqual(cfg.name, "Lega Memoria")
         self.assertEqual(cfg.budget, Decimal("420"))
         self.assertEqual((cfg.slots_p, cfg.slots_d, cfg.slots_c, cfg.slots_a), (2, 7, 7, 5))
-        # The form prefills those values next time.
-        resp = self.client.get("/admin-auction/league/new/")
+        # The wizard prefills those values next time.
+        resp = self.client.get(reverse("admin_setup"))
         self.assertContains(resp, "Lega Memoria")
 
 
@@ -457,18 +461,29 @@ class SetupWizardTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(Auction.objects.latest("id").status, Auction.Status.LIVE)
 
-    def test_setup_refuses_to_create_anything_without_a_listone(self):
-        # The listone is mandatory: the POST is rejected *before* anything is
-        # written, so no half-built league is left behind.
+    def test_setup_without_a_listone_uses_the_general_one(self):
+        # The listone is no longer mandatory: a new league gets the general
+        # list of footballers by itself (services.footballers.on_league_created).
+        # Only «Ho il mio listone» without its file is refused, before anything
+        # is written.
+        from ..models import Footballer
+        Footballer.objects.create(api_id=9, name="Vlahovic", role="A", club_name="Juventus", in_serie_a=True)
         resp = self.client.post("/admin-auction/setup/create/", {
             "name": "Lega NoListone", "budget": "300", "import_choice": "none",
             "participants_json": json.dumps([{"name": "Alfa", "credits": "250"}]),
-            "mode": "NEW_FROM_ZERO", "flow_mode": "call", "start_now": "1",
+            "mode": "NEW_FROM_ZERO", "flow_mode": "call",
+        })
+        self.assertEqual(resp.status_code, 302)
+        league = League.objects.get(name="Lega NoListone")
+        self.assertFalse(league.own_listone)
+        self.assertTrue(Player.objects.filter(league=league, name="Vlahovic").exists())
+        resp = self.client.post("/admin-auction/setup/create/", {
+            "name": "Lega Mio Listone", "start_choice": "listone", "import_choice": "none",
+            "participants_json": json.dumps([{"name": "Zeta", "credits": "250"}]),
         })
         self.assertEqual(resp.status_code, 400)
-        self.assertFalse(League.objects.filter(name="Lega NoListone").exists())
-        self.assertFalse(Participant.objects.filter(display_name="Alfa").exists())
-        self.assertFalse(Auction.objects.exists())
+        self.assertFalse(League.objects.filter(name="Lega Mio Listone").exists())
+        self.assertFalse(Participant.objects.filter(display_name="Zeta").exists())
 
     def test_setup_refuses_an_unreadable_listone(self):
         from django.core.files.uploadedfile import SimpleUploadedFile

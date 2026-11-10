@@ -31,6 +31,18 @@
         {% endfor %}
     {% endif %}
 
+    <details class="howto">
+        <summary><svg class="ic"><use href="#i-shield"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+        <div class="howto-body">
+            <ol>
+                <li>Hai già un account? <b>Accedi</b> con nome utente (o email) e password.</li>
+                <li>Prima volta? <b>Registrati</b>: subito dopo scegli se creare una lega o entrare con l'invito del tuo presidente.</li>
+                <li>Hai ricevuto un <b>link d'invito</b>? Aprilo: la pagina ti fa creare l'account e collega la squadra da sola.</li>
+                <li>Devi solo fare l'asta con il codice della squadra? <b>Ospite / PIN</b>.</li>
+            </ol>
+        </div>
+    </details>
+
     <!-- Tabs switcher -->
     <div class="auth-tabs">
         <button type="button" class="auth-tab-btn {% if active_tab != 'register' and active_tab != 'guest' %}active{% endif %}" onclick="switchTab('login')">
@@ -73,6 +85,14 @@
 
     <!-- 2. REGISTER TAB -->
     <div id="tab-register" style="display:{% if active_tab == 'register' %}block{% else %}none{% endif %}">
+        {% if first_run %}
+        <ol class="fm-steps" style="margin:0 0 14px">
+            <li class="now"><span class="n">1</span><div><b>Crea l'amministratore di questo PC</b>
+                <span>Il primo account dell'app gestisce tutto il PC: nome utente e password, l'email è facoltativa.</span></div></li>
+            <li><span class="n">2</span><div><b>Cosa fai con questo PC?</b>
+                <span>Subito dopo: una lega nuova, una lega scaricata dal sito per l'asta in sala, o un backup.</span></div></li>
+        </ol>
+        {% endif %}
         <form method="post" action="{% url 'register' %}">
             {% csrf_token %}
             

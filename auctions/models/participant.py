@@ -85,6 +85,22 @@ class Participant(models.Model):
     is_active     = models.BooleanField(default=True)
     created_at    = models.DateTimeField(auto_now_add=True)
 
+    # --- Invito ------------------------------------------------------------
+    # A che punto è l'invito della squadra (pagina Squadre): mandato quando e
+    # come, aperto (prima visita a /invito/<token>/), accettato (account
+    # collegato). Solo per il presidente: non cambia niente del gioco.
+    class InviteChannel(models.TextChoices):
+        EMAIL = "email", "Email"
+        WHATSAPP = "whatsapp", "WhatsApp"
+        SHARE = "share", "Condividi"
+        COPY = "copy", "Link copiato"
+        QR = "qr", "QR"
+
+    invite_sent_at      = models.DateTimeField(null=True, blank=True)
+    invite_last_channel = models.CharField(max_length=10, choices=InviteChannel.choices, blank=True)
+    invite_opened_at    = models.DateTimeField(null=True, blank=True)
+    invite_accepted_at  = models.DateTimeField(null=True, blank=True)
+
     # --- Scheda squadra ----------------------------------------------------
     # L'intestazione della scheda che la lega si passa prima dell'asta:
     # testo libero, niente di tutto questo tocca crediti, rose o regole.
@@ -175,3 +191,32 @@ class Watch(models.Model):
 
     def __str__(self):
         return f"{self.participant.display_name} 🎯 {self.player.name}"
+
+
+class CoAdminInvite(models.Model):
+    """Un invito a fare il co-admin di una lega (``/invito-admin/<token>/``).
+
+    Chi lo apre entra con il suo account (o se ne crea uno) e finisce in
+    ``league.admins``. Il token vale una volta: dopo l'accettazione, o se il
+    presidente lo ritira, non apre più niente.
+    """
+    league      = models.ForeignKey("League", on_delete=models.CASCADE, related_name="coadmin_invites")
+    email       = models.EmailField(blank=True)
+    token       = models.CharField(max_length=64, unique=True)
+    created_by  = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                    on_delete=models.SET_NULL, related_name="+")
+    created_at  = models.DateTimeField(auto_now_add=True)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    accepted_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                    on_delete=models.SET_NULL, related_name="+")
+    revoked     = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    @property
+    def is_open(self):
+        return self.accepted_at is None and not self.revoked
+
+    def __str__(self):
+        return f"co-admin {self.league} → {self.email or '(link)'}"

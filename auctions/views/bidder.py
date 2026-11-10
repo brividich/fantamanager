@@ -188,18 +188,24 @@ def join(request):
             public_token=token, is_active=True
         ).first()
         if recognized:
+            wanted = request.GET.get("a")
+            target = _auction_for_join(recognized, wanted, joinable)
+            # Un'asta chiusa non è da giocare: ci si va solo se il link la nomina.
+            playing = (Auction.Status.LIVE, Auction.Status.PAUSED, Auction.Status.READY)
+            if target is not None and target.status not in playing and str(target.id) != wanted:
+                target = None
+            if target is None and recognized.user_id is None:
+                # Nessuna asta in corso e squadra senza account: è un invito.
+                # La pagina d'invito collega la squadra (o fa entrare senza account).
+                return redirect("invite", token=recognized.public_token)
             request.session["participant_id"] = recognized.id
             request.session["display_name"]   = recognized.display_name
             if recognized.league_id is not None:
                 request.session[SESSION_LEAGUE_KEY] = recognized.league_id
-            wanted = request.GET.get("a")
-            target = _auction_for_join(recognized, wanted, joinable)
-            playing = (Auction.Status.LIVE, Auction.Status.PAUSED, Auction.Status.READY)
-            if target is not None and (target.status in playing or str(target.id) == wanted):
+            if target is not None:
                 return redirect("bid", auction_id=target.id)
-            # Nessuna asta da giocare (o solo aste chiuse): il link della
-            # squadra porta nella sua area - rosa, mercato, formazione - non
-            # su «Nessuna asta disponibile».
+            # Nessuna asta da giocare: il link della squadra porta nella sua
+            # area - rosa, mercato, formazione - non su «Nessuna asta disponibile».
             return redirect("app_home")
 
     if not recognized:

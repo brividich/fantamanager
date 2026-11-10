@@ -35,7 +35,10 @@ stessi testi**.
   così l'azione torna lì (console o app); `_back()` accetta solo indirizzi del sito.
 - Giornate, voti e calcolo: `_giornate_manage.html`, in `admin_giornate.html`
   (console) e `app_giornate.html` (app); una sola view, `admin_giornate`
-  (`views/admin_voti.py`), che sceglie la cornice dall'indirizzo.
+  (`views/admin_voti.py`), che sceglie la cornice dall'indirizzo. In alto la
+  giornata con i suoi tre passi (formazioni → voti → punteggi), sotto le schede
+  Risultati, Formazioni, Voti (live, file, a mano) e Regole: una cosa nuova va
+  nella scheda giusta, non in fondo alla pagina.
 - Il campo della formazione: `_formation_pitch.html`, in `app_formazione.html`
   (il manager, prossima giornata) e nell'editor dell'admin per una giornata
   qualsiasi (`admin_formazione.html` console, `app_regia_formazione.html` app,

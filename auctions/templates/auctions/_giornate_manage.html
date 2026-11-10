@@ -2,21 +2,25 @@
 Giornate, voti e calcolo: lo stesso contenuto nella console (admin_giornate.html)
 e nell'app (app_giornate.html). I form mandano ``next`` = la pagina da cui
 partono, così l'azione torna lì; ``gv_base``/``gv_back`` arrivano dalla view.
+
+In alto la giornata e i suoi tre passi (formazioni → voti → punteggi), sotto
+quattro schede: Risultati, Formazioni, Voti, Regole. Senza JavaScript le
+schede si vedono tutte, una sotto l'altra.
 {% endcomment %}
 <!-- giornate-manage:start -->
 <style>
-    .giornate-strip {
-        display:flex; gap:6px; overflow-x:auto; padding:10px 4px; margin-bottom:16px;
-        scrollbar-width:thin;
-    }
-    .giornata-btn {
-        flex:0 0 auto; padding:6px 12px; border-radius:8px; font-weight:700; font-size:13px;
+    .gv-strip { gap:6px; padding:2px 2px 4px; margin-bottom:14px; }
+    .gv-day {
+        padding:6px 12px; border-radius:8px; font-weight:700; font-size:13px;
         background:var(--panel-2); border:1px solid var(--line); color:var(--muted);
-        text-decoration:none; display:flex; align-items:center; gap:6px;
+        text-decoration:none; display:inline-flex; align-items:center; gap:6px;
     }
-    .giornata-btn:hover { background:var(--panel); color:var(--ink); }
-    .giornata-btn.active { background:var(--accent); border-color:var(--accent); color:#0a1108; }
-    .giornata-btn.scored { border-color:rgba(22,217,104,.4); }
+    .gv-day:hover { background:var(--panel); color:var(--ink); }
+    .gv-day .dot { width:6px; height:6px; border-radius:50%; }
+    .gv-day.scored .dot { background:#4ade80; }
+    .gv-day.live .dot { background:#facc15; }
+    .gv-day.active { background:var(--accent); border-color:var(--accent); color:#0a1108; }
+    .gv-day.active .dot { background:#0a1108; }
 
     .badge { display:inline-block; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:800;
              white-space:nowrap; background:rgba(255,255,255,.06); color:var(--muted); border:1px solid var(--line); }
@@ -25,344 +29,437 @@ partono, così l'azione torna lì; ``gv_base``/``gv_back`` arrivano dalla view.
     .badge.blue { background:rgba(59,130,246,.14); color:#60a5fa; border-color:rgba(59,130,246,.35); }
     .badge.yellow { background:rgba(234,179,8,.14); color:#facc15; border-color:rgba(234,179,8,.35); }
 
+    .gv-head { padding:16px 18px; }
+    .gv-title { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+    .gv-title h2 { margin:0; font-size:22px; font-weight:900; color:var(--ink); }
+    .gv-meta { font-size:12.5px; color:var(--muted); margin-top:4px; }
+    .gv-meta b { color:var(--ink); }
+    .gv-set-box { margin-top:12px; border-top:1px solid var(--line); padding-top:10px; }
+    .gv-set-box > summary { cursor:pointer; list-style:none; font-size:12.5px; font-weight:800; color:var(--ink);
+                            display:flex; gap:6px; align-items:center; }
+    .gv-set-box > summary::-webkit-details-marker { display:none; }
+    .gv-set-box > summary .ic { width:15px; height:15px; color:var(--accent); }
+    .gv-set-box > summary .muted { font-weight:600; }
+    .gv-settings { display:flex; flex-wrap:wrap; gap:8px 14px; align-items:end; margin-top:12px; }
+    .gv-settings label { display:flex; flex-direction:column; gap:4px; font-size:11px; font-weight:800;
+                         letter-spacing:.05em; text-transform:uppercase; color:var(--muted); }
+    .gv-settings input { padding:7px 9px; border-radius:8px; border:1px solid var(--line); background:var(--panel-2);
+                         color:var(--ink); font-weight:700; font-size:13px; color-scheme:dark; }
+    .gv-settings input[type=number] { width:72px; }
+    .gv-settings .gv-set-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+
+    .gv-steps { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:8px; margin-top:14px; }
+    .gv-step { display:flex; gap:10px; align-items:center; padding:10px 12px; border-radius:10px;
+               border:1px solid var(--line); background:var(--panel-2); text-decoration:none; color:inherit; min-width:0; }
+    .gv-step:hover { border-color:var(--line-strong); }
+    .gv-step .n { flex:0 0 26px; width:26px; height:26px; border-radius:50%; display:grid; place-items:center;
+                  font-size:12px; font-weight:900; background:rgba(255,255,255,.06); color:var(--muted); }
+    .gv-step.done .n { background:rgba(34,197,94,.18); color:#4ade80; }
+    .gv-step.now { border-color:var(--accent); }
+    .gv-step.now .n { background:var(--accent); color:#0a1108; }
+    .gv-step b { display:block; font-size:13px; color:var(--ink); }
+    .gv-step small { display:block; font-size:11.5px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    @media (max-width:640px) {
+        .gv-steps { gap:6px; }
+        .gv-step { flex-direction:column; align-items:flex-start; gap:6px; padding:8px; }
+        .gv-step small { white-space:normal; }
+    }
+
+    .gv-tabs { gap:4px; margin:16px 0 12px; padding:4px; border-radius:12px; background:var(--panel-2);
+               border:1px solid var(--line); width:max-content; }
+    .gv-tabs a { padding:8px 14px; border-radius:9px; font-weight:800; font-size:13px; color:var(--muted);
+                 text-decoration:none; display:inline-flex; gap:6px; align-items:center; }
+    .gv-tabs a:hover { color:var(--ink); }
+    .gv-tabs a.on { background:var(--panel); color:var(--ink); box-shadow:0 1px 0 rgba(255,255,255,.04) inset; }
+    .gv-tabs .n { font-size:11px; font-weight:800; color:var(--muted); }
+    .gv-panel { margin-bottom:16px; }
+    .gv-panel[hidden] { display:none !important; }
+    .gv-panel-title { margin:0 0 4px; font-size:16px; font-weight:800; color:var(--ink); }
+    .gv-panel-sub { font-size:12.5px; color:var(--muted); margin-bottom:12px; }
+
+    .gv-cols { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap:16px; align-items:start; }
+    .gv-rank { display:grid; grid-template-columns:24px minmax(0,1fr) auto 56px; gap:10px; align-items:center;
+               padding:9px 4px; border-bottom:1px solid var(--line); font-size:13px; }
+    .gv-rank > :nth-child(n+3) { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+    .gv-rank .name { color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .gv-rank .pts { color:var(--accent); font-weight:900; font-size:15px; }
+    .gv-rank-head { font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); padding-top:0; }
+    .gv-lineup { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,220px) auto; grid-template-areas:"who state act";
+                 gap:4px 12px; align-items:center; padding:9px 4px; border-bottom:1px solid var(--line); font-size:13px; }
+    .gv-lineup .who { grid-area:who; min-width:0; }
+    .gv-lineup .who b { display:block; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .gv-lineup .who small { color:var(--muted); font-size:11.5px; }
+    .gv-lineup .state { grid-area:state; min-width:0; }
+    .gv-lineup .act { grid-area:act; }
+    .gv-lineup.gv-rank-head > :first-child { grid-area:who; }
+    @media (max-width:560px) {
+        .gv-lineup { grid-template-columns:minmax(0,1fr) auto; grid-template-areas:"who act" "state act"; }
+        .gv-lineup.gv-rank-head { display:none; }
+    }
+    .gv-empty { text-align:center; padding:28px 16px; color:var(--muted); font-size:13px; }
+    .gv-fx { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); gap:10px; align-items:center;
+             padding:8px 0; border-bottom:1px solid var(--line); font-size:13px; }
+    .gv-fx:last-child { border-bottom:0; }
+    .gv-fx .home { text-align:right; font-weight:700; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .gv-fx .away { font-weight:700; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .gv-fx .res { min-width:64px; text-align:center; font-weight:900; font-variant-numeric:tabular-nums; color:var(--ink);
+                  background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:3px 8px; }
+    .gv-fx .res small { display:block; font-size:10.5px; font-weight:600; color:var(--muted); }
+    .gv-fx-group { font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin:14px 0 2px; }
+    .gv-fx-group:first-child { margin-top:0; }
+
+    .gv-method { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:18px; }
+    .gv-method h3 { margin:0 0 4px; font-size:15px; font-weight:800; color:var(--ink); display:flex; gap:8px; align-items:center; }
+    .gv-method h3 .ic { width:17px; height:17px; color:var(--accent); }
+    .gv-method p { margin:0 0 12px; font-size:12.5px; color:var(--muted); line-height:1.5; }
+    .gv-method .gv-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; margin-top:12px; }
+
     .ms-row { display:grid; grid-template-columns:minmax(0,1fr) 104px 70px; gap:8px; align-items:center;
               padding:6px 0; border-bottom:1px solid var(--line); }
-    .ms-row label { font-weight:700; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .ms-row label { font-weight:700; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+                    text-transform:none; letter-spacing:0; font-size:13px; }
     .ms-head { font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
     .gv-num { width:100%; max-width:120px; padding:7px 9px; border-radius:8px; border:1px solid var(--line);
               background:var(--panel-2); color:var(--ink); font-weight:700; font-size:14px; }
 
-    .voti-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:14px; }
-    @media (max-width:960px) { .voti-grid { grid-template-columns:1fr; } }
-
-    .upload-card {
-        background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:20px;
-    }
     .drop-zone {
-        border:2px dashed var(--line-strong); border-radius:12px; padding:24px; text-align:center;
-        background:var(--panel-2); transition:all .2s ease; cursor:pointer; margin-top:12px;
+        border:2px dashed var(--line-strong); border-radius:12px; padding:22px; text-align:center;
+        background:var(--panel-2); transition:all .2s ease; cursor:pointer;
+        text-transform:none; letter-spacing:0;
     }
     .drop-zone:hover { border-color:var(--accent); background:var(--accent-soft); }
+    .drop-zone .ic { width:28px; height:28px; color:var(--accent); }
+    .upload-card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:18px; }
 </style>
 
 <details class="howto noprint">
     <summary><svg class="ic"><use href="#i-calendar"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
     <div class="howto-body">
-        Qui porti avanti ogni giornata della lega: formazioni, voti e punteggi.
+        Qui chiudi ogni giornata della lega in tre passi: formazioni, voti, punteggi.
         <ol>
-            <li>Scegli la giornata dalla fila in alto (<b>G1</b>, <b>G2</b>…): il pallino verde vuol dire già calcolata,
+            <li>Scegli la giornata dalla fila in alto (<b>G1</b>, <b>G2</b>…): il pallino verde vuol dire calcolata,
                 quello giallo voti live in corso. Ora sei sulla <b>Giornata {{ current_giornata.number }}</b>.</li>
-            <li>Controlla che accanto a <b>= Serie A</b> ci sia la giornata di Serie A giusta; se no correggila e premi <b>Salva</b>.</li>
+            <li>Apri <b>Impostazioni della giornata</b> e controlla che <b>Giornata di Serie A</b> sia quella giusta{% if lineups_editable %}; se vuoi che le formazioni si chiudano da sole, scrivi la <b>Scadenza formazioni</b>{% endif %}. Poi premi <b>Salva</b>.</li>
             {% if lineups_editable %}
-            <li>Guarda chi ha schierato in <b>Formazioni Giornata {{ current_giornata.number }}</b>
-                ({{ lineups_saved }}/{{ teams_count }}): chi non lo fa gioca con l'ultima formazione salvata.
-                Con <b>Schiera</b> la prepari tu per una squadra.</li>
-            <li>Quando la giornata inizia premi <b>Blocca formazioni</b>: da lì non cambiano più.
-                Si bloccano comunque da sole al primo sync o al primo import dei voti.</li>
+            <li>Nella scheda <b>Formazioni</b> vedi chi ha schierato ({{ lineups_saved }}/{{ teams_count }}): chi non lo fa gioca con
+                l'ultima formazione salvata. Con <b>Schiera</b> la prepari tu per una squadra. Quando la giornata inizia premi
+                <b>Blocca formazioni</b> (si bloccano comunque da sole alla scadenza, al primo sync o al primo import dei voti).</li>
             {% else %}
-            <li>Le formazioni sono bloccate: con <b>Correggi</b> sistemi quella di una squadra solo per questa giornata{% if scores %}, e i punteggi si ricalcolano{% endif %}.</li>
+            <li>Le formazioni sono bloccate: nella scheda <b>Formazioni</b>, con <b>Correggi</b>, sistemi quella di una squadra solo per questa giornata{% if scores %}, e i punteggi si ricalcolano{% endif %}.</li>
             {% endif %}
-            <li>Porta i voti in uno di questi modi:
+            <li>Nella scheda <b>Voti</b> porta i voti in uno dei tre modi:
                 <ul>
-                    <li><b>Sincronizza Live</b> scarica voti e bonus/malus da API-Football mentre si gioca: i punteggi sono provvisori.</li>
-                    {% if is_live %}
-                    <li>A partite finite premi <b>Consolida Ufficiale</b>: i voti live diventano definitivi.</li>
-                    {% endif %}
-                    <li><b>Importa File Excel / CSV</b> ti porta al caricamento: scegli il file dei voti e premi
-                        <b>Importa Voti e Calcola Giornata {{ current_giornata.number }}</b>.</li>
-                    <li>Se la lega gioca su un altro sito, apri <b>Punteggi a mano</b>, scrivi il totale di ogni squadra e premi
-                        <b>Salva punteggi della Giornata {{ current_giornata.number }}</b>.</li>
+                    <li><b>Sincronizza live</b> scarica voti e bonus/malus da API-Football mentre si gioca: i punteggi sono provvisori{% if is_live %}; a partite finite premi <b>Rendi ufficiali</b>{% endif %}.</li>
+                    <li><b>File dei voti</b>: scegli il file (.xlsx, .xls o .csv) e premi <b>Importa e calcola</b>.</li>
+                    <li><b>Punteggi a mano</b>, se la lega gioca su un altro sito: scrivi il totale di ogni squadra e premi <b>Salva punteggi</b>.</li>
                 </ul>
             </li>
-            <li>Controlla l'esito in <b>Punteggi Fantacampionato G{{ current_giornata.number }}</b> e nella Coppa Italia accanto.</li>
+            <li>Controlla l'esito nella scheda <b>Risultati</b>: punteggi della giornata e partite delle competizioni.</li>
         </ol>
-        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Soglie dei gol, bonus e malus si cambiano da <b>Regole</b>: con <b>Ricalcola le giornate già giocate</b> spuntato valgono anche per quelle.</div>
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Soglie dei gol, bonus e malus si cambiano dalla scheda <b>Regole</b>: con <b>Ricalcola le giornate già giocate</b> spuntato valgono anche per quelle.</div>
     </div>
 </details>
 
-<!-- Matchdays Strip -->
-<div class="giornate-strip fm-onerow">
+<nav class="gv-strip fm-onerow" aria-label="Giornate">
     {% for g in giornate %}
-    <a href="{{ gv_base }}?{% if gv_league_q %}{{ gv_league_q }}&{% endif %}giornata={{ g.number }}" class="giornata-btn {% if g.number == current_giornata.number %}active{% endif %} {% if g.status == 'SCORED' %}scored{% endif %}">
-        <span>G{{ g.number }}</span>
-        {% if g.status == 'SCORED' %}<span style="font-size:10px;color:var(--fm-success);">●</span>{% elif g.status == 'LIVE' %}<span style="font-size:10px;color:#facc15;">●</span>{% endif %}
+    <a href="{{ gv_base }}?{% if gv_league_q %}{{ gv_league_q }}&{% endif %}giornata={{ g.number }}"
+       class="gv-day{% if g.number == current_giornata.number %} active{% endif %}{% if g.status == 'SCORED' %} scored{% elif g.status == 'LIVE' %} live{% endif %}"
+       {% if g.number == current_giornata.number %}aria-current="page"{% endif %}>
+        G{{ g.number }}{% if g.status == 'SCORED' or g.status == 'LIVE' %}<span class="dot" aria-hidden="true"></span>{% endif %}
     </a>
     {% endfor %}
-</div>
+</nav>
 
-<!-- Current Giornata Detail Header -->
-<div class="card" style="padding:16px 20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
-    <div>
-        <div style="font-size:11px;font-weight:800;color:var(--fm-text-muted);text-transform:uppercase;">Giornata Selezionata</div>
-        <div style="font-size:22px;font-weight:900;color:#fff;display:flex;align-items:center;gap:12px;margin:2px 0 4px">
-            <span>Giornata {{ current_giornata.number }}</span>
-            {% if current_giornata.serie_a_matchday %}
-                <span style="font-size:14px; color:var(--muted); font-weight:normal;">(Serie A: G{{ current_giornata.serie_a_matchday }})</span>
-            {% endif %}
-            {% if is_live %}
-                <span style="background:rgba(234,179,8,0.2);color:#facc15;border:1px solid rgba(234,179,8,0.4);padding:3px 9px;border-radius:6px;font-weight:800;font-size:11.5px;letter-spacing:.03em">
-                    🟡 LIVE PROVVISORIO ({{ live_count }} voti live)
-                </span>
-            {% elif current_giornata.status == 'SCORED' %}
-                <span style="background:rgba(34,197,94,0.2);color:#4ade80;border:1px solid rgba(34,197,94,0.4);padding:3px 9px;border-radius:6px;font-weight:800;font-size:11.5px;letter-spacing:.03em">
-                    🟢 UFFICIALE DEFINITIVO ({{ official_count }} voti)
-                </span>
-            {% else %}
-                <span style="background:rgba(255,255,255,0.06);color:var(--muted);padding:3px 9px;border-radius:6px;font-weight:700;font-size:11.5px">
-                    {{ current_giornata.get_status_display }}
-                </span>
-            {% endif %}
-        </div>
-        <div class="muted" style="font-size:12px">
-            Formazioni {% if lineups_editable %}salvate per questa giornata{% else %}bloccate{% endif %}: <b>{{ lineups_saved }}/{{ teams_count }}</b>
-            {% if lineups_editable and current_giornata.starts_at %}· si bloccano da sole il <b>{{ current_giornata.starts_at|date:"d/m H:i" }}</b>{% endif %}
-            · Totale calciatori a referto: <b>{{ performances_count }}</b>
-            {% if live_sync_status.is_enabled %}
-                · Sync automatico attivo (ogni {{ live_sync_status.interval_seconds }}s)
-            {% endif %}
-        </div>
+<section class="card gv-head">
+    <div class="gv-title">
+        <h2>Giornata {{ current_giornata.number }}</h2>
+        <span class="badge {{ gv_tone }}">{{ gv_status }}</span>
     </div>
-    <div class="fm-onerow" style="gap:8px">
-        <!-- Form Serie A Matchday -->
-        <form method="post" action="{{ gv_base }}" style="display:flex;align-items:center;gap:6px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:2px 6px;">
+    <div class="gv-meta">
+        Serie A: <b>giornata {{ current_giornata.serie_a_matchday|default:current_giornata.number }}</b>
+        {% if lineups_editable %}· Scadenza formazioni: <b>{% if current_giornata.starts_at %}{{ current_giornata.starts_at|date:"d/m H:i" }}{% else %}nessuna, blocco a mano{% endif %}</b>{% endif %}
+        · Calciatori a referto: <b>{{ performances_count }}</b>
+        {% if live_sync_status.is_enabled %}· Sync automatico ogni {{ live_sync_status.interval_seconds }}s{% endif %}
+    </div>
+
+    <div class="gv-steps">
+        <a class="gv-step {% if lineups_editable %}now{% else %}done{% endif %}" href="#gv-formazioni" data-gv-go="formazioni">
+            <span class="n">{% if lineups_editable %}1{% else %}✓{% endif %}</span>
+            <span style="min-width:0"><b>Formazioni</b>
+                <small>{% if lineups_editable %}{{ lineups_saved }}/{{ teams_count }} salvate · aperte{% else %}Bloccate · {{ lineups_saved }}/{{ teams_count }}{% endif %}</small></span>
+        </a>
+        <a class="gv-step {% if scores %}done{% elif not lineups_editable %}now{% endif %}" href="#gv-voti" data-gv-go="voti">
+            <span class="n">{% if scores %}✓{% else %}2{% endif %}</span>
+            <span style="min-width:0"><b>Voti</b><small>{{ gv_votes }}</small></span>
+        </a>
+        <a class="gv-step {% if current_giornata.status == 'SCORED' %}done{% elif scores %}now{% endif %}" href="#gv-risultati" data-gv-go="risultati">
+            <span class="n">{% if current_giornata.status == 'SCORED' %}✓{% else %}3{% endif %}</span>
+            <span style="min-width:0"><b>Punteggi</b>
+                <small>{% if scores %}{{ scores|length }}/{{ teams_count }} squadre{% if is_live %} · provvisori{% endif %}{% else %}Da calcolare{% endif %}</small></span>
+        </a>
+    </div>
+
+    <details class="gv-set-box">
+    <summary><svg class="ic"><use href="#i-gear"/></svg> <span>Impostazioni della giornata <span class="muted">· Serie A{% if lineups_editable %}, scadenza{% endif %}</span></span></summary>
+    <div class="gv-settings">
+        <form method="post" action="{{ gv_base }}" style="display:contents">
             {% csrf_token %}
             <input type="hidden" name="giornata" value="{{ current_giornata.number }}">
             <input type="hidden" name="next" value="{{ gv_back }}">
-            <span style="font-size:11px;font-weight:700;color:var(--muted);white-space:nowrap;">= Serie A:</span>
-            <input type="number" name="serie_a_matchday" min="1" max="38" value="{{ current_giornata.serie_a_matchday|default:current_giornata.number }}" style="width:50px;background:transparent;border:none;color:#fff;font-size:12px;font-weight:700;text-align:center;">
+            <label>Giornata di Serie A
+                <input type="number" name="serie_a_matchday" min="1" max="38" value="{{ current_giornata.serie_a_matchday|default:current_giornata.number }}">
+            </label>
             {% if lineups_editable %}
-            <span style="font-size:11px;font-weight:700;color:var(--muted);white-space:nowrap;" title="Le formazioni si bloccano da sole a quest'ora. Vuoto = solo a mano.">Scadenza:</span>
-            <input type="datetime-local" name="starts_at" value="{{ current_giornata.starts_at|date:'Y-m-d\TH:i' }}" style="background:transparent;border:none;color:#fff;font-size:12px;font-weight:700;color-scheme:dark;">
+            <label title="Le formazioni si bloccano da sole a quest'ora. Vuoto = solo a mano.">Scadenza formazioni
+                <input type="datetime-local" name="starts_at" value="{{ current_giornata.starts_at|date:'Y-m-d\TH:i' }}">
+            </label>
             {% endif %}
-            <button type="submit" class="fm-btn fm-btn-ghost fm-btn-sm" style="padding:2px 6px;color:var(--accent);">Salva</button>
+            <div class="gv-set-actions"><button type="submit" class="fm-btn fm-btn-secondary fm-btn-sm"><svg class="ic"><use href="#i-save"/></svg> Salva</button></div>
         </form>
-
-        <form method="post" action="{{ gv_base }}" style="display:inline">
+        <form method="post" action="{{ gv_base }}" class="gv-set-actions">
             {% csrf_token %}
             <input type="hidden" name="giornata" value="{{ current_giornata.number }}">
             <input type="hidden" name="next" value="{{ gv_back }}">
             <input type="hidden" name="action" value="deadlines_from_calendar">
             <button type="submit" class="fm-btn fm-btn-ghost fm-btn-sm" title="Ogni giornata ancora da giocare scade al primo calcio d'inizio del suo turno di Serie A (API-Football)">
-                🗓️ Scadenze dal calendario
+                <svg class="ic"><use href="#i-calendar"/></svg> Scadenze dal calendario di Serie A
             </button>
         </form>
+    </div>
+    </details>
+</section>
 
-        <!-- Live Sync Now -->
-        <form method="post" action="{% url 'app_live_voti_sync' %}" style="display:inline">
-            {% csrf_token %}
-            <input type="hidden" name="next" value="{{ gv_back }}">
-            <input type="hidden" name="giornata_number" value="{{ current_giornata.number }}">
-            <input type="hidden" name="provider" value="apifootball">
-            <button type="submit" class="fm-btn fm-btn-secondary fm-btn-sm" style="color:#60a5fa;border-color:rgba(59,130,246,0.3)" title="Aggiorna voti e bonus/malus in tempo reale">
-                ⚡ Sincronizza Live
-            </button>
-        </form>
+<nav class="gv-tabs fm-onerow" role="tablist" aria-label="Sezioni della giornata" data-gv-default="{{ gv_tab }}">
+    <a href="#gv-risultati" data-gv-go="risultati" role="tab">Risultati <span class="n">{{ scores|length }}</span></a>
+    <a href="#gv-formazioni" data-gv-go="formazioni" role="tab">Formazioni <span class="n">{{ lineups_saved }}/{{ teams_count }}</span></a>
+    <a href="#gv-voti" data-gv-go="voti" role="tab">Voti</a>
+    <a href="#gv-regole" data-gv-go="regole" role="tab">Regole</a>
+</nav>
 
-        {% if is_live %}
-        <!-- Consolidate Official -->
-        <form method="post" action="{% url 'app_live_voti_consolidate' %}" style="display:inline" onsubmit="return confirm('Vuoi consolidare definitivamente i voti di questa giornata come ufficiali?');">
-            {% csrf_token %}
-            <input type="hidden" name="next" value="{{ gv_back }}">
-            <input type="hidden" name="giornata_number" value="{{ current_giornata.number }}">
-            <button type="submit" class="fm-btn fm-btn-primary fm-btn-sm" style="background:#22c55e;color:#fff;border:none;font-weight:700">
-                ✅ Consolida Ufficiale
-            </button>
-        </form>
-        {% endif %}
+<!-- Risultati -->
+<section id="gv-risultati" class="gv-panel" data-gv-panel="risultati">
+    <div class="gv-cols">
+        <div class="card" style="padding:16px;">
+            <h3 class="gv-panel-title">Punteggi della giornata</h3>
+            <div class="gv-panel-sub">{% if scores %}{% if is_live %}Provvisori, dai voti live.{% elif manual_scored %}Scritti a mano dall'admin.{% else %}Dai voti ufficiali.{% endif %}{% else %}Si riempiono quando arrivano i voti.{% endif %}</div>
+            {% if scores %}
+            <div class="gv-rank gv-rank-head"><span>#</span><span>Squadra</span><span>Fantapunti</span><span>Gol</span></div>
+            {% for s in scores %}
+            <div class="gv-rank">
+                <span class="muted">{{ forloop.counter }}</span>
+                <b class="name">{{ s.participant.display_name }}</b>
+                <span class="pts">{{ s.total|floatformat:1 }}</span>
+                <b>{{ s.goals }}</b>
+            </div>
+            {% endfor %}
+            {% else %}
+            <div class="gv-empty">Nessun punteggio per la Giornata {{ current_giornata.number }}.<br>
+                <a href="#gv-voti" data-gv-go="voti" style="color:var(--accent);font-weight:700;">Porta i voti</a> per calcolarli.</div>
+            {% endif %}
+        </div>
 
-        {% if lineups_editable %}
-        <form method="post" action="{% url 'app_giornata_lock' %}" style="display:inline"
-              onsubmit="return confirm('Bloccare le formazioni della Giornata {{ current_giornata.number }}? Da adesso nessuno potrà più cambiarle per questa giornata.');">
+        <div class="card" style="padding:16px;">
+            <h3 class="gv-panel-title">Partite</h3>
+            <div class="gv-panel-sub">Gli scontri della giornata nelle competizioni della lega.</div>
+            {% for grp in fixture_groups %}
+            <div class="gv-fx-group">{{ grp.name }}{% if grp.stage %} · {{ grp.stage }}{% endif %}</div>
+            {% for fx in grp.fixtures %}
+            <div class="gv-fx">
+                <span class="home">{{ fx.home.display_name }}</span>
+                {% if fx.away %}
+                <span class="res">{% if fx.computed %}{{ fx.home_goals }} – {{ fx.away_goals }}{% if fx.home_total is not None and fx.away_total is not None %}<small>{{ fx.home_total|floatformat:1 }} · {{ fx.away_total|floatformat:1 }}</small>{% endif %}{% else %}–{% endif %}</span>
+                <span class="away">{{ fx.away.display_name }}</span>
+                {% else %}
+                <span class="res"><small>riposo</small></span><span></span>
+                {% endif %}
+            </div>
+            {% endfor %}
+            {% empty %}
+            <div class="gv-empty">Nessuna partita in calendario per questa giornata.</div>
+            {% endfor %}
+
+            {% if battle_royale %}
+            <div class="gv-fx-group" style="margin-top:16px">{{ battle_royale_name }} · tutti contro tutti</div>
+            <div class="gv-rank gv-rank-head"><span>#</span><span>Squadra</span><span>V-P-S</span><span>Punti</span></div>
+            {% for br in battle_royale %}
+            <div class="gv-rank">
+                <span class="muted">{{ forloop.counter }}</span>
+                <b class="name">{{ br.team_name }}</b>
+                <span class="muted">{{ br.record }}</span>
+                <span><b style="color:var(--accent);">+{{ br.battle_points }}</b><small class="muted"> / {{ br.max_possible }}</small></span>
+            </div>
+            {% endfor %}
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<!-- Formazioni -->
+<section id="gv-formazioni" class="gv-panel" data-gv-panel="formazioni">
+    <div class="card" style="padding:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+            <div style="min-width:0">
+                <h3 class="gv-panel-title">Formazioni Giornata {{ current_giornata.number }}</h3>
+                <div class="gv-panel-sub" style="margin:0">
+                    {% if lineups_editable %}Aperte: le squadre senza una formazione per questa giornata useranno l'ultima salvata.{% else %}Bloccate: una modifica qui è una correzione dell'admin solo per questa giornata{% if scores %} e ricalcola i punteggi{% endif %}.{% endif %}
+                </div>
+            </div>
+            {% if lineups_editable %}
+            <form method="post" action="{% url 'app_giornata_lock' %}"
+                  onsubmit="return confirm('Bloccare le formazioni della Giornata {{ current_giornata.number }}? Da adesso nessuno potrà più cambiarle per questa giornata.');">
+                {% csrf_token %}
+                <input type="hidden" name="league_id" value="{{ current_league.id }}">
+                <input type="hidden" name="giornata_number" value="{{ current_giornata.number }}">
+                <input type="hidden" name="next" value="{{ gv_back }}">
+                <button type="submit" class="fm-btn fm-btn-secondary fm-btn-sm" title="Le formazioni si bloccano anche da sole alla scadenza, alla prima sincronizzazione o importazione dei voti">
+                    <svg class="ic"><use href="#i-lock"/></svg> Blocca formazioni
+                </button>
+            </form>
+            {% endif %}
+        </div>
+        <div style="margin-top:12px;">
+            <div class="gv-lineup gv-rank-head"><span>Squadra</span><span>Stato</span><span></span></div>
+            {% for r in lineup_rows %}
+            <div class="gv-lineup">
+                <span class="who"><b>{{ r.team.display_name }}</b><small>{% if r.module %}{{ r.module }} · {% endif %}{{ r.starters }}/11 titolari</small></span>
+                <span class="state"><span class="badge {% if r.own %}green{% elif r.state == 'Mancante' or r.state == 'Nessuna formazione' %}red{% endif %}">{{ r.state }}</span></span>
+                <a class="fm-btn fm-btn-ghost fm-btn-sm act" href="{{ r.edit_url }}">{% if lineups_editable %}Schiera{% else %}Correggi{% endif %}</a>
+            </div>
+            {% empty %}
+            <div class="gv-empty">Nessuna squadra nella lega.</div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<!-- Voti: live, file o a mano -->
+<section id="gv-voti" class="gv-panel" data-gv-panel="voti">
+    <div class="gv-cols">
+        <div class="gv-method">
+            <h3><svg class="ic"><use href="#i-pulse"/></svg> Voti live</h3>
+            <p>Voti e bonus/malus da API-Football mentre si gioca la giornata {{ current_giornata.serie_a_matchday|default:current_giornata.number }} di Serie A. I punteggi restano provvisori finché non li rendi ufficiali.
+                {% if is_live %}<br>Ora: <b>{{ live_count }} voti live</b>.{% endif %}</p>
+            <div class="gv-actions">
+                <form method="post" action="{% url 'app_live_voti_sync' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ gv_back }}">
+                    <input type="hidden" name="giornata_number" value="{{ current_giornata.number }}">
+                    <input type="hidden" name="provider" value="apifootball">
+                    <button type="submit" class="fm-btn fm-btn-secondary fm-btn-sm" title="Aggiorna voti e bonus/malus in tempo reale">
+                        <svg class="ic"><use href="#i-refresh"/></svg> Sincronizza live
+                    </button>
+                </form>
+                {% if is_live %}
+                <form method="post" action="{% url 'app_live_voti_consolidate' %}" onsubmit="return confirm('Rendere ufficiali i voti live di questa giornata?');">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ gv_back }}">
+                    <input type="hidden" name="giornata_number" value="{{ current_giornata.number }}">
+                    <button type="submit" class="fm-btn fm-btn-primary fm-btn-sm"><svg class="ic"><use href="#i-check"/></svg> Rendi ufficiali</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+
+        <div id="upload-section" class="gv-method">
+            <h3><svg class="ic"><use href="#i-import"/></svg> File dei voti</h3>
+            <p>Un file <b>.xlsx</b>, <b>.xls</b> o <b>.csv</b>, per esempio l'export «Voti» del tuo sito di fantacalcio, anche a blocchi per squadra:
+                si leggono voti, gol fatti e subiti, assist, rigori, autoreti, ammonizioni ed espulsioni.</p>
+            <form method="post" action="{% url 'app_voti_import' %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ gv_back }}">
+                <input type="hidden" name="league_id" value="{{ current_league.id }}">
+                <input type="hidden" name="giornata_number" value="{{ current_giornata.number }}">
+                <label class="drop-zone" for="voti-input" style="display:block">
+                    <svg class="ic"><use href="#i-cloud-up"/></svg>
+                    <div style="font-size:14px;font-weight:700;color:var(--ink);margin-top:6px;">Scegli il file dei voti</div>
+                    <div class="muted" style="font-size:12px;margin-top:4px;" id="file-name-display">Nessun file selezionato</div>
+                    <input type="file" id="voti-input" name="voti_file" accept=".xlsx,.xls,.csv" style="display:none;"
+                           onchange="if(this.files[0]) document.getElementById('file-name-display').textContent = this.files[0].name + ' (' + (this.files[0].size/1024).toFixed(1) + ' KB)'">
+                </label>
+                {% if vote_source == "algoritmico" %}
+                <label style="margin-top:12px;font-size:13px;display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;">
+                    <input type="checkbox" name="replace_algo" value="1">
+                    Sostituisci i voti algoritmici con quelli del file
+                </label>
+                <div class="muted" style="font-size:12px;margin-top:4px;">La lega usa il voto algoritmico come definitivo: il file lo sostituisce solo con questa spunta.</div>
+                {% endif %}
+                <div class="gv-actions">
+                    <button type="submit" class="fm-btn fm-btn-primary">Importa e calcola la Giornata {{ current_giornata.number }}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="manual-section" class="gv-method" style="margin-top:16px;">
+        <h3><svg class="ic"><use href="#i-list"/></svg> Punteggi a mano {% if manual_scored %}<span class="badge green">in uso</span>{% endif %}</h3>
+        <p>Per una lega che gioca su un altro sito (per esempio Fantapazz): scrivi il totale di ogni squadra com'è lì (85,5).
+            I gol, se non li scrivi, vengono dalle soglie della lega; risultati e classifiche si aggiornano. Le squadre lasciate
+            vuote restano com'erano. Un import dei voti o un sync live li ricalcola dai voti.</p>
+        <form method="post" action="{% url 'app_giornata_manual_scores' %}">
             {% csrf_token %}
             <input type="hidden" name="league_id" value="{{ current_league.id }}">
             <input type="hidden" name="giornata_number" value="{{ current_giornata.number }}">
             <input type="hidden" name="next" value="{{ gv_back }}">
-            <button type="submit" class="fm-btn fm-btn-secondary fm-btn-sm" title="Le formazioni si bloccano anche da sole alla prima sincronizzazione o importazione dei voti">
-                🔒 Blocca formazioni
-            </button>
-        </form>
-        {% endif %}
-        <a href="#upload-section" class="fm-btn fm-btn-ghost fm-btn-sm">
-            📥 Importa File Excel / CSV
-        </a>
-        <a href="#manual-section" class="fm-btn fm-btn-ghost fm-btn-sm">
-            ✍️ Punteggi a mano
-        </a>
-        <a href="#rules-section" class="fm-btn fm-btn-ghost fm-btn-sm" onclick="document.getElementById('rules-section').open = true">
-            ⚙️ Regole
-        </a>
-    </div>
-</div>
-
-<div class="voti-grid">
-    <!-- Panel 1: Risultati Fantacampionato -->
-    <div class="card" style="padding:16px;">
-        <h3 style="margin:0 0 12px;font-size:16px;display:flex;align-items:center;justify-content:space-between;">
-            <span>⚽ Punteggi Fantacampionato G{{ current_giornata.number }}</span>
-            <span class="badge blue" style="font-size:11px;">{{ scores|length }} Squadre</span>
-        </h3>
-        {% if scores %}
-        <div class="scroll">
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th style="width:40px;">#</th>
-                        <th>Squadra</th>
-                        <th style="text-align:right;">Fantapunti</th>
-                        <th style="text-align:right;">Gol</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for s in scores %}
-                    <tr>
-                        <td><b>{{ forloop.counter }}</b></td>
-                        <td><b style="color:#fff;">{{ s.participant.display_name }}</b></td>
-                        <td style="text-align:right;color:var(--fm-accent);font-weight:900;font-size:15px;">{{ s.total|floatformat:1 }}</td>
-                        <td style="text-align:right;"><span class="badge green">{{ s.goals }} Gol</span></td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% else %}
-        <div class="muted" style="text-align:center;padding:32px 16px;">
-            Nessun punteggio ancora calcolato per questa giornata.<br>
-            Carica il foglio voti per calcolare automaticamente formazioni e risultati.
-        </div>
-        {% endif %}
-    </div>
-
-    <!-- Panel 2: Coppa Italia Battle Royale (Regolamento Fantalugnano) -->
-    <div class="card" style="padding:16px;">
-        <h3 style="margin:0 0 12px;font-size:16px;display:flex;align-items:center;justify-content:space-between;">
-            <span>🏆 Coppa Italia (Formula Battle Royale)</span>
-            <span class="badge yellow" style="font-size:11px;">Tutti vs Tutti</span>
-        </h3>
-        {% if battle_royale %}
-        <div class="scroll">
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th style="width:40px;">Pos</th>
-                        <th>Club</th>
-                        <th style="text-align:center;">Score</th>
-                        <th style="text-align:right;">Punti Coppa</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for br in battle_royale %}
-                    <tr>
-                        <td><b>{{ forloop.counter }}</b></td>
-                        <td><b style="color:#fff;">{{ br.team_name }}</b></td>
-                        <td style="text-align:center;"><small class="muted">{{ br.record }}</small></td>
-                        <td style="text-align:right;">
-                            <b style="color:var(--fm-warning);font-size:16px;">+{{ br.battle_points }}</b>
-                            <small class="muted">/ {{ br.max_possible }}</small>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% else %}
-        <div class="muted" style="text-align:center;padding:32px 16px;">
-            I punteggi Battle Royale appariranno non appena verranno calcolati i gol della giornata.
-        </div>
-        {% endif %}
-    </div>
-</div>
-
-<!-- Formazioni della giornata -->
-<div class="card" style="padding:16px;margin-top:16px;">
-    <h3 style="margin:0 0 4px;font-size:16px;">📋 Formazioni Giornata {{ current_giornata.number }}</h3>
-    <div class="muted" style="font-size:12.5px;margin-bottom:10px;">
-        {% if lineups_editable %}Le squadre senza una formazione per questa giornata useranno l'ultima salvata.{% else %}Formazioni bloccate: una modifica qui è una correzione dell'admin{% if scores %} e ricalcola i punteggi{% endif %}.{% endif %}
-    </div>
-    <div class="table-scroll">
-        <table class="table">
-            <thead><tr><th>Squadra</th><th>Modulo</th><th style="text-align:center;">Titolari</th><th>Stato</th><th></th></tr></thead>
-            <tbody>
-                {% for r in lineup_rows %}
-                <tr>
-                    <td><b style="color:var(--ink);">{{ r.team.display_name }}</b></td>
-                    <td>{{ r.module|default:"—" }}</td>
-                    <td style="text-align:center;">{{ r.starters }}</td>
-                    <td><span class="badge {% if r.own %}green{% elif r.state == 'Mancante' or r.state == 'Nessuna formazione' %}red{% endif %}">{{ r.state }}</span></td>
-                    <td style="text-align:right;"><a class="fm-btn fm-btn-ghost fm-btn-sm" href="{{ r.edit_url }}">{% if lineups_editable %}Schiera{% else %}Correggi{% endif %}</a></td>
-                </tr>
-                {% empty %}
-                <tr><td colspan="5" class="muted">Nessuna squadra nella lega.</td></tr>
+            <div style="max-width:560px">
+                <div class="ms-row ms-head"><span>Squadra</span><span>Fantapunti</span><span>Gol</span></div>
+                {% for r in manual_rows %}
+                <div class="ms-row">
+                    <label for="ms-{{ r.team.id }}">{{ r.team.display_name }}</label>
+                    <input id="ms-{{ r.team.id }}" name="score_{{ r.team.id }}" inputmode="decimal" placeholder="es. 85,5"
+                           value="{{ r.value }}" class="gv-num">
+                    <input name="goals_{{ r.team.id }}" inputmode="numeric" placeholder="auto" aria-label="Gol di {{ r.team.display_name }}" class="gv-num">
+                </div>
                 {% endfor %}
-            </tbody>
-        </table>
+                <div class="gv-actions">
+                    <button type="submit" class="fm-btn fm-btn-primary">Salva punteggi della Giornata {{ current_giornata.number }}</button>
+                </div>
+            </div>
+        </form>
     </div>
-</div>
+</section>
 
-{% include "auctions/_scoring_rules.html" %}
+<!-- Regole -->
+<section id="gv-regole" class="gv-panel" data-gv-panel="regole">
+    {% include "auctions/_scoring_rules.html" %}
+</section>
 
-<!-- Punteggi a mano (es. da Fantapazz, che esporta solo un'immagine) -->
-<div id="manual-section" class="upload-card" style="margin-top:16px;">
-    <h3 style="margin:0 0 4px;font-size:18px;">✍️ Punteggi a mano · Giornata {{ current_giornata.number }}</h3>
-    <div class="muted" style="font-size:13px;">
-        Scrivi il totale di ogni squadra com'è sull'altro sito (per esempio Fantapazz: 85,5). I gol si calcolano dalle soglie della lega
-        (66 punti = 1 gol, poi uno ogni 6) se non li scrivi tu; risultati, scontri diretti e classifiche si aggiornano.
-        Le squadre lasciate vuote restano com'erano. Se poi carichi i voti o fai il sync live, i totali si ricalcolano dai voti.
-    </div>
-    {% if manual_scored %}<div class="muted" style="font-size:12.5px;margin-top:6px;"><span class="badge green">Inseriti a mano</span> Questa giornata ha già punteggi scritti a mano.</div>{% endif %}
-    <form method="post" action="{% url 'app_giornata_manual_scores' %}" style="margin-top:12px;">
-        {% csrf_token %}
-        <input type="hidden" name="league_id" value="{{ current_league.id }}">
-        <input type="hidden" name="giornata_number" value="{{ current_giornata.number }}">
-        <input type="hidden" name="next" value="{{ gv_back }}">
-        <div class="ms-row ms-head"><span>Squadra</span><span>Fantapunti</span><span>Gol</span></div>
-        {% for r in manual_rows %}
-        <div class="ms-row">
-            <label for="ms-{{ r.team.id }}">{{ r.team.display_name }}</label>
-            <input id="ms-{{ r.team.id }}" name="score_{{ r.team.id }}" inputmode="decimal" placeholder="es. 85,5"
-                   value="{{ r.value }}" class="gv-num">
-            <input name="goals_{{ r.team.id }}" inputmode="numeric" placeholder="auto" aria-label="Gol di {{ r.team.display_name }}" class="gv-num">
-        </div>
-        {% endfor %}
-        <div style="margin-top:12px;display:flex;justify-content:flex-end;">
-            <button type="submit" class="fm-btn fm-btn-primary">Salva punteggi della Giornata {{ current_giornata.number }}</button>
-        </div>
-    </form>
-</div>
-
-<!-- Upload Section -->
-<div id="upload-section" class="upload-card" style="margin-top:20px;">
-    <h3 style="margin:0 0 4px;font-size:18px;">Caricamento Voti Ufficiali Giornata {{ current_giornata.number }}</h3>
-    <div class="muted" style="font-size:13px;">
-        Supporta i file dei voti in formato <b>.xlsx</b>, <b>.xls</b> e <b>.csv</b> (per esempio l'export «Voti» del tuo sito di fantacalcio), anche a blocchi per squadra.
-        Il sistema mappa automaticamente voti, gol segnati/subiti, assist, rigori, autoreti, ammonizioni ed espulsioni.
-    </div>
-
-    <form method="post" action="{% url 'app_voti_import' %}" enctype="multipart/form-data" style="margin-top:16px;">
-        {% csrf_token %}
-        <input type="hidden" name="next" value="{{ gv_back }}">
-        <input type="hidden" name="league_id" value="{{ current_league.id }}">
-        <input type="hidden" name="giornata_number" value="{{ current_giornata.number }}">
-
-        <div class="drop-zone" onclick="document.getElementById('voti-input').click()">
-            <div style="font-size:32px;margin-bottom:8px;">📊</div>
-            <div style="font-size:15px;font-weight:700;color:#fff;">Clicca per selezionare il file voti (.xlsx, .xls o .csv)</div>
-            <div class="muted" style="font-size:12px;margin-top:4px;" id="file-name-display">Nessun file selezionato</div>
-            <input type="file" id="voti-input" name="voti_file" accept=".xlsx,.xls,.csv" style="display:none;"
-                   onchange="if(this.files[0]) document.getElementById('file-name-display').textContent = this.files[0].name + ' (' + (this.files[0].size/1024).toFixed(1) + ' KB)'">
-        </div>
-
-        {% if vote_source == "algoritmico" %}
-        <label style="margin-top:12px;font-size:13px;display:flex;gap:8px;align-items:center;">
-            <input type="checkbox" name="replace_algo" value="1">
-            Sostituisci i voti algoritmici con quelli del file
-        </label>
-        <div class="muted" style="font-size:12px;margin-top:4px;">La lega usa il voto algoritmico come definitivo: il file lo sostituisce solo con questa spunta.</div>
-        {% endif %}
-        <div style="margin-top:16px;display:flex;justify-content:flex-end;">
-            <button type="submit" class="fm-btn fm-btn-primary fm-glow-btn">
-                ⚡ Importa Voti e Calcola Giornata {{ current_giornata.number }}
-            </button>
-        </div>
-    </form>
-</div>
+<script>
+(function () {
+    // Schede: una alla volta; l'indirizzo (#gv-voti…) ricorda quella aperta.
+    var tabs = document.querySelector('.gv-tabs');
+    if (!tabs) return;
+    var panels = document.querySelectorAll('[data-gv-panel]');
+    function show(name, push) {
+        var found = false;
+        panels.forEach(function (p) { var on = p.getAttribute('data-gv-panel') === name; p.hidden = !on; found = found || on; });
+        if (!found) return false;
+        tabs.querySelectorAll('[data-gv-go]').forEach(function (a) {
+            var on = a.getAttribute('data-gv-go') === name;
+            a.classList.toggle('on', on); a.setAttribute('aria-selected', on ? 'true' : 'false');
+        });
+        if (push && history.replaceState) history.replaceState(null, '', '#gv-' + name);
+        keepTab();
+        return true;
+    }
+    document.querySelectorAll('[data-gv-go]').forEach(function (a) {
+        a.addEventListener('click', function (ev) {
+            ev.preventDefault();
+            show(a.getAttribute('data-gv-go'), true);
+            if (!a.closest('.gv-tabs')) tabs.scrollIntoView({behavior: 'smooth', block: 'start'});
+        });
+    });
+    // Le giornate e i form tornano sulla stessa scheda.
+    function keepTab() {
+        var on = tabs.querySelector('.on');
+        var hash = on ? '#gv-' + on.getAttribute('data-gv-go') : '';
+        document.querySelectorAll('.gv-strip a').forEach(function (a) { a.href = a.href.split('#')[0] + hash; });
+        document.querySelectorAll('[data-gv-panel] form, .gv-head form').forEach(function (f) {
+            var next = f.querySelector('input[name="next"]');
+            if (next) next.value = next.value.split('#')[0] + hash;
+        });
+    }
+    var start = (location.hash || '').replace('#gv-', '');
+    if (!show(start, false)) show(tabs.getAttribute('data-gv-default') || 'risultati', false);
+})();
+</script>
 <!-- giornate-manage:end -->

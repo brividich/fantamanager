@@ -51,11 +51,16 @@ class AppAuthTests(TestCase):
         self.assertEqual(self.client.session.get("display_name"), self.team_protected.display_name)
 
     def test_login_via_tokenized_link(self):
-        """Opening app_login with ?t=<public_token> signs in automatically."""
+        """Opening app_login with ?t=<public_token> of a team without an account
+        lands on its invite page (account and team in one step); entering
+        without an account still takes one tap and keeps ``next``."""
         resp = self.client.get(
             f"{reverse('app_login')}?t={self.team_protected.public_token}&next={reverse('app_rosa')}"
         )
+        invite = reverse("invite", args=[self.team_protected.public_token])
         self.assertEqual(resp.status_code, 302)
+        self.assertTrue(resp["Location"].startswith(invite))
+        resp = self.client.post(invite, {"action": "guest", "next": reverse("app_rosa")})
         self.assertEqual(resp["Location"], reverse("app_rosa"))
         self.assertEqual(self.client.session.get("participant_id"), self.team_protected.id)
 
@@ -71,7 +76,10 @@ class AppAuthTests(TestCase):
 
     def test_team_link_without_an_auction_opens_the_team_area(self):
         # Il link/QR della pagina Squadre (/join/?t=…) senza un'asta da giocare
-        # porta nell'app, non su «Nessuna asta disponibile».
+        # porta nell'app, non su «Nessuna asta disponibile». (Una squadra
+        # ancora senza account va alla pagina d'invito: test_onboarding.)
+        self.team_protected.user = User.objects.create_user("coach_link", password="pw-Coach-123")
+        self.team_protected.save()
         url = f"/join/?t={self.team_protected.public_token}"
         resp = self.client.get(url)
         self.assertRedirects(resp, reverse("app_home"), fetch_redirect_response=False)
@@ -79,6 +87,10 @@ class AppAuthTests(TestCase):
         closed = make_live_auction(league=self.league, status=Auction.Status.CLOSED)
         resp = self.client.get(url)
         self.assertRedirects(resp, reverse("app_home"), fetch_redirect_response=False)
+        # Senza account, con solo un'asta chiusa, è ancora un invito.
+        resp = self.client.get(f"/join/?t={self.team_open.public_token}")
+        self.assertRedirects(resp, reverse("invite", args=[self.team_open.public_token]),
+                             fetch_redirect_response=False)
         # Un'asta pronta o in corso resta la destinazione; una chiusa solo se
         # il link la nomina.
         resp = self.client.get(f"{url}&a={closed.id}")

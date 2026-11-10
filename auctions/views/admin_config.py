@@ -13,6 +13,7 @@ from .. import services
 from ..services import sala
 from ..models import Auction, AuctionSession, League
 from .admin_wizards import _game_mode
+from .admin_onboarding import coadmin_context
 from .common import (
     current_auction,
     manageable_leagues,
@@ -59,6 +60,7 @@ def admin_config(request):
         r["can_delete"] = _can_delete_league(user, r["league"])
         r["is_current"] = current_league is not None and r["league"].id == current_league.id
         r["sala"] = sala.view_info(r["league"])
+        r["coadmin"] = coadmin_context(request, r["league"])
     # The league the user came from goes first: it's the one they want to edit.
     rows.sort(key=lambda r: (not r["is_current"], r["league"].name.lower()))
 

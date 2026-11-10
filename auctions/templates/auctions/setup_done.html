@@ -1,15 +1,13 @@
-{% extends "auctions/base.html" %}
+{% extends page_frame|default:"auctions/_frame_console.html" %}{% load fm_pages %}
 {% comment %}
-«Lega pronta» — where the Nuova lega wizard lands: what was created (teams,
-listone, rosters, auction), how the invites went, and the next steps in the
-order a president does them: give the teams their access, check the league
-rules, run the auction, then the market during the season.
+«Lega pronta» — where the Nuova lega wizard lands, in the console and in the
+app (same view, page_frame): what was created, how the invites went, the
+«Prepara la lega» card (_league_setup_card.html, the same one the dashboard
+and the Regia show) and every team's invite, one by one (_team_invites.html).
 {% endcomment %}
 {% block title %}{{ league.name }} è pronta — FantaManager{% endblock %}
-{% block bodyclass %}role-admin{% endblock %}
-{% block wrapclass %}wrap-wide{% endblock %}
 
-{% block content %}
+{% block page %}
 <style>
     .sd { max-width: 1100px; margin: 0 auto; }
     .sd-hero { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; margin: 10px 0 18px; padding: 22px 24px;
@@ -60,9 +58,9 @@ rules, run the auction, then the market during the season.
     .sd-teams .nomail { color: var(--fm-warning); }
     .sd-t { display: flex; align-items: center; gap: 9px; margin: 0 0 10px; font-size: 15px; font-weight: 800; }
     .sd-t .ic { width: 17px; height: 17px; color: var(--fm-primary-light); }
+    .sd-inv { margin-top: 14px; }
+    .sd-inv > summary { list-style: none; }
 </style>
-
-{% include "auctions/_console_head.html" %}
 
 <div class="sd">
 <div class="sd-hero" role="status">
@@ -72,7 +70,13 @@ rules, run the auction, then the market during the season.
         <h1>{{ league.name }} è pronta</h1>
         <div class="sub">{{ league.get_game_mode_display }} · {{ league.budget|floatformat:0 }} FM a squadra{% if league.slot_limits %} · rosa da {{ league.total_slots }}{% endif %}. Ecco cosa fare adesso, in ordine.</div>
     </div>
-    <a class="fm-btn fm-btn-secondary" href="{% url 'dashboard_league' league.id %}"><svg class="ic"><use href="#i-home"/></svg> Dashboard della lega</a>
+    <div class="fm-onerow" style="gap:8px">
+        {% if auction %}
+        <a class="fm-btn fm-btn-primary" href="/regia/{{ auction.id }}/"><svg class="ic"><use href="#i-gavel"/></svg> Vai alla regia</a>
+        {% endif %}
+        <a class="fm-btn fm-btn-secondary" href="{% purl 'admin_participants' %}?league={{ league.id }}"><svg class="ic"><use href="#i-shield"/></svg> Squadre: link, QR ed email</a>
+        <a class="fm-btn fm-btn-ghost" href="{% purl 'admin_dashboard' %}?league={{ league.id }}"><svg class="ic"><use href="#i-home"/></svg> Torna alla lega</a>
+    </div>
 </div>
 
 {% for m in messages %}
@@ -91,92 +95,35 @@ rules, run the auction, then the market during the season.
         {% else %}<div class="v sm">Da creare</div><div class="s">quando ti serve</div>{% endif %}</div>
 </div>
 
-<div class="sd-grid">
-<ol class="sd-steps">
-    <li class="sd-step {% if report.invites.sent %}ok{% else %}hot{% endif %}">
-        <span class="n" aria-hidden="true"></span>
-        <div class="body">
-            <h2>Dai l'accesso alle squadre</h2>
-            <p>Ogni squadra ha un <b>link personale</b> (e un QR): chi lo apre entra nell'app già riconosciuto, senza password.
-                {% if mail_ready %}Con l'email dell'allenatore glielo mandi da qui.{% else %}Stampa i QR o copia i link dalla pagina Squadre.{% endif %}</p>
-            <div class="sd-acts fm-onerow">
-                {% if mail_ready %}
-                <form method="post" action="{% url 'admin_invite_teams' %}">
-                    {% csrf_token %}<input type="hidden" name="league_id" value="{{ league.id }}">
-                    <input type="hidden" name="next" value="{{ request.path }}">
-                    <button type="submit" class="fm-btn fm-btn-primary"{% if not with_email %} disabled title="Nessuna squadra ha un'email: aggiungila da Squadre"{% endif %}>
-                        <svg class="ic"><use href="#i-mail"/></svg> {% if report.invites.sent %}Invia di nuovo{% else %}Invia gli inviti{% endif %}{% if with_email %} ({{ with_email|length }}){% endif %}</button>
-                </form>
-                {% endif %}
-                <a class="fm-btn {% if mail_ready %}fm-btn-secondary{% else %}fm-btn-primary{% endif %}" href="{% url 'admin_participants' %}?league={{ league.id }}">
-                    <svg class="ic"><use href="#i-shield"/></svg> Squadre: link, QR ed email</a>
-                {% if not mail_ready and request.user.is_superuser %}
-                <a class="fm-btn fm-btn-ghost" href="{% url 'admin_mail_settings' %}"><svg class="ic"><use href="#i-mail"/></svg> Configura la posta</a>
-                {% endif %}
-            </div>
-        </div>
-    </li>
+<details class="howto noprint">
+    <summary><svg class="ic"><use href="#i-shield"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        La lega c'è. Adesso le squadre devono entrare.
+        <ol>
+            <li>In <b>Inviti, squadra per squadra</b> manda a ognuno il suo link: <b>Invia email</b> se ha un indirizzo, altrimenti <b>Condividi</b> (WhatsApp o il menu del telefono) o <b>Copia link</b>.</li>
+            <li>Chi apre il link crea il suo account e la squadra resta sua: lo stato passa da «Invitata» a «Entrata ✓».</li>
+            <li>Poi segui <b>Prepara la lega</b>: regole, prima asta o mercato, co-admin.</li>
+        </ol>
+    </div>
+</details>
 
-    <li class="sd-step">
-        <span class="n" aria-hidden="true"></span>
-        <div class="body">
-            <h2>Controlla le regole della lega</h2>
-            <p>Scambi (ratifica, periodi), contratti e tetto salariale partono dai valori standard: cambiali prima che la stagione inizi.</p>
-            <div class="sd-acts fm-onerow">
-                <a class="fm-btn fm-btn-secondary" href="{% url 'admin_config' %}#lg-{{ league.id }}"><svg class="ic"><use href="#i-gear"/></svg> Regole della lega</a>
-            </div>
-        </div>
-    </li>
-
-    <li class="sd-step {% if auction %}hot{% endif %}">
-        <span class="n" aria-hidden="true"></span>
-        <div class="body">
-            {% if auction %}
-            <h2>Fai partire l'asta</h2>
-            <p><b>{{ auction.title }}</b> è {% if auction.status == "LIVE" %}in corso{% elif auction.status == "CLOSED" %}chiusa{% else %}pronta{% endif %}. Apri la regia quando la sala è pronta e proietta il maxischermo.</p>
-            <div class="sd-acts fm-onerow">
-                <a class="fm-btn fm-btn-primary" href="/regia/{{ auction.id }}/"><svg class="ic"><use href="#i-gavel"/></svg> Vai alla regia</a>
-                <a class="fm-btn fm-btn-secondary" href="{% url 'screen' auction.id %}?t={{ auction.public_token }}" target="_blank" rel="noopener"><svg class="ic"><use href="#i-tv"/></svg> Maxischermo</a>
-            </div>
-            {% else %}
-            <h2>Crea l'asta quando serve</h2>
-            <p>La lega non ha ancora un'asta. Se le rose sono già complete puoi saltare questo passo e usare il mercato.</p>
-            <div class="sd-acts fm-onerow">
-                <a class="fm-btn fm-btn-secondary" href="{% url 'admin_auction_wizard' %}?league={{ league.id }}"><svg class="ic"><use href="#i-plus"/></svg> Crea l'asta</a>
-            </div>
-            {% endif %}
-        </div>
-    </li>
-
-    <li class="sd-step">
-        <span class="n" aria-hidden="true"></span>
-        <div class="body">
-            <h2>Durante la stagione: il mercato</h2>
-            <p>Buste di riparazione, scambi tra squadre e aste di riparazione: li apri dal Mercato quando servono.</p>
-            <div class="sd-acts fm-onerow">
-                <a class="fm-btn fm-btn-secondary" href="{% url 'admin_market_dashboard' %}?league={{ league.id }}"><svg class="ic"><use href="#i-swap"/></svg> Mercato</a>
-            </div>
-        </div>
-    </li>
-</ol>
-
-<aside class="fm-card">
-    <h2 class="sd-t"><svg class="ic"><use href="#i-users"/></svg> Squadre</h2>
-    {% if teams %}
-    <ul class="sd-teams">
-        {% for p in teams %}
-        <li>
-            <span class="nm"><b>{{ p.display_name }}</b>
-                {% if p.email %}<small>{{ p.email }}</small>{% elif p.contact_email %}<small>email dell'account</small>{% else %}<small class="nomail">senza email</small>{% endif %}</span>
-            <span class="cr">{{ p.remaining_credits|floatformat:0 }} FM</span>
-        </li>
-        {% endfor %}
-    </ul>
-    {% else %}
-    <p class="muted" style="font-size:13px;margin:0 0 10px">Nessuna squadra: aggiungile dalla pagina Squadre.</p>
-    {% endif %}
-    <a class="fm-btn fm-btn-ghost fm-btn-sm" style="margin-top:10px" href="{% url 'admin_participants' %}?league={{ league.id }}">Aggiungi le email →</a>
-</aside>
+{% if coadmin %}
+<div class="msg {% if coadmin.sent %}success{% elif coadmin.error %}error{% else %}info{% endif %}" role="status">
+    {% if coadmin.error %}{{ coadmin.error }}
+    {% elif coadmin.sent %}Invito da co-admin mandato a {{ coadmin.email }}.
+    {% else %}Co-admin: l'email non è partita. Passa a {{ coadmin.email }} questo link: <code style="user-select:all;overflow-wrap:anywhere">{{ coadmin.link }}</code>{% endif %}
 </div>
+{% endif %}
+
+{% include "auctions/_league_setup_card.html" %}
+
+<details class="fm-card sd-inv" id="inviti"{% if share_open or not report.invites.sent %} open{% endif %}>
+    <summary class="sd-t" style="cursor:pointer"><svg class="ic"><use href="#i-users"/></svg> Inviti, squadra per squadra ({{ teams|length }})</summary>
+    {% if not mail_ready %}
+    <p class="muted" style="font-size:13px">{% if request.user.is_superuser %}La posta non è configurata: impostala in <a href="{% url 'admin_mail_settings' %}">Impostazioni → Posta</a>. Intanto usa «Condividi» o «Copia link» per ogni squadra.{% else %}L'invio email non è attivo su questo sito: usa «Condividi» o «Copia link» per ogni squadra.{% endif %}</p>
+    {% endif %}
+    {% if teams %}{% include "auctions/_team_invites.html" %}
+    {% else %}<p class="muted" style="font-size:13px;margin:0 0 10px">Nessuna squadra: aggiungile dalla pagina Squadre.</p>{% endif %}
+</details>
 </div>
 {% endblock %}

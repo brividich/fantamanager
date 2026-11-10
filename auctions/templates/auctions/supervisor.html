@@ -1212,10 +1212,26 @@
 
 <!-- 3. TAB: LEAGUES MANAGEMENT -->
 {% if tab == 'leagues' %}
+{% if funnel %}
+<div class="super-table-wrap" style="margin-bottom:16px">
+    <div class="super-table-head"><h2 class="super-table-title">Dalla lega creata alla lega che gioca</h2></div>
+    <p style="font-size:12.5px;color:var(--muted);margin:0 0 10px">Misure interne del sito (nessun tracciamento esterno): quante leghe nuove arrivano a giocare.</p>
+    <table class="super-table">
+        <thead><tr><th>Leghe create</th><th>Con almeno un invito</th><th>Con metà delle squadre entrate</th><th>Tempo mediano fino a «pronta»</th><th>Da dove</th></tr></thead>
+        <tbody><tr>
+            <td><b>{{ funnel.total }}</b></td>
+            <td>{{ funnel.invited_pct }}%</td>
+            <td>{{ funnel.half_joined_pct }}%</td>
+            <td>{% if funnel.median_ready_hours is not None %}{{ funnel.median_ready_hours }} ore ({{ funnel.ready }} pronte){% else %}—{% endif %}</td>
+            <td>{% for via, n in funnel.by_via %}{{ via }}: {{ n }}{% if not forloop.last %} · {% endif %}{% endfor %}</td>
+        </tr></tbody>
+    </table>
+</div>
+{% endif %}
 <div class="super-table-wrap">
     <div class="super-table-head">
         <h2 class="super-table-title">Tutte le Leghe della Piattaforma</h2>
-        <a href="{% url 'admin_create_league' %}" class="btn-super-action" style="background:#2563eb;color:#fff;border:none;padding:8px 14px;text-decoration:none">
+        <a href="{% url 'admin_setup' %}" class="btn-super-action" style="background:#2563eb;color:#fff;border:none;padding:8px 14px;text-decoration:none">
             + Nuova Lega
         </a>
     </div>

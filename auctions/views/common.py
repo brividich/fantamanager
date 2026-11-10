@@ -94,6 +94,11 @@ def participant_join_url(request, participant, auction=None, base=None):
 
 
 def _join_path(participant, auction=None):
+    """Senza asta: il link d'invito della squadra (/invito/<token>/), uno solo
+    per email, pagina Squadre, QR e condivisione. Con un'asta: il link che
+    porta dritto nell'asta, come la sera in sala."""
+    if auction is None and participant.public_token:
+        return reverse("invite", args=[participant.public_token])
     path = reverse("join") + "?t=" + (participant.public_token or "")
     if auction is not None:
         path += f"&a={auction.id if hasattr(auction, 'id') else auction}"
@@ -574,6 +579,9 @@ APP_PAGES = {
     "admin_dashboard": "app_regia",
     # Il mio account (privacy): per tutti, non solo per chi gestisce leghe.
     "account": "app_account",
+    # «Nuova lega»: il wizard e la sua pagina «Lega pronta».
+    "admin_setup": "app_regia_setup",
+    "admin_setup_done": "app_regia_setup_done",
 }
 
 

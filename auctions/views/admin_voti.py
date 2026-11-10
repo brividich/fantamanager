@@ -10,7 +10,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.views.decorators.http import require_POST
 
-from ..models import Formation, Giornata, League, Participant, Season
+from ..models import Competition, Formation, Giornata, League, Participant, Season
 from ..services import voto_algo
 from ..services.competitions import season_name
 from .. import scoring as scoring_engine
@@ -113,10 +113,15 @@ def admin_giornate(request):
     lineup_rows = []
     manual_rows = []
     manual_scored = False
+    battle_comp = None
+    fixture_groups = []
     teams_count = Participant.objects.filter(league=league, is_active=True).count()
     if current_giornata:
         scores = list(current_giornata.scores.select_related("participant").order_by("-total"))
-        battle_royale = compute_coppa_italia_battle_royale(current_giornata) if scores else []
+        # The all-vs-all table only for a league that plays a Battle Royale.
+        battle_comp = season.competitions.filter(kind=Competition.Type.BATTLE_ROYALE).first()
+        if battle_comp and scores:
+            battle_royale = compute_coppa_italia_battle_royale(current_giornata)
         performances_count = current_giornata.performances.count()
         live_count = current_giornata.performances.filter(is_live=True).count()
         official_count = current_giornata.performances.filter(is_live=False).count()
@@ -127,6 +132,7 @@ def admin_giornate(request):
         manual_rows = [{"team": t, "value": _decimal_text(by_team[t.id].total) if t.id in by_team else ""}
                        for t in Participant.objects.filter(league=league, is_active=True).order_by("display_name")]
         manual_scored = any((gs.breakdown or {}).get("manual") for gs in scores)
+        fixture_groups = _fixture_groups(current_giornata)
 
     from ..services.voti_live import LiveSyncManager
 
@@ -145,6 +151,9 @@ def admin_giornate(request):
         "current_giornata": current_giornata,
         "scores": scores,
         "battle_royale": battle_royale,
+        "battle_royale_name": battle_comp.name if battle_comp else "",
+        "fixture_groups": fixture_groups,
+        **_giornata_status(current_giornata, is_live, live_count, official_count, manual_scored, scores),
         "performances_count": performances_count,
         "is_live": is_live,
         "live_count": live_count,
@@ -164,6 +173,47 @@ def admin_giornate(request):
         "console_active": "giornate",
     })
     return render(request, "auctions/app_giornate.html" if in_app else "auctions/admin_giornate.html", ctx)
+
+
+def _giornata_status(giornata, is_live, live_count, official_count, manual_scored, scores):
+    """Where the giornata stands, for the badge and the steps at the top of
+    the page, and the tab the page opens on."""
+    if giornata is None:
+        return {"gv_status": "", "gv_tone": "", "gv_votes": "", "gv_tab": "formazioni"}
+    if is_live:
+        status, tone = f"Live provvisorio · {live_count} voti", "yellow"
+    elif giornata.status == Giornata.Status.SCORED:
+        status = "Calcolata · punteggi a mano" if manual_scored else f"Calcolata · {official_count} voti ufficiali"
+        tone = "green"
+    else:
+        status, tone = giornata.get_status_display(), "blue" if giornata.status == Giornata.Status.LOCKED else ""
+    if official_count:
+        votes = f"{official_count} voti ufficiali"
+    elif live_count:
+        votes = f"{live_count} voti live"
+    elif manual_scored:
+        votes = "Punteggi a mano"
+    else:
+        votes = "Da caricare"
+    if scores:
+        tab = "risultati"
+    elif is_editable(giornata):
+        tab = "formazioni"
+    else:
+        tab = "voti"
+    return {"gv_status": status, "gv_tone": tone, "gv_votes": votes, "gv_tab": tab}
+
+
+def _fixture_groups(giornata):
+    """This giornata's head-to-head matches, one group per competition."""
+    groups = {}
+    for fx in giornata.fixtures.select_related("competition", "home", "away").order_by("competition_id", "id"):
+        key = fx.competition_id or 0
+        if key not in groups:
+            name = fx.competition.name if fx.competition else "Campionato"
+            groups[key] = {"name": name, "stage": fx.stage, "fixtures": []}
+        groups[key]["fixtures"].append(fx)
+    return list(groups.values())
 
 
 def _formation_url(request, participant_id, giornata):

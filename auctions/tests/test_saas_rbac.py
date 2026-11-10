@@ -96,7 +96,8 @@ class SaasRbacTests(TestCase):
             "password": "securepassword123",
             "password_confirm": "securepassword123",
         })
-        self.assertRedirects(resp1, reverse("supervisor_dashboard"))
+        # Primo avvio del PC: si parte da «Cosa vuoi fare?», non dal Supervisor.
+        self.assertRedirects(resp1, reverse("onboarding"))
         first_u = User.objects.get(username="first_user")
         self.assertTrue(first_u.is_superuser)
 
@@ -135,7 +136,8 @@ class SaasRbacTests(TestCase):
             self.assertFalse(User.objects.filter(username="debole").exists(), weak)
 
     def test_onboarding_create_league(self):
-        """A user in onboarding can create a league and become its owner/admin."""
+        """«Creo una lega» in onboarding porta al wizard: il mini-form di prima
+        non crea più niente (una sola strada, test_onboarding.WizardTests)."""
         self.client.force_login(self.user_manager)
         resp = self.client.post(reverse("onboarding"), {
             "action": "create_league",
@@ -143,10 +145,8 @@ class SaasRbacTests(TestCase):
             "game_mode": "CLASSIC",
             "budget": "600",
         })
-        new_lg = League.objects.filter(name="Lega Nuova di Mario").first()
-        self.assertIsNotNone(new_lg)
-        self.assertEqual(new_lg.owner, self.user_manager)
-        self.assertRedirects(resp, reverse("dashboard_league", kwargs={"league_id": new_lg.id}))
+        self.assertFalse(League.objects.filter(name="Lega Nuova di Mario").exists())
+        self.assertRedirects(resp, reverse("admin_setup"), fetch_redirect_response=False)
 
     def test_onboarding_join_team_with_access_code(self):
         """A user in onboarding enters a team access code and claims that participant."""

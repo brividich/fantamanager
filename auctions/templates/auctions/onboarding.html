@@ -1,255 +1,95 @@
 {% extends "auctions/base.html" %}
-{% block title %}Benvenuto — Configura la tua Esperienza{% endblock %}
+{% comment %}
+«Cosa vuoi fare?» — la prima schermata dopo la registrazione (views/auth.py:
+onboarding_view), da telefono e da PC. Tre strade, una per riga:
+1. creo una lega → il wizard (anche nell'app);
+2. mi hanno invitato → link o codice, la squadra si collega all'account;
+3. solo nell'app del PC: scarico una lega dal sito, o apro un backup.
+{% endcomment %}
+{% block title %}Cosa vuoi fare? — FantaManager{% endblock %}
 {% block bodyclass %}role-player{% endblock %}
-{% block wrapclass %}wrap-wide{% endblock %}
 
 {% block content %}
 <style>
-    .onboarding-wrap {
-        max-width: 900px;
-        margin: 32px auto;
-        padding: 0 16px;
-    }
-    .onboarding-hero {
-        text-align: center;
-        margin-bottom: 36px;
-    }
-    .onboarding-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        background: rgba(34, 197, 94, 0.15);
-        border: 1px solid rgba(34, 197, 94, 0.4);
-        padding: 6px 14px;
-        border-radius: 999px;
-        font-size: 12px;
-        font-weight: 800;
-        text-transform: uppercase;
-        letter-spacing: .08em;
-        color: #4ade80;
-        margin-bottom: 12px;
-    }
-    .onboarding-title {
-        font-size: 32px;
-        font-weight: 900;
-        letter-spacing: -0.02em;
-        margin: 0 0 8px;
-    }
-    .onboarding-sub {
-        font-size: 16px;
-        color: var(--muted, #94a3b8);
-        margin: 0;
-    }
-
-    .onboarding-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
-        gap: 24px;
-        margin-bottom: 30px;
-    }
-    .onboarding-card {
-        background: var(--panel, #12151c);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 16px;
-        padding: 30px 26px;
-        display: flex;
-        flex-direction: column;
-        box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35);
-        position: relative;
-        transition: transform .2s ease, border-color .2s ease;
-    }
-    .onboarding-card:hover {
-        transform: translateY(-3px);
-        border-color: rgba(255, 255, 255, 0.2);
-    }
-    .onboarding-card.primary {
-        border-color: rgba(37, 99, 235, 0.45);
-        background: linear-gradient(180deg, rgba(37, 99, 235, 0.08) 0%, rgba(18, 21, 28, 0.95) 100%);
-    }
-    .card-icon {
-        width: 52px;
-        height: 52px;
-        border-radius: 12px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 26px;
-        margin-bottom: 18px;
-    }
-    .card-icon.blue { background: rgba(37, 99, 235, 0.2); color: #60a5fa; border: 1px solid rgba(37, 99, 235, 0.4); }
-    .card-icon.green { background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4); }
-
-    .card-title {
-        font-size: 20px;
-        font-weight: 800;
-        margin: 0 0 8px;
-    }
-    .card-desc {
-        font-size: 14px;
-        color: var(--muted, #94a3b8);
-        line-height: 1.5;
-        margin: 0 0 22px;
-        flex-grow: 1;
-    }
-
-    .form-group {
-        margin-bottom: 16px;
-    }
-    .form-group label {
-        display: block;
-        font-size: 11px;
-        font-weight: 800;
-        text-transform: uppercase;
-        letter-spacing: .06em;
-        color: var(--muted, #94a3b8);
-        margin-bottom: 5px;
-    }
-    .form-group input, .form-group select {
-        width: 100%;
-        background: rgba(15, 23, 42, 0.7);
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        color: var(--text, #f8fafc);
-        padding: 10px 12px;
-        border-radius: 8px;
-        font-size: 14px;
-        box-sizing: border-box;
-    }
-    .form-group input:focus, .form-group select:focus {
-        outline: none;
-        border-color: var(--accent, #3b82f6);
-    }
-
-    .btn-action {
-        width: 100%;
-        padding: 12px 16px;
-        border-radius: 8px;
-        border: none;
-        font-size: 14px;
-        font-weight: 800;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 6px;
-        transition: opacity .15s;
-    }
-    .btn-action.primary {
-        background: linear-gradient(135deg, #2563eb, #1d4ed8);
-        color: #fff;
-        box-shadow: 0 6px 16px rgba(37, 99, 235, 0.35);
-    }
-    .btn-action.secondary {
-        background: linear-gradient(135deg, #059669, #047857);
-        color: #fff;
-        box-shadow: 0 6px 16px rgba(16, 185, 129, 0.3);
-    }
-    .btn-action:hover {
-        opacity: .92;
-    }
-
-    .auth-alert {
-        background: rgba(239, 68, 68, 0.12);
-        border: 1px solid rgba(239, 68, 68, 0.35);
-        color: #f87171;
-        padding: 12px 14px;
-        border-radius: 8px;
-        font-size: 13px;
-        font-weight: 600;
-        margin-bottom: 24px;
-        text-align: center;
-    }
+    .ob { max-width: 640px; margin: 20px auto 40px; }
+    .ob-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 18px; font-size: 13px; color: var(--fm-text-secondary); }
+    .ob-top a { color: #f87171; font-weight: 700; text-decoration: none; }
+    .ob h1 { font-family: var(--fm-display); font-size: 32px; margin: 0 0 4px; }
+    .ob .sub { color: var(--fm-text-secondary); margin: 0 0 18px; font-size: 14.5px; }
+    .ob-choice { display: grid; gap: 12px; }
+    .ob-card { display: block; padding: 18px 18px; border-radius: 16px; background: var(--fm-card);
+               border: 1px solid var(--fm-border); text-decoration: none; color: inherit; }
+    .ob-card.primary { border-color: var(--fm-border-active); background: linear-gradient(180deg, rgba(8,124,240,.10), transparent), var(--fm-card); }
+    .ob-card .t { display: flex; align-items: center; gap: 12px; font-size: 18px; font-weight: 800; }
+    .ob-card .t .n { width: 32px; height: 32px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+                     background: var(--fm-primary); color: #fff; font-size: 15px; flex: 0 0 32px; }
+    .ob-card .d { margin: 6px 0 0 44px; font-size: 13.5px; line-height: 1.5; color: var(--fm-text-secondary); }
+    .ob-card form { margin: 12px 0 0 44px; display: grid; gap: 8px; }
+    .ob-card input { height: 48px; font-size: 16px; }
+    .ob-card .go { margin: 12px 0 0 44px; }
+    .ob-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 20px; border-radius: 12px;
+              font-weight: 800; font-size: 15px; border: 0; cursor: pointer; text-decoration: none;
+              background: var(--fm-gradient, #087cf0); color: #fff; }
+    .ob-btn.green { background: linear-gradient(135deg, #059669, #047857); }
+    .ob-err { padding: 12px 14px; border-radius: 10px; background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.35);
+              color: #f87171; font-weight: 700; font-size: 13.5px; margin-bottom: 14px; }
+    @media (max-width: 520px) { .ob-card .d, .ob-card form, .ob-card .go { margin-left: 0; } }
 </style>
 
-<div class="onboarding-wrap">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-        <div style="font-size:13px;color:var(--muted)">Autenticato come <b>{{ request.user.username }}</b></div>
-        <a href="{% url 'logout' %}" style="font-size:13px;color:#ef4444;text-decoration:none;font-weight:700">Disconnetti</a>
+<div class="ob">
+    <div class="ob-top">
+        <span>Entrato come <b>{{ request.user.username }}</b></span>
+        <a href="{% url 'logout' %}">Esci</a>
     </div>
+    <h1>Cosa vuoi fare?</h1>
+    <p class="sub">Scegli una strada: puoi sempre fare anche l'altra dopo.</p>
 
-    <div class="onboarding-hero">
-        <div class="onboarding-badge">
-            <svg class="ic" style="width:14px;height:14px"><use href="#i-wave"/></svg>
-            Benvenuto in FantaManager
+    <details class="howto">
+        <summary><svg class="ic"><use href="#i-shield"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+        <div class="howto-body">
+            <ol>
+                <li>Organizzi tu la lega? <b>Creo una lega</b>: in pochi passi scrivi le squadre (anche con le email) e mandi gli inviti.</li>
+                <li>Ti ha invitato un presidente? <b>Mi hanno invitato</b>: incolla il link che ti ha mandato (o scrivi il codice della squadra) e premi <b>Entra</b>.</li>
+                {% if desktop_app %}<li>Su questo PC farai l'asta in sala per una lega che sta sul sito? <b>Scarico una lega dal sito</b>.</li>{% endif %}
+            </ol>
+            <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Dopo, la squadra resta collegata al tuo account: entri da qualsiasi telefono o PC con nome utente e password.</div>
         </div>
-        <h1 class="onboarding-title">Come vuoi iniziare?</h1>
-        <p class="onboarding-sub">Scegli se creare una nuova lega come Presidente o unirti a una già creata come Fantallenatore.</p>
-    </div>
+    </details>
 
-    {% if error %}
-    <div class="auth-alert">
-        <svg class="ic" style="vertical-align:-2px;margin-right:4px"><use href="#i-info"/></svg>
-        {{ error }}
-    </div>
-    {% endif %}
+    {% for m in messages %}<div class="ob-err" style="{% if m.tags != 'error' %}background:rgba(22,217,104,.10);border-color:rgba(22,217,104,.35);color:#8df0b6{% endif %}" role="status">{{ m }}</div>{% endfor %}
+    {% if error %}<div class="ob-err" role="alert">{{ error }}</div>{% endif %}
 
-    <div class="onboarding-grid">
-        <!-- 1. CREA LEGA -->
-        <div class="onboarding-card primary">
-            <div class="card-icon blue">👑</div>
-            <h2 class="card-title">Crea una nuova Lega</h2>
-            <p class="card-desc">Diventa il Presidente e organizzatore. Configura le regole, importa il listone, organizza l'asta dal vivo e gestisci le rose.</p>
+    <div class="ob-choice">
+        <a class="ob-card primary" href="{{ setup_url }}">
+            <div class="t"><span class="n">1</span> Creo una lega</div>
+            <div class="d">Sei il presidente: nome, squadre ed email in un passo, regole già pronte. Il listone dei calciatori c'è già.</div>
+            <div class="go"><span class="ob-btn">Crea la lega →</span></div>
+        </a>
 
+        <div class="ob-card">
+            <div class="t"><span class="n">2</span> Mi hanno invitato</div>
+            <div class="d">Incolla il link dell'invito (o scrivi il codice della squadra): la squadra si collega al tuo account.</div>
             <form method="post">
                 {% csrf_token %}
-                <input type="hidden" name="action" value="create_league">
-
-                <div class="form-group">
-                    <label for="id_name">Nome della Lega</label>
-                    <input id="id_name" type="text" name="name" required placeholder="es. Serie A tra Amici 2026/27">
-                </div>
-
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-                    <div class="form-group">
-                        <label for="id_mode">Modalità</label>
-                        <select id="id_mode" name="game_mode">
-                            <option value="CLASSIC" selected>Classic (P-D-C-A)</option>
-                            <option value="MANTRA">Mantra</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="id_budget">Budget Squadre</label>
-                        <input id="id_budget" type="number" name="budget" value="500" min="100" max="2000">
-                    </div>
-                </div>
-
-                <div style="margin-top:18px">
-                    <button type="submit" class="btn-action primary">
-                        Crea Lega e Apri Regia →
-                    </button>
-                </div>
-                <p style="margin:12px 0 0;font-size:12.5px;line-height:1.5;color:var(--muted, #94a3b8)">
-                    <b>Dopo:</b> si apre la regia della tua lega. Da lì aggiungi le squadre,
-                    carichi il listone e prepari l'asta.</p>
-            </form>
-        </div>
-
-        <!-- 2. UNISCITI A LEGA -->
-        <div class="onboarding-card">
-            <div class="card-icon green">⚽</div>
-            <h2 class="card-title">Unisciti a una Lega</h2>
-            <p class="card-desc">Sei un fantallenatore invitato da un presidente? Inserisci il codice squadra che ti è stato fornito per associare la tua rosa.</p>
-
-            <form method="post" style="display:flex;flex-direction:column;flex-grow:1;justify-content:flex-end">
-                {% csrf_token %}
                 <input type="hidden" name="action" value="join_team">
-
-                <div class="form-group">
-                    <label for="id_access_code">Codice Squadra / Token</label>
-                    <input id="id_access_code" type="text" name="access_code" required
-                           placeholder="es. REAL01"
-                           style="font-size:18px;letter-spacing:0.12em;text-transform:uppercase;text-align:center">
-                </div>
-
-                <div style="margin-top:18px">
-                    <button type="submit" class="btn-action secondary">
-                        Associa Squadra ed Entra →
-                    </button>
-                </div>
-                <p style="margin:12px 0 0;font-size:12.5px;line-height:1.5;color:var(--muted, #94a3b8)">
-                    Il codice squadra te lo dà il presidente della lega.
-                    <b>Dopo:</b> entri nell'app della tua squadra, con rosa, formazione e buste.</p>
+                <input id="ob-code" name="access_code" required autocomplete="off" autocapitalize="none" spellcheck="false"
+                       aria-label="Link dell'invito o codice della squadra" placeholder="https://…/invito/… oppure il codice">
+                <button type="submit" class="ob-btn green">Entra →</button>
             </form>
         </div>
+
+        {% if desktop_app %}
+        <a class="ob-card" href="{% url 'admin_config' %}#sala-connect">
+            <div class="t"><span class="n">3</span> Scarico una lega dal sito</div>
+            <div class="d">Per l'asta in sala su questo PC, anche senza internet: indirizzo del sito e chiave della lega, e il PC la scarica.</div>
+        </a>
+        {% if request.user.is_superuser %}
+        <a class="ob-card" href="{% url 'supervisor_dashboard' %}?tab=reports">
+            <div class="t"><span class="n">4</span> Apro un backup</div>
+            <div class="d">Rimetti una copia del database salvata prima (Supervisor → Piattaforma e manutenzione → Ripristina).</div>
+        </a>
+        {% endif %}
+        {% endif %}
     </div>
 </div>
 {% endblock %}
