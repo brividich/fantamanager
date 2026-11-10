@@ -206,22 +206,23 @@ Apertura dalla pagina: openMarketWizard() / closeMarketWizard().
             <p class="mwz-intro">Regole di spesa e di assegnazione della sessione:</p>
 
             <div data-for="buste">
+                <p class="mwz-intro">Proposte come da regolamento (5.03): <b>5 offerte</b> per squadra, anche sullo stesso giocatore; <b>totale entro il budget</b>; ogni acquisto <b>sostituisce un pari ruolo</b>; offerte uguali al <b>secondo sfoglio</b>. Cambia qui sotto quello che la tua lega fa diversamente.</p>
                 <div class="mwz-box">
                     <span class="mwz-lbl">Regola del budget</span>
                     {# Le stesse scelte, con le stesse parole, del modulo «Regole» (_market_rules_fields.html): MarketSession.BudgetRule. #}
                     {% for value, label in budget_rules %}
-                    <label class="mwz-opt"><input type="radio" name="budget_rule" value="{{ value }}"{% if value == "priority" %} checked{% endif %}> {{ label }}</label>
+                    <label class="mwz-opt"><input type="radio" name="budget_rule" value="{{ value }}"{% if value == "total" %} checked{% endif %}> {{ label }}</label>
                     {% endfor %}
                 </div>
                 <div class="mwz-box">
                     <label class="mwz-lbl" for="mwz-tie">Pari merito</label>
                     <select name="tie_break" id="mwz-tie" class="mwz-input">
-                        {% for value, label in tie_breaks %}<option value="{{ value }}"{% if value == "first" %} selected{% endif %}>{{ label }}</option>{% endfor %}
+                        {% for value, label in tie_breaks %}<option value="{{ value }}"{% if value == "rebid" %} selected{% endif %}>{{ label }}</option>{% endfor %}
                     </select>
                 </div>
                 <div class="mwz-box">
                     <label class="mwz-lbl" for="mwz-max-bids">Offerte massime per squadra</label>
-                    <input type="number" id="mwz-max-bids" name="max_bids" value="0" min="0" class="mwz-input">
+                    <input type="number" id="mwz-max-bids" name="max_bids" value="5" min="0" class="mwz-input">
                     <span class="mwz-hint">0 = nessun limite. Più offerte sullo stesso giocatore contano tutte.</span>
                 </div>
                 <div class="mwz-box">
@@ -312,7 +313,7 @@ Apertura dalla pagina: openMarketWizard() / closeMarketWizard().
 
             <div class="mwz-box" id="mwz-release-box">
                 <span class="mwz-lbl">Svincoli e tagli</span>
-                <label class="mwz-opt"><input type="checkbox" name="require_same_role_release" value="1"> Ogni acquisto sostituisce un giocatore di pari ruolo (taglio obbligatorio)</label>
+                <label class="mwz-opt"><input type="checkbox" name="require_same_role_release" value="1" id="mwz-same-role" checked> Ogni acquisto sostituisce un giocatore di pari ruolo (taglio obbligatorio)</label>
                 <label class="mwz-opt"><input type="checkbox" name="allow_conditional_release" value="1" checked> Consenti tagli condizionati facoltativi (anche se non obbligatori)</label>
                 <label class="mwz-lbl" for="mwz-refund" style="margin-top:6px">Rimborso del giocatore tagliato</label>
                 <select name="refund_mode" id="mwz-refund" class="mwz-input">
@@ -388,6 +389,9 @@ Apertura dalla pagina: openMarketWizard() / closeMarketWizard().
             el.style.display = el.dataset.for === value ? "block" : "none";
         });
         $("mwz-release-box").style.display = value === "renewals" ? "none" : "block";
+        // Alle buste ogni acquisto prende il posto di un pari ruolo (regolamento
+        // 5.03); negli altri mercati il taglio obbligatorio si sceglie.
+        $("mwz-same-role").checked = value === "buste";
         // Il suggerimento sulla chiusura dipende dal tipo: solo le buste hanno lo spoglio,
         // il waiver senza data si chiude dopo la durata della finestra reclami.
         const hint = value === "buste" || value === "waiver_wire" ? value : "other";
