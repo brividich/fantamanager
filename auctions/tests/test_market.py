@@ -1247,6 +1247,54 @@ class RegolamentoBusteTests(TestCase):
         self.assertIn("Non necessaria", unused.note)
         self.assertEqual(MarketBid.objects.get(participant=self.a, amount=2).status, MarketBid.Status.LOST)
 
+    def test_winner_on_time_pays_what_the_tied_rival_offered(self):
+        # A 50 e 100, B 100 dopo: A vince il pari merito a 100 perché è
+        # arrivata prima, e paga 100. Il suo 50 non batte il 100 di B.
+        self.assertTrue(self._bid(self.a, "R.Carlos", 50, cut_index=0)["ok"])
+        self.assertTrue(self._bid(self.a, "R.Carlos", 100, cut_index=1)["ok"])
+        self.assertTrue(self._bid(self.b, "R.Carlos", 100)["ok"])
+        resolve_market_session(self.session.id)
+        rc = Player.objects.get(pk=self.free["R.Carlos"].pk)
+        self.assertEqual((rc.owner, rc.cost), (self.a, Decimal("100")))
+        self.assertIn("inserita prima", MarketBid.objects.get(participant=self.b).note)
+
+    def test_a_rival_offer_that_cannot_win_does_not_raise_the_price(self):
+        # B indica lo stesso taglio per Iniesta (150) e per Boban (50): preso
+        # Iniesta, la sua busta su Boban non può più vincere. A, unica rivale
+        # valida di sé stessa, paga la sua offerta minima.
+        cut = self._cut(self.b, "C").id
+        for name, amount in (("Iniesta", 150), ("Boban", 50)):
+            self.assertTrue(place_market_bid(self.session.id, self.b.id, self.free[name].id, amount,
+                                             release_player_id=cut)["ok"])
+        self.assertTrue(self._bid(self.a, "Boban", 2, cut_index=0)["ok"])
+        self.assertTrue(self._bid(self.a, "Boban", 100, cut_index=1)["ok"])
+        resolve_market_session(self.session.id)
+        boban = Player.objects.get(pk=self.free["Boban"].pk)
+        self.assertEqual((boban.owner, boban.cost), (self.a, Decimal("2")))
+        lost = MarketBid.objects.get(participant=self.b, player=self.free["Boban"])
+        self.assertEqual(lost.status, MarketBid.Status.LOST)
+
+    def test_same_offer_twice_is_refused(self):
+        # Il doppio tocco su «Consegna Busta» non consuma due offerte.
+        self.assertTrue(self._bid(self.a, "Boban", 10)["ok"])
+        res = self._bid(self.a, "Boban", 10)
+        self.assertEqual(res["error"], "duplicate_bid")
+        self.assertIn("cambia l'importo", res["message"])
+        self.assertEqual(MarketBid.objects.filter(participant=self.a).count(), 1)
+        self.assertTrue(self._bid(self.a, "Boban", 11)["ok"])
+
+    def test_a_changed_amount_counts_from_when_it_was_changed(self):
+        # Regola «priorità»: l'offerta si modifica. A offre 1, B offre 50, poi
+        # A sale a 50: a 50 è arrivata prima B.
+        self.session.budget_rule = MarketSession.BudgetRule.PRIORITY
+        self.session.save()
+        self.assertTrue(self._bid(self.a, "Boban", 1)["ok"])
+        self.assertTrue(self._bid(self.b, "Boban", 50)["ok"])
+        self.assertTrue(self._bid(self.a, "Boban", 50)["ok"])
+        self.assertEqual(MarketBid.objects.filter(participant=self.a).count(), 1)
+        resolve_market_session(self.session.id)
+        self.assertEqual(Player.objects.get(pk=self.free["Boban"].pk).owner, self.b)
+
     def test_unopposed_pays_its_minimum_offer(self):
         self._bid(self.a, "Boban", 1)
         self._bid(self.a, "Boban", 50, cut_index=1)
@@ -1323,6 +1371,17 @@ class RegolamentoBusteTests(TestCase):
         self.assertEqual(self.session.release_refund_mode, "current")
         page = self.client.get(reverse("admin_market_session", args=[self.session.id]))
         self.assertContains(page, "max 3 per squadra")
+
+    def test_app_total_counts_the_top_offer_on_each_player(self):
+        # 20 e 60 su Boban, 40 su Iniesta: sul budget pesano 60 + 40, non 120.
+        s = self.client.session
+        s["participant_id"] = self.a.id
+        s.save()
+        self._bid(self.a, "Boban", 20, cut_index=0)
+        self._bid(self.a, "Boban", 60, cut_index=1)
+        self._bid(self.a, "Iniesta", 40, cut_index=0)
+        resp = self.client.get(reverse("app_mercato") + f"?session_id={self.session.id}")
+        self.assertEqual(resp.context["my_bids_total"], 100)
 
     def test_app_shows_rules_and_same_role_choices(self):
         s = self.client.session
