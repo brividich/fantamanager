@@ -67,6 +67,21 @@ class ProviderTests(TestCase):
         importers.import_rose_data(teams, league=mine)
         self.assertEqual(Participant.objects.filter(display_name="GELSI UNITED").count(), 2)
 
+    def test_rose_match_listone_names_with_turkish_and_nordic_letters(self):
+        from ..models import League
+        from ..providers import importers
+        league = League.objects.create(name="Lega Nomi")
+        Player.objects.filter(league=league).delete()   # niente lista generale nel test
+        yildiz = Player.objects.create(league=league, name="K. Yıldız", role="C", team="Juventus")
+        hojlund = Player.objects.create(league=league, name="R. Højlund", role="A", team="Napoli")
+        importers.import_rose_data([{"name": "SPARTAK NOCE", "credits": 100, "players": [
+            {"role": "C", "name": "Yildiz", "cost": 64, "club": "JUV"},
+            {"role": "A", "name": "Hojlund", "cost": 74, "club": "NAP"},
+        ]}], league=league)
+        team = Participant.objects.get(display_name="SPARTAK NOCE")
+        self.assertEqual({p.pk for p in Player.objects.filter(owner=team)}, {yildiz.pk, hojlund.pk})
+        self.assertEqual(Player.objects.filter(league=league).count(), 2)   # nessun doppione
+
     def test_listone_then_rose_keeps_free_agents(self):
         # Regression: load the Quotazioni (listone) first, then a roster file.
         # The roster only assigns owners onto the pool — it must NOT wipe the

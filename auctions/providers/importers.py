@@ -29,8 +29,14 @@ _SEP = ";"
 # so it keeps working as players join/leave Serie A every season.
 
 def _norm(s):
-    """Lowercase, strip accents/apostrophes, collapse punctuation to spaces."""
-    s = unicodedata.normalize("NFKD", str(s or ""))
+    """Lowercase, strip accents/apostrophes, collapse punctuation to spaces.
+
+    Le lettere che la scomposizione Unicode non riduce (ı, ø, ł, ß…) passano
+    dalla stessa tabella dei nomi di API-Football: senza, «Yildiz» e «Hojlund»
+    di un export di rose non trovavano «K. Yıldız» e «R. Højlund» della lista
+    generale e diventavano doppioni (uno in rosa, uno svincolato)."""
+    from .apifootball import _LATIN
+    s = unicodedata.normalize("NFKD", str(s or "").translate(_LATIN))
     s = "".join(c for c in s if not unicodedata.combining(c))
     s = s.lower().replace("'", "").replace("’", "")
     return re.sub(r"[^a-z0-9]+", " ", s).strip()
