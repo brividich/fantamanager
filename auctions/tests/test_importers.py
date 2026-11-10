@@ -16,6 +16,8 @@ from django.contrib.auth.models import User
 from django.conf import settings
 from django.test import (RequestFactory, TestCase, TransactionTestCase,
                          override_settings)
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.urls import reverse
 from django.utils import timezone
 
 from .. import mantra, services
@@ -416,3 +418,92 @@ class ListoneSyncTests(TestCase):
         self.assertEqual(Player.objects.first().name, "Carnesecchi")
         self.assertEqual(report["created"], 1)
 
+
+
+class NameCostRosterTests(TestCase):
+    """Rose a blocchi «nome | costo» (export Mantra «rosters» .xlsx): niente
+    ruolo né club, si abbina per nome al listone della lega."""
+
+    def setUp(self):
+        self.league = League.objects.create(name="Lega Mantra", budget=Decimal("1000"))
+        Player.objects.filter(league=self.league).delete()   # niente lista generale nel test
+        for name, role, club in (("Martinez L.", "A", "Inter"), ("Martinez J.", "P", "Inter"),
+                                 ("Anguissa", "C", "Napoli"), ("Paz", "C", "Como"),
+                                 ("Rodriguez J.", "C", "Como"), ("Thuram", "A", "Inter"),
+                                 ("Thuram K.", "C", "Juventus"), ("Esposito Pio", "A", "Inter"),
+                                 ("Esposito S.", "A", "Cagliari")):
+            Player.objects.create(league=self.league, name=name, role=role, team=club)
+
+    def _file(self, blocks):
+        import openpyxl
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "ROSE"
+        height = max(len(b[1]) for b in blocks) + 2
+        grid = [[None] * (3 * len(blocks)) for _ in range(height)]
+        for i, (team, players, total) in enumerate(blocks):
+            c = 3 * i
+            grid[0][c], grid[0][c + 1] = team, "costo"
+            for r, (name, cost) in enumerate(players, start=1):
+                grid[r][c], grid[r][c + 1] = name, cost
+            grid[len(players) + 1][c], grid[len(players) + 1][c + 1] = "totale", total
+        for row in grid:
+            ws.append(row)
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        return buf
+
+    def test_blocks_are_read_and_matched_by_name(self):
+        f = self._file([
+            ("Dinamo Losca", [("Martinez Jo.", 37), ("Zambo Anguissa", 18), ("Thuram", 116)], 171),
+            ("Loco T", [("Paz N.", 111), ("Thuram K.", 20)], 131),
+        ])
+        teams, listone, meta = importers.parse_rose_file(f, "rosters.xlsx", league=self.league)
+        self.assertEqual(meta["source"], "rose_nome_costo")
+        self.assertIsNone(listone)
+        got = {t["name"]: [(p["name"], p["role"], p["club"], int(p["cost"])) for p in t["players"]] for t in teams}
+        self.assertEqual(got["Dinamo Losca"], [("Martinez J.", "P", "Inter", 37), ("Anguissa", "C", "Napoli", 18),
+                                               ("Thuram", "A", "Inter", 116)])
+        self.assertEqual(got["Loco T"], [("Paz", "C", "Como", 111), ("Thuram K.", "C", "Juventus", 20)])
+        self.assertEqual((meta["unmatched"], meta["notes"]), ([], []))
+
+    def test_unsure_names_are_listed_not_invented(self):
+        f = self._file([("Real Stazione", [("Rodriguez R.", 6), ("Esposito F.P.", 22),
+                                           ("Sconosciuto X.", 3), ("Martinez", 9)], 40)])
+        teams, _l, meta = importers.parse_rose_file(f, "rosters.xlsx", league=self.league)
+        self.assertEqual(teams[0]["players"], [])
+        why = {u[1]: u[3] for u in meta["unmatched"]}
+        self.assertEqual(why["Rodriguez R."], "non trovato nel listone")    # iniziali diverse
+        self.assertEqual(why["Sconosciuto X."], "non trovato nel listone")
+        self.assertIn("più giocatori possibili", why["Martinez"])           # Martinez L. o J.?
+        self.assertIn("Esposito F.P.", why)
+        self.assertEqual(meta["notes"], [])                                 # 6+22+3+9 = 40
+
+    def test_total_row_mismatch_is_reported(self):
+        f = self._file([("Space Jam", [("Paz N.", 111), ("Anguissa", 18)], 200)])
+        _t, _l, meta = importers.parse_rose_file(f, "rosters.xlsx", league=self.league)
+        self.assertEqual(meta["notes"], ["Space Jam: la riga «totale» dice 200, i costi letti sommano 129."])
+
+    def test_import_page_previews_and_imports_the_matched_players(self):
+        root = User.objects.create_superuser("root", "r@x.local", "pw")
+        self.client.force_login(root)
+        f = self._file([("Dinamo Losca", [("Martinez L.", 200), ("Paz N.", 100), ("Nessuno Z.", 5)], 305)])
+        url = reverse("admin_import_rose")
+        data = self.client.post(url, {"rose_file": SimpleUploadedFile("rosters.xlsx", f.getvalue()),
+                                      "action": "preview", "league_id": self.league.id}).json()
+        self.assertTrue(data["ok"], data)
+        self.assertEqual(data["source_label"], "Rose nome e costo (Mantra)")
+        self.assertEqual(data["unmatched"], [{"team": "Dinamo Losca", "name": "Nessuno Z.", "cost": 5,
+                                              "why": "non trovato nel listone"}])
+        self.assertIn("assegnali a mano", data["warning"])
+        self.assertFalse(Participant.objects.filter(display_name="Dinamo Losca").exists())
+
+        data = self.client.post(url, {"rose_file": SimpleUploadedFile("rosters.xlsx", f.getvalue()),
+                                      "league_id": self.league.id, "import_listone": "0"}).json()
+        self.assertTrue(data["ok"], data)
+        team = Participant.objects.get(display_name="Dinamo Losca", league=self.league)
+        self.assertEqual(sorted(Player.objects.filter(owner=team).values_list("name", flat=True)),
+                         ["Martinez L.", "Paz"])
+        self.assertEqual(team.remaining_credits, Decimal("700"))     # 1000 - 200 - 100
+        self.assertFalse(Player.objects.filter(name="Nessuno Z.").exists())

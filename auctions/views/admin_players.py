@@ -253,6 +253,7 @@ def _left_serie_a(league, report):
 _ROSE_SOURCE_LABELS = {
     "fantapazz": "Fantapazz", "fantacalcio": "Fantacalcio.it", "generic": "Generico",
     "leghe_fantacalcio_id": "Leghe Fantacalcio",
+    "rose_nome_costo": "Rose nome e costo (Mantra)",
 }
 
 
@@ -302,13 +303,25 @@ def admin_import_rose(request):
         warning = ("Attenzione: nel file c'è una sola squadra. Verifica di aver "
                    "esportato le rose dell'intera lega e non solo la tua.")
     unmatched = meta.get("unmatched") or []
-    if unmatched:
+    if unmatched and meta["source"] == "rose_nome_costo":
+        warning = (warning + " " if warning else "") + (
+            f"{len(unmatched)} giocatori non abbinati con certezza al listone: non vengono "
+            "importati. Dopo l'import assegnali a mano dalla pagina Giocatori (elenco qui sotto)."
+        )
+    elif unmatched:
         names = ", ".join(sorted({row[0] for row in unmatched}))
         warning = (warning + " " if warning else "") + (
             f"{len(unmatched)} giocatori con Id non trovato nel listone di questa "
             f"lega (squadre coinvolte: {names}) — non sono stati importati. "
             "Verifica di aver caricato il listone giusto per questa lega."
         )
+    for note in meta.get("notes") or []:
+        warning = (warning + " " if warning else "") + note
+    # I non abbinati di un file con i nomi: chi, di quale squadra e perché.
+    unmatched_rows = [
+        {"team": row[0], "name": row[1], "cost": int(row[2]), "why": row[3]}
+        for row in unmatched if len(row) == 4
+    ]
 
     if request.POST.get("action") == "preview":
         return JsonResponse({
@@ -322,6 +335,7 @@ def admin_import_rose(request):
             "total_players": meta["n_players"],
             "n_listone": len(listone) if listone else 0,
             "warning": warning,
+            "unmatched": unmatched_rows,
         })
 
     replace = request.POST.get("replace") == "1"
@@ -341,6 +355,7 @@ def admin_import_rose(request):
         "teams": result["teams"], "players": result["players"],
         "listone_created": (listone_report or {}).get("created", 0),
         "warning": warning,
+        "unmatched": unmatched_rows,
     })
 
 

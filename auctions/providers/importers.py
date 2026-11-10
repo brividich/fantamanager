@@ -1023,6 +1023,94 @@ def _parse_id_based_roster(rows, league):
     return list(teams.values()), unmatched
 
 
+def _resolve_by_name(name, pool, claimed):
+    """Il giocatore del listone che porta ``name``, abbinando solo per nome
+    (il file non ha né ruolo né club). Ritorna ``(player, motivo)``: player
+    ``None`` se non c'è o se i candidati sono più d'uno - meglio chiedere
+    all'admin che assegnare il giocatore sbagliato.
+
+    I cognomi di uno devono stare tutti nell'altro («Zambo Anguissa» e
+    «Anguissa», «Ramos G.» e «Goncalo Ramos») e le iniziali non devono
+    contraddirsi: «Martinez Jo.» trova «Martinez J.» o «Josep Martínez», non
+    «Martinez L.»; «Rodriguez R.» non trova «Rodriguez J.»."""
+    free = [p for p in pool if p.pk not in claimed]
+    for same in (lambda p: p.name.lower() == name.lower(), lambda p: _norm(p.name) == _norm(name)):
+        found = [p for p in free if same(p)]
+        if len(found) == 1:
+            return found[0], ""
+        if len(found) > 1:
+            return None, "più giocatori con questo nome"
+    longs, shorts = _name_parts(name)
+    if not longs:
+        return None, "non trovato nel listone"
+    found = []
+    for p in free:
+        tokens = set(_norm(p.name).split())
+        p_longs, _p_shorts = _name_parts(p.name)
+        if not (longs <= tokens or (p_longs and p_longs <= longs)):
+            continue
+        others = tokens - longs
+        if not others or all(any(t.startswith(s) or s.startswith(t) for t in others) for s in shorts):
+            found.append(p)
+    if len(found) == 1:
+        return found[0], ""
+    return None, ("più giocatori possibili: " + ", ".join(sorted(p.name for p in found)[:3])
+                  if found else "non trovato nel listone")
+
+
+def _parse_name_cost_blocks(rows, league):
+    """Rose a blocchi «nome | costo» (export Mantra «rosters» .xlsx): squadre
+    affiancate, ognuna con l'intestazione «Nome squadra | costo», un
+    giocatore per riga e la riga «totale» in fondo. Le rose possono avere
+    lunghezze diverse.
+
+    Il file non dice né ruolo né club: vengono dal listone della lega,
+    abbinando il nome (:func:`_resolve_by_name`). Chi non si abbina con
+    certezza non viene creato con un ruolo inventato: finisce in
+    ``unmatched`` come ``(squadra, nome, costo, motivo)``, da assegnare a mano.
+
+    Ritorna ``(teams, unmatched, notes)`` o ``None`` se il file non ha
+    questa forma.
+    """
+    from ..models import Player
+
+    rows = [["" if c is None else str(c).strip() for c in r] for r in rows]
+    header = next((i for i, r in enumerate(rows[:5])
+                   if sum(1 for c in r if c.lower() == "costo") >= 1), None)
+    if header is None:
+        return None
+    cols = [c for c, v in enumerate(rows[header]) if v.lower() == "costo" and c >= 1 and rows[header][c - 1]]
+    if not cols:
+        return None
+
+    pool = list(Player.objects.filter(league=league))
+    claimed, teams, unmatched, notes = set(), [], [], []
+    for c in cols:
+        team_name = rows[header][c - 1]
+        players, total = [], None
+        for r in rows[header + 1:]:
+            name = r[c - 1] if c - 1 < len(r) else ""
+            raw = r[c] if c < len(r) else ""
+            if not name:
+                continue
+            if name.lower() == "totale":
+                total = _to_decimal(raw, "0")
+                break
+            cost = _to_decimal(raw, "0")
+            player, why = _resolve_by_name(name, pool, claimed)
+            if player is None:
+                unmatched.append((team_name, name, cost, why))
+                continue
+            claimed.add(player.pk)
+            players.append({"role": player.role, "name": player.name, "cost": cost, "club": player.team})
+        spent = sum((p["cost"] for p in players), Decimal("0"))
+        missing = sum((u[2] for u in unmatched if u[0] == team_name), Decimal("0"))
+        if total is not None and spent + missing != total:
+            notes.append(f"{team_name}: la riga «totale» dice {total:.0f}, i costi letti sommano {spent + missing:.0f}.")
+        teams.append({"name": team_name, "credits": None, "players": players})
+    return teams, unmatched, notes
+
+
 def parse_rose_file(file_obj, filename, *, league=None):
     """Auto-detect a roster export's format and parse it. Source-agnostic.
 
@@ -1037,7 +1125,10 @@ def parse_rose_file(file_obj, filename, *, league=None):
     * **Fantacalcio.it / Leghe Fantacalcio** "Lista calciatori" ``.xlsx`` — a flat
       one-row-per-player table with a ``FantaSquadra`` owner column (and ``QUOT.``
       so the same file rebuilds the listone too);
-    * **generic** flat exports (csv/xlsx) that carry any recognised owner column.
+    * **generic** flat exports (csv/xlsx) that carry any recognised owner column;
+    * **rose a blocchi «nome | costo»** (export Mantra «rosters» .xlsx), senza
+      ruolo né club: abbinate per nome al listone della lega, che serve già
+      caricato (:func:`_parse_name_cost_blocks`).
 
     Returns ``(teams, listone, meta)`` where ``teams`` feeds
     :func:`import_rose_data`, ``listone`` (may be ``None``) feeds
@@ -1085,6 +1176,18 @@ def parse_rose_file(file_obj, filename, *, league=None):
             return teams, None, meta
 
     teams, listone, source = _parse_flat_roster(rows)
+    if teams is None and league is not None:
+        blocks = _parse_name_cost_blocks(rows, league)
+        if blocks is not None and blocks[0]:
+            teams, unmatched, notes = blocks
+            meta = {
+                "source": "rose_nome_costo",
+                "n_teams": len(teams),
+                "n_players": sum(len(t["players"]) for t in teams),
+                "unmatched": unmatched,
+                "notes": notes,
+            }
+            return teams, None, meta
     if teams is None:
         raise ValueError(
             "Formato non riconosciuto: nessuna colonna squadra/proprietario "
