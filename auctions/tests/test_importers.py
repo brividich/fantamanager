@@ -47,6 +47,26 @@ class ProviderTests(TestCase):
         self.assertEqual(p.external_team_id, "1449")
         self.assertEqual(Player.objects.filter(owner=p).count(), 2)
 
+    def test_import_rose_leaves_a_same_named_team_of_another_league_alone(self):
+        from ..models import League
+        from ..providers import importers
+        mine = League.objects.create(name="Lega Mia")
+        theirs = League.objects.create(name="Lega Altrui")
+        other = Participant.objects.create(display_name="GELSI UNITED", league=theirs,
+                                           credits=Decimal("300"), spent_credits=Decimal("10"))
+        teams = [{"name": "GELSI UNITED", "credits": 100,
+                  "players": [{"role": "A", "name": "Lautaro", "cost": 120, "club": "Inter"}]}]
+        importers.import_rose_data(teams, league=mine)
+        other.refresh_from_db()
+        self.assertEqual((other.league, other.credits, other.spent_credits),
+                         (theirs, Decimal("300"), Decimal("10")))
+        new = Participant.objects.get(display_name="GELSI UNITED", league=mine)
+        self.assertEqual(new.remaining_credits, Decimal("100"))
+        self.assertEqual(Player.objects.get(name="Lautaro").owner, new)
+        # Reimport: la squadra della lega si aggiorna, non ne nasce un'altra.
+        importers.import_rose_data(teams, league=mine)
+        self.assertEqual(Participant.objects.filter(display_name="GELSI UNITED").count(), 2)
+
     def test_listone_then_rose_keeps_free_agents(self):
         # Regression: load the Quotazioni (listone) first, then a roster file.
         # The roster only assigns owners onto the pool — it must NOT wipe the

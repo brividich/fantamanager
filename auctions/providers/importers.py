@@ -10,6 +10,8 @@ from decimal import Decimal
 from itertools import islice
 from pathlib import Path
 
+from django.db import transaction
+
 from .. import mantra
 from ..models.participant import generate_access_code
 from ..services.sala import ensure_unlocked as _sala_guard
@@ -534,6 +536,7 @@ def import_stats(rows, *, league=None, only_missing=False):
     return {"matched": matched, "missing": missing, "total": len(rows)}
 
 
+@transaction.atomic
 def import_rose_data(teams_data, replace=False, league=None, default_budget=None):
     """Assign owners (rose) *onto* the existing listone pool — never wipe it.
 
@@ -599,17 +602,18 @@ def import_rose_data(teams_data, replace=False, league=None, default_budget=None
         if t.get("external_id"):
             defaults["external_team_id"] = str(t["external_id"])
 
-        participant, created = Participant.objects.get_or_create(
-            display_name=name, defaults=defaults,
-        )
-        if not created:
+        # La squadra si cerca solo nella lega dell'import: un'omonima di
+        # un'altra lega resta dov'è, con i suoi crediti.
+        participant = Participant.objects.filter(league=league, display_name=name).order_by("pk").first()
+        created = participant is None
+        if created:
+            participant = Participant.objects.create(display_name=name, **defaults)
+        else:
             participant.credits = total
             participant.spent_credits = spent
-            if league is not None:
-                participant.league = league
             if t.get("external_id"):
                 participant.external_team_id = str(t["external_id"])
-            participant.save(update_fields=["credits", "spent_credits", "league", "external_team_id"])
+            participant.save(update_fields=["credits", "spent_credits", "external_team_id"])
         teams_created += 1 if created else 0
 
         for p in players:
