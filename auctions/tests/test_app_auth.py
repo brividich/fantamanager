@@ -59,6 +59,39 @@ class AppAuthTests(TestCase):
         self.assertEqual(resp["Location"], reverse("app_rosa"))
         self.assertEqual(self.client.session.get("participant_id"), self.team_protected.id)
 
+    def test_a_link_that_no_longer_works_says_so(self):
+        # Link rigenerato o squadra disattivata: non il login come se niente fosse.
+        self.team_protected.is_active = False
+        self.team_protected.save()
+        for token in (self.team_protected.public_token, "non-esiste"):
+            resp = self.client.get(f"{reverse('app_login')}?t={token}")
+            self.assertContains(resp, "Questo link non è più valido")
+            self.assertContains(resp, "codice della tua squadra")
+            self.assertIsNone(self.client.session.get("participant_id"))
+
+    def test_team_link_without_an_auction_opens_the_team_area(self):
+        # Il link/QR della pagina Squadre (/join/?t=…) senza un'asta da giocare
+        # porta nell'app, non su «Nessuna asta disponibile».
+        url = f"/join/?t={self.team_protected.public_token}"
+        resp = self.client.get(url)
+        self.assertRedirects(resp, reverse("app_home"), fetch_redirect_response=False)
+        self.assertEqual(self.client.session.get("participant_id"), self.team_protected.id)
+        closed = make_live_auction(league=self.league, status=Auction.Status.CLOSED)
+        resp = self.client.get(url)
+        self.assertRedirects(resp, reverse("app_home"), fetch_redirect_response=False)
+        # Un'asta pronta o in corso resta la destinazione; una chiusa solo se
+        # il link la nomina.
+        resp = self.client.get(f"{url}&a={closed.id}")
+        self.assertRedirects(resp, f"/bid/{closed.id}/", fetch_redirect_response=False)
+        ready = make_live_auction(league=self.league, status=Auction.Status.READY)
+        resp = self.client.get(url)
+        self.assertRedirects(resp, f"/bid/{ready.id}/", fetch_redirect_response=False)
+
+    def test_short_password_error_is_in_italian(self):
+        from ..views.common import password_problem
+        self.assertEqual(password_problem("Xy7!q"), "La password è troppo corta: servono almeno 8 caratteri.")
+        self.assertEqual(password_problem("una-Password-lunga-e-rara-91"), "")
+
     def test_login_via_team_select(self):
         """Guided team selection: a team without a code needs a logged-in account,
         a protected team needs its code."""

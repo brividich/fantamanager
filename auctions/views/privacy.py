@@ -90,10 +90,10 @@ def account_resend(request):
     if not target:
         messages.error(request, "Il tuo account non ha un'email: aggiungila da «Il mio account».")
         return redirect(back)
-    if throttle.blocked(request, "login"):
+    if throttle.blocked(request, "mail"):
         messages.error(request, throttle.MESSAGE)
         return redirect(back)
-    throttle.failure(request, "login")          # un tetto anche ai reinvii
+    throttle.failure(request, "mail")          # un tetto anche ai reinvii
     ok, err = privacy.send_verification(request, request.user, target)
     if ok:
         messages.success(request, f"Ti abbiamo mandato un nuovo link a {target}: vale 48 ore. Controlla anche lo spam.")

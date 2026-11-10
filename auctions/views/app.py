@@ -1200,7 +1200,12 @@ def app_login(request):
             return redirect(next_url)
 
     error = None
-    active_mode = request.GET.get("mode") or "account"
+    if token and request.method == "GET":
+        # Link sbagliato, rigenerato o di una squadra disattivata: dirlo,
+        # invece di mostrare il login come se niente fosse.
+        error = ("Questo link non è più valido: chiedi a chi organizza la lega un link nuovo, "
+                 "oppure entra qui sotto con il codice della tua squadra.")
+    active_mode = request.GET.get("mode") or ("code" if error else "account")
 
     # If the user is already authenticated via Django user and has a linked team,
     # and they are not explicitly asking to switch (?switch=1):

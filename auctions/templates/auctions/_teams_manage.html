@@ -484,7 +484,7 @@ mostra la cornice.
             <h4>Password</h4>
             <p>Per l'allenatore che l'ha dimenticata. Lascia vuoto e ne genero una io, da consegnargli.</p>
             <label for="acc-p-{{ r.p.id }}">Nuova password</label>
-            <input id="acc-p-{{ r.p.id }}" type="text" name="password" minlength="6" autocomplete="new-password"
+            <input id="acc-p-{{ r.p.id }}" type="text" name="password" minlength="8" autocomplete="new-password"
                    placeholder="vuota = la genero io">
             <div class="row-actions"><button type="submit" class="fm-btn fm-btn-secondary fm-btn-sm">
                 <svg class="ic"><use href="#i-lock"/></svg> Reimposta password</button></div>
@@ -541,7 +541,7 @@ mostra la cornice.
             <label for="acc-ce-{{ r.p.id }}">Email (facoltativa)</label>
             <input id="acc-ce-{{ r.p.id }}" type="email" name="email" autocomplete="off">
             <label for="acc-cp-{{ r.p.id }}">Password</label>
-            <input id="acc-cp-{{ r.p.id }}" type="text" name="password" minlength="6" autocomplete="new-password"
+            <input id="acc-cp-{{ r.p.id }}" type="text" name="password" minlength="8" autocomplete="new-password"
                    placeholder="vuota = la genero io">
             <div class="row-actions"><button type="submit" class="fm-btn fm-btn-primary fm-btn-sm">
                 <svg class="ic"><use href="#i-plus"/></svg> Crea e collega</button></div>

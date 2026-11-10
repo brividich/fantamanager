@@ -192,9 +192,15 @@ def join(request):
             request.session["display_name"]   = recognized.display_name
             if recognized.league_id is not None:
                 request.session[SESSION_LEAGUE_KEY] = recognized.league_id
-            target = _auction_for_join(recognized, request.GET.get("a"), joinable)
-            if target is not None:
+            wanted = request.GET.get("a")
+            target = _auction_for_join(recognized, wanted, joinable)
+            playing = (Auction.Status.LIVE, Auction.Status.PAUSED, Auction.Status.READY)
+            if target is not None and (target.status in playing or str(target.id) == wanted):
                 return redirect("bid", auction_id=target.id)
+            # Nessuna asta da giocare (o solo aste chiuse): il link della
+            # squadra porta nella sua area - rosa, mercato, formazione - non
+            # su «Nessuna asta disponibile».
+            return redirect("app_home")
 
     if not recognized:
         recognized = _session_participant(request)
