@@ -448,6 +448,18 @@ def _renewals_board(league, participants):
     }
 
 
+def mark_bids_seen(session):
+    """Le offerte di ``session`` sono state viste (buste mostrate, anteprima,
+    spoglio): da qui la consegna non si riapre, o chi le ha viste potrebbe
+    rilanciare conoscendo quelle degli altri."""
+    config = dict(session.config or {})
+    if config.get("bids_seen_at"):
+        return
+    config["bids_seen_at"] = timezone.now().isoformat()
+    MarketSession.objects.filter(pk=session.pk).update(config=config)
+    session.config = config
+
+
 def session_manage_context(request, session):
     """Everything market/_session_manage.html shows for ``session``: the same
     data for the console page and for the app's Regia."""
@@ -481,8 +493,12 @@ def session_manage_context(request, session):
     if renewals:
         delivered = renewals["done"]
 
+    # Finché la consegna è aperta le offerte non le vede nessuno, nemmeno
+    # l'admin: ha una sua squadra e gioca come gli altri. Buste e anteprima
+    # si aprono a sessione chiusa (si vede solo chi ha consegnato).
+    sealed = session.status in (MarketSession.Status.OPEN, MarketSession.Status.DRAFT)
     bids_list = []
-    if request.GET.get("reveal") == "1" or session.status == MarketSession.Status.RESOLVED:
+    if (request.GET.get("reveal") == "1" and not sealed) or session.status == MarketSession.Status.RESOLVED:
         bids_list = list(
             session.bids.select_related("participant", "player", "release_player")
             .order_by("player__role", "player__name", "-amount", "priority")
@@ -491,9 +507,11 @@ def session_manage_context(request, session):
     results, is_preview = None, False
     if session.status == MarketSession.Status.RESOLVED:
         results = session.results_summary or None
-    elif request.GET.get("preview") == "1" and labels["preview"]:
+    elif request.GET.get("preview") == "1" and labels["preview"] and not sealed:
         results = plan_market_resolution(session.id)
         is_preview = True
+    if (bids_list or is_preview) and session.status == MarketSession.Status.CLOSED:
+        mark_bids_seen(session)
 
     repair = _repair_data(league)
     return {
@@ -510,6 +528,7 @@ def session_manage_context(request, session):
         "bids_list": bids_list,
         "results": results,
         "is_preview": is_preview,
+        "sealed": sealed,
         "free_total": repair["free_total"],
         "free_by_role": repair["free_by_role"],
         "reachable": len(mail.league_recipients(league)),
@@ -757,6 +776,12 @@ def admin_market_status(request, session_id):
     if session.status == MarketSession.Status.RESOLVED:
         messages.error(request, "Lo spoglio è già stato eseguito: annullalo prima di riaprire la sessione.")
         return redirect(_back(request, _dashboard_url(request, session)))
+    if (new_status == MarketSession.Status.OPEN and (session.config or {}).get("bids_seen_at")
+            and session.status == MarketSession.Status.CLOSED):
+        messages.error(request, "Le offerte di questa sessione sono già state viste (buste mostrate, anteprima o "
+                                "spoglio): riaprendo la consegna si potrebbe rilanciare conoscendo quelle degli "
+                                "altri. Se serve un'altra consegna, crea una nuova sessione.")
+        return redirect(_back(request, _dashboard_url(request, session)))
     if (new_status == MarketSession.Status.OPEN and session.closes_at
             and session.closes_at <= timezone.now()):
         messages.error(request, "La chiusura è già passata: sposta prima la chiusura nelle «Regole», poi riapri.")
@@ -836,6 +861,7 @@ def admin_market_resolve(request, session_id):
         _warn_unrolled(request, session.league)
 
     summary = resolve_market_session(session.id)
+    mark_bids_seen(session)
     won_count = summary.get("total_acquisitions", 0)
     ties_count = summary.get("total_ties", 0)
     if session.session_type == MarketSession.SessionType.WAIVER_WIRE:

@@ -293,6 +293,9 @@ def admin_create_participant(request):
     if code_error:
         messages.error(request, code_error)
         return redirect(safe_next(request, fallback))
+    if not p.access_code:
+        # Campo vuoto = codice generato, come promette il form.
+        p.access_code = generate_access_code()
     if "logo" in request.FILES:
         try:
             p.logo = clean_image(request.FILES["logo"])
@@ -371,7 +374,11 @@ def admin_edit_participant(request, participant_id):
     if credits != p.credits:
         _sala_guard(p.league_id)
     p.credits      = credits
-    p.is_active    = request.POST.get("is_active") == "1"
+    # «Squadra attiva» è una casella: spenta non arriva. Vale solo dai form
+    # che la mostrano (``active_field``), altrimenti rinominare una squadra
+    # da un form senza casella la disattiverebbe.
+    if "active_field" in request.POST or "is_active" in request.POST:
+        p.is_active = request.POST.get("is_active") == "1"
     
     user_id = request.POST.get("user_id")
     if user_id == "none" or user_id == "":

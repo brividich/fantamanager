@@ -516,7 +516,7 @@ def app_mercato(request):
     for s in sessions_qs:
         s_bids = services.get_participant_market_bids(s.id, participant.id)
         s_bids_count = len(s_bids)
-        s_bids_total = sum(b["amount"] for b in s_bids)
+        s_bids_total = services.market_bids_total(s, s_bids)
         s_won_count = sum(1 for b in s_bids if b["status"] == MarketBid.Status.WON)
         sessions_list.append({
             "session": s,
@@ -556,7 +556,7 @@ def app_mercato(request):
         for rp in my_roster:
             rp.market_refund = int(services.market_release_refund(market_session, rp))
     my_bid_player_ids = {b["player_id"]: b for b in my_bids}
-    my_bids_total = sum(b["amount"] for b in my_bids)
+    my_bids_total = services.market_bids_total(market_session, my_bids) if market_session else 0
     bids_left = None
     if market_session and market_session.max_bids:
         bids_left = max(0, market_session.max_bids - len(my_bids))
@@ -1198,7 +1198,12 @@ def app_login(request):
             return redirect(next_url)
 
     error = None
-    active_mode = request.GET.get("mode") or "account"
+    if token and request.method == "GET":
+        # Link sbagliato, rigenerato o di una squadra disattivata: dirlo,
+        # invece di mostrare il login come se niente fosse.
+        error = ("Questo link non è più valido: chiedi a chi organizza la lega un link nuovo, "
+                 "oppure entra qui sotto con il codice della tua squadra.")
+    active_mode = request.GET.get("mode") or ("code" if error else "account")
 
     # If the user is already authenticated via Django user and has a linked team,
     # and they are not explicitly asking to switch (?switch=1):

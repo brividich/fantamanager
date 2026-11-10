@@ -16,6 +16,10 @@ from django.core.cache import cache
 LIMITS = {
     "login": (10, 15 * 60),   # username/email + password
     "code": (10, 15 * 60),    # team access codes and PINs
+    # Richieste di email (password dimenticata, conferma dell'indirizzo): un
+    # tetto loro, così chi chiede un reset non consuma i tentativi di login
+    # di tutta la rete da cui si collega (la sala, il wifi di casa).
+    "mail": (10, 15 * 60),
 }
 
 
@@ -55,4 +59,5 @@ def failure(request, scope):
         cache.set(key, 1, window)
 
 
-MESSAGE = "Troppi tentativi falliti da questo dispositivo. Riprova tra qualche minuto."
+MESSAGE = ("Troppi tentativi falliti da questa rete: riprova tra un quarto d'ora. "
+           "Intanto puoi entrare con il link personale della tua squadra.")

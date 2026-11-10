@@ -10,7 +10,7 @@ arrivano da mk_labels (SESSION_LABELS in views/admin_market.py) e i rinnovi
 hanno un quadro tutto loro (renewals: contratti da dichiarare e dadi per squadra).
 
 Parametri: s, current_league, participants_stats, delivered, bids_list,
-results, is_preview, free_total, free_by_role, reachable, mail_ready, now,
+results, is_preview, sealed, free_total, free_by_role, reachable, mail_ready, now,
 mk_labels, is_buste, is_renewals, renewals,
   mk_back  pagina a cui tornare dopo un'azione (questa)
   mk_list  pagina a cui tornare dopo aver eliminato la sessione
@@ -33,10 +33,11 @@ mk_labels, is_buste, is_renewals, renewals,
             <li>{% if s.status == "open" %}<b>Adesso:</b> segui in <b>{{ mk_labels.deliveries }}</b> come procedono le squadre ({{ delivered }}/{{ participants_stats|length }}).
                 {% if s.closes_at %}Si chiude da sola il {{ s.closes_at|date:"d/m H:i" }}{% else %}La chiusura è manuale{% endif %}: per fermarla prima premi <b>Chiudi finestra</b>.
                 {% elif s.status == "draft" %}Quando è aperta, segui in <b>{{ mk_labels.deliveries }}</b> come procedono le squadre.
-                {% elif s.status == "closed" %}✓ {{ mk_labels.closed }}: se serve altro tempo premi <b>Riapri finestra</b>.
+                {% elif s.status == "closed" and s.config.bids_seen_at %}✓ {{ mk_labels.closed }}. Le offerte sono già state viste: la finestra non si riapre (per un'altra consegna crea una nuova sessione).
+                {% elif s.status == "closed" %}✓ {{ mk_labels.closed }}: se serve altro tempo premi <b>Riapri finestra</b>, prima di guardare le offerte.
                 {% else %}✓ Fase «{{ mk_labels.step_open }}» finita.{% endif %}</li>
             {% if mk_labels.preview and s.status != "resolved" %}
-            <li>Prima di concludere puoi premere <b>{{ mk_labels.preview }}</b>: vedi l'esito senza assegnare nulla.</li>
+            <li>{% if sealed %}Quando la finestra è chiusa{% else %}Prima di concludere{% endif %} puoi premere <b>{{ mk_labels.preview }}</b>: vedi l'esito senza assegnare nulla.</li>
             {% endif %}
             <li>{% if s.status == "resolved" %}✓ {{ mk_labels.resolved }}.
                 {% else %}{% if s.status == "closed" or s.status == "open" and not is_buste and s.session_type != "waiver_wire" %}{% if s.status == "closed" %}<b>Adesso:</b> premi{% else %}Alla fine premi{% endif %}
@@ -49,7 +50,7 @@ mk_labels, is_buste, is_renewals, renewals,
                 Se qualcosa non va, <b>Annulla {% if is_buste %}spoglio{% else %}draft{% endif %}</b> storna acquisti e tagli e rimette {% if is_buste %}le buste{% else %}i reclami{% endif %} in attesa{% endif %}.{% endif %}</li>
             {% endif %}
         </ol>
-        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> {% if mk_labels.reveal and s.status != "resolved" %}Con <b>{{ mk_labels.reveal }}</b> vedi le offerte arrivate prima della fine: le squadre no. {% endif %}Il cestino in alto elimina la sessione con tutte le sue offerte.</div>
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> {% if mk_labels.reveal and s.status != "resolved" %}Finché la finestra è aperta le offerte restano segrete anche per te: vedi solo chi ha consegnato. Le apri con <b>{{ mk_labels.reveal }}</b> dopo averla chiusa. {% endif %}Il cestino in alto elimina la sessione con tutte le sue offerte.</div>
     </div>
 </details>
 <div class="mk-col">
@@ -70,7 +71,7 @@ mk_labels, is_buste, is_renewals, renewals,
         </div>
 
         <div class="mk-acts fm-onerow">
-            {% if mk_labels.preview and s.status == "open" or mk_labels.preview and s.status == "closed" %}
+            {% if mk_labels.preview and s.status == "closed" %}
             <a href="?preview=1" class="fm-btn fm-btn-secondary fm-btn-sm" title="Simula l'esito senza assegnare nulla">
                 <svg class="ic"><use href="#i-eye"/></svg> {{ mk_labels.preview }}</a>
             {% endif %}
@@ -81,7 +82,7 @@ mk_labels, is_buste, is_renewals, renewals,
                 <button type="submit" class="fm-btn btn-warn fm-btn-sm" title="{{ mk_labels.close_hint }}">
                     <svg class="ic"><use href="#i-lock"/></svg> Chiudi finestra</button>
             </form>
-            {% elif s.status == "closed" %}
+            {% elif s.status == "closed" and not s.config.bids_seen_at %}
             <form method="post" action="{% url 'admin_market_status' s.id %}">
                 {% csrf_token %}<input type="hidden" name="next" value="{{ mk_back }}">
                 <input type="hidden" name="status" value="open">
@@ -482,7 +483,7 @@ mk_labels, is_buste, is_renewals, renewals,
             </tbody>
         </table>
     </div>
-    {% if not bids_list and s.n_bids and mk_labels.reveal %}
+    {% if not bids_list and s.n_bids and mk_labels.reveal and not sealed %}
     <div style="text-align:right;margin-top:12px">
         <a href="?reveal=1" class="fm-btn fm-btn-ghost fm-btn-sm">
             <svg class="ic"><use href="#i-eye"/></svg> {{ mk_labels.reveal }}</a>

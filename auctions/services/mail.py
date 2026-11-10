@@ -167,7 +167,8 @@ def send_test(to, cfg=None):
 def league_recipients(league):
     """The league's active teams that have an address to write to."""
     from ..models import Participant
-    teams = Participant.objects.filter(league=league, is_active=True).select_related("user", "user__privacy")
+    teams = (Participant.objects.filter(league=league, is_active=True)
+             .select_related("user", "user__privacy").order_by("display_name", "pk"))
     return [p for p in teams if p.contact_email]
 
 

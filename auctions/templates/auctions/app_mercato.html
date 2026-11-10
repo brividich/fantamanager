@@ -1943,7 +1943,16 @@
     async function submitBid(e) {
         e.preventDefault();
         const form = document.getElementById("bid-form");
+        // Un secondo tocco mentre la busta parte ne consegnerebbe due.
+        const send = form.querySelector('button[type="submit"]');
+        if (send.disabled) return;
+        send.disabled = true;
         const data = new FormData(form);
+        const fail = (msg) => {
+            send.disabled = false;
+            if(window.showToast) window.showToast(msg, "error");
+            else alert(msg);
+        };
         try {
             const r = await fetch("{% url 'app_market_bid' %}", {
                 method: "POST", body: data, headers: { "X-CSRFToken": CSRF_TOKEN },
@@ -1955,14 +1964,14 @@
                     window.showToast("Busta inviata correttamente!", "success");
                     setTimeout(() => location.reload(), 700);
                 } else location.reload();
+            } else if (res.error === "not_authenticated") {
+                fail("Sessione scaduta: la busta non è partita. Rientra nell'app e consegnala di nuovo.");
             } else {
-                if(window.showToast) window.showToast(res.message || "Errore durante l'invio della busta", "error");
-                else alert(res.message || "Errore durante l'invio della busta");
+                fail(res.message || "La busta non è partita: ricarica la pagina e riprova.");
             }
         } catch (err) {
             console.error(err);
-            if(window.showToast) window.showToast("Errore di connessione", "error");
-            else alert("Errore di connessione");
+            fail("Errore di connessione: la busta non è partita. Controlla la rete e riprova.");
         }
     }
 

@@ -110,6 +110,29 @@ class AdminObjectRbacTests(TestCase):
 
     # --- Team edit / delete / roster / quick assign -------------------------
 
+    def test_renaming_a_team_does_not_switch_it_off(self):
+        # «Modifica Club» manda nome, account e logo, senza la casella
+        # «Squadra attiva»: la squadra resta attiva.
+        url = f"/dashboard/participants/{self.team.id}/edit/"
+        self._as(self.owner)
+        self.client.post(url, {"display_name": "Alfa Nuova", "user_id": str(self.manager.id)})
+        self.team.refresh_from_db()
+        self.assertEqual(self.team.display_name, "Alfa Nuova")
+        self.assertTrue(self.team.is_active)
+        # Il form con la casella (regia) la spegne e la riaccende.
+        self.client.post(url, {"display_name": "Alfa Nuova", "active_field": "1"})
+        self.team.refresh_from_db()
+        self.assertFalse(self.team.is_active)
+        self.client.post(url, {"display_name": "Alfa Nuova", "active_field": "1", "is_active": "1"})
+        self.team.refresh_from_db()
+        self.assertTrue(self.team.is_active)
+
+    def test_new_team_without_a_code_gets_one(self):
+        self._as(self.owner)
+        self.client.post("/dashboard/participants/create/", {"display_name": "Senza Pin", "league_id": self.league.id})
+        team = Participant.objects.get(display_name="Senza Pin")
+        self.assertGreaterEqual(len(team.access_code), 6)
+
     def test_edit_participant_forbidden_to_intruders(self):
         url = f"/admin-auction/participants/{self.team.id}/edit/"
         for user in self._intruders():

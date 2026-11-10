@@ -691,5 +691,12 @@ def password_problem(password, user=None):
     try:
         validate_password(password, user)
     except ValidationError as exc:
-        return " ".join(exc.messages)
+        parts = []
+        for err in exc.error_list:
+            if err.code == "password_too_short":
+                # Django non ha questa frase in italiano: usciva in inglese.
+                parts.append(f"La password è troppo corta: servono almeno {err.params['min_length']} caratteri.")
+            else:
+                parts.extend(err.messages)
+        return " ".join(parts)
     return ""

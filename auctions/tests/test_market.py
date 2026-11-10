@@ -1042,6 +1042,9 @@ class MarketAfterResolutionTests(TestCase):
     def test_admin_preview_page(self):
         self.client.force_login(self.root)
         place_market_bid(self.session.id, self.a.id, self.x.id, 25)
+        # L'anteprima si apre a consegna chiusa (SealedUntilClosedTests).
+        self.session.status = MarketSession.Status.CLOSED
+        self.session.save()
         url = reverse("admin_market_session", args=[self.session.id]) + "?preview=1"
         resp = self.client.get(url)
         self.assertContains(resp, "Anteprima:")
@@ -1247,6 +1250,54 @@ class RegolamentoBusteTests(TestCase):
         self.assertIn("Non necessaria", unused.note)
         self.assertEqual(MarketBid.objects.get(participant=self.a, amount=2).status, MarketBid.Status.LOST)
 
+    def test_winner_on_time_pays_what_the_tied_rival_offered(self):
+        # A 50 e 100, B 100 dopo: A vince il pari merito a 100 perché è
+        # arrivata prima, e paga 100. Il suo 50 non batte il 100 di B.
+        self.assertTrue(self._bid(self.a, "R.Carlos", 50, cut_index=0)["ok"])
+        self.assertTrue(self._bid(self.a, "R.Carlos", 100, cut_index=1)["ok"])
+        self.assertTrue(self._bid(self.b, "R.Carlos", 100)["ok"])
+        resolve_market_session(self.session.id)
+        rc = Player.objects.get(pk=self.free["R.Carlos"].pk)
+        self.assertEqual((rc.owner, rc.cost), (self.a, Decimal("100")))
+        self.assertIn("inserita prima", MarketBid.objects.get(participant=self.b).note)
+
+    def test_a_rival_offer_that_cannot_win_does_not_raise_the_price(self):
+        # B indica lo stesso taglio per Iniesta (150) e per Boban (50): preso
+        # Iniesta, la sua busta su Boban non può più vincere. A, unica rivale
+        # valida di sé stessa, paga la sua offerta minima.
+        cut = self._cut(self.b, "C").id
+        for name, amount in (("Iniesta", 150), ("Boban", 50)):
+            self.assertTrue(place_market_bid(self.session.id, self.b.id, self.free[name].id, amount,
+                                             release_player_id=cut)["ok"])
+        self.assertTrue(self._bid(self.a, "Boban", 2, cut_index=0)["ok"])
+        self.assertTrue(self._bid(self.a, "Boban", 100, cut_index=1)["ok"])
+        resolve_market_session(self.session.id)
+        boban = Player.objects.get(pk=self.free["Boban"].pk)
+        self.assertEqual((boban.owner, boban.cost), (self.a, Decimal("2")))
+        lost = MarketBid.objects.get(participant=self.b, player=self.free["Boban"])
+        self.assertEqual(lost.status, MarketBid.Status.LOST)
+
+    def test_same_offer_twice_is_refused(self):
+        # Il doppio tocco su «Consegna Busta» non consuma due offerte.
+        self.assertTrue(self._bid(self.a, "Boban", 10)["ok"])
+        res = self._bid(self.a, "Boban", 10)
+        self.assertEqual(res["error"], "duplicate_bid")
+        self.assertIn("cambia l'importo", res["message"])
+        self.assertEqual(MarketBid.objects.filter(participant=self.a).count(), 1)
+        self.assertTrue(self._bid(self.a, "Boban", 11)["ok"])
+
+    def test_a_changed_amount_counts_from_when_it_was_changed(self):
+        # Regola «priorità»: l'offerta si modifica. A offre 1, B offre 50, poi
+        # A sale a 50: a 50 è arrivata prima B.
+        self.session.budget_rule = MarketSession.BudgetRule.PRIORITY
+        self.session.save()
+        self.assertTrue(self._bid(self.a, "Boban", 1)["ok"])
+        self.assertTrue(self._bid(self.b, "Boban", 50)["ok"])
+        self.assertTrue(self._bid(self.a, "Boban", 50)["ok"])
+        self.assertEqual(MarketBid.objects.filter(participant=self.a).count(), 1)
+        resolve_market_session(self.session.id)
+        self.assertEqual(Player.objects.get(pk=self.free["Boban"].pk).owner, self.b)
+
     def test_unopposed_pays_its_minimum_offer(self):
         self._bid(self.a, "Boban", 1)
         self._bid(self.a, "Boban", 50, cut_index=1)
@@ -1324,6 +1375,17 @@ class RegolamentoBusteTests(TestCase):
         page = self.client.get(reverse("admin_market_session", args=[self.session.id]))
         self.assertContains(page, "max 3 per squadra")
 
+    def test_app_total_counts_the_top_offer_on_each_player(self):
+        # 20 e 60 su Boban, 40 su Iniesta: sul budget pesano 60 + 40, non 120.
+        s = self.client.session
+        s["participant_id"] = self.a.id
+        s.save()
+        self._bid(self.a, "Boban", 20, cut_index=0)
+        self._bid(self.a, "Boban", 60, cut_index=1)
+        self._bid(self.a, "Iniesta", 40, cut_index=0)
+        resp = self.client.get(reverse("app_mercato") + f"?session_id={self.session.id}")
+        self.assertEqual(resp.context["my_bids_total"], 100)
+
     def test_app_shows_rules_and_same_role_choices(self):
         s = self.client.session
         s["participant_id"] = self.a.id
@@ -1334,6 +1396,55 @@ class RegolamentoBusteTests(TestCase):
         self.assertContains(resp, "pari ruolo")
         self.assertContains(resp, 'data-same-role="1"')
         self.assertNotContains(resp, "Priorità di scelta")
+
+
+class SealedUntilClosedTests(TestCase):
+    """L'admin ha una sua squadra: finché la consegna è aperta non vede le
+    offerte degli altri, e una volta viste la consegna non si riapre."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user("presidente", password="pw")
+        self.league = League.objects.create(name="Lega Segreta", owner=self.owner, slots_c=8)
+        self.mine = Participant.objects.create(display_name="Squadra Admin", league=self.league,
+                                               credits=Decimal("200"), user=self.owner)
+        self.rival = Participant.objects.create(display_name="Rivali FC", league=self.league, credits=Decimal("200"))
+        self.boban = Player.objects.create(name="Boban", role="C", league=self.league)
+        self.session = MarketSession.objects.create(league=self.league, title="Buste", status=MarketSession.Status.OPEN)
+        self.assertTrue(place_market_bid(self.session.id, self.rival.id, self.boban.id, 87)["ok"])
+        self.client.force_login(self.owner)
+        self.url = reverse("admin_market_session", args=[self.session.id])
+
+    def test_open_session_hides_amounts_from_the_admin(self):
+        for page in (self.url, reverse("app_regia_market_session", args=[self.session.id])):
+            for q in ("?reveal=1", "?preview=1"):
+                resp = self.client.get(page + q)
+                self.assertEqual(resp.status_code, 200)
+                self.assertNotContains(resp, "87 FM")
+                self.assertNotContains(resp, "Tutte le buste ricevute")
+                self.assertNotContains(resp, 'href="?preview=1"')
+                self.assertNotContains(resp, "Esito previsto")
+            self.assertContains(resp, "restano segrete anche per te")
+            self.assertContains(resp, "Rivali FC")        # chi ha consegnato sì
+
+    def test_closed_session_shows_them_and_cannot_reopen_after(self):
+        self.client.post(reverse("admin_market_status", args=[self.session.id]), {"status": "closed"})
+        resp = self.client.get(self.url)
+        self.assertContains(resp, "Riapri finestra")      # non ancora viste: si riapre
+        resp = self.client.get(self.url + "?reveal=1")
+        self.assertContains(resp, "87 FM")
+        self.assertNotContains(resp, "Riapri finestra")
+        resp = self.client.post(reverse("admin_market_status", args=[self.session.id]), {"status": "open"}, follow=True)
+        self.assertContains(resp, "già state viste")
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.status, MarketSession.Status.CLOSED)
+
+    def test_undone_count_cannot_be_reopened_either(self):
+        self.client.post(reverse("admin_market_status", args=[self.session.id]), {"status": "closed"})
+        self.client.post(reverse("admin_market_resolve", args=[self.session.id]))
+        self.client.post(reverse("admin_market_undo", args=[self.session.id]))
+        self.client.post(reverse("admin_market_status", args=[self.session.id]), {"status": "open"})
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.status, MarketSession.Status.CLOSED)
 
 
 class MarketManageParityTests(TestCase):

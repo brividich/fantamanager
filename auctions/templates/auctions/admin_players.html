@@ -494,6 +494,18 @@
         msg.style.display = "block"; msg.style.color = color; msg.textContent = text;
     }
 
+    // I giocatori del file che il listone non abbina con certezza.
+    function roseUnmatched(list) {
+        if (!list || !list.length) return "";
+        const rows = list.map(u =>
+            `<tr><td style="font-weight:600">${fmEsc(u.name)}</td><td>${fmEsc(u.team)}</td>` +
+            `<td style="text-align:right">${u.cost}</td><td class="muted">${fmEsc(u.why)}</td></tr>`).join("");
+        return `<div style="margin-top:12px;font-size:12px;color:var(--closed)">` +
+            `Da assegnare a mano (${list.length}): cerca il giocatore qui sotto e assegnalo alla squadra col suo costo.</div>` +
+            `<div class="table-scroll"><table><thead><tr><th>Nel file</th><th>Squadra</th>` +
+            `<th style="text-align:right">Costo</th><th>Perché</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    }
+
     async function importRose(preview) {
         const file = document.getElementById("rose-file").files[0];
         if (!file) { showRoseMsg("Seleziona un file.", "var(--closed)"); return; }
@@ -522,13 +534,20 @@
                 (data.n_listone ? ` · listone ${data.n_listone}` : "") + `</div>` +
                 `<div class="table-scroll"><table><thead><tr><th>Squadra</th>` +
                 `<th style="text-align:right">Giocatori</th><th style="text-align:right">Crediti residui</th>` +
-                `</tr></thead><tbody>${rows}</tbody></table></div>`;
+                `</tr></thead><tbody>${rows}</tbody></table></div>` + roseUnmatched(data.unmatched);
             document.getElementById("rose-preview").style.display = "block";
             showRoseMsg("Anteprima — premi «Importa rose» per confermare." +
                 (data.warning ? " ⚠ " + data.warning : ""), data.warning ? "var(--closed)" : "var(--gold)");
             return;
         }
 
+        if (data.unmatched && data.unmatched.length) {
+            // Restano da assegnare a mano: l'elenco resta a schermo, niente ricarica.
+            document.getElementById("rose-preview").innerHTML = roseUnmatched(data.unmatched);
+            document.getElementById("rose-preview").style.display = "block";
+            showRoseMsg(`✓ ${data.teams} squadre · ${data.players} giocatori assegnati · ⚠ ${data.warning}`, "var(--gold)");
+            return;
+        }
         const parts = [`${data.teams} squadre`, `${data.players} giocatori assegnati`];
         if (data.listone_created) parts.push(`${data.listone_created} aggiunti al listone`);
         showRoseMsg(`✓ ${fmEsc(data.source_label)}: ` + parts.join(" · ") +

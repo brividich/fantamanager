@@ -497,7 +497,10 @@ class MinimalPathTests(TestCase):
         self.assertLessEqual(len(posts), 8)
         self.assertTrue(all(p.invite_sent_at for p in Participant.objects.filter(league=league)))
         # L'allenatore: un clic sul link e un modulo.
-        link = re.search(r"http://testserver(/invito/[^/\s]+/)", outbox.outbox[0].body).group(1)
+        # L'email di allenatore1: l'ordine di invio non è quello di creazione
+        # su ogni database (su PostgreSQL la prima poteva essere di un altro).
+        mail1 = next(m for m in outbox.outbox if m.to == ["allenatore1@x.it"])
+        link = re.search(r"http://testserver(/invito/[^/\s]+/)", mail1.body).group(1)
         self.client.logout()
         self.client.post = original
         self.assertEqual(self.client.get(link).status_code, 200)

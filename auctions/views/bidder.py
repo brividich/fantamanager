@@ -188,7 +188,12 @@ def join(request):
             public_token=token, is_active=True
         ).first()
         if recognized:
-            target = _auction_for_join(recognized, request.GET.get("a"), joinable)
+            wanted = request.GET.get("a")
+            target = _auction_for_join(recognized, wanted, joinable)
+            # Un'asta chiusa non è da giocare: ci si va solo se il link la nomina.
+            playing = (Auction.Status.LIVE, Auction.Status.PAUSED, Auction.Status.READY)
+            if target is not None and target.status not in playing and str(target.id) != wanted:
+                target = None
             if target is None and recognized.user_id is None:
                 # Nessuna asta in corso e squadra senza account: è un invito.
                 # La pagina d'invito collega la squadra (o fa entrare senza account).
@@ -199,6 +204,9 @@ def join(request):
                 request.session[SESSION_LEAGUE_KEY] = recognized.league_id
             if target is not None:
                 return redirect("bid", auction_id=target.id)
+            # Nessuna asta da giocare: il link della squadra porta nella sua
+            # area - rosa, mercato, formazione - non su «Nessuna asta disponibile».
+            return redirect("app_home")
 
     if not recognized:
         recognized = _session_participant(request)

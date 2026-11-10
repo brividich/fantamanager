@@ -30,7 +30,7 @@ SENT_MESSAGE = ("Se l'account esiste e ha un'email, ti abbiamo scritto un link p
 
 def password_reset_request(request):
     if request.method == "POST":
-        if throttle.blocked(request, "login"):
+        if throttle.blocked(request, "mail"):
             return render(request, "auctions/password_reset.html", {"error": throttle.MESSAGE})
         identifier = (request.POST.get("identifier") or "").strip()
         if not mail.is_ready():
@@ -45,7 +45,7 @@ def password_reset_request(request):
                 "error": "Il reset via email non è attivo su questa installazione: chi la gestisce "
                          "deve impostare FM_SITE_URL (l'indirizzo pubblico del sito). Intanto chiedi "
                          "all'amministratore di reimpostarti la password."})
-        throttle.failure(request, "login")        # every request counts: no free probing
+        throttle.failure(request, "mail")        # every request counts: no free probing
         if identifier:
             User = get_user_model()
             # Un'email registrata ma mai confermata non riceve il link: potrebbe

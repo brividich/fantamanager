@@ -235,6 +235,15 @@ def place_market_bid(
     except (ValueError, TypeError):
         prio = 1
 
+    # Con la regola "totale" ogni invio è una busta in più: un doppio tocco
+    # ne consumerebbe due uguali delle offerte a disposizione.
+    if total_rule and existing.filter(player=player, amount=val, release_player=release_player).exists():
+        return {
+            "ok": False, "error": "duplicate_bid",
+            "message": f"Hai già consegnato questa stessa offerta ({val:.0f} FM su {player.name}): "
+                       "per un'altra busta sullo stesso giocatore cambia l'importo.",
+        }
+
     fields = {
         "amount": val,
         "priority": prio,
@@ -243,6 +252,10 @@ def place_market_bid(
         "note": "",
     }
     if replaces is not None:
+        if replaces.amount != val:
+            # Un importo nuovo è un'offerta nuova: nel pari merito «vince chi
+            # ha offerto prima» conta da adesso, non dalla prima consegna.
+            replaces.created_at = timezone.now()
         for k, v in fields.items():
             setattr(replaces, k, v)
         replaces.save()
@@ -293,6 +306,18 @@ def delete_market_bid(session_id, participant_id, bid_id):
         logger.info(f"Market bid deleted: session={session_id}, participant={participant_id}, bid={bid_id}")
 
     return {"ok": bool(deleted)}
+
+
+def market_bids_total(session, bids):
+    """Quanto pesano sul budget le buste di una squadra (le righe di
+    ``get_participant_market_bids``): con la regola "totale" conta l'offerta
+    più alta su ogni giocatore, come allo spoglio; altrimenti la somma."""
+    if session.budget_rule != MarketSession.BudgetRule.TOTAL:
+        return sum(b["amount"] for b in bids)
+    best = {}
+    for b in bids:
+        best[b["player_id"]] = max(best.get(b["player_id"], 0), b["amount"])
+    return sum(best.values())
 
 
 def get_participant_market_bids(session_id, participant_id):
@@ -530,27 +555,30 @@ class _Plan:
 
         w, note, release, refund = winner
         tied = []
+        # Le offerte pari che perdono solo perché arrivate dopo: restano
+        # rivali valide, e il vincitore non può pagare meno di loro.
+        beaten_on_time = Decimal("0")
         seen = {w.participant_id}
         first_wins = self.session.tie_break == MarketSession.TieBreak.FIRST
         for b in bids:
             if b.id in self.outcome or b is w or b.participant_id in seen:
                 continue
             if b.amount == w.amount and b.priority == w.priority:
-                if first_wins:
+                ok, bnote, _, _ = self._check(b)
+                if not ok:
+                    self._decide(b, MarketBid.Status.LOST, bnote)
+                elif first_wins:
                     # Bids are ranked by insertion time on equal amount, so w
                     # is the earliest: the others lose the tie outright.
                     self._decide(
                         b, MarketBid.Status.LOST,
                         f"Pari merito: vince l'offerta inserita prima ({w.participant.display_name})",
                     )
-                    seen.add(b.participant_id)
-                    continue
-                ok, bnote, _, _ = self._check(b)
-                if ok:
-                    tied.append(b)
+                    beaten_on_time = b.amount
                     seen.add(b.participant_id)
                 else:
-                    self._decide(b, MarketBid.Status.LOST, bnote)
+                    tied.append(b)
+                    seen.add(b.participant_id)
 
         if tied:
             group = [w] + tied
@@ -570,7 +598,7 @@ class _Plan:
                 ],
             })
         else:
-            w, release, refund, note = self._ladder_price(w, release, refund, note, bids)
+            w, release, refund, note = self._ladder_price(w, release, refund, note, bids, beaten_on_time)
             self._award(w, release, refund, note)
 
         won_by = w.participant_id if not tied else None
@@ -584,15 +612,23 @@ class _Plan:
                 else:
                     self._decide(b, MarketBid.Status.LOST, "Offerta superata")
 
-    def _ladder_price(self, w, release, refund, note, bids):
+    def _ladder_price(self, w, release, refund, note, bids, floor=Decimal("0")):
         """Regolamento 5.03: con più offerte sullo stesso giocatore si paga
-        "l'offerta minima fatta" che basta a battere le altre squadre."""
+        "l'offerta minima fatta" che basta a battere le altre squadre.
+
+        ``floor``: l'offerta di chi ha perso il pari merito solo per l'ordine
+        d'arrivo. Le altre rivali contano se sono valide adesso: una busta che
+        non potrebbe comunque vincere (taglio già usato, tetto, rosa piena)
+        non alza il prezzo di nessuno."""
         if self.session.budget_rule != MarketSession.BudgetRule.TOTAL:
             return w, release, refund, note
-        # Le offerte rivali già scartate (non valide) non contano.
-        rivals = [b.amount for b in bids
-                  if b.participant_id != w.participant_id and b.id not in self.outcome]
-        beat = max(rivals) if rivals else Decimal("0")
+        beat = floor
+        for b in sorted(bids, key=self._rank):
+            if b.amount <= beat:
+                break
+            if b.participant_id != w.participant_id and b.id not in self.outcome and self._check(b)[0]:
+                beat = b.amount
+                break
         mine = sorted((b for b in bids if b.participant_id == w.participant_id
                        and b.id not in self.outcome and b.amount > beat and b is not w),
                       key=lambda b: (b.amount, b.created_at))
