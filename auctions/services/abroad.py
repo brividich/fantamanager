@@ -112,10 +112,13 @@ def flag_missing(league, names_missing):
     """Segnala i giocatori in rosa spariti dal listone; toglie la segnalazione a chi è tornato."""
     now = timezone.now()
     owned = Player.objects.filter(owner__league=league, abroad_list=False)
-    flagged = owned.filter(name__in=names_missing, left_serie_a_at__isnull=True).update(left_serie_a_at=now)
+    # Segnalato = fuori listone: se poi viene svincolato (in qualsiasi modo)
+    # non torna fra gli svincolati.
+    flagged = owned.filter(name__in=names_missing, left_serie_a_at__isnull=True).update(
+        left_serie_a_at=now, in_listone=False)
     owned.exclude(name__in=names_missing).filter(
         left_serie_a_at__isnull=False, left_rank_kind="", left_club=""
-    ).update(left_serie_a_at=None, left_club="", left_rank_pos=None)
+    ).update(left_serie_a_at=None, left_club="", left_rank_pos=None, in_listone=True)
     return flagged
 
 
@@ -126,7 +129,8 @@ def flag_player(player_id):
         return {"ok": False, "message": "Giocatore non trovato in nessuna rosa."}
     if player.left_serie_a_at is None:
         player.left_serie_a_at = timezone.now()
-        player.save(update_fields=["left_serie_a_at"])
+        player.in_listone = False
+        player.save(update_fields=["left_serie_a_at", "in_listone"])
     return {"ok": True, "player_name": player.name}
 
 
@@ -320,7 +324,7 @@ def check_all_rosters(league, *, get=None, sleep=time.sleep, progress=None, toda
                 if player.id in gone:
                     # Segnalato subito: se il controllo si ferma a metà, quel che ha trovato resta.
                     Player.objects.filter(pk=player.id, left_serie_a_at__isnull=True).update(
-                        left_serie_a_at=now, left_club=gone[player.id]["club"][:120])
+                        left_serie_a_at=now, left_club=gone[player.id]["club"][:120], in_listone=False)
                     report["found"].append({"player_id": player.id, "player_name": player.name,
                                             "team": player.owner.display_name, "club": gone[player.id]["club"],
                                             "date": gone[player.id]["date"], "position": None})

@@ -5,7 +5,8 @@ from django.db.models import F
 def mark_out_of_listone(apps, schema_editor):
     """Gli svincolati che già oggi non sono più nel listone: chi è stato perso
     con la cessione fuori dalla Serie A (evento «left») in questa stagione
-    della lega ed è ancora senza squadra, chi era segnalato come uscito, e
+    della lega ed è ancora senza squadra, chi è segnalato come uscito (anche
+    se ancora in rosa), e
     nelle leghe sul listone generale chi nell'anagrafica non è più in Serie A.
 
     Una cessione di una stagione passata non basta: nel frattempo il
@@ -18,7 +19,9 @@ def mark_out_of_listone(apps, schema_editor):
         kind="left", player__isnull=False, league__isnull=False, season=F("league__season_number"),
     ).values("player_id")
     free.filter(id__in=left_ids).update(in_listone=False)
-    free.filter(left_serie_a_at__isnull=False).update(in_listone=False)
+    # Segnalato come uscito dalla Serie A, anche se ancora in rosa: da
+    # svincolato non deve tornare fra i liberi (come le segnalazioni nuove).
+    Player.objects.filter(left_serie_a_at__isnull=False).update(in_listone=False)
     Player.objects.filter(league__isnull=False, league__own_listone=False,
                           footballer__isnull=False, footballer__in_serie_a=False).update(in_listone=False)
 

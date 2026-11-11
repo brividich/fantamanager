@@ -1180,6 +1180,7 @@ def _place(row, team, league, pool, claimed, entry, *, now):
     player.abroad_list = False
     if out and player.left_serie_a_at is None:
         player.left_serie_a_at = now
+        player.in_listone = False   # uscito: svincolato non torna fra i liberi
         if club.upper().startswith("SVINCOL"):
             player.left_rank_kind = "free"
         elif _team_code(club) != _team_code(player.team) or created:

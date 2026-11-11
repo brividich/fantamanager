@@ -4,6 +4,7 @@ from decimal import Decimal
 from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from ..models import Auction, AuctionQueueItem, League, MarketBid, MarketSession, Participant, Player
 from ..providers.importers import sync_players
@@ -51,6 +52,11 @@ class OutOfListoneTests(TestCase):
         self.owned.refresh_from_db()
         self.assertIsNone(self.owned.owner_id)
         self.assertFalse(self.owned.in_listone)
+        self.assertEqual(self.free_names(), {"Kean"})
+
+    def test_flagged_by_hand_and_released_is_not_free(self):
+        abroad.flag_player(self.owned.id)
+        release_player(self.owned.id, by_admin=True)
         self.assertEqual(self.free_names(), {"Kean"})
 
     def test_dismissed_flag_keeps_him_in_the_listone(self):
@@ -125,8 +131,14 @@ class MigrationTests(TestCase):
         for p, season in ((gone, 3), (back, 2)):
             ContractEvent.objects.create(league=league, player=p, player_name=p.name,
                                          kind=ContractEvent.Kind.LEFT, season=season)
+        team = Participant.objects.create(display_name="Alfa", league=league)
+        flagged = Player.objects.create(name="Segnalato", league=league, owner=team,
+                                        left_serie_a_at=timezone.now())
         mig.mark_out_of_listone(apps, None)
-        gone.refresh_from_db()
-        back.refresh_from_db()
+        for p in (gone, back, flagged):
+            p.refresh_from_db()
         self.assertFalse(gone.in_listone)
         self.assertTrue(back.in_listone)
+        self.assertFalse(flagged.in_listone)
+        release_player(flagged.id, by_admin=True)
+        self.assertFalse(Player.objects.free_agents().filter(pk=flagged.pk).exists())
