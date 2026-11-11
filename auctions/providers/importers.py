@@ -221,7 +221,8 @@ def sync_players(rows, *, league=None, replace=False, prune=False):
             match.team = team
             match.initial_price = price
             match.name = name  # canonicalise to the official listone spelling
-            fields = ["role", "team", "initial_price", "name"]
+            match.in_listone = True  # ricomparso nel listone: di nuovo acquistabile
+            fields = ["role", "team", "initial_price", "name", "in_listone"]
             if ext_id:
                 match.ext_id = ext_id
                 fields.append("ext_id")
@@ -259,6 +260,7 @@ def sync_players(rows, *, league=None, replace=False, prune=False):
             Auction.objects.exclude(player__isnull=True)
             .values_list("player_id", flat=True)
         )
+        dropped = []
         for p in existing:
             if p.pk in claimed:
                 continue
@@ -267,6 +269,11 @@ def sync_players(rows, *, league=None, replace=False, prune=False):
             elif prune and p.pk not in on_block:
                 p.delete()
                 pruned += 1
+                continue
+            dropped.append(p.pk)
+        # Chi non è nel listone nuovo non è più uno svincolato: chi è in rosa
+        # resta di chi è (5.05), gli altri restano solo per lo storico.
+        Player.objects.filter(pk__in=dropped, in_listone=True).update(in_listone=False)
 
     flagged_left = 0
     if league is not None and not replace:

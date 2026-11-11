@@ -42,6 +42,7 @@
     .owner-tag { display:inline-flex; align-items:center; gap:5px; font-size:12px; color:var(--fm-text-secondary); font-weight:600; }
     .free-tag { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--fm-success); font-weight:600; }
     .free-tag .dot { width:6px; height:6px; border-radius:50%; background:var(--fm-success); }
+    .out-tag { font-size:12px; color:var(--fm-text-secondary); font-weight:600; }
     .row-actions { display:inline-flex; gap:6px; justify-content:flex-end; }
     .row-actions button, .row-actions .fm-btn { height:28px; padding:0 10px; font-size:11.5px; }
     .quota { font-family:var(--fm-display); font-weight:800; font-size:17px; color:var(--fm-primary-light); }
@@ -146,7 +147,7 @@
         Qui gestisci il <b>listone</b> della lega: l'elenco dei giocatori che andranno all'asta.
         <ol>
             <li><b>Importa</b> il file ufficiale delle Quotazioni (<code>.xlsx</code>) o un <code>.csv</code>: i nuovi entrano come <b>svincolati</b>, quelli già in rosa restano al proprietario.</li>
-            <li>Usa <b>cerca</b> e i filtri per <b>ruolo</b> e <b>stato</b> (svincolati / in rosa) per trovare un giocatore.</li>
+            <li>Usa <b>cerca</b> e i filtri per <b>ruolo</b> e <b>stato</b> (svincolati / in rosa / fuori listone) per trovare un giocatore. Chi è uscito dal listone resta solo per lo storico: non è fra gli svincolati e non si compra.</li>
             <li><b>Svincola</b> rimette un giocatore tra i liberi; <b>✕</b> lo elimina dal listone.</li>
         </ol>
         <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> “Rimuovi svincolati non più in lista” ripulisce i doppioni; “Sostituisci tutto” azzera anche le rose — usalo solo per ripartire da zero.</div>
@@ -323,6 +324,7 @@
             <option value="">Tutti</option>
             <option value="free" {% if filters.status == "free" %}selected{% endif %}>Svincolati</option>
             <option value="owned" {% if filters.status == "owned" %}selected{% endif %}>In rosa</option>
+            <option value="out" {% if filters.status == "out" %}selected{% endif %}>Fuori listone</option>
         </select>
         <select name="sort" aria-label="Ordina" onchange="this.form.submit()">
             <option value="name"   {% if filters.sort == "name" %}selected{% endif %}>Nome A-Z</option>
@@ -360,6 +362,8 @@
                 <td>
                     {% if p.owner_id %}
                         <span class="owner-tag"><svg class="ic"><use href="#i-lock"/></svg> {{ p.owner.display_name }}</span>
+                    {% elif not p.in_listone %}
+                        <span class="out-tag" title="Non è più nel listone: non si compra e non è fra gli svincolati. Torna se ricompare in un listone caricato.">Fuori listone</span>
                     {% else %}
                         <span class="free-tag"><span class="dot"></span>Svincolato</span>
                     {% endif %}

@@ -56,11 +56,12 @@ def footballers_context(request, pool, base_url, league=None):
     if club.isdigit():
         registry = registry.filter(club_api_id=int(club))
     if in_league == "free":
-        registry = registry.filter(id__in=players.filter(owner__isnull=True).values("footballer_id"))
+        registry = registry.filter(id__in=players.free_agents().values("footballer_id"))
     elif in_league == "owned":
         registry = registry.filter(id__in=players.filter(owner__isnull=False).values("footballer_id"))
     elif in_league == "out":
-        registry = registry.exclude(id__in=players.values("footballer_id"))
+        registry = registry.exclude(id__in=players.exclude(owner__isnull=True, in_listone=False)
+                                    .values("footballer_id"))
 
     page = Paginator(registry.order_by("name", "id"), 50).get_page(request.GET.get("page"))
     rows = list(page.object_list)

@@ -264,7 +264,7 @@ def apply_default_listone(league):
     new, changed = [], []
     for f in registry:
         values = {"name": f.name, "role": default_role(f), "mantra_roles": f.mantra_roles,
-                  "team": f.club_name}
+                  "team": f.club_name, "in_listone": True}
         p = by_footballer.get(f.id)
         if p is None:
             new.append(Player(league=league, footballer=f, photo_url=f.photo_url, **values))
@@ -273,11 +273,15 @@ def apply_default_listone(league):
                 setattr(p, k, v)
             changed.append(p)
     Player.objects.bulk_create(new)
-    Player.objects.bulk_update(changed, ["name", "role", "mantra_roles", "team"])
+    Player.objects.bulk_update(changed, ["name", "role", "mantra_roles", "team", "in_listone"])
 
     gone = pool.filter(footballer__in_serie_a=False)
     on_block = Auction.objects.exclude(player__isnull=True).values("player_id")
     removed, _ = gone.filter(owner__isnull=True).exclude(id__in=on_block).delete()
+    # Chi non è nella lista generale (uscito dalla Serie A, o rimasto da un
+    # listone caricato prima) non è uno svincolato: resta solo per la rosa o
+    # lo storico.
+    pool.exclude(footballer__in_serie_a=True).filter(in_listone=True).update(in_listone=False)
     flag_missing(league, list(gone.filter(owner__isnull=False).values_list("name", flat=True)))
     return {"created": len(new), "updated": len(changed), "removed": removed}
 

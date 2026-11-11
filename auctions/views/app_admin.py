@@ -246,7 +246,7 @@ def app_regia(request):
             "slots": slots,
             "fill_pct": int(100 * assigned / slots) if slots else 0,
             "pool": pool.count(),
-            "free": pool.filter(owner__isnull=True).count(),
+            "free": pool.free_agents().count(),
         },
         "trades_to_ratify": list(trades),
         "auctions": auctions,

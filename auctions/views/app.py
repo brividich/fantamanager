@@ -480,7 +480,7 @@ def app_mercato(request):
     in_budget = request.GET.get("budget") == "1"
     is_mantra = bool(league and league.is_mantra)
 
-    free_agents = Player.objects.filter(owner__isnull=True)
+    free_agents = Player.objects.free_agents()
     free_agents = free_agents.filter(league=league) if league else free_agents.filter(league__isnull=True)
     # The quotation the league actually plays with (Mantra price when present).
     quota = Coalesce("price_m", "initial_price") if is_mantra else F("initial_price")

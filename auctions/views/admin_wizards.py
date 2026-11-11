@@ -119,7 +119,7 @@ def admin_auction_wizard(request):
     for lg in leagues:
         lg.team_count = lg.participants.count()
         lg.pool_count = lg.players.count()
-        lg.free_count = lg.players.filter(owner__isnull=True).count()
+        lg.free_count = lg.players.free_agents().count()
     try:
         preselect = int(request.GET.get("league") or 0)
     except (TypeError, ValueError):

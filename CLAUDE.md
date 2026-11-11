@@ -255,6 +255,9 @@ L'unica cosa comune è l'anagrafica dei calciatori (`Footballer`, da
 API-Football, ruoli corretti solo dal superuser): è il listone di default delle
 leghe senza una lista propria (`League.own_listone`), ma i giocatori di ogni
 lega (`Player`, con rosa, costo e contratto) restano della lega.
+Gli svincolati si leggono solo con `Player.objects.free_agents()` (o
+`player.is_free_agent`): senza squadra **e** nel listone (`Player.in_listone`,
+falso per chi è uscito dal listone o dalla Serie A; resta per lo storico).
 L'admin di una lega (proprietario o co-admin in `league.admins`) gestisce solo
 le sue leghe: usare `user_can_manage_league` / `manageable_leagues`
 (`views/common.py`), mai il solo `league.owner`.

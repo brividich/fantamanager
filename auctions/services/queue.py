@@ -80,7 +80,7 @@ def _ordered_free_agents(call_order, within_role_order, league=None, letters=Non
     tie-break only; ``build_queue`` applies the role banding on top. Scoped to
     ``league``'s pool; ``league=None`` selects the legacy/global pool.
     """
-    players = list(Player.objects.filter(owner__isnull=True, league=league))
+    players = list(Player.objects.free_agents().filter(league=league))
     if call_order == Auction.CallOrder.RANDOM:
         random.shuffle(players)
         return players
@@ -354,7 +354,7 @@ def prioritize_queue_item(auction, player_id):
     to (min_order - 1) and marked done=False. If the player is a free agent not
     yet queued, an item is created at the front.
     """
-    player = Player.objects.filter(pk=player_id, owner__isnull=True).first()
+    player = Player.objects.free_agents().filter(pk=player_id).first()
     if player is None:
         return None
 

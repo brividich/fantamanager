@@ -427,6 +427,9 @@ def _lose(player, amount, note):
     player.abroad_list = False
     player.abroad_compensation = None
     player.left_serie_a_at = None
+    # Uscito dalla Serie A: non torna fra gli svincolati (finché un listone
+    # nuovo non lo riporta).
+    player.in_listone = False
     player.save()
     return amount
 
@@ -438,9 +441,12 @@ def resolve(player_id, outcome, *, club="", position=None):
     if player.owner_id is None:
         return {"ok": False, "message": "Il giocatore non è in nessuna rosa."}
     if outcome == "dismiss":
+        # Segnalazione sbagliata: è ancora in Serie A, quindi nel listone.
         player.left_serie_a_at = None
         player.left_club, player.left_rank_kind, player.left_rank_pos = "", "", None
-        player.save(update_fields=["left_serie_a_at", "left_club", "left_rank_kind", "left_rank_pos"])
+        player.in_listone = True
+        player.save(update_fields=["left_serie_a_at", "left_club", "left_rank_kind", "left_rank_pos",
+                                   "in_listone"])
         return {"ok": True, "amount": 0, "outcome": outcome}
 
     kind = player.left_rank_kind or "uefa"

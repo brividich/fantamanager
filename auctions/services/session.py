@@ -30,7 +30,7 @@ def league_overview(leagues=None):
             # Teams nobody can log into: no account and no PIN.
             "locked_out": teams.filter(user__isnull=True, access_code="").count(),
             "pool": pool.count(),
-            "free": pool.filter(owner__isnull=True).count(),
+            "free": pool.free_agents().count(),
             "auctions": auctions.count(),
             "live": auctions.filter(status=Auction.Status.LIVE).count(),
             "sessions": AuctionSession.objects.filter(league=lg).count(),
@@ -102,6 +102,7 @@ def _snapshot_pool(league):
             "avg_vote": None if pl.avg_vote is None else str(pl.avg_vote),
             "fanta_avg": None if pl.fanta_avg is None else str(pl.fanta_avg),
             "goals": pl.goals, "assists": pl.assists,
+            "in_listone": pl.in_listone,
         }
         for pl in qs.select_related("owner").order_by("role", "name")
     ]
@@ -133,6 +134,7 @@ def _restore_pool(pool, league, participants_by_name):
             avg_vote=_dec_or_none(pl.get("avg_vote")),
             fanta_avg=_dec_or_none(pl.get("fanta_avg")),
             goals=pl.get("goals"), assists=pl.get("assists"),
+            in_listone=pl.get("in_listone") is not False,
         ))
     Player.objects.bulk_create(made, batch_size=500)
     return len(made)
@@ -343,7 +345,7 @@ def resume_session(session_id, *, created_by="", owner=None):
                  "avg_vote": None if p.avg_vote is None else str(p.avg_vote),
                  "fanta_avg": None if p.fanta_avg is None else str(p.fanta_avg),
                  "goals": p.goals, "assists": p.assists}
-                for p in Player.objects.filter(league_id=session.league_id, owner__isnull=True)
+                for p in Player.objects.free_agents().filter(league_id=session.league_id)
             ]
             if legacy:
                 _restore_pool(legacy, league, {})

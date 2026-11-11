@@ -206,7 +206,7 @@ def serialize_state(auction, now=None):
         # never goes back up: an unsold lot re-enters the running order (so the
         # queue count can hold steady or even look stuck), but it stays the same
         # player, still uncounted here only once they are actually bought.
-        "players_remaining": Player.objects.filter(owner__isnull=True, league=auction.league).count(),
+        "players_remaining": Player.objects.free_agents().filter(league=auction.league).count(),
         "queue_next": next_up,
         "notice": notice if notice else None,
         "current_price": str(auction.current_price),

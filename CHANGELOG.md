@@ -52,6 +52,12 @@ Prima versione numerata (prima l'etichetta era 1.2.0, senza rilasci).
 - Buste: a consegna chiusa, appena l'admin guarda le offerte, «Pareggi in
   vista» dice quali giocatori finirebbero in parità e cosa farà la regola
   (con «vince chi ha offerto prima»: chi vince, con orari e distacco).
+- Fra gli svincolati non compare più chi non è nel listone: chi è sparito
+  dal listone caricato (anche senza «Rimuovi svincolati non più in lista»),
+  chi è uscito dalla Serie A nel listone generale e chi è stato perso con la
+  cessione all'estero, anche dopo lo svincolo. Non si compra (buste, mercato
+  libero, waiver, asta) e torna se ricompare in un listone. Nella pagina
+  Giocatori lo stato «Fuori listone» li mostra all'admin.
 
 ### Backup e ripristino
 - Su PostgreSQL (NAS, Docker) il Supervisor ripristina un backup dal browser:

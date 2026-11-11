@@ -154,8 +154,8 @@ def admin_dashboard(request, league_id=None, hub=False, auction_id=None):
         for p in participants:
             p.join_url = participant_join_url(request, p, selected)
             p.lan_join_url = participant_lan_join_url(request, p, selected)
-        free_count = players.filter(owner__isnull=True).count()
-        free_players_sample = list(players.filter(owner__isnull=True).order_by("role", "-initial_price", "name")[:60])
+        free_count = players.free_agents().count()
+        free_players_sample = list(players.free_agents().order_by("role", "-initial_price", "name")[:60])
 
         # Pre-organize rosters by role for all participants (zero N+1 queries)
         owned_players = list(
