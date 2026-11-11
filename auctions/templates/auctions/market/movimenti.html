@@ -33,6 +33,7 @@
         <button type="button" data-filter="acquisti" aria-pressed="false">Acquisti</button>
         <button type="button" data-filter="svincoli" aria-pressed="false">Svincoli</button>
         <button type="button" data-filter="scambi" aria-pressed="false">Scambi</button>
+        <button type="button" data-filter="altro" aria-pressed="false">Modifiche e crediti</button>
     </div>
     <ul class="mk-moves">
         {% for m in moves %}
@@ -40,7 +41,7 @@
             <span class="when">{{ m.created_at|date:"d/m" }}<small>{{ m.created_at|date:"H:i" }}</small></span>
             <span class="tag {% if m.kind == 'acquisti' %}t-live{% elif m.kind == 'svincoli' %}t-bad{% elif m.kind == 'scambi' %}t-info{% endif %}">{{ m.get_action_display }}</span>
             <span class="who">
-                <span class="mk-player">{% if m.player_role %}<span class="role-badge role-{{ m.player_role }}">{{ m.player_role }}</span>{% endif %} <b>{{ m.player_name }}</b> <small>· {{ m.participant_name }}</small></span>
+                <span class="mk-player">{% if m.player_role %}<span class="role-badge role-{{ m.player_role }}">{{ m.player_role }}</span>{% endif %} {% if m.player_name %}<b>{{ m.player_name }}</b> <small>· {{ m.participant_name }}</small>{% else %}<b>{{ m.participant_name }}</b>{% endif %}</span>
                 {% if m.note %}<small>{{ m.note }}</small>{% endif %}
             </span>
             <span class="amt">{% if m.spent %}<span class="mk-fm">−{{ m.spent|floatformat:0 }} FM</span>{% elif m.refund %}<span class="mk-plus">+{{ m.refund|floatformat:0 }} FM</span>{% else %}<span class="muted">—</span>{% endif %}</span>

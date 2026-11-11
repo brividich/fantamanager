@@ -189,11 +189,13 @@ def admin_rose_action(request):
     if mixed_leagues(team, player) or (player is not None and player.league_id != league.id):
         messages.error(request, services.ERROR_LABELS["league_mismatch"])
         return redirect(safe_next(request, f"{reverse('admin_rose')}?league={league.id}"))
+    who = request.user.get_username()
     back = safe_next(request, f"{reverse('admin_rose')}?league={league.id}"
                               + (f"&team={team.id}" if team is not None else ""))
 
     if action == "credits" and team is not None:
-        messages.success(request, apply_team_credits(team, request.POST.get("mode"), request.POST.get("amount")))
+        messages.success(request, apply_team_credits(team, request.POST.get("mode"), request.POST.get("amount"),
+                                                       request.user))
         return redirect(back)
 
     if player is None:
@@ -212,7 +214,7 @@ def admin_rose_action(request):
                 messages.error(request, "Prezzo non valido: scrivi un numero di FM (0 o più) e riprova.")
             else:
                 res = services.assign_player(player.id, team.id, price=price, by_admin=True,
-                                             note="Aggiunto dalla pagina Rose")
+                                             note=f"Aggiunto dalla pagina Rose · {who}")
                 if res.get("ok"):
                     messages.success(request, f"{player.name} aggiunto a «{team.display_name}» per {_fm(price)}.")
                 else:
@@ -226,7 +228,8 @@ def admin_rose_action(request):
     if action == "release":
         mode = request.POST.get("refund") or Auction.RefundMode.PURCHASE
         owner = player.owner
-        res = services.release_player(player.id, by_admin=True, refund_mode=mode)
+        res = services.release_player(player.id, by_admin=True, refund_mode=mode,
+                                      note=f"pagina Rose · {who}")
         if res.get("ok"):
             messages.success(request, f"{player.name} svincolato da «{owner.display_name}»: "
                                       f"+{_fm(res.get('refund'))} di rimborso.")
@@ -245,7 +248,7 @@ def admin_rose_action(request):
         old_years = player.contract_years
         if target.id != owner.id or price != (player.cost or 0):
             res = services.assign_player(player.id, target.id, price=price, by_admin=True,
-                                         note="Modificato dalla pagina Rose")
+                                         note=f"Modificato dalla pagina Rose · {who}")
             if not res.get("ok"):
                 messages.error(request, _error_text(res))
                 return redirect(back)
@@ -260,7 +263,7 @@ def admin_rose_action(request):
             # Uno spostamento è un acquisto: il contratto torna «da tirare»
             # (services.contracts.on_player_acquired), salvo durata scelta qui.
             if wanted != old_years or (moved and wanted is not None):
-                res = services.set_contract(player.id, raw, note="Impostato dall'admin (Rose)")
+                res = services.set_contract(player.id, raw, note=f"Impostato dall'admin (Rose) · {who}")
                 if not res.get("ok"):
                     messages.error(request, _error_text(res))
                     return redirect(back)

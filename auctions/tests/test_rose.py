@@ -172,6 +172,48 @@ class RosePageTests(TestCase):
         self.beta.refresh_from_db()
         self.assertEqual(self.beta.credits, Decimal("515"))
 
+    # --- tutto registrato -----------------------------------------------------
+
+    def test_every_change_is_logged_with_who_did_it(self):
+        from ..models import ContractEvent, RosterLog
+        self.client.force_login(self.owner)
+        url = reverse("admin_rose_action")
+        self.client.post(url, {"action": "assign", "participant_id": self.beta.id,
+                               "player_id": self.barella.id, "price": "20"})
+        self.client.post(url, {"action": "edit", "player_id": self.lautaro.id, "participant_id": self.alfa.id,
+                               "price": "45", "contract": "1"})
+        self.client.post(url, {"action": "credits", "participant_id": self.beta.id, "mode": "sub", "amount": "5"})
+        self.client.post(url, {"action": "release", "player_id": self.lautaro.id})
+        logs = list(RosterLog.objects.filter(participant__league=self.league).order_by("id"))
+        self.assertEqual([r.action for r in logs], [
+            RosterLog.Action.ADMIN_ASSIGN, RosterLog.Action.EDIT, RosterLog.Action.CREDITS,
+            RosterLog.Action.ADMIN_RELEASE])
+        for row in logs:
+            self.assertIn("presidente_ro", row.note)
+        self.assertIn("500 → 495", logs[2].note)
+        event = ContractEvent.objects.get(player=self.lautaro, kind=ContractEvent.Kind.SET)
+        self.assertEqual(event.years, 1)
+        self.assertIn("presidente_ro", event.note)
+
+    def test_moves_show_credits_and_refunds(self):
+        self.client.force_login(self.owner)
+        url = reverse("admin_rose_action")
+        self.client.post(url, {"action": "credits", "participant_id": self.beta.id, "mode": "add", "amount": "15"})
+        self.client.post(url, {"action": "release", "player_id": self.lautaro.id})
+        html = self.client.get(reverse("admin_market_moves") + self.q).content.decode()
+        self.assertIn("Bonus: budget 500 → 515 FM", html)
+        self.assertIn("+15 FM", html)
+        self.assertIn("+40 FM", html)      # il rimborso dello svincolo, non una spesa
+        self.assertNotIn("−40 FM", html)
+
+    def test_dashboard_credits_are_logged_too(self):
+        from ..models import RosterLog
+        self.client.force_login(self.owner)
+        self.client.post(reverse("admin_adjust_team_credits", args=[self.alfa.id]), {"mode": "set", "amount": "600"})
+        row = RosterLog.objects.get(action=RosterLog.Action.CREDITS)
+        self.assertEqual(row.participant_id, self.alfa.id)
+        self.assertIn("Budget impostato: budget 500 → 600 FM", row.note)
+
 
 class ContractsByHandTests(TestCase):
     """Contratti: «Imposta» c'è per ogni giocatore, anche da tirare; vuoto = da tirare."""

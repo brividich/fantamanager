@@ -416,15 +416,19 @@ def admin_delete_participant(request, participant_id):
     return redirect(safe_next(request, fallback))
 
 
-def apply_team_credits(p, mode, raw_amount):
+def apply_team_credits(p, mode, raw_amount, user=None):
     """Crediti di una squadra: ``add`` (bonus), ``sub`` (malus) o ``set``
-    (budget totale). Usata dalla Dashboard e dalla pagina Rose; restituisce il
+    (budget totale). Usata dalla Dashboard e dalla pagina Rose; resta nei
+    Movimenti (``RosterLog`` «Crediti», con chi l'ha fatto) e restituisce il
     messaggio per chi l'ha chiesto."""
+    from ..models import RosterLog
+
     _sala_guard(p.league_id)
     try:
         val = Decimal(str(raw_amount or "0"))
     except (InvalidOperation, ValueError):
         val = Decimal("0")
+    before = p.credits
     if mode == "add":
         p.credits += val
     elif mode == "sub":
@@ -432,6 +436,15 @@ def apply_team_credits(p, mode, raw_amount):
     elif mode == "set":
         p.credits = max(Decimal("0"), val)
     p.save(update_fields=["credits"])
+    if p.credits != before:
+        label = {"add": "Bonus", "sub": "Malus", "set": "Budget impostato"}.get(mode, "Crediti")
+        who = f" · {user.get_username()}" if user is not None and user.is_authenticated else ""
+        # credits_delta è quanto la squadra ha speso: un bonus è un «rimborso» (< 0).
+        RosterLog.objects.create(
+            participant=p, participant_name=p.display_name, player_name="", player_role="",
+            action=RosterLog.Action.CREDITS, credits_delta=before - p.credits, by_admin=True,
+            note=f"{label}: budget {before:.0f} → {p.credits:.0f} FM{who}"[:200],
+        )
     return f"Crediti di «{p.display_name}» aggiornati: {p.remaining_credits:.0f} FM rimanenti (Totale: {p.credits:.0f} FM)"
 
 
@@ -442,7 +455,7 @@ def admin_adjust_team_credits(request, participant_id):
     p, denied = managed_or_403(request, Participant, participant_id)
     if denied:
         return denied
-    msg = apply_team_credits(p, request.POST.get("mode", "add"), request.POST.get("amount", "0"))
+    msg = apply_team_credits(p, request.POST.get("mode", "add"), request.POST.get("amount", "0"), request.user)
     messages.success(request, msg)
 
     if request.headers.get("x-requested-with") == "XMLHttpRequest" or request.GET.get("format") == "json":

@@ -52,6 +52,11 @@ Prima versione numerata (prima l'etichetta era 1.2.0, senza rilasci).
 - Contratti: «Imposta» (anni scritti a mano) c'è per ogni giocatore, anche per
   chi è «da tirare» o in rinnovo; vuoto lo rimette «da tirare»; il massimo
   segue il dado della lega (prima era fisso a 4).
+- Tutto registrato: ogni cambio di crediti (Dashboard e Rose) è una riga
+  «Crediti» nei Movimenti, con il budget prima e dopo; le azioni di Rose e i
+  contratti scritti a mano riportano chi li ha fatti. Nei Movimenti nuovo filtro
+  «Modifiche e crediti», e gli svincoli si leggono come rimborso (+FM): prima
+  alcuni apparivano come spesa.
 
 ### Backup e ripristino
 - Su PostgreSQL (NAS, Docker) il Supervisor ripristina un backup dal browser:

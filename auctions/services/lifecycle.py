@@ -738,7 +738,8 @@ def _record_unsold(auction):
 
 
 @transaction.atomic
-def release_player(player_id, *, auction_id=None, by_admin=False, participant_id=None, refund_mode=None):
+def release_player(player_id, *, auction_id=None, by_admin=False, participant_id=None, refund_mode=None,
+                   note=""):
     """Release (svincola) an owned player back to the free-agent pool.
 
     Refund policy comes from the auction in context (``auction_id``):
@@ -818,7 +819,8 @@ def release_player(player_id, *, auction_id=None, by_admin=False, participant_id
         action=RosterLog.Action.ADMIN_RELEASE if by_admin else RosterLog.Action.RELEASE,
         credits_delta=applied,
         by_admin=by_admin,
-        note=f"Svincolo · rimborso {refund_mode}" + (f" · asta #{auction.id}" if auction else ""),
+        note=(f"Svincolo · rimborso {refund_mode}" + (f" · asta #{auction.id}" if auction else "")
+              + (f" · {note}" if note else ""))[:200],
     )
 
     player.owner = None

@@ -137,7 +137,7 @@ next = questa pagina, così l'azione torna lì (console o app).
             <li>Per svincolare: <b>Modifica</b> → scegli il rimborso → <b>Svincola</b>.</li>
             <li>Per bonus, malus o un nuovo budget: in <b>Crediti</b> scegli l'operazione, scrivi l'importo e premi <b>Applica</b>.</li>
         </ol>
-        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> {% if rose.contracts_on %}Dadi, rinnovi e regole dei contratti sono nella pagina <a href="{% purl 'admin_contracts' %}?league={{ current_league.id }}">Contratti</a>. {% endif %}Ogni cambio finisce nei movimenti di mercato; i giocatori nuovi si caricano nel listone da <a href="{% purl 'admin_players' %}?league={{ current_league.id }}">Giocatori</a>.</div>
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> {% if rose.contracts_on %}Dadi, rinnovi e regole dei contratti sono nella pagina <a href="{% purl 'admin_contracts' %}?league={{ current_league.id }}">Contratti</a>. {% endif %}Ogni cambio (giocatori, costi, crediti) resta nei <a href="{% purl 'admin_market_moves' %}?league={{ current_league.id }}">Movimenti</a> con il nome di chi l'ha fatto{% if rose.contracts_on %}, i contratti anche nel Registro della pagina Contratti{% endif %}; i giocatori nuovi si caricano nel listone da <a href="{% purl 'admin_players' %}?league={{ current_league.id }}">Giocatori</a>.</div>
         {% else %}
         <ol>
             <li>{% if rose.selected %}✓ Stai guardando <b>{{ rose.selected.team.display_name }}</b>; <b>Tutte</b> torna alla panoramica.{% else %}Qui sotto c'è una scheda per squadra{% if rose.mine %}, la tua per prima{% endif %}: tocca un nome nella riga in alto per vedere quella rosa da sola.{% endif %}</li>

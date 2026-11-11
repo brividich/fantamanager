@@ -112,7 +112,9 @@ _MOVE_KIND = {
     RosterLog.Action.ASSIGN: "acquisti", RosterLog.Action.ADMIN_ASSIGN: "acquisti",
     RosterLog.Action.RELEASE: "svincoli", RosterLog.Action.ADMIN_RELEASE: "svincoli",
     RosterLog.Action.TRADE: "scambi", RosterLog.Action.EDIT: "altro",
+    RosterLog.Action.CREDITS: "altro",
 }
+_REFUND_ACTIONS = (RosterLog.Action.RELEASE, RosterLog.Action.ADMIN_RELEASE)
 
 
 def _buste_summary(sessions):
@@ -212,8 +214,12 @@ def _moves_data(league, now, limit=80):
     for m in log[:limit]:
         m.kind = _MOVE_KIND.get(m.action, "altro")
         # credits_delta is what the team spent: > 0 a cost, < 0 a refund.
-        m.spent = m.credits_delta if m.credits_delta > 0 else 0
-        m.refund = -m.credits_delta if m.credits_delta < 0 else 0
+        # A svincolo is always a refund: some services log it positive.
+        if m.action in _REFUND_ACTIONS:
+            m.spent, m.refund = 0, abs(m.credits_delta)
+        else:
+            m.spent = m.credits_delta if m.credits_delta > 0 else 0
+            m.refund = -m.credits_delta if m.credits_delta < 0 else 0
         moves.append(m)
     return {"moves": moves, "moves_recent": log.filter(created_at__gte=now - timedelta(days=30)).count()}
 

@@ -218,7 +218,8 @@ def admin_contracts_action(request):
             messages.warning(request, warning)
         return redirect(safe_next(request, _url(league)))
     elif action == "set":
-        res = services.set_contract(player_id, request.POST.get("years"), note="Impostato dall'admin")
+        res = services.set_contract(player_id, request.POST.get("years"),
+                                    note=f"Impostato dall'admin · {request.user.get_username()}")
         years = res.get("years")
         ok = ("Contratto rimesso da tirare." if years is None else
               f"Contratto impostato a {years} ann{'o' if years == 1 else 'i'}.")

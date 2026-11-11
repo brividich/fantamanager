@@ -15,6 +15,7 @@ class RosterLog(models.Model):
         ADMIN_ASSIGN  = "admin_assign",  "Assegnazione (admin)"
         EDIT          = "edit",          "Modifica"
         TRADE         = "trade",         "Scambio"
+        CREDITS       = "credits",       "Crediti"
 
     created_at    = models.DateTimeField(auto_now_add=True, db_index=True)
     participant   = models.ForeignKey(
