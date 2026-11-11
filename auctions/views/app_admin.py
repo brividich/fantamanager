@@ -88,6 +88,16 @@ def league_admin_digest(league):
                 "warn", "mail", f"{labels['todo']}: {closed.title}",
                 f"{labels['closed']}: riaprila o concludila con «{labels['resolve']}».",
                 reverse("app_regia_market_session", args=[closed.id]), "Apri la sessione"))
+    for done in sessions.filter(status=MarketSession.Status.RESOLVED, release_after=True).order_by("-updated_at")[:5]:
+        waiting = services.pending_releases(done)
+        if waiting:
+            teams = sorted({w["winner_name"] for w in waiting})
+            items.append(_todo(
+                "warn", "mail", f"Buste: {len(waiting)} sostituzion{'e' if len(waiting) == 1 else 'i'} da scegliere",
+                f"Chi esce dalla rosa al posto dei giocatori vinti in {done.title}: lo scelgono "
+                f"le squadre dall'app, o tu dalla sessione ({', '.join(teams)}).",
+                reverse("app_regia_market_session", args=[done.id]), "Apri la sessione"))
+            break
     opened = sessions.filter(status=MarketSession.Status.OPEN).first()
     if opened is not None:
         delivered = (MarketBid.objects.filter(session=opened)

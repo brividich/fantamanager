@@ -10,7 +10,7 @@ arrivano da mk_labels (SESSION_LABELS in views/admin_market.py) e i rinnovi
 hanno un quadro tutto loro (renewals: contratti da dichiarare e dadi per squadra).
 
 Parametri: s, current_league, participants_stats, delivered, bids_list,
-results, is_preview, sealed, free_total, free_by_role, reachable, mail_ready, now,
+results, is_preview, sealed, pending_releases, free_total, free_by_role, reachable, mail_ready, now,
 mk_labels, is_buste, is_renewals, renewals,
   mk_back  pagina a cui tornare dopo un'azione (questa)
   mk_list  pagina a cui tornare dopo aver eliminato la sessione
@@ -44,6 +44,11 @@ mk_labels, is_buste, is_renewals, renewals,
                 <b>{{ mk_labels.resolve }}</b>{% else %}Alla fine qui compare il tasto per concludere{% if is_buste or s.session_type == "waiver_wire" %}, dopo la chiusura della finestra{% endif %}{% endif %}: {% if is_renewals %}i contratti non rinnovati vengono svincolati{% elif s.session_type == "free_agency" or s.session_type == "buyout_clause" %}gli acquisti si fermano e ne resta il riepilogo{% else %}i giocatori vengono assegnati e i tagli eseguiti{% endif %}.{% endif %}</li>
             {% if results.tied and not is_preview %}
             <li>Se restano pareggi, in <b>Pareggi riscontrati</b> scegli per ogni giocatore <b>Sorteggio</b> o a chi assegnarlo e premi <b>Risolvi</b>.</li>
+            {% endif %}
+            {% if pending_releases %}
+            <li><b>Adesso:</b> ogni giocatore vinto entra al posto di un pari ruolo della rosa. Le squadre scelgono chi esce dall'app
+                (Mercato → questa sessione); per chi non lo fa, scegli tu in <b>Aggiudicazioni effettuate</b> e premi <b>Sostituisci</b>.
+                Ne mancano {{ pending_releases|length }}.</li>
             {% endif %}
             {% if s.status == "resolved" %}
             <li>{% if is_renewals %}Stampa o salva il resoconto con <b>Report Rinnovi (PDF)</b>.{% else %}Scarica il verbale con <b>Verbale (PDF)</b> o <b>CSV</b>{% if is_buste or s.session_type == "waiver_wire" %}.
@@ -237,7 +242,7 @@ mk_labels, is_buste, is_renewals, renewals,
         <span class="mk-rule">Offerte: <b>{% if s.max_bids %}max {{ s.max_bids }} per squadra{% else %}senza limite{% endif %}</b></span>
         <span class="mk-rule">Budget: <b>{% if s.budget_rule == "total" %}totale offerte ≤ budget{% else %}priorità{% endif %}</b></span>
         <span class="mk-rule">Pari merito: <b>{% if s.tie_break == "first" %}vince chi offre prima{% elif s.tie_break == "rebid" %}secondo sfoglio{% else %}decide l'admin{% endif %}</b></span>
-        <span class="mk-rule">Taglio: <b>{% if s.require_same_role_release %}obbligatorio, pari ruolo{% elif s.allow_conditional_release %}facoltativo{% else %}no{% endif %}</b>{% if s.require_same_role_release or s.allow_conditional_release %} · rimborso {{ s.get_release_refund_mode_display|lower }}{% endif %}</span>
+        <span class="mk-rule">Taglio: <b>{% if s.release_after_count %}pari ruolo, scelto dopo lo spoglio{% elif s.require_same_role_release %}obbligatorio, pari ruolo{% elif s.allow_conditional_release %}facoltativo{% else %}no{% endif %}</b>{% if s.require_same_role_release or s.allow_conditional_release %} · rimborso {{ s.get_release_refund_mode_display|lower }}{% endif %}</span>
         <span class="mk-rule">Acquisti per ruolo: <b>P {{ s.max_acquisitions_p|default:"∞" }} · D {{ s.max_acquisitions_d|default:"∞" }} · C {{ s.max_acquisitions_c|default:"∞" }} · A {{ s.max_acquisitions_a|default:"∞" }}</b></span>
         {% endif %}
     </div>
@@ -288,6 +293,14 @@ mk_labels, is_buste, is_renewals, renewals,
     {% endif %}
 </div>
 
+{% if pending_releases %}
+<div class="mk-banner warn">
+    <svg class="ic"><use href="#i-info"/></svg>
+    <span><b>{{ pending_releases|length }} sostituzion{{ pending_releases|length|pluralize:"e,i" }} da scegliere.</b>
+    Finché non si sceglie chi esce, la squadra ha un giocatore in più:
+    {% for w in pending_releases %}{{ w.player_name }} ({{ w.winner_name }}){% if not forloop.last %}, {% endif %}{% endfor %}.</span>
+</div>
+{% endif %}
 {% if results.tied %}
 <div class="fm-card" style="border-color:rgba(255,181,38,.45)">
     <h3 class="mk-card-t" style="color:var(--fm-warning)"><svg class="ic"><use href="#i-info"/></svg> Pareggi riscontrati (ballottaggio)</h3>
@@ -362,7 +375,21 @@ mk_labels, is_buste, is_renewals, renewals,
                 <td><span class="mk-player"><span class="role-badge role-{{ w.player_role }}">{{ w.player_role }}</span> <b>{{ w.player_name }}</b> <small>{{ w.player_team }}</small></span></td>
                 <td><b>{{ w.winner_name }}</b>{% if w.tie_break %} <small class="muted">(spareggio)</small>{% endif %}</td>
                 <td><span class="mk-fm">{{ w.amount }} FM</span></td>
-                <td>{% if w.released_player %}<span class="mk-cut">✂ {{ w.released_player }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+                <td>{% if w.released_player %}<span class="mk-cut">✂ {{ w.released_player }}</span>
+                    {% elif w.release_pending and not is_preview %}
+                    {% if w.release_options %}
+                    <form method="post" action="{% url 'admin_market_release' s.id %}" class="mk-tie-form">
+                        {% csrf_token %}<input type="hidden" name="next" value="{{ mk_back }}">
+                        <input type="hidden" name="bid_id" value="{{ w.bid_id }}">
+                        <select name="release_player_id" required aria-label="Chi esce al posto di {{ w.player_name }}">
+                            <option value="">Chi esce?</option>
+                            {% for o in w.release_options %}<option value="{{ o.id }}">{{ o.name }}{% if o.team %} ({{ o.team }}){% endif %}</option>{% endfor %}
+                        </select>
+                        <button type="submit" class="fm-btn fm-btn-primary fm-btn-sm">Sostituisci</button>
+                    </form>
+                    {% else %}<span class="muted">nessun {{ w.player_role }} sostituibile in rosa</span>{% endif %}
+                    {% elif w.release_pending %}<span class="muted">si sceglie dopo lo spoglio</span>
+                    {% else %}<span class="muted">—</span>{% endif %}</td>
                 <td>{% if w.refund %}<span class="mk-plus">+{{ w.refund }} FM</span>{% else %}<span class="muted">0 FM</span>{% endif %}</td>
             </tr>
             {% endfor %}

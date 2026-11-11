@@ -109,7 +109,18 @@ def app_home(request):
     if league is not None:
         services.sync_market_schedule(league)
         open_market = MarketSession.objects.filter(league=league, status=MarketSession.Status.OPEN).first()
+    # Buste scrutinate in cui questa squadra deve ancora scegliere chi esce.
+    release_session, release_count = None, 0
+    if league is not None:
+        for done in MarketSession.objects.filter(league=league, status=MarketSession.Status.RESOLVED,
+                                                 release_after=True).order_by("-updated_at")[:5]:
+            mine = services.pending_releases(done, participant.id)
+            if mine:
+                release_session, release_count = done, len(mine)
+                break
     ctx.update({
+        "release_session": release_session,
+        "release_count": release_count,
         "open_market": open_market if open_market and open_market.is_open else None,
         "my_open_bids": MarketBid.objects.filter(session=open_market, participant=participant).count() if open_market else 0,
         "incoming_trades": Trade.objects.filter(receiver=participant, status=Trade.Status.PENDING).count(),
@@ -645,13 +656,17 @@ def app_mercato(request):
         won_list = summary.get("won", [])
         lost_list = summary.get("lost", [])
         tied_list = summary.get("tied", [])
-        my_won = [w for w in won_list if w.get("winner_id") == participant.id or w.get("winner_name") == participant.display_name]
+        my_won = [dict(w) for w in won_list if w.get("winner_id") == participant.id or w.get("winner_name") == participant.display_name]
+        for w in my_won:
+            if w.get("release_pending"):
+                w["release_options"] = services.release_options(market_session, w)
         my_lost = [l for l in lost_list if l.get("participant_name") == participant.display_name]
         buste_results = {
             "won": won_list,
             "lost": lost_list,
             "tied": tied_list,
             "my_won": my_won,
+            "my_pending": [w for w in my_won if w.get("release_pending")],
             "my_lost": my_lost,
             "total_acquisitions": summary.get("total_acquisitions", len(won_list)),
             "resolved_at": summary.get("resolved_at"),
@@ -793,6 +808,25 @@ def app_market_delete_bid(request):
     if res.get("ok") and session_id:
         res["my_bids"] = services.get_participant_market_bids(session_id, participant.id)
     return JsonResponse(res)
+
+
+@require_POST
+def app_market_release(request):
+    """Dopo lo spoglio: la squadra sceglie chi esce al posto di un giocatore
+    che ha vinto (regolamento 5.03)."""
+    participant, _ = _app_ctx(request, "mercato")
+    if participant is None:
+        return redirect("app_login")
+    session_id = request.POST.get("session_id")
+    session = MarketSession.objects.filter(pk=session_id, league=participant.league).first() \
+        if str(session_id or "").isdigit() else None
+    if session is None:
+        messages.error(request, "Sessione non trovata: riapri il Mercato e scegli di nuovo.")
+        return redirect("app_mercato")
+    res = services.choose_market_release(session.id, request.POST.get("bid_id"),
+                                         request.POST.get("release_player_id"), participant_id=participant.id)
+    (messages.success if res["ok"] else messages.error)(request, res["message"])
+    return redirect(f"{reverse('app_mercato')}?session_id={session.id}")
 
 
 @require_POST

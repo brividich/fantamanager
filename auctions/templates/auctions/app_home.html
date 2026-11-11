@@ -112,6 +112,9 @@
             {% if open_market %}
             <li>Mercato aperto, <b>{{ open_market.title }}</b>: tocca il suo riquadro per fare le tue mosse{% if open_market.closes_at %} entro il {{ open_market.closes_at|date:"d/m H:i" }}{% endif %}.</li>
             {% endif %}
+            {% if release_session %}
+            <li><b>Adesso:</b> hai vinto giocatori alle buste <b>{{ release_session.title }}</b>: tocca il riquadro giallo e scegli chi esce dalla rosa al loro posto.</li>
+            {% endif %}
             {% if incoming_trades %}
             <li>Hai proposte di scambio da altre squadre: tocca il riquadro arancione per accettarle o rifiutarle.</li>
             {% endif %}
@@ -219,6 +222,17 @@
         <span>{% if open_market.closes_at %}Chiude il {{ open_market.closes_at|date:"d/m H:i" }}{% else %}Consegna le tue offerte{% endif %}{% if my_open_bids %} · {{ my_open_bids }} bust{{ my_open_bids|pluralize:"a,e" }} inviat{{ my_open_bids|pluralize:"a,e" }}{% endif %}</span>
     </span>
     <span class="go">›</span>
+</a>
+{% endif %}
+
+{% if release_session %}
+<a class="a-cta" href="{% url 'app_mercato' %}?session_id={{ release_session.id }}" style="margin-bottom:12px;background:rgba(234,179,8,0.10);border-color:rgba(234,179,8,0.4);">
+    <svg class="ic" style="color:#eab308"><use href="#i-mail"/></svg>
+    <span class="t">
+        <b>Buste: scegli chi esce per {{ release_count }} giocator{{ release_count|pluralize:"e,i" }} vint{{ release_count|pluralize:"o,i" }}</b>
+        <span>Ognuno entra al posto di un pari ruolo della tua rosa</span>
+    </span>
+    <span class="go" style="color:#eab308">›</span>
 </a>
 {% endif %}
 

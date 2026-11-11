@@ -1,4 +1,5 @@
 """Admin views for the Mercato hub: sealed-envelope sessions, trades, repair auctions."""
+import copy
 from datetime import datetime, timedelta
 
 from django.contrib import messages
@@ -19,6 +20,9 @@ from ..services.contracts import contract_rules
 from ..services.trade import decide_trade
 from ..services.market import (
     build_buste_csv,
+    choose_market_release,
+    pending_releases,
+    release_options,
     get_buste_report_context,
     plan_market_resolution,
     resolve_market_session,
@@ -505,8 +509,14 @@ def session_manage_context(request, session):
         )
 
     results, is_preview = None, False
+    pending = []
     if session.status == MarketSession.Status.RESOLVED:
-        results = session.results_summary or None
+        results = copy.deepcopy(session.results_summary) or None
+        # Taglio dopo lo spoglio: chi può uscire per ogni giocatore vinto.
+        for w in (results or {}).get("won", []):
+            if w.get("release_pending"):
+                w["release_options"] = release_options(session, w)
+                pending.append(w)
     elif request.GET.get("preview") == "1" and labels["preview"] and not sealed:
         results = plan_market_resolution(session.id)
         is_preview = True
@@ -529,6 +539,7 @@ def session_manage_context(request, session):
         "results": results,
         "is_preview": is_preview,
         "sealed": sealed,
+        "pending_releases": pending,
         "free_total": repair["free_total"],
         "free_by_role": repair["free_by_role"],
         "reachable": len(mail.league_recipients(league)),
@@ -677,6 +688,9 @@ def _session_rules(post):
         "config": config,
         "allow_conditional_release": post.get("allow_conditional_release") == "1",
         "require_same_role_release": post.get("require_same_role_release") == "1",
+        # Solo le buste scelgono chi esce dopo lo spoglio.
+        "release_after": (post.get("release_timing") == "after"
+                          and session_type in (MarketSession.SessionType.SEALED_BIDS, MarketSession.SessionType.REPAIR)),
         "release_refund_mode": refund_mode,
         "max_bids": _parse_int(post.get("max_bids")),
         "budget_rule": budget_rule,
@@ -884,6 +898,14 @@ def admin_market_delete(request, session_id):
     session, denied = _managed_session_or_403(request, session_id)
     if denied:
         return denied
+    waiting = pending_releases(session)
+    if waiting:
+        # Senza la sessione resterebbero acquisti a cui nessuno può più far
+        # uscire il pari ruolo: prima si scelgono, o si annulla lo spoglio.
+        messages.error(request, f"La sessione ha ancora {len(waiting)} sostituzion{'e' if len(waiting) == 1 else 'i'} "
+                                "da scegliere: scegli chi esce per ogni giocatore vinto, oppure premi «Annulla spoglio», "
+                                "poi elimina la sessione.")
+        return redirect(_back(request, _dashboard_url(request, session)))
     league_id = session.league_id
     league = session.league
     title = session.title
@@ -924,6 +946,19 @@ def admin_market_settle_tie(request, session_id):
         messages.success(request, f"Pareggio risolto {how}: vince {res['winner_name']}.")
     else:
         messages.error(request, res["message"])
+    return redirect(_back(request, _dashboard_url(request, session)))
+
+
+@staff_member_required
+@require_POST
+def admin_market_release(request, session_id):
+    """Dopo lo spoglio: chi esce dalla rosa al posto di un giocatore vinto,
+    scelto dall'admin per la squadra (le squadre possono farlo dall'app)."""
+    session, denied = _managed_session_or_403(request, session_id)
+    if denied:
+        return denied
+    res = choose_market_release(session.id, request.POST.get("bid_id"), request.POST.get("release_player_id"))
+    (messages.success if res["ok"] else messages.error)(request, res["message"])
     return redirect(_back(request, _dashboard_url(request, session)))
 
 
@@ -982,7 +1017,7 @@ def admin_trade_decide(request, trade_id):
 
 
 # Form field of each rule, where it isn't named like the model field.
-_RULE_POST_KEYS = {"release_refund_mode": "refund_mode"}
+_RULE_POST_KEYS = {"release_refund_mode": "refund_mode", "release_after": "release_timing"}
 
 
 @staff_member_required

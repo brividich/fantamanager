@@ -315,6 +315,13 @@ Apertura dalla pagina: openMarketWizard() / closeMarketWizard().
                 <span class="mwz-lbl">Svincoli e tagli</span>
                 <label class="mwz-opt"><input type="checkbox" name="require_same_role_release" value="1" id="mwz-same-role" checked> Ogni acquisto sostituisce un giocatore di pari ruolo (taglio obbligatorio)</label>
                 <label class="mwz-opt"><input type="checkbox" name="allow_conditional_release" value="1" checked> Consenti tagli condizionati facoltativi (anche se non obbligatori)</label>
+                <div id="mwz-timing-box" style="margin:4px 0 6px 24px">
+                    <span class="mwz-hint" style="margin:0 0 4px">Chi esce si sceglie:</span>
+                    <label class="mwz-opt"><input type="radio" name="release_timing" value="after" checked> Dopo lo spoglio, per ogni giocatore vinto
+                        <small>Si offre senza indicare tagli; chi vince sceglie chi esce dall'app, o lo fa l'admin per lui.</small></label>
+                    <label class="mwz-opt"><input type="radio" name="release_timing" value="bid"> Con la busta
+                        <small>Il taglio si indica insieme all'offerta ed esce da solo se la busta vince.</small></label>
+                </div>
                 <label class="mwz-lbl" for="mwz-refund" style="margin-top:6px">Rimborso del giocatore tagliato</label>
                 <select name="refund_mode" id="mwz-refund" class="mwz-input">
                     {% for value, label in refund_modes %}<option value="{{ value }}"{% if value == "purchase" %} selected{% endif %}>{{ label }}</option>{% endfor %}
@@ -392,6 +399,7 @@ Apertura dalla pagina: openMarketWizard() / closeMarketWizard().
         // Alle buste ogni acquisto prende il posto di un pari ruolo (regolamento
         // 5.03); negli altri mercati il taglio obbligatorio si sceglie.
         $("mwz-same-role").checked = value === "buste";
+        mwzTimingBox();
         // Il suggerimento sulla chiusura dipende dal tipo: solo le buste hanno lo spoglio,
         // il waiver senza data si chiude dopo la durata della finestra reclami.
         const hint = value === "buste" || value === "waiver_wire" ? value : "other";
@@ -405,6 +413,11 @@ Apertura dalla pagina: openMarketWizard() / closeMarketWizard().
             t.value = TITLES[value] || t.value;
         }
     };
+    // «Chi esce si sceglie» vale solo per le buste con la sostituzione obbligatoria.
+    function mwzTimingBox() {
+        $("mwz-timing-box").style.display = kind === "buste" && $("mwz-same-role").checked ? "block" : "none";
+    }
+    $("mwz-same-role").addEventListener("change", mwzTimingBox);
     window.mwzGo = function (step) {
         for (let i = 1; i <= 4; i++) {
             $("mwz-step-" + i).classList.toggle("active", i === step);
