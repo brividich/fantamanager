@@ -35,6 +35,7 @@ from .season import CapEntry, CapPhase, DecreeAward, LeagueRanking, UefaClubRank
 from .mail import MailSettings
 from .market import (
     MarketBid,
+    MarketReleaseIntent,
     MarketSession,
 )
 from .participant import (
@@ -76,6 +77,7 @@ __all__ = [
     "MailSettings",
     "MarketSession",
     "MarketBid",
+    "MarketReleaseIntent",
     "Trade",
     "TradeWindow",
     "ContractEvent",

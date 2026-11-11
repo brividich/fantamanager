@@ -567,6 +567,21 @@ def app_mercato(request):
         for rp in my_roster:
             rp.market_refund = int(services.market_release_refund(market_session, rp))
     my_bid_player_ids = {b["player_id"]: b for b in my_bids}
+    # Lista «Chi lasceresti andare» (buste, chi esce dopo lo spoglio).
+    release_list_ctx = None
+    if market_session and market_session.release_after_count and market_session.status == MarketSession.Status.OPEN:
+        listed = {pl.pk for pl in services.release_list(market_session, participant.id)}
+        needs = services.release_list_needs(market_session, participant.id)
+        have = services.release_list_counts(market_session, participant.id)
+        release_list_ctx = {
+            "listed": listed,
+            "roles": [{"role": r, "need": needs.get(r, 0), "have": have.get(r, 0),
+                       "short": needs.get(r, 0) > have.get(r, 0),
+                       "missing": max(0, needs.get(r, 0) - have.get(r, 0)),
+                       "players": [pl for pl in my_roster if pl.role == r and not pl.abroad_list]}
+                      for r in ("P", "D", "C", "A")],
+            "short": any(needs.get(r, 0) > have.get(r, 0) for r in needs),
+        }
     my_bids_total = services.market_bids_total(market_session, my_bids) if market_session else 0
     bids_left = None
     if market_session and market_session.max_bids:
@@ -657,9 +672,11 @@ def app_mercato(request):
         lost_list = summary.get("lost", [])
         tied_list = summary.get("tied", [])
         my_won = [dict(w) for w in won_list if w.get("winner_id") == participant.id or w.get("winner_name") == participant.display_name]
+        proposals = services.proposed_releases(market_session, participant.id)
         for w in my_won:
             if w.get("release_pending"):
                 w["release_options"] = services.release_options(market_session, w)
+                w["proposed_id"] = proposals.get(w["bid_id"])
         my_lost = [l for l in lost_list if l.get("participant_name") == participant.display_name]
         buste_results = {
             "won": won_list,
@@ -711,6 +728,8 @@ def app_mercato(request):
         "market_open": market_open,
         "my_bids": my_bids,
         "my_bid_player_ids": my_bid_player_ids,
+        "release_list": release_list_ctx,
+        "contracts_on": bool(league and league.contracts_enabled),
         "my_bids_total": my_bids_total,
         "bids_left": bids_left,
         "moves_this_week": moves_this_week,
@@ -812,8 +831,8 @@ def app_market_delete_bid(request):
 
 @require_POST
 def app_market_release(request):
-    """Dopo lo spoglio: la squadra sceglie chi esce al posto di un giocatore
-    che ha vinto (regolamento 5.03)."""
+    """Dopo lo spoglio: la squadra conferma chi esce al posto dei giocatori
+    che ha vinto (regolamento 5.03), e se tirare subito i dadi."""
     participant, _ = _app_ctx(request, "mercato")
     if participant is None:
         return redirect("app_login")
@@ -823,10 +842,29 @@ def app_market_release(request):
     if session is None:
         messages.error(request, "Sessione non trovata: riapri il Mercato e scegli di nuovo.")
         return redirect("app_mercato")
-    res = services.choose_market_release(session.id, request.POST.get("bid_id"),
-                                         request.POST.get("release_player_id"), participant_id=participant.id)
+    from .admin_market import release_choices
+    res = services.confirm_market_releases(session.id, participant.id, release_choices(request.POST),
+                                           roll_dice=request.POST.get("roll") == "1",
+                                           participant_id=participant.id)
     (messages.success if res["ok"] else messages.error)(request, res["message"])
     return redirect(f"{reverse('app_mercato')}?session_id={session.id}")
+
+
+@require_POST
+def app_market_release_list(request):
+    """La lista «Chi lasceresti andare» della squadra, a buste aperte."""
+    participant, _ = _app_ctx(request, "mercato")
+    if participant is None:
+        return redirect("app_login")
+    session_id = request.POST.get("session_id")
+    session = MarketSession.objects.filter(pk=session_id, league=participant.league).first() \
+        if str(session_id or "").isdigit() else None
+    if session is None:
+        messages.error(request, "Sessione non trovata: riapri il Mercato e riprova.")
+        return redirect("app_mercato")
+    res = services.set_release_list(session.id, participant.id, request.POST.getlist("player_id"))
+    (messages.success if res["ok"] else messages.error)(request, res["message"])
+    return redirect(f"{reverse('app_mercato')}?session_id={session.id}&tab=buste")
 
 
 @require_POST

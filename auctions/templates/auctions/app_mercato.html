@@ -1107,6 +1107,34 @@
          ===================================================================== -->
     {% if is_buste or not is_free_agency and not is_buyout_clause and not is_waiver_wire %}
     <div data-asec="buste">
+        {% if release_list %}
+        <form class="a-card" method="post" action="{% url 'app_market_release_list' %}" style="padding:14px 16px;margin-bottom:14px{% if release_list.short %};border-color:rgba(234,179,8,.5){% endif %}">
+            {% csrf_token %}
+            <input type="hidden" name="session_id" value="{{ market_session.id }}">
+            <div class="a-label" style="margin-bottom:6px">Chi lasceresti andare</div>
+            <div style="font-size:12px;color:var(--muted);line-height:1.45;margin-bottom:10px">
+                Ogni giocatore vinto entra al posto di un tuo pari ruolo. Spunta chi lasceresti andare: per ogni ruolo
+                almeno uno per ogni giocatore su cui offri. Dopo lo spoglio confermi chi esce, anche cambiandolo;
+                se vinci meno buste, gli altri restano in rosa.
+            </div>
+            {% for r in release_list.roles %}{% if r.players %}
+            <div style="margin-bottom:8px">
+                <div style="font-size:11.5px;font-weight:800;margin-bottom:4px;color:{% if r.short %}#eab308{% else %}var(--muted){% endif %}">
+                    <span class="role-badge role-{{ r.role }}">{{ r.role }}</span>
+                    in lista {{ r.have }}{% if r.need %} · servono {{ r.need }}{% if r.short %} · ne manca{{ r.missing|pluralize:"no" }} {{ r.missing }}{% endif %}{% endif %}
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px">
+                    {% for pl in r.players %}
+                    <label style="display:flex;align-items:center;gap:5px;padding:5px 9px;border-radius:8px;border:1px solid var(--line);font-size:12.5px;cursor:pointer">
+                        <input type="checkbox" name="player_id" value="{{ pl.id }}"{% if pl.id in release_list.listed %} checked{% endif %}> {{ pl.name }}
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}{% endfor %}
+            <button type="submit" class="btn-submit" style="width:100%;padding:10px 12px;margin-top:4px">Salva la lista</button>
+        </form>
+        {% endif %}
         <div class="a-card bids-card" id="my-bids-card">
             <div class="a-label">
                 <svg class="ic"><use href="#i-shield"/></svg>
@@ -1178,9 +1206,10 @@
             
             {% if buste_results.my_pending %}
             <div style="margin-bottom:12px;padding:10px 12px;border-radius:10px;background:rgba(234,179,8,.08);border:1px solid rgba(234,179,8,.35);font-size:12.5px;line-height:1.45">
-                <b>Adesso: scegli chi esce.</b> Ogni giocatore vinto entra al posto di uno della tua rosa con lo stesso ruolo:
-                scegli sotto chi lascia la squadra per {{ buste_results.my_pending|length }} giocator{{ buste_results.my_pending|length|pluralize:"e,i" }}.
-                Finché non scegli hai un giocatore in più; se non lo fai, lo sceglie l'admin.
+                <b>Adesso: conferma chi esce.</b> Ogni giocatore vinto entra al posto di uno della tua rosa con lo stesso ruolo:
+                sotto c'è già chi esce, preso dalla tua lista «Chi lasceresti andare». Cambialo se vuoi (anche un giocatore fuori lista)
+                e premi {% if contracts_on %}<b>Conferma e tira i dadi</b> oppure <b>Conferma, dadi dopo</b>{% else %}<b>Conferma</b>{% endif %}.
+                Finché non confermi hai un giocatore in più; se non lo fai, conferma l'admin.
             </div>
             {% endif %}
             {% if buste_results.my_won %}
@@ -1199,24 +1228,33 @@
                         <span style="font-family:var(--display);font-weight:900;font-size:15px;color:#22c55e">{{ w.amount }} FM</span>
                     </div>
                     {% if w.release_pending %}
-                    <form method="post" action="{% url 'app_market_release' %}" style="display:flex;gap:6px;align-items:center;margin:-2px 0 4px;padding:8px 12px;border-radius:10px;border:1px dashed rgba(234,179,8,.5)">
-                        {% csrf_token %}
-                        <input type="hidden" name="session_id" value="{{ market_session.id }}">
-                        <input type="hidden" name="bid_id" value="{{ w.bid_id }}">
+                    <div style="display:flex;gap:6px;align-items:center;margin:-2px 0 4px;padding:8px 12px;border-radius:10px;border:1px dashed rgba(234,179,8,.5)">
                         {% if w.release_options %}
-                        <select name="release_player_id" required style="flex:1;min-width:0" aria-label="Chi esce al posto di {{ w.player_name }}">
+                        <select name="rel_{{ w.bid_id }}" form="app-release-form" required style="flex:1;min-width:0" aria-label="Chi esce al posto di {{ w.player_name }}">
                             <option value="">Chi esce al posto di {{ w.player_name }}?</option>
-                            {% for o in w.release_options %}<option value="{{ o.id }}">{{ o.name }}{% if o.team %} ({{ o.team }}){% endif %}</option>{% endfor %}
+                            {% for o in w.release_options %}<option value="{{ o.id }}"{% if o.id == w.proposed_id %} selected{% endif %}>{{ o.name }}{% if o.team %} ({{ o.team }}){% endif %}{% if o.id == w.proposed_id %} · dalla tua lista{% endif %}</option>{% endfor %}
                         </select>
-                        <button type="submit" class="btn-submit" style="flex:none;padding:8px 12px" onclick="return confirm('Il giocatore scelto esce dalla rosa e torna svincolato. Confermi?')">Sostituisci</button>
                         {% else %}
                         <span style="font-size:12px;color:var(--muted)">Nessun {{ w.player_role }} della rosa può uscire: chiedi all'admin della lega.</span>
                         {% endif %}
-                    </form>
+                    </div>
                     {% endif %}
                     {% endfor %}
                 </div>
             </div>
+            {% endif %}
+
+            {% if buste_results.my_pending %}
+            <form id="app-release-form" method="post" action="{% url 'app_market_release' %}" style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px">
+                {% csrf_token %}
+                <input type="hidden" name="session_id" value="{{ market_session.id }}">
+                {% if contracts_on %}
+                <button type="submit" name="roll" value="1" class="btn-submit" style="flex:1;padding:10px 12px" onclick="return confirm('Escono i giocatori scelti e si tirano subito i dadi del contratto dei nuovi arrivati. Confermi?')">Conferma e tira i dadi</button>
+                <button type="submit" name="roll" value="0" class="btn-cancel" style="flex:1;padding:10px 12px" onclick="return confirm('Escono i giocatori scelti; i dadi del contratto li tiri dopo dalla Rosa. Confermi?')">Conferma, dadi dopo</button>
+                {% else %}
+                <button type="submit" name="roll" value="0" class="btn-submit" style="flex:1;padding:10px 12px" onclick="return confirm('I giocatori scelti escono dalla rosa e tornano svincolati. Confermi?')">Conferma</button>
+                {% endif %}
+            </form>
             {% endif %}
 
             {% if buste_results.my_lost %}
@@ -1565,7 +1603,7 @@
                 {% endif %}
                 <div style="background:var(--panel-2);padding:10px 12px;border-radius:10px;border:1px solid var(--line);">
                     <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Sostituzione Rosa</span>
-                    <b style="font-size:13.5px">{% if market_session.release_after_count %}Ogni giocatore vinto sostituisce un pari ruolo: chi esce lo scegli dopo lo spoglio{% elif market_session.require_same_role_release %}Obbligatoria con pari ruolo{% elif market_session.allow_conditional_release %}Taglio condizionato facoltativo{% else %}Nessun taglio consentito{% endif %}</b>
+                    <b style="font-size:13.5px">{% if market_session.release_after_count %}Ogni giocatore vinto sostituisce un pari ruolo: dichiari prima chi lasceresti andare, dopo lo spoglio confermi chi esce{% elif market_session.require_same_role_release %}Obbligatoria con pari ruolo{% elif market_session.allow_conditional_release %}Taglio condizionato facoltativo{% else %}Nessun taglio consentito{% endif %}</b>
                 </div>
                 <div style="background:var(--panel-2);padding:10px 12px;border-radius:10px;border:1px solid var(--line);">
                     <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Rimborso Svincoli</span>
@@ -1666,8 +1704,9 @@
 
             {% if market_session.release_after_count %}
             <div class="form-group" style="font-size:12px;color:var(--muted);line-height:1.45">
-                Se vinci, il giocatore entra al posto di uno della tua rosa con lo stesso ruolo:
-                <b style="color:var(--ink)">chi esce lo scegli dopo lo spoglio</b>, qui nel Mercato.
+                Se vinci, il giocatore entra al posto di uno della tua rosa con lo stesso ruolo. Per ogni giocatore su cui offri
+                serve in <b style="color:var(--ink)">«Chi lasceresti andare»</b> (scheda Le mie Buste) un tuo pari ruolo:
+                dopo lo spoglio confermi chi esce, anche cambiandolo.
             </div>
             {% elif market_session.allow_conditional_release or market_session.require_same_role_release %}
             <div class="form-group">
