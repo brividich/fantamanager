@@ -169,7 +169,9 @@ def send_verification(request, user, email=None):
         return False, "L'invio email non è attivo su questo sito: la conferma arriverà quando lo sarà."
     base = mail.link_base(request)
     if not base:
-        return False, "Il sito non ha ancora un indirizzo pubblico per i link (FM_SITE_URL)."
+        return False, ("Il sito non ha ancora un indirizzo pubblico per i link: "
+                       "imposta FM_SITE_URL (es. https://fantamanager.example.it) nel file .env "
+                       "e riavvia.")
     link = base + reverse("account_verify", args=[verify_token(user, email)])
     ctx = {"user": user, "link": link, "email": email, "hours": VERIFY_MAX_AGE // 3600,
            **legal_links(base)}

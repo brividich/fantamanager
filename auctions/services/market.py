@@ -2499,6 +2499,94 @@ def resolve_waiver_session(session_id):
     return _run_waiver_draft(session, preview=False)
 
 
+def _bid_time(dt):
+    """Orario di un'offerta nell'ora locale: giorno, ora al secondo e
+    millesimi (a pari importo e priorità può decidere chi ha offerto prima)."""
+    if dt is None:
+        return {"date": "", "time": "", "ms": "", "full": ""}
+    loc = timezone.localtime(dt)
+    date, time, ms = loc.strftime("%d/%m/%Y"), loc.strftime("%H:%M:%S"), f"{loc.microsecond // 1000:03d}"
+    return {"date": date, "time": time, "ms": ms, "full": f"{date} {time}.{ms}"}
+
+
+def _gap_label(seconds):
+    """Distanza dalla prima offerta sullo stesso giocatore, da leggere."""
+    if seconds <= 0:
+        return "prima offerta"
+    if seconds < 60:
+        return f"+{seconds:.3f} s".replace(".", ",")
+    s = int(seconds)
+    d, s = divmod(s, 86400)
+    h, s = divmod(s, 3600)
+    m, s = divmod(s, 60)
+    if d:
+        return f"+{d} g {h} h {m:02d} min"
+    if h:
+        return f"+{h} h {m:02d} min"
+    return f"+{m} min {s:02d} s"
+
+
+def buste_bids_detail(session):
+    """Tutte le offerte della sessione, giocatore per giocatore, con l'orario
+    di consegna (l'ultimo cambio d'importo: è quello che conta nel pari merito).
+
+    Solo dopo lo spoglio: prima le buste sono segrete, anche nel verbale.
+    Le offerte ritirate non contano e non compaiono."""
+    if session.status != MarketSession.Status.RESOLVED:
+        return []
+    bids = list(
+        MarketBid.objects.filter(session=session)
+        .exclude(status=MarketBid.Status.CANCELLED)
+        .select_related("participant", "player", "release_player")
+        .order_by("player__name", "player_id", "-amount", "priority", "created_at", "id")
+    )
+    groups, by_player = [], {}
+    for b in bids:
+        g = by_player.get(b.player_id)
+        if g is None:
+            g = by_player[b.player_id] = {
+                "player_name": b.player.name, "player_role": b.player.role,
+                "player_team": b.player.team or "", "bids": [],
+                "winner_name": "", "top_amount": int(b.amount),
+            }
+            groups.append(g)
+        g["bids"].append(b)
+
+    for g in groups:
+        rows = g["bids"]
+        first_at = min(b.created_at for b in rows)
+        # Importi offerti da più squadre: lì l'orario può decidere.
+        counts = defaultdict(set)
+        for b in rows:
+            counts[b.amount].add(b.participant_id)
+        out = []
+        for i, b in enumerate(rows, start=1):
+            if b.status == MarketBid.Status.WON:
+                g["winner_name"] = b.participant.display_name
+            gap = (b.created_at - first_at).total_seconds()
+            out.append({
+                "gap_label": _gap_label(gap),
+                "rank": i,
+                "participant_name": b.participant.display_name,
+                "amount": int(b.amount),
+                "priority": b.priority,
+                "at": _bid_time(b.created_at),
+                "gap_s": round(gap, 3),
+                "same_amount": len(counts[b.amount]) > 1,
+                "status": b.status,
+                "status_label": b.get_status_display(),
+                "released_player": b.release_player.name if b.release_player_id else "",
+                "note": b.note,
+            })
+        g["bids"] = out
+        g["count"] = len(out)
+        g["teams"] = len({r["participant_name"] for r in out})
+        g["contested"] = any(r["same_amount"] for r in out)
+    # Prima i giocatori più contesi, poi in ordine alfabetico.
+    groups.sort(key=lambda g: (-g["teams"], -g["top_amount"], g["player_name"].lower()))
+    return groups
+
+
 def get_buste_report_context(session_id):
     """Costruisce il dataset strutturato per il Verbale Ufficiale di Spoglio Buste."""
     session = MarketSession.objects.select_related("league").filter(pk=session_id).first()
@@ -2560,10 +2648,22 @@ def get_buste_report_context(session_id):
         if r in role_counts:
             role_counts[r] += 1
 
+    bids_detail = buste_bids_detail(session)
+    resolved_raw = summary.get("resolved_at")
+    resolved_at = session.updated_at
+    if resolved_raw:
+        try:
+            resolved_at = datetime.fromisoformat(resolved_raw)
+        except (TypeError, ValueError):
+            pass
+
     return {
         "session": session,
         "league": league,
         "summary": summary,
+        "bids_detail": bids_detail,
+        "bids_total": sum(g["count"] for g in bids_detail),
+        "first_wins": session.tie_break == MarketSession.TieBreak.FIRST,
         "won_list": won_list,
         "lost_list": lost_list,
         "tied_list": tied_list,
@@ -2573,7 +2673,7 @@ def get_buste_report_context(session_id):
         "total_spent": sum(w.get("amount", 0) for w in won_list),
         "total_refund": sum(w.get("refund", 0) for w in won_list),
         "total_acquisitions": len(won_list),
-        "resolved_at": summary.get("resolved_at") or session.updated_at,
+        "resolved_at": resolved_at,
     }
 
 
@@ -2618,6 +2718,25 @@ def build_buste_csv(session):
             0,
             l.get("note", "")
         ])
+    detail = buste_bids_detail(session)
+    if detail:
+        writer.writerow([])
+        writer.writerow(["DETTAGLIO DI TUTTE LE OFFERTE (orario di consegna, ora locale)"])
+        writer.writerow([
+            "Calciatore", "Ruolo", "Squadra Serie A", "Pos.", "Societa Offerente", "Offerta FM",
+            "Priorita", "Data", "Ora", "Millesimi", "Secondi dopo la prima offerta",
+            "Stesso importo di un'altra squadra", "Esito", "Taglio", "Note",
+        ])
+        for g in detail:
+            for r in g["bids"]:
+                writer.writerow([
+                    g["player_name"], g["player_role"], g["player_team"], r["rank"],
+                    r["participant_name"], r["amount"], r["priority"],
+                    r["at"]["date"], r["at"]["time"], r["at"]["ms"],
+                    f"{r['gap_s']:.3f}".replace(".", ","),
+                    "SI" if r["same_amount"] else "",
+                    r["status_label"], r["released_player"], r["note"],
+                ])
     return output.getvalue().encode("utf-8-sig")
 
 

@@ -48,6 +48,13 @@
     .taglio-tag { font-size: 7.5pt; color: #dc2626; font-weight: 600; }
     .refund-tag { font-size: 7.5pt; color: #16a34a; font-weight: 700; }
 
+    table.bids td:last-child { white-space: normal; font-size: 7.6pt; }
+    table.bids tr.same td { background: #fff7d6; }
+    table.bids td.when { font-size: 7.8pt; padding: 1mm .5mm; }
+    .st-won { color: #15803d; font-weight: 700; }
+    .st-lost { color: #b91c1c; }
+    .st-tied { color: #b45309; font-weight: 700; }
+
     .sign-box { margin-top: 5mm; display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; font-size: 8.2pt; break-inside: avoid; }
     .sign-line { border-top: 1px solid #000; margin-top: 10mm; text-align: center; font-size: 7.5pt; color: #444; }
 
@@ -260,6 +267,65 @@
         </div>
     </div>
 </section>
+
+{% if bids_detail %}
+<section class="sheet">
+    <div class="header-box">
+        <div>
+            <div class="league-name">{{ league.name }} · {{ session.title }}</div>
+            <div class="main-title">Allegato A — Dettaglio delle offerte</div>
+            <div class="session-meta">
+                {{ bids_total }} offert{{ bids_total|pluralize:"a,e" }} su {{ bids_detail|length }} calciator{{ bids_detail|length|pluralize:"e,i" }}, in ordine d'importo.
+                Per ognuna l'orario di consegna (ora locale, al millesimo di secondo): se una squadra ha cambiato l'importo, vale l'orario del cambio.<br>
+                {% if first_wins %}<b>Regola di parità: a pari importo e priorità vince chi ha offerto prima.</b> Le righe evidenziate hanno lo stesso importo di un'altra squadra: lì l'orario decide.
+                {% else %}Regola di parità: {{ session.get_tie_break_display }}. Le righe evidenziate hanno lo stesso importo di un'altra squadra.{% endif %}
+            </div>
+        </div>
+    </div>
+
+    <table class="bids">
+        <colgroup>
+            <col style="width:6%">
+            <col style="width:22%">
+            <col style="width:9%">
+            <col style="width:6%">
+            <col style="width:22%">
+            <col style="width:12%">
+            <col style="width:23%">
+        </colgroup>
+        {% for g in bids_detail %}
+        <tbody style="break-inside:avoid">
+            <tr><td class="sec-hdr" colspan="7">
+                <span class="role-badge role-{{ g.player_role }}">{{ g.player_role }}</span>
+                {{ g.player_name }}{% if g.player_team %} <span style="font-weight:600;color:#555">({{ g.player_team }})</span>{% endif %}
+                · {{ g.count }} offert{{ g.count|pluralize:"a,e" }} da {{ g.teams }} squadr{{ g.teams|pluralize:"a,e" }}
+                · {% if g.winner_name %}vince <b>{{ g.winner_name }}</b>{% else %}non aggiudicato{% endif %}
+            </td></tr>
+            <tr>
+                <th>POS.</th>
+                <th>SOCIETÀ OFFERENTE</th>
+                <th>OFFERTA</th>
+                <th>PRIO.</th>
+                <th>CONSEGNATA IL</th>
+                <th>DISTACCO</th>
+                <th>ESITO</th>
+            </tr>
+            {% for r in g.bids %}
+            <tr{% if r.same_amount %} class="same"{% endif %}>
+                <td class="c b">{{ r.rank }}°</td>
+                <td class="b">{{ r.participant_name }}{% if r.released_player %} <span class="taglio-tag">✂ {{ r.released_player }}</span>{% endif %}</td>
+                <td class="c b" style="color:#087cf0">{{ r.amount }} FM</td>
+                <td class="c">{{ r.priority }}</td>
+                <td class="c when">{% if r.same_amount %}⏱ {% endif %}{{ r.at.date }} <b>{{ r.at.time }}</b><small>.{{ r.at.ms }}</small></td>
+                <td class="c">{{ r.gap_label }}</td>
+                <td class="st-{{ r.status }}" title="{{ r.note }}">{{ r.status_label }}{% if r.note and r.status != "won" %} — {{ r.note }}{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        {% endfor %}
+    </table>
+</section>
+{% endif %}
 </div>
 </body>
 </html>
