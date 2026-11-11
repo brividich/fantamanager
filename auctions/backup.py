@@ -37,6 +37,11 @@ PG_ERROR_FILE = ".errore"       # what the last failed pg_dump said (gone on suc
 # (the wait after a failed dump).
 PG_REQUEST_STALE_SECONDS = 180
 PG_SERVICE_STALE_SECONDS = 12 * 60
+# While it dumps, the service keeps the request as .richiesta.in-corso (back
+# to .richiesta if the dump fails, gone when it succeeds). One left there for
+# longer than this is a leftover of a killed container, not a dump running.
+PG_RUNNING_FILE = ".richiesta.in-corso"
+PG_RUNNING_MAX_SECONDS = 30 * 60
 
 _bg_lock = threading.Lock()
 _last_bg_backup = 0.0
@@ -97,16 +102,24 @@ def _mtime(path):
 
 def pg_backup_status(now=None):
     """What the backups folder says about the compose backup service:
-    ``{"pending", "stuck", "seen", "error", "error_at", "problem"}``.
+    ``{"pending", "running", "stuck", "seen", "error", "error_at", "problem"}``.
 
     ``pending`` is when the request still waiting was made (None: nothing
-    waiting), ``stuck`` whether it has waited too long, ``seen`` the service's
+    waiting), ``running`` when the dump now in progress started, ``stuck``
+    whether the waiting request has waited too long, ``seen`` the service's
     last heartbeat (None with a compose from before the heartbeat, or a
     service that never ran), ``error`` what the last failed dump said, and
     ``problem`` the sentence for the Supervisor, or "" when all is well."""
     folder = _backup_dir()
     now = time.time() if now is None else now
     pending = _mtime(folder / PG_REQUEST_FILE)
+    running_at = None
+    try:
+        # ctime: when the service renamed it, i.e. when the dump started.
+        running_at = (folder / PG_RUNNING_FILE).stat().st_ctime
+    except OSError:
+        pass
+    running = running_at is not None and now - running_at < PG_RUNNING_MAX_SECONDS
     seen = _mtime(folder / PG_SERVICE_FILE)
     error_at = _mtime(folder / PG_ERROR_FILE)
     error = ""
@@ -123,6 +136,7 @@ def pg_backup_status(now=None):
     stuck = pending is not None and now - pending > PG_REQUEST_STALE_SECONDS
     status = {
         "pending": when(pending) if pending is not None else None,
+        "running": when(running_at) if running else None,
         "stuck": stuck,
         "seen": when(seen) if seen is not None else None,
         "error": error,

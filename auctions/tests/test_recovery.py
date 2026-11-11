@@ -1,6 +1,7 @@
 """Ripristino di una copia dal Supervisor e aste rimaste a metà."""
 import sqlite3
 import tempfile
+import time
 from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -309,6 +310,16 @@ class SupervisorPgManualBackupTests(TestCase):
         r = self.client.get("/supervisor/?tab=reports")
         self.assertContains(r, "L&#x27;ultimo backup non è riuscito")
         self.assertContains(r, "connection to server failed")
+
+    def test_a_dump_in_progress_keeps_the_page_waiting(self):
+        # Il servizio ha preso la richiesta (rinominata) e sta scrivendo il dump.
+        (self.folder / backup.PG_RUNNING_FILE).touch()
+        r = self.client.get("/supervisor/?tab=reports")
+        self.assertContains(r, "Backup in corso dalle")
+        self.assertContains(r, "location.reload")
+        # Un avanzo di un container ucciso non tiene la pagina in attesa per sempre.
+        later = backup.pg_backup_status(now=time.time() + backup.PG_RUNNING_MAX_SECONDS + 60)
+        self.assertIsNone(later["running"])
 
     def test_all_quiet_when_the_service_did_its_job(self):
         self._age(backup.PG_SERVICE_FILE, 30)
