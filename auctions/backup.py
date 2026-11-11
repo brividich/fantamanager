@@ -387,3 +387,209 @@ def restore_sqlite(name):
     call_command("migrate", interactive=False, verbosity=0)
     logger.warning("Database ripristinato da %s (copia di sicurezza: %s)", snapshot.name, safety.name)
     return safety
+
+
+# --- PostgreSQL: ripristino di un dump dal Supervisor ---------------------------
+#
+# Nel container dell'app non c'è psql: il dump in chiaro di pg_dump (quello del
+# servizio «backup» del compose, ``pg-*.sql.gz``) si legge qui e si esegue in
+# una sola transazione. O passa tutto, o il database resta com'era.
+
+import re as _re
+
+_DOLLAR_QUOTE = _re.compile(r"\$[A-Za-z_][A-Za-z0-9_]*\$|\$\$")
+
+
+def _scan_sql_line(line, state):
+    """Aggiorna lo stato (apice aperto, dollar quote aperto, escape E'') con una
+    riga di SQL; ritorna True se la riga chiude l'istruzione (``;`` fuori da
+    apici, commenti e dollar quote)."""
+    i, n, last = 0, len(line), ""
+    while i < n:
+        c = line[i]
+        quote, dollar, escapes = state
+        if dollar:
+            if line.startswith(dollar, i):
+                state[1] = None
+                i += len(dollar)
+                last = "$"
+            else:
+                i += 1
+            continue
+        if quote:
+            if escapes and c == "\\":
+                i += 2
+                continue
+            if c == quote:
+                if i + 1 < n and line[i + 1] == quote:
+                    i += 2
+                    continue
+                state[0], state[2] = None, False
+                last = c
+            i += 1
+            continue
+        if line.startswith("--", i):
+            break
+        if c in "'\"":
+            state[0] = c
+            state[2] = c == "'" and i > 0 and line[i - 1] in "eE"
+        elif c == "$" and (m := _DOLLAR_QUOTE.match(line, i)):
+            state[1] = m.group(0)
+            i = m.end()
+            last = "$"
+            continue
+        if not c.isspace():
+            last = c
+        i += 1
+    return last == ";" and not state[0] and not state[1]
+
+
+def iter_pg_dump(lines):
+    """Le istruzioni di un dump SQL in chiaro di pg_dump, nell'ordine:
+    ``("sql", testo)`` oppure ``("copy", "COPY … FROM stdin;", righe)`` con le
+    righe di dati (ognuna col suo a capo). Salta commenti, righe vuote e i
+    comandi di psql (``\\restrict``, ``\\connect``…), che non sono SQL."""
+    buf, state = [], [None, None, False]
+    it = iter(lines)
+    for raw in it:
+        line = raw.rstrip("\r\n")
+        if not buf:
+            bare = line.strip()
+            if not bare or bare.startswith("--") or bare.startswith("\\"):
+                continue
+        buf.append(line)
+        if not _scan_sql_line(line, state):
+            continue
+        stmt = "\n".join(buf).strip()
+        buf = []
+        head = stmt.rstrip(";").rstrip()
+        if head.upper().startswith("COPY ") and head.upper().endswith("FROM STDIN"):
+            rows = []
+            for data in it:
+                if data.rstrip("\r\n") == "\\.":
+                    break
+                rows.append(data if data.endswith("\n") else data + "\n")
+            else:
+                raise RestoreError("Il file finisce a metà dei dati di una tabella: è incompleto.")
+            yield "copy", stmt, rows
+        else:
+            yield "sql", stmt
+    if buf:
+        raise RestoreError("Il file finisce a metà di un'istruzione: è incompleto.")
+
+
+PG_DUMP_END = "PostgreSQL database dump complete"
+_RESTORE_LOCK_TIMEOUT = "60s"     # attesa massima per un lucchetto durante il ripristino
+
+
+def pg_dump_complete(path):
+    """Il dump è finito e leggibile? Il servizio backup scrive il ``.sql.gz``
+    mentre comprime: finché non ha finito il gzip è troncato, e un dump
+    tagliato fra due istruzioni sembrerebbe valido. Si legge fino in fondo e
+    si cerca la riga con cui pg_dump chiude."""
+    import gzip
+    tail = ""
+    try:
+        with gzip.open(path, "rt", encoding="utf-8") as fh:
+            while chunk := fh.read(1 << 20):
+                tail = (tail + chunk)[-400:]
+    except (OSError, EOFError, UnicodeDecodeError):
+        return False
+    return PG_DUMP_END in tail
+
+
+def pg_dump_since(timestamp, *, exclude=""):
+    """Il dump completo più recente fatto dopo ``timestamp`` (secondi), o None."""
+    folder = _backup_dir()
+    try:
+        dumps = [p for p in folder.glob("pg-*.sql.gz") if p.name != exclude and p.stat().st_mtime > timestamp]
+    except OSError:
+        return None
+    for dump in sorted(dumps, key=lambda p: p.stat().st_mtime, reverse=True):
+        if pg_dump_complete(dump):
+            return dump
+    return None
+
+
+def _clean_public_schema(cur):
+    """Toglie tutte le tabelle e sequenze dello schema public, dentro la
+    transazione del ripristino. Il dump cancella solo le tabelle che contiene:
+    una tabella aggiunta da un aggiornamento dopo il backup, con le sue chiavi
+    verso le tabelle vecchie, ne bloccherebbe la cancellazione. Le migrazioni
+    dopo il ripristino la ricreano."""
+    from psycopg import sql
+    cur.execute("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
+    for (table,) in cur.fetchall():
+        cur.execute(sql.SQL("DROP TABLE IF EXISTS public.{} CASCADE").format(sql.Identifier(table)))
+    cur.execute("SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = 'public'")
+    for (seq,) in cur.fetchall():
+        cur.execute(sql.SQL("DROP SEQUENCE IF EXISTS public.{} CASCADE").format(sql.Identifier(seq)))
+
+
+def restore_postgres(name):
+    """Rimette il database PostgreSQL com'era nel dump ``name`` (``pg-*.sql.gz``).
+
+    Tutto in una transazione: se un'istruzione fallisce non cambia niente.
+    Si parte da uno schema pulito (vedi _clean_public_schema) e solo da un
+    dump completo. Le migrazioni girano dopo, perché il dump può essere di
+    una versione precedente del codice. La copia dello stato attuale la chiede chi chiama
+    (vedi la pagina Supervisor), prima. Solleva RestoreError col messaggio
+    per l'admin.
+    """
+    import gzip
+
+    import psycopg
+    from django.conf import settings
+    from django.core.management import call_command
+    from django.db import connections
+
+    if not _is_postgres():
+        raise RestoreError("Questo ripristino vale solo per il database PostgreSQL.")
+    dump = backup_file(name)
+    if dump is None or not dump.name.startswith("pg-"):
+        raise RestoreError("Copia non trovata.")
+    try:
+        with gzip.open(dump, "rt", encoding="utf-8") as fh:
+            head = fh.read(400)
+    except (OSError, EOFError, UnicodeDecodeError):
+        head = ""
+    if "PostgreSQL database dump" not in head:
+        raise RestoreError(f"{dump.name} non è un backup del database leggibile.")
+    if not pg_dump_complete(dump):
+        raise RestoreError(f"{dump.name} è incompleto (backup interrotto o ancora in corso): "
+                           "scegli un'altra copia. Il database non è cambiato.")
+
+    db = settings.DATABASES["default"]
+    params = {k: v for k, v in {
+        "dbname": db.get("NAME"), "user": db.get("USER"), "password": db.get("PASSWORD"),
+        "host": db.get("HOST"), "port": db.get("PORT"),
+    }.items() if v}
+    done = 0
+    try:
+        with psycopg.connect(**params) as conn, gzip.open(dump, "rt", encoding="utf-8") as fh:
+            with conn.transaction(), conn.cursor() as cur:
+                # Prima di tutto: un lucchetto di un'altra connessione si aspetta
+                # al massimo un minuto, anche mentre si svuota lo schema.
+                cur.execute(f"SET lock_timeout = '{_RESTORE_LOCK_TIMEOUT}'")
+                _clean_public_schema(cur)
+                for item in iter_pg_dump(fh):
+                    if item[0] == "copy":
+                        with cur.copy(item[1]) as copy:
+                            for row in item[2]:
+                                copy.write(row)
+                    elif item[1].upper().startswith("SET LOCK_TIMEOUT"):
+                        # Il dump aspetterebbe per sempre un lucchetto: un minuto basta.
+                        cur.execute(f"SET lock_timeout = '{_RESTORE_LOCK_TIMEOUT}'")
+                    else:
+                        cur.execute(item[1])
+                    done += 1
+    except psycopg.Error as exc:
+        logger.exception("restore of %s failed after %s statements", dump.name, done)
+        detail = str(exc).strip().splitlines()[0] if str(exc).strip() else exc.__class__.__name__
+        raise RestoreError(f"Ripristino non riuscito, il database non è cambiato: {detail}")
+    except (OSError, EOFError, UnicodeDecodeError) as exc:
+        raise RestoreError(f"Non riesco a leggere {dump.name}: {exc}. Il database non è cambiato.")
+    connections.close_all()
+    call_command("migrate", interactive=False, verbosity=0)
+    logger.warning("Database PostgreSQL ripristinato da %s (%s istruzioni)", dump.name, done)
+    return done

@@ -36,6 +36,11 @@ Prima versione numerata (prima l'etichetta era 1.2.0, senza rilasci).
 - Lo scheduler lascia i lotti al ticker della sala quando è vivo (battito
   `Auction.ticker_seen_at`); senza ticker chiude con un margine di 3 s.
 
+### Backup e ripristino
+- Su PostgreSQL (NAS, Docker) il Supervisor ripristina un backup dal browser:
+  prima salva lo stato attuale, poi ripristina tutto in una transazione.
+  Chi ripristina resta collegato anche se la copia è di prima del suo login.
+
 ### Rilascio
 - L'immagine Docker si pubblica solo dopo test verdi e un avvio di prova
   (`/healthz/`, `check --deploy`); tag `:main`, `:sha-…`, `:X.Y.Z`.

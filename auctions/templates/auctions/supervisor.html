@@ -483,7 +483,7 @@
             <li>Scegli il provider, compila server, account e mittente e premi <b>Salva Configurazione SMTP</b>.</li>
             <li>Poi premi <b>Invia Email di Test</b> e controlla che il messaggio arrivi.</li>
             {% elif tab == 'reports' %}
-            <li>Prima di un intervento premi <b>Crea Snapshot</b> (o <b>Scarica Ora</b>) per avere una copia del database{% if is_sqlite %}: da <b>Snapshot di Backup su Disco</b> la rimetti con <b>Ripristina</b>{% endif %}.</li>
+            <li>Prima di un intervento premi <b>Crea Snapshot</b> (o <b>Scarica Ora</b>) per avere una copia del database{% if is_sqlite or is_postgres %}: da <b>Snapshot di Backup su Disco</b> la rimetti con <b>Ripristina</b>{% if is_postgres %} (due clic: il primo salva lo stato attuale, il secondo ripristina){% endif %}{% endif %}.</li>
             <li><b>Svuota Cache Ora</b>, <b>Esegui VACUUM</b> ed <b>Elimina Sessioni</b> fanno pulizia: usali se il sito rallenta o il database cresce troppo.</li>
             {% elif tab == 'logs' %}
             <li>Scegli il livello o scrivi una parola e premi <b>Filtra</b>; ↻ ricarica il log.</li>
@@ -1912,12 +1912,12 @@ function togglePasswordVisibility(inputId, btn) {
                     <a href="{% url 'supervisor_backup_download' %}?file={{ b.name }}" class="btn-super-action" style="background:#2563eb;color:#fff;text-decoration:none;padding:4px 10px;font-size:12px;display:inline-flex;align-items:center;gap:4px">
                         📥 Scarica
                     </a>
-                    {% if is_sqlite %}
-                    <form method="post" style="display:inline;margin:0" onsubmit="return confirm('Ripristinare {{ b.name }}? Tutto quello che è successo dopo verrà sostituito. Lo stato attuale viene prima salvato in una copia «prima del ripristino».');">
+                    {% if is_sqlite or is_postgres %}
+                    <form method="post" style="display:inline;margin:0" onsubmit="return confirm('{% if is_postgres and pg_restore_pending != b.name %}Passo 1 di 2: salvo lo stato attuale. Tra un minuto premi di nuovo Ripristina su {{ b.name }} per rimettere quella copia.{% elif is_postgres %}Ripristinare {{ b.name }}? Tutto quello che è successo dopo verrà sostituito; lo stato attuale è già salvato in una copia.{% else %}Ripristinare {{ b.name }}? Tutto quello che è successo dopo verrà sostituito. Lo stato attuale viene prima salvato in una copia «prima del ripristino».{% endif %}');">
                         {% csrf_token %}
                         <input type="hidden" name="action" value="restore_backup">
                         <input type="hidden" name="file" value="{{ b.name }}">
-                        <button type="submit" class="btn-super-action" style="background:#b45309;color:#fff;border:none;padding:4px 10px;font-size:12px">↩ Ripristina</button>
+                        <button type="submit" class="btn-super-action" style="background:#b45309;color:#fff;border:none;padding:4px 10px;font-size:12px">↩ {% if pg_restore_pending == b.name %}Ripristina ora{% else %}Ripristina{% endif %}</button>
                     </form>
                     {% endif %}
                 </td>
@@ -1930,10 +1930,11 @@ function togglePasswordVisibility(inputId, btn) {
         «Ripristina» rimette il database com'era in quella copia: si fa con le aste in pausa o chiuse,
         e lo stato attuale viene prima salvato, così il ripristino si può annullare.
     </div>
-    {% else %}
+    {% elif is_postgres %}
     <div style="font-size:12px;color:var(--muted);margin-top:10px;line-height:1.6">
-        Su PostgreSQL il ripristino si fa dal NAS, con l'app ferma (sostituisce tutto il database):<br>
-        <code style="color:#93c5fd">docker stop fantamanager &amp;&amp; gunzip -c backups/NOME.sql.gz | docker exec -i fantamanager-db psql -U fantamanager -d fantamanager -v ON_ERROR_STOP=1 &amp;&amp; docker start fantamanager</code>
+        «Ripristina» rimette tutto il database com'era in quella copia, in due passi: il primo clic salva lo stato
+        attuale (compare in elenco entro un minuto), il secondo ripristina. Si fa con le aste in pausa o chiuse;
+        se qualcosa va storto il database resta com'era. Per annullare un ripristino, ripristina la copia fatta prima.
     </div>
     {% endif %}
     {% else %}
