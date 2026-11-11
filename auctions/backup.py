@@ -479,6 +479,7 @@ def iter_pg_dump(lines):
 
 
 PG_DUMP_END = "PostgreSQL database dump complete"
+_RESTORE_LOCK_TIMEOUT = "60s"     # attesa massima per un lucchetto durante il ripristino
 
 
 def pg_dump_complete(path):
@@ -567,6 +568,9 @@ def restore_postgres(name):
     try:
         with psycopg.connect(**params) as conn, gzip.open(dump, "rt", encoding="utf-8") as fh:
             with conn.transaction(), conn.cursor() as cur:
+                # Prima di tutto: un lucchetto di un'altra connessione si aspetta
+                # al massimo un minuto, anche mentre si svuota lo schema.
+                cur.execute(f"SET lock_timeout = '{_RESTORE_LOCK_TIMEOUT}'")
                 _clean_public_schema(cur)
                 for item in iter_pg_dump(fh):
                     if item[0] == "copy":
@@ -575,7 +579,7 @@ def restore_postgres(name):
                                 copy.write(row)
                     elif item[1].upper().startswith("SET LOCK_TIMEOUT"):
                         # Il dump aspetterebbe per sempre un lucchetto: un minuto basta.
-                        cur.execute("SET lock_timeout = '60s'")
+                        cur.execute(f"SET lock_timeout = '{_RESTORE_LOCK_TIMEOUT}'")
                     else:
                         cur.execute(item[1])
                     done += 1

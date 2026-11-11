@@ -309,6 +309,24 @@ class PgRestoreDatabaseTests(django.test.TransactionTestCase):
         with django.db.connection.cursor() as cur:
             cur.execute("DROP TABLE IF EXISTS public.fm_restore_newer")
 
+    def test_a_locked_table_makes_it_give_up_not_hang(self):
+        # Un'altra connessione tiene un lucchetto su una tabella: il ripristino
+        # rinuncia dopo il limite invece di aspettare per sempre.
+        import psycopg
+        from django.conf import settings
+        db = settings.DATABASES["default"]
+        other = psycopg.connect(dbname=django.db.connection.settings_dict["NAME"], user=db.get("USER"),
+                                password=db.get("PASSWORD"), host=db.get("HOST"), port=db.get("PORT"))
+        self.addCleanup(other.close)
+        other.execute("LOCK TABLE public.django_migrations IN ACCESS SHARE MODE")   # tiene la transazione aperta
+        self._dump("pg-20261111-090000.sql.gz", PG_DUMP)
+        with mock.patch("auctions.backup._clean_public_schema", wraps=backup._clean_public_schema) as clean, \
+                mock.patch.object(backup, "_RESTORE_LOCK_TIMEOUT", "1s"):
+            with self.assertRaises(backup.RestoreError) as err:
+                backup.restore_postgres("pg-20261111-090000.sql.gz")
+        clean.assert_called_once()
+        self.assertIn("il database non è cambiato", str(err.exception))
+
     def test_an_incomplete_dump_is_refused(self):
         _write_gz(self.folder / "pg-20261111-090000.sql.gz",
                   PG_DUMP.split("-- PostgreSQL database dump complete")[0])
