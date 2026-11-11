@@ -76,6 +76,9 @@ class MarketSession(models.Model):
     # Con la sostituzione obbligatoria: chi esce si sceglie dopo lo spoglio,
     # per ogni giocatore vinto (regolamento 5.03), invece che con la busta.
     release_after = models.BooleanField(default=False)
+    # Dopo lo spoglio: ore per confermare chi esce; scadute, vale la proposta
+    # della lista «Chi lasceresti andare» (0 = nessun termine).
+    release_confirm_hours = models.PositiveIntegerField(default=0)
     budget_rule = models.CharField(max_length=10, choices=BudgetRule.choices, default=BudgetRule.PRIORITY)
     tie_break = models.CharField(max_length=10, choices=TieBreak.choices, default=TieBreak.MANUAL)
 

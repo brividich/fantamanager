@@ -1108,32 +1108,10 @@
     {% if is_buste or not is_free_agency and not is_buyout_clause and not is_waiver_wire %}
     <div data-asec="buste">
         {% if release_list %}
-        <form class="a-card" method="post" action="{% url 'app_market_release_list' %}" style="padding:14px 16px;margin-bottom:14px{% if release_list.short %};border-color:rgba(234,179,8,.5){% endif %}">
-            {% csrf_token %}
-            <input type="hidden" name="session_id" value="{{ market_session.id }}">
-            <div class="a-label" style="margin-bottom:6px">Chi lasceresti andare</div>
-            <div style="font-size:12px;color:var(--muted);line-height:1.45;margin-bottom:10px">
-                Ogni giocatore vinto entra al posto di un tuo pari ruolo. Spunta chi lasceresti andare: per ogni ruolo
-                almeno uno per ogni giocatore su cui offri. Dopo lo spoglio confermi chi esce, anche cambiandolo;
-                se vinci meno buste, gli altri restano in rosa.
-            </div>
-            {% for r in release_list.roles %}{% if r.players %}
-            <div style="margin-bottom:8px">
-                <div style="font-size:11.5px;font-weight:800;margin-bottom:4px;color:{% if r.short %}#eab308{% else %}var(--muted){% endif %}">
-                    <span class="role-badge role-{{ r.role }}">{{ r.role }}</span>
-                    in lista {{ r.have }}{% if r.need %} · servono {{ r.need }}{% if r.short %} · ne manca{{ r.missing|pluralize:"no" }} {{ r.missing }}{% endif %}{% endif %}
-                </div>
-                <div style="display:flex;flex-wrap:wrap;gap:6px">
-                    {% for pl in r.players %}
-                    <label style="display:flex;align-items:center;gap:5px;padding:5px 9px;border-radius:8px;border:1px solid var(--line);font-size:12.5px;cursor:pointer">
-                        <input type="checkbox" name="player_id" value="{{ pl.id }}"{% if pl.id in release_list.listed %} checked{% endif %}> {{ pl.name }}
-                    </label>
-                    {% endfor %}
-                </div>
-            </div>
-            {% endif %}{% endfor %}
-            <button type="submit" class="btn-submit" style="width:100%;padding:10px 12px;margin-top:4px">Salva la lista</button>
-        </form>
+        <div class="a-card" style="padding:14px 16px;margin-bottom:14px{% if release_list.short %};border-color:rgba(234,179,8,.5){% endif %}">
+            {% url 'app_market_release_list' as rl_action %}
+            {% include "auctions/market/_release_list_form.html" with rl=release_list rl_action=rl_action rl_session=market_session rl_team=None rl_btn="btn-submit" %}
+        </div>
         {% endif %}
         <div class="a-card bids-card" id="my-bids-card">
             <div class="a-label">
@@ -1209,7 +1187,7 @@
                 <b>Adesso: conferma chi esce.</b> Ogni giocatore vinto entra al posto di uno della tua rosa con lo stesso ruolo:
                 sotto c'è già chi esce, preso dalla tua lista «Chi lasceresti andare». Cambialo se vuoi (anche un giocatore fuori lista)
                 e premi {% if contracts_on %}<b>Conferma e tira i dadi</b> oppure <b>Conferma, dadi dopo</b>{% else %}<b>Conferma</b>{% endif %}.
-                Finché non confermi hai un giocatore in più; se non lo fai, conferma l'admin.
+                Finché non confermi hai un giocatore in più; {% if buste_results.my_deadline %}<b>entro il {{ buste_results.my_deadline|date:"d/m H:i" }}</b>, poi esce chi è proposto dalla tua lista (i dadi restano da tirare){% else %}se non lo fai, conferma l'admin{% endif %}.
             </div>
             {% endif %}
             {% if buste_results.my_won %}
@@ -1222,7 +1200,7 @@
                             <span class="role-badge role-{{ w.player_role }}">{{ w.player_role }}</span>
                             <b style="font-size:14px;color:var(--ink)">{{ w.player_name }}</b>
                             {% if w.released_player %}
-                            <small style="color:var(--muted);font-size:11px">(al posto di {{ w.released_player }}{% if w.refund %} +{{ w.refund }} FM{% endif %})</small>
+                            <small style="color:var(--muted);font-size:11px">(al posto di {{ w.released_player }}{% if w.refund %} +{{ w.refund }} FM{% endif %}{% if w.auto_confirmed %} · dalla lista, tempo scaduto{% endif %})</small>
                             {% endif %}
                         </div>
                         <span style="font-family:var(--display);font-weight:900;font-size:15px;color:#22c55e">{{ w.amount }} FM</span>

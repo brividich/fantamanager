@@ -1,11 +1,11 @@
 """Sealed-bid market session (mercato di riparazione) business logic."""
 from collections import defaultdict
-from datetime import timedelta
+from datetime import datetime, timedelta
 from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal, InvalidOperation
 import logging
 
 from django.db import transaction
-from django.db.models import F
+from django.db.models import Count, F
 from django.utils import timezone
 
 from ..models import (
@@ -1057,6 +1057,9 @@ def resolve_market_session(session_id):
         w["refund"], w["refund_exact"] = int(refund), str(refund)
 
     summary = _summary(plan)
+    for w in summary["won"]:
+        if w.get("release_pending"):
+            w["pending_since"] = summary["resolved_at"]
     session.results_summary = summary
     session.status = MarketSession.Status.RESOLVED
     session.save(update_fields=["status", "results_summary", "updated_at"])
@@ -1185,6 +1188,7 @@ def settle_market_tie(session_id, player_id, winner_id=None, rng=None, rebids=No
         "refund_exact": str(refund),
         "tie_break": method,
         "release_pending": session.release_after_count,
+        "pending_since": tie["settled"]["at"],
     })
     summary["total_acquisitions"] = len(summary["won"])
     summary["open_ties"] = sum(1 for t in summary.get("tied", []) if not t.get("settled"))
@@ -1241,10 +1245,12 @@ def release_list_counts(session, participant_id):
 
 
 @transaction.atomic
-def set_release_list(session_id, participant_id, player_ids):
+def set_release_list(session_id, participant_id, player_ids, *, by_admin=False):
     """Salva la lista «Chi lasceresti andare» della squadra (sostituisce la
     precedente). Solo a buste aperte, nelle sessioni dove chi esce si sceglie
-    dopo lo spoglio; per ogni ruolo non meno giocatori di quelli su cui offre."""
+    dopo lo spoglio; per ogni ruolo non meno giocatori di quelli su cui offre.
+    ``by_admin``: la salva l'admin per la squadra; i messaggi non dicono su
+    quanti giocatori offre (l'admin gioca anche lui, le buste restano segrete)."""
     session = MarketSession.objects.select_for_update().filter(pk=session_id).first()
     if session is None or not session.release_after_count:
         return {"ok": False, "message": "In questa sessione non si dichiara chi si lascerebbe andare."}
@@ -1259,7 +1265,8 @@ def set_release_list(session_id, participant_id, player_ids):
     for pid in ids:
         pl = players.get(pid)
         if pl is None or pl.abroad_list:
-            return {"ok": False, "message": "Puoi mettere in lista solo giocatori della tua rosa: ricarica la pagina."}
+            whose = "della squadra" if by_admin else "della tua rosa"
+            return {"ok": False, "message": f"Puoi mettere in lista solo giocatori {whose}: ricarica la pagina."}
         problem = _cut_problem(pl)
         if problem:
             return {"ok": False, "message": problem}
@@ -1268,6 +1275,9 @@ def set_release_list(session_id, participant_id, player_ids):
     for pl in chosen:
         have[pl.role] += 1
     for role, need in sorted(release_list_needs(session, participant_id).items()):
+        if have[role] < need and by_admin:
+            return {"ok": False, "message": f"La lista è più corta delle buste già consegnate dalla squadra fra i "
+                                            f"{ROLE_PLURALS.get(role, role)}: aggiungi un {ROLE_NAMES.get(role, role)}."}
         if have[role] < need:
             return {"ok": False, "message": f"Hai buste su {_role_count(role, need)} diversi: in lista ne servono "
                                             f"almeno {need} (ne hai messi {have[role]}). Ritira una busta o "
@@ -1277,8 +1287,144 @@ def set_release_list(session_id, participant_id, player_ids):
         MarketReleaseIntent(session=session, participant_id=participant_id, player=pl, position=i)
         for i, pl in enumerate(chosen)
     ])
-    return {"ok": True, "message": f"Lista salvata: {len(chosen)} giocator{'e' if len(chosen) == 1 else 'i'} "
-                                   "che lasceresti andare."}
+    who = "che la squadra lascerebbe andare" if by_admin else "che lasceresti andare"
+    return {"ok": True, "message": f"Lista salvata: {len(chosen)} giocator{'e' if len(chosen) == 1 else 'i'} {who}."}
+
+
+def release_list_view(session, participant_id, roster=None):
+    """La scheda «Chi lasceresti andare» di una squadra (app del manager e
+    pagina della sessione per l'admin): per ruolo i giocatori, quanti in lista,
+    quanti ne servono. ``roster``: i giocatori già letti, se ci sono."""
+    if roster is None:
+        roster = list(Player.objects.filter(owner_id=participant_id).order_by("name"))
+    listed = [ri.player_id for ri in MarketReleaseIntent.objects.filter(session=session, participant_id=participant_id)]
+    needs = release_list_needs(session, participant_id)
+    have = release_list_counts(session, participant_id)
+    roles = [{"role": r, "need": needs.get(r, 0), "have": have.get(r, 0),
+              "short": needs.get(r, 0) > have.get(r, 0),
+              "missing": max(0, needs.get(r, 0) - have.get(r, 0)),
+              "players": [pl for pl in roster if pl.role == r and not pl.abroad_list]}
+             for r in ("P", "D", "C", "A")]
+    return {"listed": set(listed), "count": len(listed), "roles": roles,
+            "short": any(r["short"] for r in roles)}
+
+
+def release_list_board(session):
+    """Per la regia: quante squadre hanno salvato la lista. Solo chi l'ha
+    vuota, mai le buste: l'admin gioca anche lui."""
+    counts = dict(MarketReleaseIntent.objects.filter(session=session)
+                  .values("participant_id").annotate(n=Count("id")).values_list("participant_id", "n"))
+    teams = list(Participant.objects.filter(league_id=session.league_id, is_active=True).order_by("display_name"))
+    return {"teams": [{"id": t.id, "name": t.display_name, "listed": counts.get(t.id, 0)} for t in teams],
+            "missing": [t.display_name for t in teams if not counts.get(t.id)]}
+
+
+# --- Termine per confermare ----------------------------------------------------
+
+
+def release_deadline(session, entry):
+    """Fino a quando la squadra conferma chi esce per ``entry`` (None:
+    nessun termine). Conta dallo spoglio, o dallo spareggio per i pareggi."""
+    if not session.release_confirm_hours:
+        return None
+    since = entry.get("pending_since") or (session.results_summary or {}).get("resolved_at")
+    try:
+        start = datetime.fromisoformat(since)
+    except (TypeError, ValueError):
+        return None
+    if timezone.is_naive(start):
+        start = timezone.make_aware(start)
+    return start + timedelta(hours=session.release_confirm_hours)
+
+
+def team_release_deadlines(session):
+    """``{winner_id: (scadenza più vicina, scaduta?)}`` delle squadre che
+    devono ancora confermare."""
+    now, out = timezone.now(), {}
+    for w in pending_releases(session):
+        when = release_deadline(session, w)
+        if when is None:
+            continue
+        cur = out.get(w["winner_id"])
+        if cur is None or when < cur[0]:
+            out[w["winner_id"]] = (when, when <= now)
+    return out
+
+
+def apply_overdue_releases(league=None, now=None):
+    """Scaduto il tempo per confermare, chi esce è quello proposto dalla
+    lista della squadra (i dadi restano da tirare). Un acquisto senza
+    proposta (la lista non ha più un pari ruolo che possa uscire) resta da
+    confermare: lo fa l'admin. Restituisce quante sostituzioni ha fatto."""
+    from .sala import LeagueLocked
+    now = now or timezone.now()
+    qs = MarketSession.objects.filter(status=MarketSession.Status.RESOLVED, release_after=True,
+                                      require_same_role_release=True, release_confirm_hours__gt=0)
+    if league is not None:
+        qs = qs.filter(league=league)
+    done = 0
+    for session in qs.select_related("league"):
+        overdue = []
+        for w in pending_releases(session):
+            when = release_deadline(session, w)
+            if when is not None and when <= now:
+                overdue.append(w)
+        for winner_id in dict.fromkeys(w["winner_id"] for w in overdue):
+            proposal = proposed_releases(session, winner_id)
+            for w in overdue:
+                if w["winner_id"] != winner_id or w["bid_id"] not in proposal:
+                    continue
+                try:
+                    res = choose_market_release(session.id, w["bid_id"], proposal[w["bid_id"]], auto=True)
+                except LeagueLocked:
+                    break
+                if res["ok"]:
+                    done += 1
+                    session.refresh_from_db()
+    return done
+
+
+# --- Riepilogo da condividere --------------------------------------------------
+
+
+def spoglio_share_text(session):
+    """Il riepilogo dello spoglio in testo semplice, da incollare nel gruppo
+    della lega: chi ha preso chi, a quanto, chi esce, pareggi aperti."""
+    summary = session.results_summary or {}
+    won = summary.get("won", [])
+    lines = [f"📬 {session.title}: esito dello spoglio", ""]
+    if not won:
+        lines.append("Nessun giocatore assegnato.")
+    by_team = {}
+    for w in won:
+        by_team.setdefault(w.get("winner_name") or "—", []).append(w)
+    for team in sorted(by_team, key=str.lower):
+        lines.append(f"🛡 {team}")
+        for w in by_team[team]:
+            row = f"  + {w['player_name']} ({w.get('player_role', '')}) {w.get('amount', 0)} FM"
+            if w.get("released_player"):
+                row += f" · esce {w['released_player']}"
+                if w.get("refund"):
+                    row += f" (+{w['refund']} FM)"
+            elif w.get("release_pending"):
+                row += " · chi esce: da confermare"
+            if w.get("tie_break"):
+                row += " · allo spareggio"
+            lines.append(row)
+        lines.append("")
+    open_ties = [t for t in summary.get("tied", []) if not t.get("settled")]
+    if open_ties:
+        lines.append("⚖ Pareggi da risolvere:")
+        for t in open_ties:
+            lines.append(f"  {t['player_name']} a {t.get('amount', 0)} FM: {', '.join(t.get('contenders', []))}")
+        lines.append("")
+    pending = pending_releases(session)
+    if pending:
+        when = [release_deadline(session, w) for w in pending]
+        when = [w for w in when if w is not None]
+        tail = f" entro il {timezone.localtime(min(when)):%d/%m alle %H:%M}" if when else ""
+        lines.append(f"⏳ Chi esce si conferma dall'app (Mercato){tail}.")
+    return "\n".join(lines).strip()
 
 
 def proposed_releases(session, participant_id):
@@ -1394,7 +1540,7 @@ def release_options(session, entry):
 
 
 @transaction.atomic
-def choose_market_release(session_id, bid_id, release_player_id, *, participant_id=None):
+def choose_market_release(session_id, bid_id, release_player_id, *, participant_id=None, auto=False):
     """Chi esce dalla rosa al posto del giocatore vinto con la busta ``bid_id``.
 
     ``participant_id`` = la squadra che sceglie dall'app (solo per i suoi
@@ -1434,7 +1580,8 @@ def choose_market_release(session_id, bid_id, release_player_id, *, participant_
         participant=participant, participant_name=participant.display_name,
         player_name=release.name, player_role=release.role,
         action=RosterLog.Action.RELEASE, credits_delta=-refund, by_admin=participant_id is None,
-        note=f"Sostituito da {entry['player_name']}: {session.title}",
+        note=f"Sostituito da {entry['player_name']}"
+             + (" (tempo per confermare scaduto: dalla lista)" if auto else "") + f": {session.title}",
     )
     Participant.objects.filter(pk=participant.pk).update(spent_credits=F("spent_credits") - refund)
     entry.update({
@@ -1445,6 +1592,8 @@ def choose_market_release(session_id, bid_id, release_player_id, *, participant_
         "refund": int(refund),
         "refund_exact": str(refund),
     })
+    if auto:
+        entry["auto_confirmed"] = True
     session.results_summary = summary
     session.save(update_fields=["results_summary", "updated_at"])
     logger.info(f"Market release chosen: session={session_id}, '{release.name}' out for '{entry['player_name']}' "
@@ -1576,6 +1725,7 @@ def sync_market_schedule(league=None):
     closed = to_close.update(status=MarketSession.Status.CLOSED, updated_at=now)
     if renewal_leagues:
         sync_renewals_window(renewal_leagues)
+    apply_overdue_releases(league=league, now=now)
     return opened, closed
 
 

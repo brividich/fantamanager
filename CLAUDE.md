@@ -30,6 +30,9 @@ stessi testi**.
     `market/session.html` (console) e `app_regia_session.html` (app);
   - gli scambi (ratifiche, regole, periodi): `market/_trades_manage.html`, in
     `market/scambi.html` (console) e `app_regia_trades.html` (app).
+  La lista «Chi lasceresti andare» delle buste è `market/_release_list_form.html`,
+  la stessa per il manager (`app_mercato.html`) e per l'admin che la compila
+  per una squadra (`_session_manage.html`).
   I dati arrivano da `session_manage_context` / `trades_manage_context`
   (`views/admin_market.py`). Ogni form manda `next` = la pagina da cui parte,
   così l'azione torna lì (console o app); `_back()` accetta solo indirizzi del sito.
@@ -264,3 +267,8 @@ eliminazione avanzano da sole a fine turno (`services/knockout.py`).
 python manage.py collectstatic --noinput   # serve una volta: i template usano il manifest
 python manage.py test auctions
 ```
+
+`test_e2e_buste.py` prova il mercato a buste dall'inizio alla fine dagli stessi
+indirizzi delle pagine (wizard con import delle rose, inviti, lista, buste,
+chiusura dello scheduler, spoglio, conferme, scadenza, verbale): chi cambia un
+passo del mercato la tiene verde.

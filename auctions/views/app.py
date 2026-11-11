@@ -110,17 +110,24 @@ def app_home(request):
         services.sync_market_schedule(league)
         open_market = MarketSession.objects.filter(league=league, status=MarketSession.Status.OPEN).first()
     # Buste scrutinate in cui questa squadra deve ancora scegliere chi esce.
-    release_session, release_count = None, 0
+    release_session, release_count, release_deadline = None, 0, None
     if league is not None:
         for done in MarketSession.objects.filter(league=league, status=MarketSession.Status.RESOLVED,
                                                  release_after=True).order_by("-updated_at")[:5]:
             mine = services.pending_releases(done, participant.id)
             if mine:
                 release_session, release_count = done, len(mine)
+                deadlines = [d for d in (services.release_deadline(done, w) for w in mine) if d is not None]
+                release_deadline = min(deadlines) if deadlines else None
                 break
     ctx.update({
         "release_session": release_session,
         "release_count": release_count,
+        "release_deadline": release_deadline,
+        # Buste aperte e la lista «Chi lasceresti andare» ancora vuota.
+        "release_list_empty": bool(
+            open_market and open_market.is_open and open_market.release_after_count
+            and not services.release_list(open_market, participant.id)),
         "open_market": open_market if open_market and open_market.is_open else None,
         "my_open_bids": MarketBid.objects.filter(session=open_market, participant=participant).count() if open_market else 0,
         "incoming_trades": Trade.objects.filter(receiver=participant, status=Trade.Status.PENDING).count(),
@@ -570,18 +577,7 @@ def app_mercato(request):
     # Lista «Chi lasceresti andare» (buste, chi esce dopo lo spoglio).
     release_list_ctx = None
     if market_session and market_session.release_after_count and market_session.status == MarketSession.Status.OPEN:
-        listed = {pl.pk for pl in services.release_list(market_session, participant.id)}
-        needs = services.release_list_needs(market_session, participant.id)
-        have = services.release_list_counts(market_session, participant.id)
-        release_list_ctx = {
-            "listed": listed,
-            "roles": [{"role": r, "need": needs.get(r, 0), "have": have.get(r, 0),
-                       "short": needs.get(r, 0) > have.get(r, 0),
-                       "missing": max(0, needs.get(r, 0) - have.get(r, 0)),
-                       "players": [pl for pl in my_roster if pl.role == r and not pl.abroad_list]}
-                      for r in ("P", "D", "C", "A")],
-            "short": any(needs.get(r, 0) > have.get(r, 0) for r in needs),
-        }
+        release_list_ctx = services.release_list_view(market_session, participant.id, roster=my_roster)
     my_bids_total = services.market_bids_total(market_session, my_bids) if market_session else 0
     bids_left = None
     if market_session and market_session.max_bids:
@@ -673,10 +669,14 @@ def app_mercato(request):
         tied_list = summary.get("tied", [])
         my_won = [dict(w) for w in won_list if w.get("winner_id") == participant.id or w.get("winner_name") == participant.display_name]
         proposals = services.proposed_releases(market_session, participant.id)
+        my_deadline = None
         for w in my_won:
             if w.get("release_pending"):
                 w["release_options"] = services.release_options(market_session, w)
                 w["proposed_id"] = proposals.get(w["bid_id"])
+                when = services.release_deadline(market_session, w)
+                if when is not None and (my_deadline is None or when < my_deadline):
+                    my_deadline = when
         my_lost = [l for l in lost_list if l.get("participant_name") == participant.display_name]
         buste_results = {
             "won": won_list,
@@ -684,6 +684,7 @@ def app_mercato(request):
             "tied": tied_list,
             "my_won": my_won,
             "my_pending": [w for w in my_won if w.get("release_pending")],
+            "my_deadline": my_deadline,
             "my_lost": my_lost,
             "total_acquisitions": summary.get("total_acquisitions", len(won_list)),
             "resolved_at": summary.get("resolved_at"),

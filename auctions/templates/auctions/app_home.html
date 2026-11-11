@@ -110,10 +110,10 @@
             <li><b>Asta in corso:</b> tocca il riquadro rosso <b>Asta in corso</b> per entrare nella sala offerte come {{ participant.display_name }}.</li>
             {% endif %}
             {% if open_market %}
-            <li>Mercato aperto, <b>{{ open_market.title }}</b>: tocca il suo riquadro per fare le tue mosse{% if open_market.closes_at %} entro il {{ open_market.closes_at|date:"d/m H:i" }}{% endif %}.</li>
+            <li>Mercato aperto, <b>{{ open_market.title }}</b>: tocca il suo riquadro per fare le tue mosse{% if open_market.closes_at %} entro il {{ open_market.closes_at|date:"d/m H:i" }}{% endif %}.{% if release_list_empty %} Prima compila «Chi lasceresti andare» (scheda Le mie Buste): senza, le buste non partono.{% endif %}</li>
             {% endif %}
             {% if release_session %}
-            <li><b>Adesso:</b> hai vinto giocatori alle buste <b>{{ release_session.title }}</b>: tocca il riquadro giallo e conferma chi esce dalla rosa al loro posto.</li>
+            <li><b>Adesso:</b> hai vinto giocatori alle buste <b>{{ release_session.title }}</b>: tocca il riquadro giallo e conferma chi esce dalla rosa al loro posto{% if release_deadline %} entro il {{ release_deadline|date:"d/m H:i" }} (poi esce chi è nella tua lista){% endif %}.</li>
             {% endif %}
             {% if incoming_trades %}
             <li>Hai proposte di scambio da altre squadre: tocca il riquadro arancione per accettarle o rifiutarle.</li>
@@ -219,7 +219,7 @@
     <svg class="ic" style="color:var(--accent)"><use href="#i-mail"/></svg>
     <span class="t">
         <b>{% if open_market.session_type == "sealed_bids" or open_market.session_type == "repair" %}Buste aperte{% elif open_market.session_type == "renewals" %}Rinnovi aperti{% else %}Mercato aperto{% endif %}: {{ open_market.title }}</b>
-        <span>{% if open_market.closes_at %}Chiude il {{ open_market.closes_at|date:"d/m H:i" }}{% else %}Consegna le tue offerte{% endif %}{% if my_open_bids %} · {{ my_open_bids }} bust{{ my_open_bids|pluralize:"a,e" }} inviat{{ my_open_bids|pluralize:"a,e" }}{% endif %}</span>
+        <span>{% if open_market.closes_at %}Chiude il {{ open_market.closes_at|date:"d/m H:i" }}{% else %}Consegna le tue offerte{% endif %}{% if my_open_bids %} · {{ my_open_bids }} bust{{ my_open_bids|pluralize:"a,e" }} inviat{{ my_open_bids|pluralize:"a,e" }}{% endif %}{% if release_list_empty %} · prima compila «Chi lasceresti andare»{% endif %}</span>
     </span>
     <span class="go">›</span>
 </a>
@@ -230,7 +230,7 @@
     <svg class="ic" style="color:#eab308"><use href="#i-mail"/></svg>
     <span class="t">
         <b>Buste: conferma chi esce per {{ release_count }} giocator{{ release_count|pluralize:"e,i" }} vint{{ release_count|pluralize:"o,i" }}</b>
-        <span>Ognuno entra al posto di un pari ruolo della tua rosa</span>
+        <span>Ognuno entra al posto di un pari ruolo della tua rosa{% if release_deadline %} · entro il {{ release_deadline|date:"d/m H:i" }}, poi vale la tua lista{% endif %}</span>
     </span>
     <span class="go" style="color:#eab308">›</span>
 </a>

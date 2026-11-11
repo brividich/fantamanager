@@ -117,6 +117,11 @@ nome, così chi salva sa che c'erano anche quando sono spente.
         Dopo lo spoglio: con le buste si dichiara chi si lascerebbe andare, poi si conferma (dall'app, o l'admin per la squadra)</label>
     <label><input type="radio" name="release_timing" value="bid"{% if not s.release_after %} checked{% endif %}>
         Con la busta: esce da solo se la busta vince</label>
+    <label class="mr-field" style="margin-top:6px">
+        <span class="mr-lbl">Ore per confermare dopo lo spoglio</span>
+        <input type="number" name="release_confirm_hours" min="0" value="{{ s.release_confirm_hours }}" class="mr-input" style="max-width:120px">
+        <span class="mr-hint">Scadute, chi esce è quello proposto dalla lista della squadra (i dadi restano da tirare). 0 = nessun termine.</span>
+    </label>
 </div>
 <div class="mr-field">
     <span class="mr-lbl">Acquisti massimi per ruolo (0 = illimitati)</span>
