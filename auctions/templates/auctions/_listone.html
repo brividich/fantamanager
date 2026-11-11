@@ -25,6 +25,9 @@ Dati da views/footballers.py:listone_context (lst_*).
     .lst-chip.is-total { padding-left:10px; }
     .lst-chip.is-total b { color:var(--fm-primary-light); }
     .lst-chip.is-free { padding-left:10px; }
+    .lst-chip.is-out { padding-left:10px; }
+    .lst-chip.is-out b { color:var(--fm-text-muted); }
+    .fb-league .out { color:var(--fm-text-muted); }
     .lst-alert { margin-bottom:14px; padding:14px 16px; border-radius:12px; border:1px solid rgba(248,113,113,.45);
         background:rgba(248,113,113,.10); color:#fca5a5; font-size:13.5px; line-height:1.5; }
     .lst-alert b { color:#fff; }
@@ -109,7 +112,8 @@ Dati da views/footballers.py:listone_context (lst_*).
                 <span>{% if stats_covered %}Statistiche su {{ stats_covered }} giocatori.{% else %}Facoltativo: <b>Statistiche giocatori</b> mostra presenze, media e fantamedia sul maxischermo e nella pagina offerte.{% endif %}</span></li>
             <li><span class="dot">4</span>
                 <span>Durante la stagione cerca un giocatore con nome, ruolo, squadra o stato: <b>Assegna</b> lo mette in una rosa (o ne corregge il prezzo),
-                    <b>Svincola</b> lo rimette tra i liberi, <b>✕</b> lo toglie dal listone.</span></li>
+                    <b>Svincola</b> lo rimette tra i liberi, <b>✕</b> lo toglie dal listone. Chi è uscito dal listone o dalla Serie A
+                    resta come <b>fuori listone</b> per lo storico: non è fra gli svincolati e non si compra.</span></li>
         </ol>
         <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Un nuovo file Quotazioni aggiorna il listone senza toccare le rose; «Rimuovi svincolati non più in lista» toglie chi è uscito dalla Serie A. «Sostituisci tutto» azzera anche le rose: solo per ripartire da zero.</div>
         {% else %}
@@ -129,6 +133,10 @@ Dati da views/footballers.py:listone_context (lst_*).
     {% endfor %}
     <a class="lst-chip is-free{% if lst_filters.status == 'free' %} on{% endif %}"
        href="?{% if lq %}league={{ lq }}&{% endif %}vista=listone&status=free"><b>{{ lst_free }}</b> svincolati</a>
+    {% if lst_out %}
+    <a class="lst-chip is-out{% if lst_filters.status == 'out' %} on{% endif %}" title="Usciti dal listone o dalla Serie A: restano per lo storico, non si comprano"
+       href="?{% if lq %}league={{ lq }}&{% endif %}vista=listone&status=out"><b>{{ lst_out }}</b> fuori listone</a>
+    {% endif %}
     <a class="lst-chip is-total" href="?{% if lq %}league={{ lq }}&{% endif %}vista=listone"><b>{{ lst_total }}</b> totale</a>
 </nav>
 {% endwith %}
@@ -250,6 +258,7 @@ Dati da views/footballers.py:listone_context (lst_*).
                 <option value="">Stato</option>
                 <option value="free" {% if lst_filters.status == "free" %}selected{% endif %}>Svincolati</option>
                 <option value="owned" {% if lst_filters.status == "owned" %}selected{% endif %}>In rosa</option>
+                <option value="out" {% if lst_filters.status == "out" %}selected{% endif %}>Fuori listone</option>
             </select>
             <select name="sort" aria-label="Ordina" onchange="this.form.submit()">
                 <option value="name"   {% if lst_filters.sort == "name" %}selected{% endif %}>Nome A-Z</option>
@@ -276,6 +285,7 @@ Dati da views/footballers.py:listone_context (lst_*).
             <div class="fb-league">
                 {% if p.owner_id %}<span class="owner">{{ p.owner.display_name }}</span>
                 <span class="as">pagato {{ p.cost|floatformat:0 }} FM · quot. <span class="lst-quota">{{ p.initial_price|floatformat:0 }}</span></span>
+                {% elif not p.in_listone %}<span class="out" title="Non è più nel listone: non si compra e non è fra gli svincolati. Torna se ricompare in un listone.">Fuori listone</span>
                 {% else %}<span class="free">Svincolato</span>
                 <span class="as">quot. <span class="lst-quota">{{ p.initial_price|floatformat:0 }}</span> FM</span>{% endif %}
                 {% if lst_can_manage %}

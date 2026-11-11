@@ -109,7 +109,7 @@ class _Sim:
     def _rosters(self):
         now = timezone.now()
         for role, per_team in DEAL.items():
-            pool = list(Player.objects.filter(league=self.lg, role=role, owner=None))
+            pool = list(Player.objects.free_agents().filter(league=self.lg, role=role))
             self.rng.shuffle(pool)
             for t in self.teams:
                 for _ in range(per_team):
@@ -128,7 +128,7 @@ class _Sim:
     # --- aiuti ---------------------------------------------------------------
 
     def free(self, role=None):
-        qs = Player.objects.filter(league=self.lg, owner=None)
+        qs = Player.objects.free_agents().filter(league=self.lg)
         if role:
             qs = qs.filter(role=role)
         return list(qs.order_by("name"))

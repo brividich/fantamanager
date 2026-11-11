@@ -193,7 +193,7 @@ def trades_manage_context(league):
 def _repair_data(league):
     auctions = list(Auction.objects.filter(league=league).order_by("-created_at")[:12])
     free = dict(
-        Player.objects.filter(league=league, owner__isnull=True)
+        Player.objects.free_agents().filter(league=league)
         .values("role").annotate(n=Count("id")).values_list("role", "n")
     )
     return {
@@ -324,7 +324,7 @@ def admin_market_buste(request):
             ),
             "past_sessions": [s for s in sessions if s.status == S.RESOLVED],
             "n_teams": Participant.objects.filter(league=league).count(),
-            "free_total": Player.objects.filter(league=league, owner__isnull=True).count(),
+            "free_total": Player.objects.free_agents().filter(league=league).count(),
         }
     return _market_page(request, "auctions/market/buste.html", "buste", league, extra)
 

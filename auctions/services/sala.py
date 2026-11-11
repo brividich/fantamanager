@@ -52,7 +52,7 @@ TEAM_FIELDS = ("display_name", "external_team_id", "short_name", "credits", "spe
 # quello che l'asta cambia (ROSTER_FIELDS).
 PLAYER_FIELDS = (
     "name", "role", "team", "initial_price", "photo_url", "ext_id", "mantra_roles",
-    "fvm", "presences", "avg_vote", "fanta_avg", "goals", "assists",
+    "fvm", "presences", "avg_vote", "fanta_avg", "goals", "assists", "in_listone",
 )
 ROSTER_FIELDS = (
     "cost", "contract_years", "renewal_declared", "loan_sessions_left", "acquired_at", "renewed_at",

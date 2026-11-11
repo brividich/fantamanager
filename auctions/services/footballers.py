@@ -303,7 +303,7 @@ def apply_default_listone(league):
     new, changed = [], []
     for f in registry:
         values = {"name": f.name, "role": default_role(f), "mantra_roles": f.mantra_roles,
-                  "team": f.club_name}
+                  "team": f.club_name, "in_listone": True}
         p = by_footballer.get(f.id)
         if p is None:
             new.append(Player(league=league, footballer=f, photo_url=f.photo_url, **values))
@@ -312,15 +312,22 @@ def apply_default_listone(league):
                 setattr(p, k, v)
             changed.append(p)
     Player.objects.bulk_create(new)
-    Player.objects.bulk_update(changed, ["name", "role", "mantra_roles", "team"])
+    Player.objects.bulk_update(changed, ["name", "role", "mantra_roles", "team", "in_listone"])
 
     gone = pool.filter(footballer__in_serie_a=False)
     on_block = Auction.objects.exclude(player__isnull=True).values("player_id")
     # Chi ha già voti, buste o liste di questa lega non si cancella (si
-    # porterebbe via lo storico): resta svincolato e segnalato.
+    # porterebbe via lo storico): resta, segnalato, ma fuori dal listone.
     keep = gone.filter(Q(performances__isnull=False) | Q(market_bids__isnull=False)
                        | Q(release_intents__isnull=False)).values("id")
     removed, _ = gone.filter(owner__isnull=True).exclude(id__in=on_block).exclude(id__in=keep).delete()
+    # Chi non è nella lista generale (uscito dalla Serie A, o rimasto da un
+    # listone caricato prima) non è uno svincolato: resta solo per la rosa o
+    # lo storico.
+    out = list(pool.exclude(footballer__in_serie_a=True).filter(in_listone=True).values_list("id", flat=True))
+    Player.objects.filter(pk__in=out).update(in_listone=False)
+    from .queue import drop_from_queues
+    drop_from_queues(out)
     flag_missing(league, list(gone.filter(owner__isnull=False).values_list("name", flat=True)))
     return {"created": len(new), "updated": len(changed), "removed": removed}
 

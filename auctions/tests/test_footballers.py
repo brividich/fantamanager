@@ -13,6 +13,7 @@ from ..models import Footballer, League, Participant, Player
 from ..providers import apifootball
 from ..providers.importers import sync_players
 from ..services import footballers
+from ..services.lifecycle import release_player
 
 JUVE, INTER = (496, "Juventus", "https://media.api-sports.io/football/teams/496.png"), \
     (505, "Inter", "https://media.api-sports.io/football/teams/505.png")
@@ -264,6 +265,23 @@ class DefaultListoneTests(ApiTestCase):
         self.assertFalse(Footballer.objects.get(api_id=3).in_serie_a)
         self.assertTrue(Player.objects.filter(pk=locatelli.pk).exists())
         self.assertEqual(PlayerPerformance.objects.filter(player=locatelli).count(), 1)
+        self.assertFalse(Player.objects.free_agents().filter(pk=locatelli.pk).exists())
+
+    def test_who_left_serie_a_does_not_come_back_as_free_agent(self):
+        self.sync()
+        league = League.objects.create(name="Generale")
+        team = Participant.objects.create(display_name="Alfa", league=league)
+        Player.objects.filter(league=league, footballer__api_id=4).update(owner=team, cost=Decimal("50"))
+        for _ in range(2):                                           # Lautaro esce, ma è in rosa
+            self.sync(squads={496: SQUADS[496], 505: SQUADS[505][1:]})
+        lautaro = Player.objects.get(league=league, footballer__api_id=4)
+        self.assertFalse(lautaro.in_listone)
+        release_player(lautaro.id, by_admin=True)
+        self.assertFalse(Player.objects.free_agents().filter(pk=lautaro.pk).exists())
+        self.sync()                                                  # torna in Serie A
+        lautaro.refresh_from_db()
+        self.assertTrue(lautaro.in_listone)
+        self.assertTrue(Player.objects.free_agents().filter(pk=lautaro.pk).exists())
 
     def test_uploading_a_listone_makes_it_the_league_own(self):
         self.sync()

@@ -80,7 +80,7 @@ def _ordered_free_agents(call_order, within_role_order, league=None, letters=Non
     tie-break only; ``build_queue`` applies the role banding on top. Scoped to
     ``league``'s pool; ``league=None`` selects the legacy/global pool.
     """
-    players = list(Player.objects.filter(owner__isnull=True, league=league))
+    players = list(Player.objects.free_agents().filter(league=league))
     if call_order == Auction.CallOrder.RANDOM:
         random.shuffle(players)
         return players
@@ -169,8 +169,22 @@ def build_queue(auction):
     return len(to_create) + len(to_update)
 
 
+def drop_from_queues(player_ids):
+    """Toglie dalle code delle aste chi è appena uscito dal listone: non va più
+    all'asta. Resta solo il lotto già sul banco (lo chiude la regia)."""
+    ids = list(player_ids)
+    if not ids:
+        return 0
+    on_block = Auction.objects.filter(player_id__in=ids).values("player_id")
+    deleted, _ = (AuctionQueueItem.objects.filter(player_id__in=ids, done=False)
+                  .exclude(player_id__in=on_block).delete())
+    return deleted
+
+
 def _next_pending(auction):
-    return auction.queue_items.filter(done=False).order_by("order", "id").first()
+    # Chi è uscito dal listone dopo che la coda è stata fatta non va all'asta.
+    return (auction.queue_items.filter(done=False, player__in_listone=True)
+            .order_by("order", "id").first())
 
 
 def _role_rank_for_nav(auction, role):
@@ -277,6 +291,8 @@ def enqueue_released_player(auction, player, *, unsold=False):
     """
     if auction is None or player is None:
         return None
+    if not player.in_listone:   # fuori listone: svincolato sì, all'asta no
+        return None
     existing = auction.queue_items.filter(player=player, done=False).first()
     if existing is not None:
         return existing
@@ -354,7 +370,7 @@ def prioritize_queue_item(auction, player_id):
     to (min_order - 1) and marked done=False. If the player is a free agent not
     yet queued, an item is created at the front.
     """
-    player = Player.objects.filter(pk=player_id, owner__isnull=True).first()
+    player = Player.objects.free_agents().filter(pk=player_id).first()
     if player is None:
         return None
 

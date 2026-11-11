@@ -101,7 +101,7 @@ def call_player(auction_id, player_id):
         player = Player.objects.get(pk=player_id)
     except Player.DoesNotExist:
         return None
-    if player.owner_id is not None:
+    if not player.is_free_agent:
         return None
     _set_on_block(auction, player)
     auction.status = Auction.Status.LIVE

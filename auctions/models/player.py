@@ -35,7 +35,19 @@ class RosterLog(models.Model):
         return f"{self.participant_name} {self.action} {self.player_name}"
 
 
+class PlayerQuerySet(models.QuerySet):
+    def free_agents(self):
+        """Gli svincolati: senza squadra e ancora nel listone della lega.
+
+        Chi è uscito dal listone (o dalla Serie A) resta nel database per lo
+        storico dei voti, ma non si compra più: non è uno svincolato.
+        """
+        return self.filter(owner__isnull=True, in_listone=True)
+
+
 class Player(models.Model):
+    objects = PlayerQuerySet.as_manager()
+
     class Role(models.TextChoices):
         P = "P", "Portiere"
         D = "D", "Difensore"
@@ -89,6 +101,12 @@ class Player(models.Model):
     goals        = models.IntegerField(null=True, blank=True)           # Gf
     assists      = models.IntegerField(null=True, blank=True)           # Ass
 
+    # Nel listone della lega: falso per chi non c'è più (uscito dalla Serie A,
+    # sparito dal listone caricato, perso con la cessione all'estero). Senza
+    # squadra non è uno svincolato e non si compra (``free_agents``); torna
+    # vero se ricompare nel listone.
+    in_listone   = models.BooleanField(default=True, db_index=True)
+
     # Roster ownership (imported from Fantapazz). Null = free agent / on the block.
     owner = models.ForeignKey(
         "Participant", null=True, blank=True, on_delete=models.SET_NULL, related_name="roster"
@@ -133,6 +151,10 @@ class Player(models.Model):
 
     class Meta:
         ordering = ["role", "name"]
+
+    @property
+    def is_free_agent(self):
+        return self.owner_id is None and self.in_listone
 
     @property
     def role_list(self):

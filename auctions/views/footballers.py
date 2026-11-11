@@ -77,7 +77,7 @@ def listone_context(request, pool, league, can_manage):
     role = (request.GET.get("role") or "").strip().upper()[:1]
     team = (request.GET.get("team") or "").strip()
     status = (request.GET.get("status") or "").strip()
-    if status not in ("free", "owned"):
+    if status not in ("free", "owned", "out"):
         status = ""
     sort = (request.GET.get("sort") or "name").strip()
     if sort not in LISTONE_ORDERS:
@@ -91,15 +91,18 @@ def listone_context(request, pool, league, can_manage):
     if team:
         players = players.filter(team=team)
     if status == "free":
-        players = players.filter(owner__isnull=True)
+        players = players.free_agents()
     elif status == "owned":
         players = players.filter(owner__isnull=False)
+    elif status == "out":
+        players = players.filter(owner__isnull=True, in_listone=False)
     page = Paginator(players.order_by(*LISTONE_ORDERS[sort]), 50).get_page(request.GET.get("page"))
 
     keep = request.GET.copy()
     keep.pop("page", None)
     total = pool.count()
-    free = pool.filter(owner__isnull=True).count()
+    free = pool.free_agents().count()
+    out = pool.filter(owner__isnull=True, in_listone=False).count()
     ctx = {
         "lst_rows": page.object_list,
         "lst_page": page,
@@ -110,7 +113,8 @@ def listone_context(request, pool, league, can_manage):
                       (("P", "Portieri"), ("D", "Difensori"), ("C", "Centrocampisti"), ("A", "Attaccanti"))],
         "lst_free": free,
         "lst_total": total,
-        "lst_owned": total - free,
+        "lst_owned": total - free - out,
+        "lst_out": out,
         "lst_can_manage": can_manage,
         "lst_mantra": bool(league is not None and league.is_mantra),
         # Arrivati dal wizard o da una sessione ripresa: la lega non ha ancora il listone.
@@ -175,11 +179,12 @@ def _registry_context(request, pool, base_url, league, can_manage, vista):
     if club.isdigit():
         registry = registry.filter(club_api_id=int(club))
     if in_league == "free":
-        registry = registry.filter(id__in=players.filter(owner__isnull=True).values("footballer_id"))
+        registry = registry.filter(id__in=players.free_agents().values("footballer_id"))
     elif in_league == "owned":
         registry = registry.filter(id__in=players.filter(owner__isnull=False).values("footballer_id"))
     elif in_league == "out":
-        registry = registry.exclude(id__in=players.values("footballer_id"))
+        registry = registry.exclude(id__in=players.exclude(owner__isnull=True, in_listone=False)
+                                    .values("footballer_id"))
 
     page = Paginator(registry.order_by("name", "id") if vista == "anagrafica" else registry.none(),
                      50).get_page(request.GET.get("page"))

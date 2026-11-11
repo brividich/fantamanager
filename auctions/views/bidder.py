@@ -313,7 +313,7 @@ def participant_watch_search(request, auction_id):
     q = (request.GET.get("q") or "").strip()
     if len(q) < 2:
         return JsonResponse({"ok": True, "results": []})
-    qs = Player.objects.filter(owner__isnull=True)
+    qs = Player.objects.free_agents()
     if participant.league_id is not None:
         qs = qs.filter(league=participant.league_id)
     # Match on the accent-stripped name: mid-auction nobody types "Montipò"

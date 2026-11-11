@@ -186,7 +186,7 @@ def place_market_bid(
 
     # Il mercato vale solo per la sua lega: anche un calciatore senza lega
     # (listone globale) non si compra nella sessione di una lega.
-    if player.owner_id is not None or player.league_id != session.league_id:
+    if not player.is_free_agent or player.league_id != session.league_id:
         return {"ok": False, "error": "player_unavailable", "message": "Calciatore non disponibile sul mercato svincolati."}
     from .bidding import gk_clubs_problem
     if gk_clubs_problem(participant, player) and not (session.release_after_count and _gk_swap_frees_club(participant)):
@@ -647,7 +647,8 @@ class _Plan:
 
     def _resolve_player(self, player_id, bids):
         player = bids[0].player
-        if self.owner.get(player_id) is not None:
+        # Preso nel frattempo, o uscito dal listone dopo l'offerta.
+        if self.owner.get(player_id) is not None or not player.in_listone:
             for b in bids:
                 self._decide(b, MarketBid.Status.LOST, "Calciatore non più disponibile")
             return
@@ -1873,7 +1874,7 @@ def acquire_free_agent(session_id, participant_id, player_id, release_player_id=
     except Player.DoesNotExist:
         return {"ok": False, "error": "player_not_found", "message": "Calciatore non trovato."}
 
-    if player.owner_id is not None or player.league_id != session.league_id:
+    if not player.is_free_agent or player.league_id != session.league_id:
         return {"ok": False, "error": "player_unavailable", "message": "Calciatore non più disponibile tra gli svincolati."}
 
     from .bidding import gk_clubs_problem
@@ -2215,7 +2216,7 @@ def place_waiver_claim(session_id, participant_id, player_id, priority=1, releas
     except Player.DoesNotExist:
         return {"ok": False, "error": "player_not_found", "message": "Calciatore non trovato."}
 
-    if player.owner_id is not None or player.league_id != session.league_id:
+    if not player.is_free_agent or player.league_id != session.league_id:
         return {"ok": False, "error": "player_unavailable", "message": "Calciatore non disponibile sul mercato svincolati."}
     from .bidding import gk_clubs_problem
     if gk_clubs_problem(participant, player):
@@ -2393,8 +2394,9 @@ def _run_waiver_draft(session, preview=False):
                 if c.player_id in awarded_player_ids:
                     outcome[c.id] = (MarketBid.Status.LOST, "Calciatore già assegnato a un'altra squadra con priorità più alta")
                     continue
-                if c.player.owner_id is not None:
-                    # Preso nel frattempo altrove (free agency, assegnazione dell'admin).
+                if not c.player.is_free_agent:
+                    # Preso nel frattempo altrove (free agency, assegnazione
+                    # dell'admin) o uscito dal listone.
                     outcome[c.id] = (MarketBid.Status.LOST, "Calciatore non più svincolato")
                     continue
                 if c.player.rescinded_from_id == pid:

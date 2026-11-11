@@ -358,7 +358,7 @@ def admin_player_search(request):
     league = target_league(request)
     if not user_can_manage_scope(request.user, league):
         return JsonResponse({"ok": True, "results": [], "total": 0})
-    qs = Player.objects.filter(owner__isnull=True)
+    qs = Player.objects.free_agents()
     qs = qs.filter(league=league) if league is not None else qs.filter(league__isnull=True)
 
     needle = importers.normalize_name(q)
