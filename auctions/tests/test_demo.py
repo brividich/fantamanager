@@ -53,6 +53,10 @@ class DemoLeagueTests(TestCase):
         self.assertTrue(any(w.get("release_pending") for w in summary["won"]))    # conferme da fare
         mine = Participant.objects.get(league=res["league"], display_name="La tua squadra (prova)")
         self.assertFalse(s.bids.filter(participant=mine).exists())   # la tua squadra non ha mosse
+        for kind in ("buste", "buste_taglio"):
+            league = demo.create_demo(self.sup, kind, "finito", seed=3)["league"]
+            self.assertFalse(Player.objects.filter(league=league, owner__isnull=False,
+                                                   contract_years__isnull=True).exists(), kind)
         done = demo.create_demo(self.sup, "buste", "finito", seed=3)["session"]
         self.assertFalse(any(w.get("release_pending") for w in done.results_summary["won"]))
         self.assertFalse(any(not t.get("settled") for t in done.results_summary.get("tied", [])))

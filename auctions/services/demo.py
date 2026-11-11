@@ -224,6 +224,13 @@ class _Sim:
             s.refresh_from_db()
         if self.stage == "concluso" and after:
             self.note("Restano da confermare alcune sostituzioni e i pareggi: falli tu dalla pagina della sessione.")
+        if self.stage == "finito" and self.lg.contracts_enabled:
+            # A mercato finito anche i dadi del contratto sono tirati.
+            from .contracts import roll_contract
+            for pl in Player.objects.filter(league=self.lg, owner__isnull=False, contract_years__isnull=True):
+                res = roll_contract(pl.id, by_admin=True, rng=self.rng)
+                if res.get("ok"):
+                    self.note(f"Dado contratto di {pl.name}: {res['years']} ann{'o' if res['years'] == 1 else 'i'}")
 
     # --- free agency, waiver, clausole ---------------------------------------
 
