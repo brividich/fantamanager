@@ -254,6 +254,73 @@ class SupervisorPgRestoreTests(TestCase):
         self.assertContains(r, "il primo clic salva lo stato")
 
 
+class SupervisorPgManualBackupTests(TestCase):
+    """«Crea Snapshot» su PostgreSQL: l'app chiede il dump al servizio backup
+    del compose e dice com'è andata, senza un «completato» che non c'è."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser("sup_bk", "b@x.it", "pass12345")
+        self.client.force_login(self.admin)
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.folder = Path(tmp.name)
+        patches = [mock.patch("auctions.backup._is_postgres", return_value=True),
+                   mock.patch("auctions.backup._db_path", return_value=None),
+                   mock.patch("auctions.backup._backup_dir", return_value=self.folder)]
+        for patch in patches:
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def _ask(self):
+        return self.client.post("/supervisor/", {"action": "manual_backup"}, follow=True)
+
+    def _age(self, name, seconds):
+        import os
+        import time
+        path = self.folder / name
+        path.touch()
+        os.utime(path, (time.time() - seconds, time.time() - seconds))
+        return path
+
+    def test_the_request_is_announced_not_reported_as_done(self):
+        r = self._ask()
+        self.assertTrue((self.folder / backup.PG_REQUEST_FILE).exists())
+        self.assertNotContains(r, "completato con successo")
+        self.assertContains(r, "Richiesta inviata al servizio backup")
+        self.assertContains(r, "Backup richiesto alle")
+        self.assertContains(r, "location.reload")
+
+    def test_a_request_nobody_picks_up_says_to_start_the_service(self):
+        self._age(backup.PG_REQUEST_FILE, 600)
+        r = self._ask()
+        self.assertContains(r, "Richiesta di backup registrata, ma")
+        self.assertContains(r, "docker compose up -d backup")
+        # La richiesta vecchia tiene la sua ora: resta «in attesa da troppo».
+        self.assertTrue(backup.pg_backup_status()["stuck"])
+        self.assertNotContains(r, "location.reload")
+
+    def test_a_stopped_service_and_a_failing_dump_are_told_apart(self):
+        self._age(backup.PG_REQUEST_FILE, 900)
+        self._age(backup.PG_SERVICE_FILE, 3600)
+        self.assertIn("è fermo dal", backup.pg_backup_status()["problem"])
+        self._age(backup.PG_SERVICE_FILE, 30)
+        self.assertIn("è acceso ma", backup.pg_backup_status()["problem"])
+        (self.folder / backup.PG_ERROR_FILE).write_text("pg_dump: error: connection to server failed\n")
+        r = self.client.get("/supervisor/?tab=reports")
+        self.assertContains(r, "L&#x27;ultimo backup non è riuscito")
+        self.assertContains(r, "connection to server failed")
+
+    def test_all_quiet_when_the_service_did_its_job(self):
+        self._age(backup.PG_SERVICE_FILE, 30)
+        status = backup.pg_backup_status()
+        self.assertEqual((status["pending"], status["problem"]), (None, ""))
+
+    def test_an_unwritable_folder_is_an_error(self):
+        with mock.patch("auctions.backup.request_pg_dump", return_value=None):
+            r = self._ask()
+        self.assertContains(r, "non è scrivibile")
+
+
 class PgRestoreDatabaseTests(django.test.TransactionTestCase):
     """Il ripristino vero, su PostgreSQL (CI «django-postgres»)."""
 
