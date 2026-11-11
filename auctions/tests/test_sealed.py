@@ -186,7 +186,10 @@ class SealedBidTests(TestCase):
         self.assertEqual(mine["submitted"], 2)
         self.assertEqual(mine["your_amount"], "160")
         self.assertEqual(mine["reveal"], [])
-        self.assertNotIn("500", json.dumps(mine))
+        # Nessun valore porta la busta di B. (L'orario ha i microsecondi: un
+        # «500» dentro ends_at non è la busta, e faceva fallire il test a caso.)
+        self.assertNotIn("500", [str(v) for k, v in mine.items() if k != "ends_at"])
+        self.assertNotIn("500", json.dumps({k: v for k, v in mine.items() if k != "ends_at"}))
         # Allo spoglio le buste diventano pubbliche.
         services.resolve_sealed(auction.id, force=True)
         auction.refresh_from_db()
