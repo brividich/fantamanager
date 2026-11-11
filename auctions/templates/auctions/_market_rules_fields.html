@@ -114,7 +114,7 @@ nome, così chi salva sa che c'erano anche quando sono spente.
 <div class="mr-checks">
     <span class="mr-lbl">Con la sostituzione obbligatoria, chi esce si sceglie</span>
     <label><input type="radio" name="release_timing" value="after"{% if s.release_after %} checked{% endif %}>
-        Dopo lo spoglio, per ogni giocatore vinto (dall'app, o l'admin per la squadra)</label>
+        Dopo lo spoglio: con le buste si dichiara chi si lascerebbe andare, poi si conferma (dall'app, o l'admin per la squadra)</label>
     <label><input type="radio" name="release_timing" value="bid"{% if not s.release_after %} checked{% endif %}>
         Con la busta: esce da solo se la busta vince</label>
 </div>

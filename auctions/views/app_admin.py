@@ -93,8 +93,8 @@ def league_admin_digest(league):
         if waiting:
             teams = sorted({w["winner_name"] for w in waiting})
             items.append(_todo(
-                "warn", "mail", f"Buste: {len(waiting)} sostituzion{'e' if len(waiting) == 1 else 'i'} da scegliere",
-                f"Chi esce dalla rosa al posto dei giocatori vinti in {done.title}: lo scelgono "
+                "warn", "mail", f"Buste: {len(waiting)} sostituzion{'e' if len(waiting) == 1 else 'i'} da confermare",
+                f"Chi esce dalla rosa al posto dei giocatori vinti in {done.title}: lo confermano "
                 f"le squadre dall'app, o tu dalla sessione ({', '.join(teams)}).",
                 reverse("app_regia_market_session", args=[done.id]), "Apri la sessione"))
             break

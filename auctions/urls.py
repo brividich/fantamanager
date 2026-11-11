@@ -286,6 +286,7 @@ urlpatterns = [
     path("app/mercato/bid/", views.app_market_bid, name="app_market_bid"),
     path("app/mercato/bid/delete/", views.app_market_delete_bid, name="app_market_delete_bid"),
     path("app/mercato/release/", views.app_market_release, name="app_market_release"),
+    path("app/mercato/release-list/", views.app_market_release_list, name="app_market_release_list"),
     path("app/mercato/free-agency/buy/", views.app_market_free_agency_buy, name="app_market_free_agency_buy"),
     path("app/mercato/buyout/execute/", views.app_market_buyout_execute, name="app_market_buyout_execute"),
     path("app/mercato/waiver/claim/", views.app_market_waiver_claim, name="app_market_waiver_claim"),

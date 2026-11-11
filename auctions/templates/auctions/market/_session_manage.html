@@ -10,7 +10,7 @@ arrivano da mk_labels (SESSION_LABELS in views/admin_market.py) e i rinnovi
 hanno un quadro tutto loro (renewals: contratti da dichiarare e dadi per squadra).
 
 Parametri: s, current_league, participants_stats, delivered, bids_list,
-results, is_preview, sealed, pending_releases, free_total, free_by_role, reachable, mail_ready, now,
+results, is_preview, sealed, pending_releases, pending_teams, free_total, free_by_role, reachable, mail_ready, now,
 mk_labels, is_buste, is_renewals, renewals,
   mk_back  pagina a cui tornare dopo un'azione (questa)
   mk_list  pagina a cui tornare dopo aver eliminato la sessione
@@ -46,8 +46,10 @@ mk_labels, is_buste, is_renewals, renewals,
             <li>Se restano pareggi, in <b>Pareggi riscontrati</b> scegli per ogni giocatore <b>Sorteggio</b> o a chi assegnarlo e premi <b>Risolvi</b>.</li>
             {% endif %}
             {% if pending_releases %}
-            <li><b>Adesso:</b> ogni giocatore vinto entra al posto di un pari ruolo della rosa. Le squadre scelgono chi esce dall'app
-                (Mercato → questa sessione); per chi non lo fa, scegli tu in <b>Aggiudicazioni effettuate</b> e premi <b>Sostituisci</b>.
+            <li><b>Adesso:</b> ogni giocatore vinto entra al posto di un pari ruolo della rosa. Le squadre confermano chi esce dall'app
+                (Mercato → questa sessione), partendo dalla loro lista «Chi lasceresti andare»; per chi non lo fa, controlla le scelte in
+                <b>Aggiudicazioni effettuate</b> e premi <b>Conferma</b> sulla squadra{% if current_league.contracts_enabled %}: con
+                <b>Conferma e tira i dadi</b> si tirano anche i dadi del contratto, con <b>Conferma, dadi dopo</b> restano da tirare in Contratti{% endif %}.
                 Ne mancano {{ pending_releases|length }}.</li>
             {% endif %}
             {% if s.status == "resolved" %}
@@ -297,8 +299,24 @@ mk_labels, is_buste, is_renewals, renewals,
 <div class="mk-banner warn">
     <svg class="ic"><use href="#i-info"/></svg>
     <span><b>{{ pending_releases|length }} sostituzion{{ pending_releases|length|pluralize:"e,i" }} da scegliere.</b>
-    Finché non si sceglie chi esce, la squadra ha un giocatore in più:
-    {% for w in pending_releases %}{{ w.player_name }} ({{ w.winner_name }}){% if not forloop.last %}, {% endif %}{% endfor %}.</span>
+    In «Aggiudicazioni effettuate» per ogni giocatore vinto c'è già chi esce, preso dalla lista «Chi lasceresti andare»
+    della squadra: cambialo se serve (anche fuori lista) e conferma la squadra qui sotto. Le squadre possono farlo dall'app.
+    Finché non si conferma, la squadra ha un giocatore in più.</span>
+</div>
+<div class="mk-col" style="gap:8px;margin-bottom:12px">
+    {% for t in pending_teams %}
+    <form id="release-team-{{ t.id }}" method="post" action="{% url 'admin_market_release' s.id %}" class="mk-tie-form">
+        {% csrf_token %}<input type="hidden" name="next" value="{{ mk_back }}">
+        <input type="hidden" name="winner_id" value="{{ t.id }}">
+        <b>{{ t.name }}</b> <span class="muted">· {{ t.count }} da confermare</span>
+        {% if current_league.contracts_enabled %}
+        <button type="submit" name="roll" value="1" class="fm-btn fm-btn-primary fm-btn-sm">Conferma e tira i dadi</button>
+        <button type="submit" name="roll" value="0" class="fm-btn fm-btn-secondary fm-btn-sm">Conferma, dadi dopo</button>
+        {% else %}
+        <button type="submit" name="roll" value="0" class="fm-btn fm-btn-primary fm-btn-sm">Conferma</button>
+        {% endif %}
+    </form>
+    {% endfor %}
 </div>
 {% endif %}
 {% if results.tied %}
@@ -378,15 +396,10 @@ mk_labels, is_buste, is_renewals, renewals,
                 <td>{% if w.released_player %}<span class="mk-cut">✂ {{ w.released_player }}</span>
                     {% elif w.release_pending and not is_preview %}
                     {% if w.release_options %}
-                    <form method="post" action="{% url 'admin_market_release' s.id %}" class="mk-tie-form">
-                        {% csrf_token %}<input type="hidden" name="next" value="{{ mk_back }}">
-                        <input type="hidden" name="bid_id" value="{{ w.bid_id }}">
-                        <select name="release_player_id" required aria-label="Chi esce al posto di {{ w.player_name }}">
-                            <option value="">Chi esce?</option>
-                            {% for o in w.release_options %}<option value="{{ o.id }}">{{ o.name }}{% if o.team %} ({{ o.team }}){% endif %}</option>{% endfor %}
-                        </select>
-                        <button type="submit" class="fm-btn fm-btn-primary fm-btn-sm">Sostituisci</button>
-                    </form>
+                    <select name="rel_{{ w.bid_id }}" form="release-team-{{ w.winner_id }}" required aria-label="Chi esce al posto di {{ w.player_name }}">
+                        <option value="">Chi esce?</option>
+                        {% for o in w.release_options %}<option value="{{ o.id }}"{% if o.id == w.proposed_id %} selected{% endif %}>{{ o.name }}{% if o.team %} ({{ o.team }}){% endif %}{% if o.id == w.proposed_id %} · dalla lista{% endif %}</option>{% endfor %}
+                    </select>
                     {% else %}<span class="muted">nessun {{ w.player_role }} sostituibile in rosa</span>{% endif %}
                     {% elif w.release_pending %}<span class="muted">si sceglie dopo lo spoglio</span>
                     {% else %}<span class="muted">—</span>{% endif %}</td>

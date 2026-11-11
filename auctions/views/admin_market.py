@@ -21,6 +21,8 @@ from ..services.trade import decide_trade
 from ..services.market import (
     build_buste_csv,
     choose_market_release,
+    confirm_market_releases,
+    proposed_releases,
     pending_releases,
     release_options,
     get_buste_report_context,
@@ -513,9 +515,13 @@ def session_manage_context(request, session):
     if session.status == MarketSession.Status.RESOLVED:
         results = copy.deepcopy(session.results_summary) or None
         # Taglio dopo lo spoglio: chi può uscire per ogni giocatore vinto.
+        proposals = {}
         for w in (results or {}).get("won", []):
             if w.get("release_pending"):
                 w["release_options"] = release_options(session, w)
+                if w["winner_id"] not in proposals:
+                    proposals[w["winner_id"]] = proposed_releases(session, w["winner_id"])
+                w["proposed_id"] = proposals[w["winner_id"]].get(w["bid_id"])
                 pending.append(w)
     elif request.GET.get("preview") == "1" and labels["preview"] and not sealed:
         results = plan_market_resolution(session.id)
@@ -540,6 +546,9 @@ def session_manage_context(request, session):
         "is_preview": is_preview,
         "sealed": sealed,
         "pending_releases": pending,
+        "pending_teams": [{"id": wid, "name": next(w["winner_name"] for w in pending if w["winner_id"] == wid),
+                           "count": sum(1 for w in pending if w["winner_id"] == wid)}
+                          for wid in dict.fromkeys(w["winner_id"] for w in pending)],
         "free_total": repair["free_total"],
         "free_by_role": repair["free_by_role"],
         "reachable": len(mail.league_recipients(league)),
@@ -952,14 +961,21 @@ def admin_market_settle_tie(request, session_id):
 @staff_member_required
 @require_POST
 def admin_market_release(request, session_id):
-    """Dopo lo spoglio: chi esce dalla rosa al posto di un giocatore vinto,
-    scelto dall'admin per la squadra (le squadre possono farlo dall'app)."""
+    """Dopo lo spoglio: l'admin conferma per una squadra chi esce al posto di
+    ogni giocatore vinto (le squadre possono farlo dall'app), e i dadi."""
     session, denied = _managed_session_or_403(request, session_id)
     if denied:
         return denied
-    res = choose_market_release(session.id, request.POST.get("bid_id"), request.POST.get("release_player_id"))
+    winner = request.POST.get("winner_id")
+    res = confirm_market_releases(session.id, int(winner) if str(winner).isdigit() else 0,
+                                  release_choices(request.POST), roll_dice=request.POST.get("roll") == "1")
     (messages.success if res["ok"] else messages.error)(request, res["message"])
     return redirect(_back(request, _dashboard_url(request, session)))
+
+
+def release_choices(post):
+    """Le scelte «chi esce» di un modulo di conferma: ``rel_<bid_id>`` = giocatore."""
+    return {int(k[4:]): v for k, v in post.items() if k.startswith("rel_") and k[4:].isdigit() and v}
 
 
 @staff_member_required

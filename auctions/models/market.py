@@ -174,3 +174,25 @@ class MarketBid(models.Model):
 
     def __str__(self):
         return f"{self.participant} -> {self.player.name} ({self.amount} FM, p{self.priority})"
+
+
+class MarketReleaseIntent(models.Model):
+    """Un giocatore che la squadra lascerebbe andare alle buste (regolamento
+    5.03, chi esce si sceglie dopo lo spoglio): la lista «Chi lasceresti
+    andare», dichiarata con le buste. Dopo lo spoglio propone gli abbinamenti
+    da confermare; alla conferma si può scegliere anche fuori lista."""
+
+    session = models.ForeignKey(MarketSession, on_delete=models.CASCADE, related_name="release_intents")
+    participant = models.ForeignKey(Participant, on_delete=models.CASCADE, related_name="release_intents")
+    player = models.ForeignKey(Player, on_delete=models.CASCADE, related_name="release_intents")
+    position = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["position", "id"]
+        constraints = [
+            models.UniqueConstraint(fields=["session", "participant", "player"], name="uniq_release_intent"),
+        ]
+
+    def __str__(self):
+        return f"{self.participant} lascerebbe {self.player.name}"

@@ -11,6 +11,7 @@ from django.utils import timezone
 from ..models import (
     Auction,
     MarketBid,
+    MarketReleaseIntent,
     MarketSession,
     Participant,
     Player,
@@ -272,6 +273,19 @@ def place_market_bid(
         prio = max(1, int(priority or 1))
     except (ValueError, TypeError):
         prio = 1
+
+    if session.release_after_count:
+        # Lista «Chi lasceresti andare»: per ogni ruolo almeno un giocatore in
+        # lista per ogni giocatore diverso su cui la squadra offre.
+        need = release_list_needs(session, participant.id, extra=player).get(player.role, 0)
+        have = release_list_counts(session, participant.id).get(player.role, 0)
+        if need > have:
+            return {
+                "ok": False, "error": "release_list_short",
+                "message": f"Prima metti in «Chi lasceresti andare» un altro "
+                           f"{ROLE_NAMES.get(player.role, player.role)} della tua rosa: con questa busta "
+                           f"te ne servono {_role_count(player.role, need)} in lista, ne hai {have}.",
+            }
 
     # Con la regola "totale" ogni invio è una busta in più: un doppio tocco
     # ne consumerebbe due uguali delle offerte a disposizione.
@@ -1184,6 +1198,160 @@ def settle_market_tie(session_id, player_id, winner_id=None, rng=None, rebids=No
 
 
 # --- Dopo lo spoglio: chi esce per ogni giocatore vinto (5.03) ----------------
+
+
+ROLE_NAMES = {"P": "portiere", "D": "difensore", "C": "centrocampista", "A": "attaccante"}
+ROLE_PLURALS = {"P": "portieri", "D": "difensori", "C": "centrocampisti", "A": "attaccanti"}
+
+
+def _role_count(role, n):
+    """«1 centrocampista», «2 centrocampisti»."""
+    return f"{n} {ROLE_NAMES.get(role, role) if n == 1 else ROLE_PLURALS.get(role, role)}"
+
+
+# --- Lista «Chi lasceresti andare» (buste, chi esce dopo lo spoglio) -----------
+
+
+def release_list(session, participant_id):
+    """I giocatori in lista della squadra, nell'ordine in cui li ha messi."""
+    return [ri.player for ri in MarketReleaseIntent.objects.filter(
+        session=session, participant_id=participant_id).select_related("player")]
+
+
+def release_list_needs(session, participant_id, *, extra=None):
+    """Per ruolo, su quanti giocatori diversi la squadra offre (``extra``: la
+    busta che sta consegnando)."""
+    offered = set(MarketBid.objects.filter(session=session, participant_id=participant_id)
+                  .values_list("player_id", "player__role"))
+    if extra is not None:
+        offered.add((extra.id, extra.role))
+    needs = defaultdict(int)
+    for _pid, role in offered:
+        needs[role] += 1
+    return dict(needs)
+
+
+def release_list_counts(session, participant_id):
+    """Per ruolo, quanti giocatori in lista sono ancora della squadra."""
+    counts = defaultdict(int)
+    for pl in release_list(session, participant_id):
+        if pl.owner_id == participant_id and not pl.abroad_list:
+            counts[pl.role] += 1
+    return dict(counts)
+
+
+@transaction.atomic
+def set_release_list(session_id, participant_id, player_ids):
+    """Salva la lista «Chi lasceresti andare» della squadra (sostituisce la
+    precedente). Solo a buste aperte, nelle sessioni dove chi esce si sceglie
+    dopo lo spoglio; per ogni ruolo non meno giocatori di quelli su cui offre."""
+    session = MarketSession.objects.select_for_update().filter(pk=session_id).first()
+    if session is None or not session.release_after_count:
+        return {"ok": False, "message": "In questa sessione non si dichiara chi si lascerebbe andare."}
+    if not session.is_open:
+        return {"ok": False, "message": "Le buste sono chiuse: la lista non si cambia più."}
+    ids = []
+    for raw in player_ids:
+        if str(raw).isdigit() and int(raw) not in ids:
+            ids.append(int(raw))
+    players = {p.pk: p for p in Player.objects.filter(pk__in=ids, owner_id=participant_id)}
+    chosen = []
+    for pid in ids:
+        pl = players.get(pid)
+        if pl is None or pl.abroad_list:
+            return {"ok": False, "message": "Puoi mettere in lista solo giocatori della tua rosa: ricarica la pagina."}
+        problem = _cut_problem(pl)
+        if problem:
+            return {"ok": False, "message": problem}
+        chosen.append(pl)
+    have = defaultdict(int)
+    for pl in chosen:
+        have[pl.role] += 1
+    for role, need in sorted(release_list_needs(session, participant_id).items()):
+        if have[role] < need:
+            return {"ok": False, "message": f"Hai buste su {_role_count(role, need)} diversi: in lista ne servono "
+                                            f"almeno {need} (ne hai messi {have[role]}). Ritira una busta o "
+                                            f"aggiungi un {ROLE_NAMES.get(role, role)}."}
+    MarketReleaseIntent.objects.filter(session=session, participant_id=participant_id).delete()
+    MarketReleaseIntent.objects.bulk_create([
+        MarketReleaseIntent(session=session, participant_id=participant_id, player=pl, position=i)
+        for i, pl in enumerate(chosen)
+    ])
+    return {"ok": True, "message": f"Lista salvata: {len(chosen)} giocator{'e' if len(chosen) == 1 else 'i'} "
+                                   "che lasceresti andare."}
+
+
+def proposed_releases(session, participant_id):
+    """Dopo lo spoglio: per ogni acquisto da sostituire, il primo giocatore
+    della lista, di pari ruolo e che può uscire, non già proposto per un altro.
+    ``{bid_id: player_id}``: è la scelta già pronta, che si può cambiare."""
+    listed = [ri.player_id for ri in MarketReleaseIntent.objects.filter(session=session, participant_id=participant_id)]
+    used, out = set(), {}
+    for entry in pending_releases(session, participant_id):
+        options = {pl.pk for pl in release_options(session, entry)}
+        pick = next((pid for pid in listed if pid in options and pid not in used), None)
+        if pick is not None:
+            used.add(pick)
+            out[entry["bid_id"]] = pick
+    return out
+
+
+class _ConfirmAbort(Exception):
+    pass
+
+
+def confirm_market_releases(session_id, winner_id, choices, *, roll_dice=False, participant_id=None):
+    """La conferma dopo lo spoglio: per ogni giocatore vinto da ``winner_id``
+    chi esce (``choices`` = ``{bid_id: player_id}``, anche fuori lista), tutto
+    o niente. Con ``roll_dice`` (e i contratti attivi) tira subito il dado
+    contratti dei giocatori presi; altrimenti restano da tirare in Rosa e
+    nella pagina Contratti. ``participant_id``: la squadra dall'app; None:
+    l'admin."""
+    session = MarketSession.objects.select_related("league").filter(pk=session_id).first()
+    if session is None:
+        return {"ok": False, "message": "Sessione non trovata: ricarica la pagina."}
+    if participant_id is not None and participant_id != winner_id:
+        return {"ok": False, "message": "Puoi confermare solo i tuoi acquisti."}
+    pending = pending_releases(session, winner_id)
+    if not pending:
+        return {"ok": False, "message": "Non ci sono sostituzioni da confermare."}
+    picks = []
+    for entry in pending:
+        raw = choices.get(entry["bid_id"]) or choices.get(str(entry["bid_id"]))
+        if not raw:
+            return {"ok": False, "message": f"Scegli chi esce al posto di {entry['player_name']}."}
+        picks.append((entry, str(raw)))
+    if len({raw for _e, raw in picks}) != len(picks):
+        return {"ok": False, "message": "Lo stesso giocatore non può uscire due volte: "
+                                        "scegline uno diverso per ogni acquisto."}
+    try:
+        with transaction.atomic():
+            for entry, raw in picks:
+                res = choose_market_release(session.id, entry["bid_id"], raw, participant_id=participant_id)
+                if not res["ok"]:
+                    raise _ConfirmAbort(res["message"])
+    except _ConfirmAbort as exc:
+        return {"ok": False, "message": f"{exc} Nessuna sostituzione è stata fatta."}
+    lines = []
+    for entry, _raw in picks:
+        out = next((w for w in (MarketSession.objects.get(pk=session.pk).results_summary or {}).get("won", [])
+                    if w.get("bid_id") == entry["bid_id"]), entry)
+        lines.append(f"{entry['player_name']} al posto di {out.get('released_player') or '—'}")
+    dice = []
+    if roll_dice and session.league.contracts_enabled:
+        from .contracts import roll_contract
+        for entry, _raw in picks:
+            res = roll_contract(entry["player_id"], participant_id=participant_id, by_admin=participant_id is None)
+            if res.get("ok"):
+                dice.append(f"{entry['player_name']} {res['years']} ann{'o' if res['years'] == 1 else 'i'}")
+            else:
+                dice.append(f"{entry['player_name']}: {res.get('message', 'dado non tirato')}")
+    message = "Confermato: " + "; ".join(lines) + "."
+    if dice:
+        message += " Dadi contratto: " + ", ".join(dice) + "."
+    elif session.league.contracts_enabled:
+        message += " I dadi del contratto restano da tirare (Rosa o pagina Contratti)."
+    return {"ok": True, "message": message, "dice": dice}
 
 
 def _other_pending(session):
