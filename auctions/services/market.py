@@ -1458,19 +1458,25 @@ def confirm_market_releases(session_id, winner_id, choices, *, roll_dice=False, 
         return {"ok": False, "message": "Sessione non trovata: ricarica la pagina."}
     if participant_id is not None and participant_id != winner_id:
         return {"ok": False, "message": "Puoi confermare solo i tuoi acquisti."}
-    if participant_id is not None and any(
-            (d := release_deadline(session, w)) is not None and d <= timezone.now()
-            for w in pending_releases(session, winner_id)):
-        # In ritardo: prima si applica la lista, poi la squadra lo legge.
+
+    def expired(w):
+        when = release_deadline(session, w)
+        return when is not None and when <= timezone.now()
+
+    was_late = participant_id is not None and any(expired(w) for w in pending_releases(session, winner_id))
+    if was_late:
+        # In ritardo: prima si applica la lista agli acquisti scaduti.
         apply_overdue_releases(league=session.league)
         session.refresh_from_db()
-        if not pending_releases(session, winner_id) or any(
-                (d := release_deadline(session, w)) is not None and d <= timezone.now()
-                for w in pending_releases(session, winner_id)):
+    pending = pending_releases(session, winner_id)
+    if participant_id is not None:
+        # La squadra conferma solo gli acquisti ancora nei tempi; quelli
+        # scaduti senza proposta dalla lista li decide l'admin.
+        pending = [w for w in pending if not expired(w)]
+        if not pending and was_late:
             return {"ok": False, "error": "deadline_passed",
                     "message": "Il tempo per confermare è scaduto: esce chi era nella tua lista "
                                "(dove manca, decide l'admin). Per cambiare qualcosa chiedi all'admin della lega."}
-    pending = pending_releases(session, winner_id)
     if not pending:
         return {"ok": False, "message": "Non ci sono sostituzioni da confermare."}
     picks = []

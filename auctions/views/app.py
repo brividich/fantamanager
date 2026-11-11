@@ -114,7 +114,10 @@ def app_home(request):
     if league is not None:
         for done in MarketSession.objects.filter(league=league, status=MarketSession.Status.RESOLVED,
                                                  release_after=True).order_by("-updated_at")[:5]:
-            mine = services.pending_releases(done, participant.id)
+            now = timezone.now()
+            # Gli acquisti scaduti senza proposta dalla lista li decide l'admin.
+            mine = [w for w in services.pending_releases(done, participant.id)
+                    if (d := services.release_deadline(done, w)) is None or d > now]
             if mine:
                 release_session, release_count = done, len(mine)
                 deadlines = [d for d in (services.release_deadline(done, w) for w in mine) if d is not None]
@@ -675,7 +678,9 @@ def app_mercato(request):
                 w["release_options"] = services.release_options(market_session, w)
                 w["proposed_id"] = proposals.get(w["bid_id"])
                 when = services.release_deadline(market_session, w)
-                if when is not None and (my_deadline is None or when < my_deadline):
+                # Scaduto (senza proposta valida dalla lista): decide l'admin.
+                w["expired"] = when is not None and when <= timezone.now()
+                if when is not None and not w["expired"] and (my_deadline is None or when < my_deadline):
                     my_deadline = when
         my_lost = [l for l in lost_list if l.get("participant_name") == participant.display_name]
         buste_results = {
@@ -683,7 +688,8 @@ def app_mercato(request):
             "lost": lost_list,
             "tied": tied_list,
             "my_won": my_won,
-            "my_pending": [w for w in my_won if w.get("release_pending")],
+            "my_pending": [w for w in my_won if w.get("release_pending") and not w.get("expired")],
+            "my_expired": [w for w in my_won if w.get("expired")],
             "my_deadline": my_deadline,
             "my_lost": my_lost,
             "total_acquisitions": summary.get("total_acquisitions", len(won_list)),
