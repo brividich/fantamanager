@@ -1,0 +1,14 @@
+{% extends "auctions/app_base.html" %}
+{% comment %}
+Rose per il manager (/app/rose/): la sua e quelle di tutte le squadre, in sola
+lettura. Il contenuto è il partial _rose.html, lo stesso della pagina Rose
+dell'admin (console e Regia), dove ci sono anche i comandi per gestirle.
+{% endcomment %}
+{% block title %}Rose — FantaManager{% endblock %}
+{% block mainclass %}wide{% endblock %}
+{% block app %}
+<div class="fm-onerow noprint" style="margin-bottom:6px">
+    <a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% if participant %}{% url 'app_rosa' %}{% else %}{% url 'app_lega' %}{% endif %}"><svg class="ic"><use href="#i-arrow-left"/></svg> {% if participant %}La mia rosa{% else %}Lega{% endif %}</a>
+</div>
+{% include "auctions/_rose.html" %}
+{% endblock %}

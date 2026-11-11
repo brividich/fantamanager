@@ -43,6 +43,16 @@ Prima versione numerata (prima l'etichetta era 1.2.0, senza rilasci).
   offerte a pari importo, dove l'orario può decidere. Visibile solo dopo lo
   spoglio. Corretta la data di spoglio, che restava «In corso».
 
+### Rose e contratti
+- Nuova pagina **Rose**, uguale nella console (barra in alto) e nell'app
+  (Regia → Strumenti → Rose): le rose di tutte le squadre in una schermata,
+  oppure una squadra alla volta. L'admin aggiunge un giocatore libero, cambia
+  costo, squadra o anni di contratto, svincola scegliendo il rimborso e regola
+  i crediti. I manager la aprono dalla Rosa («Tutte le rose»), in sola lettura.
+- Contratti: «Imposta» (anni scritti a mano) c'è per ogni giocatore, anche per
+  chi è «da tirare» o in rinnovo; vuoto lo rimette «da tirare»; il massimo
+  segue il dado della lega (prima era fisso a 4).
+
 ### Backup e ripristino
 - Su PostgreSQL (NAS, Docker) il Supervisor ripristina un backup dal browser:
   prima salva lo stato attuale, poi ripristina tutto in una transazione.

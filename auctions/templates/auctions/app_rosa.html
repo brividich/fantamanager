@@ -116,6 +116,10 @@
                 <svg class="ic" style="width:13px;height:13px"><use href="#i-print"/></svg>
                 <span>Scheda Squadra (PDF)</span>
             </a>
+            <a href="{% url 'app_rose' %}" style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:8px;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);font-size:11.5px;font-weight:800;text-decoration:none;" title="Le rose di tutte le squadre della lega">
+                <svg class="ic" style="width:13px;height:13px"><use href="#i-users"/></svg>
+                <span>Tutte le rose</span>
+            </a>
         </div>
     </div>
     <div class="rosa-kpis">
@@ -137,7 +141,7 @@
         <ol>
             <li>Usa i chip in alto (<b>Tutti</b>, <b>P</b>, <b>D</b>…) per vedere un ruolo alla volta; tocca il nome di un giocatore per la sua scheda (fantamedia, gol, assist, quotazione).</li>
             {% if league_teams|length > 1 %}
-            <li>Dal menu accanto al titolo scegli un'altra squadra della lega per vedere la sua rosa{% if not is_mine %}; <b>← Torna alla mia rosa</b> per tornare alla tua{% endif %}.</li>
+            <li>Dal menu accanto al titolo scegli un'altra squadra della lega per vedere la sua rosa{% if not is_mine %}; <b>← Torna alla mia rosa</b> per tornare alla tua{% endif %}. <b>Tutte le rose</b> le mostra tutte insieme.</li>
             {% endif %}
             {% if is_mine %}
             <li>Tocca <b>Formazione</b> per schierare i titolari della prossima giornata.</li>

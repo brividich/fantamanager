@@ -90,6 +90,7 @@ def admin_contracts(request):
         "priced_total": sum(p.preview for p in priced),
         "contract_faces": sorted(set(services.contract_faces(league))) if league else [1, 2, 3],
         "crules": services.contract_rules(league) if league else None,
+        "contract_max": services.contract_max_years(league) if league else 4,
         "roles": [("P", "Portieri"), ("D", "Difensori"), ("C", "Centrocampisti"), ("A", "Attaccanti")],
         "console_section": "Contratti",
         "console_active": "contracts",
@@ -218,7 +219,9 @@ def admin_contracts_action(request):
         return redirect(safe_next(request, _url(league)))
     elif action == "set":
         res = services.set_contract(player_id, request.POST.get("years"), note="Impostato dall'admin")
-        ok = f"Contratto impostato a {res.get('years')} anni."
+        years = res.get("years")
+        ok = ("Contratto rimesso da tirare." if years is None else
+              f"Contratto impostato a {years} ann{'o' if years == 1 else 'i'}.")
     elif action == "roll":
         manual = request.POST.get("manual_face") or None
         res = services.roll_contract(player_id, by_admin=True, manual_face=manual)

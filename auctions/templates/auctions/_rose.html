@@ -1,0 +1,352 @@
+{% comment %}
+Rose: le rose di tutte le squadre della lega.
+
+UNICA per la console (admin_rose.html, /dashboard/rose/), la Regia dell'app
+(stessa pagina, /app/regia/rose/) e l'app del manager (app_rose.html,
+/app/rose/): colonne, azioni e testi si cambiano qui.
+
+Dati da views/admin_rose.py:rose_context (``rose``). Con ``rose.manage``
+(l'admin della lega) ci sono i comandi: aggiungi un giocatore libero, cambia
+costo, squadra o contratto, svincola, regola i crediti. Ogni form manda
+next = questa pagina, così l'azione torna lì (console o app).
+{% endcomment %}{% load fm_pages %}
+<!-- rose:start -->
+<style>
+    .ro-wrap { container-type: inline-size; min-width: 0; }
+    .ro-head { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin: 6px 0 12px; }
+    .ro-head h1 { margin: 0; font-size: 26px; letter-spacing: .02em; }
+    .ro-head .sub { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+    .ro-flash { padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; margin-bottom: 8px;
+                border: 1px solid var(--accent-line); background: var(--accent-soft); color: var(--ink); }
+    .ro-flash.error { border-color: rgba(239,68,68,.35); background: rgba(239,68,68,.12); color: #f87171; }
+    .ro-flash.success { border-color: rgba(34,197,94,.35); background: rgba(34,197,94,.12); color: #22c55e; }
+
+    .ro-chips { gap: 6px; margin-bottom: 14px; }
+    .ro-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px;
+               border: 1px solid var(--line); background: var(--panel); color: var(--ink); font-size: 12.5px;
+               font-weight: 700; text-decoration: none; }
+    .ro-chip:hover { border-color: var(--accent-line); }
+    .ro-chip.on { background: var(--accent); border-color: var(--accent); color: #0a1108; }
+    .ro-chip .n { font-size: 11px; opacity: .75; font-variant-numeric: tabular-nums; }
+    .ro-chip.mine:not(.on) { border-color: var(--accent-line); color: var(--accent); }
+
+    /* Panoramica: una scheda per squadra. Le colonne seguono la larghezza
+       del riquadro (la colonna dell'app è più stretta della console). */
+    .ro-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+    @container (min-width: 560px) { .ro-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @container (min-width: 900px) { .ro-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+    @container (min-width: 1300px) { .ro-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+    .ro-card { padding: 0; overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
+    .ro-card.mine { border-color: var(--accent-line); box-shadow: 0 0 0 1px var(--accent-line) inset; }
+    .ro-card-head { padding: 12px 14px 10px; border-bottom: 1px solid var(--line); background: var(--panel-2); }
+    .ro-card-name { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 15px; color: var(--ink);
+                    text-decoration: none; min-width: 0; }
+    .ro-card-name span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ro-tag { flex-shrink: 0; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+              padding: 2px 7px; border-radius: 6px; background: var(--accent-soft); color: var(--accent); }
+    .ro-card-meta { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
+    .ro-card-meta b { color: var(--ink); }
+    .ro-card-body { padding: 6px 10px 8px; flex: 1; }
+    .ro-role { display: flex; align-items: center; gap: 6px; margin: 8px 2px 3px; font-size: 10.5px; font-weight: 800;
+               letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+    .ro-role small { margin-left: auto; font-weight: 700; letter-spacing: 0; text-transform: none; }
+    .ro-mini { display: flex; align-items: center; gap: 6px; padding: 3px 4px; font-size: 12.5px; border-radius: 6px; }
+    .ro-mini:nth-child(even) { background: rgba(255,255,255,.025); }
+    .ro-mini .nm { font-weight: 700; color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ro-mini .club { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+    .ro-mini .cost, .ro-row .cost { margin-left: auto; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .ro-none { font-size: 11.5px; color: var(--muted); font-style: italic; padding: 2px 4px; }
+    .ro-card-foot { padding: 8px 10px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; }
+
+    .pl-ct { font-size: 10.5px; font-weight: 800; padding: 2px 6px; border-radius: 6px; white-space: nowrap;
+             background: rgba(255,255,255,.05); color: var(--muted); border: 1px solid var(--line); flex-shrink: 0; }
+    .pl-ct.last { background: rgba(234,179,8,.15); color: #eab308; border-color: rgba(234,179,8,.3); }
+    .pl-ct.exp { background: rgba(239,68,68,.15); color: #f87171; border-color: rgba(239,68,68,.3); }
+
+    /* Una squadra: numeri, strumenti dell'admin, reparti. */
+    .ro-team-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+    .ro-team-head h2 { margin: 0; font-size: 21px; }
+    .ro-kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
+    @container (min-width: 620px) { .ro-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+    .ro-kpi { padding: 9px 12px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); }
+    .ro-kpi b { display: block; font-family: var(--display, inherit); font-size: 19px; color: var(--ink); line-height: 1.15;
+                font-variant-numeric: tabular-nums; }
+    .ro-kpi span { font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+    .ro-kpi small { font-size: 11.5px; color: var(--muted); font-weight: 600; }
+    .ro-actions { gap: 8px; margin-bottom: 12px; }
+
+    .ro-tools { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; margin-bottom: 12px; }
+    @container (min-width: 760px) { .ro-tools { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); } }
+    .ro-tool { padding: 12px 14px; min-width: 0; }
+    .ro-tool h3 { margin: 0 0 4px; font-size: 14.5px; display: flex; align-items: center; gap: 8px; }
+    .ro-tool p { margin: 0 0 8px; font-size: 12px; color: var(--muted); line-height: 1.45; }
+    .ro-form { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0; }
+    .ro-in { height: 32px; padding: 3px 8px; border-radius: 8px; border: 1px solid var(--line); background: rgba(0,0,0,.2);
+             color: var(--ink); font-size: 13px; box-sizing: border-box; min-width: 0; }
+    .ro-in.num { width: 76px; }
+    .ro-in.grow { flex: 1 1 160px; }
+    .ro-found { margin-top: 8px; border-top: 1px solid var(--line); }
+    .ro-found-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 2px; border-bottom: 1px solid var(--line); font-size: 13px; }
+    .ro-found-row .nm { font-weight: 700; min-width: 0; flex: 1 1 140px; }
+    .ro-found-row .nm small { color: var(--muted); font-weight: 600; }
+    .ro-note { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+    .ro-depts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+    @container (min-width: 860px) { .ro-depts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .ro-dept { padding: 0; overflow: hidden; min-width: 0; }
+    .ro-dept-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line);
+                    background: var(--panel-2); font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+    .ro-dept-head .cnt { margin-left: auto; color: var(--ink); letter-spacing: .02em; }
+    .ro-dept-head .cnt.full { color: #eab308; }
+    .ro-row { border-bottom: 1px solid var(--line); }
+    .ro-row:last-child { border-bottom: none; }
+    .ro-row-top { display: flex; align-items: center; gap: 8px; padding: 8px 12px; min-width: 0; list-style: none; }
+    .ro-row-top::-webkit-details-marker { display: none; }
+    summary.ro-row-top { cursor: pointer; }
+    summary.ro-row-top:hover { background: rgba(255,255,255,.03); }
+    .ro-row-id { min-width: 0; display: flex; flex-direction: column; }
+    .ro-row-id .nm { font-weight: 800; font-size: 13.5px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ro-row-id .club { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ro-edit-btn { flex-shrink: 0; font-size: 11.5px; font-weight: 800; padding: 4px 9px; border-radius: 7px;
+                   border: 1px solid var(--line); color: var(--accent); background: transparent; }
+    details.ro-row[open] .ro-edit-btn { background: var(--accent); color: #0a1108; border-color: var(--accent); }
+    .ro-edit { padding: 4px 12px 12px; display: flex; flex-direction: column; gap: 8px; background: rgba(0,0,0,.12); }
+    .ro-edit label { display: flex; flex-direction: column; gap: 3px; font-size: 10.5px; font-weight: 800;
+                     letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+    .ro-edit .ro-form { align-items: flex-end; }
+    .ro-edit .sep { font-size: 11px; color: var(--muted); padding-top: 4px; border-top: 1px dashed var(--line); }
+</style>
+
+<div class="ro-wrap">
+<div class="ro-head">
+    <div>
+        <h1>Rose</h1>
+        <div class="sub">{% if rose.manage %}Le rose di tutte le squadre: aggiungi, sposta, svincola, cambia costi, contratti e crediti.{% else %}La tua rosa e quelle di tutte le squadre della lega.{% endif %}</div>
+    </div>
+</div>
+
+<details class="howto noprint">
+    <summary><svg class="ic"><use href="#i-shirt"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        {% if rose.manage %}
+        Qui vedi e gestisci le rose di tutte le squadre della lega.
+        <ol>
+            <li>{% if rose.selected %}✓ Stai gestendo <b>{{ rose.selected.team.display_name }}</b>; per un'altra squadra tocca il suo nome nella riga in alto, <b>Tutte</b> per la panoramica.{% else %}<b>Adesso</b> scegli la squadra da gestire: tocca il suo nome nella riga in alto o <b>Gestisci</b> sulla sua scheda.{% endif %}</li>
+            <li>Per aggiungere un giocatore libero: in <b>Aggiungi un giocatore</b> scrivi nome o club, premi <b>Cerca</b>, controlla il prezzo (parte dalla quotazione) e premi <b>Aggiungi</b>.</li>
+            <li>Per cambiare costo, squadra{% if rose.contracts_on %} o anni di contratto{% endif %}: premi <b>Modifica</b> sulla riga del giocatore, cambia i campi e premi <b>Salva</b>. Se cambi squadra, la vecchia riavrà il costo e la nuova lo pagherà.</li>
+            <li>Per svincolare: <b>Modifica</b> → scegli il rimborso → <b>Svincola</b>.</li>
+            <li>Per bonus, malus o un nuovo budget: in <b>Crediti</b> scegli l'operazione, scrivi l'importo e premi <b>Applica</b>.</li>
+        </ol>
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> {% if rose.contracts_on %}Dadi, rinnovi e regole dei contratti sono nella pagina <a href="{% purl 'admin_contracts' %}?league={{ current_league.id }}">Contratti</a>. {% endif %}Ogni cambio finisce nei movimenti di mercato; i giocatori nuovi si caricano nel listone da <a href="{% purl 'admin_players' %}?league={{ current_league.id }}">Giocatori</a>.</div>
+        {% else %}
+        <ol>
+            <li>{% if rose.selected %}✓ Stai guardando <b>{{ rose.selected.team.display_name }}</b>; <b>Tutte</b> torna alla panoramica.{% else %}Qui sotto c'è una scheda per squadra{% if rose.mine %}, la tua per prima{% endif %}: tocca un nome nella riga in alto per vedere quella rosa da sola.{% endif %}</li>
+            {% if rose.mine %}<li>Formazione e svincoli della tua squadra sono nella pagina <a href="{% url 'app_rosa' %}">Rosa</a>.</li>{% endif %}
+            {% if can_manage_rose %}<li>Per cambiare le rose (aggiungere, spostare, svincolare, crediti) apri <a href="{% url 'app_regia_rose' %}?league={{ app_league.id }}">Rose in Regia</a>.</li>{% endif %}
+        </ol>
+        {% endif %}
+    </div>
+</details>
+
+{% if rose.manage and messages %}
+<div class="noprint" style="margin-bottom:10px">
+    {% for msg in messages %}<div class="ro-flash {{ msg.tags }}" role="status">{{ msg }}</div>{% endfor %}
+</div>
+{% endif %}
+
+{% if not rose.cards %}
+<div class="panel" style="padding:24px;text-align:center;color:var(--muted)">Nessuna squadra in questa lega.{% if rose.manage %} Aggiungile dalla pagina <a href="{% purl 'admin_participants' %}?league={{ current_league.id }}">Squadre</a>.{% endif %}</div>
+{% else %}
+<nav class="ro-chips fm-onerow noprint" aria-label="Squadre">
+    <a class="ro-chip{% if not rose.selected %} on{% endif %}" href="{{ rose.all_url }}">Tutte <span class="n">{{ rose.cards|length }}</span></a>
+    {% for c in rose.cards %}
+    <a class="ro-chip{% if rose.selected and rose.selected.team.id == c.team.id %} on{% endif %}{% if c.is_mine %} mine{% endif %}" href="{{ rose.team_url }}{{ c.team.id }}">{{ c.team.display_name }}{% if c.is_mine %} (tu){% endif %} <span class="n">{{ c.count }}</span></a>
+    {% endfor %}
+</nav>
+
+{% if not rose.selected %}
+{# ---------------------------------------------------------------- panoramica #}
+<div class="ro-grid">
+    {% for c in rose.cards %}
+    <section class="panel ro-card{% if c.is_mine %} mine{% endif %}" aria-label="Rosa {{ c.team.display_name }}">
+        <div class="ro-card-head">
+            <a class="ro-card-name" href="{{ rose.team_url }}{{ c.team.id }}"><span>{{ c.team.display_name }}</span>{% if c.is_mine %}<span class="ro-tag">la tua</span>{% endif %}{% if not c.team.is_active %}<span class="ro-tag">disattivata</span>{% endif %}</a>
+            <div class="ro-card-meta"><b>{{ c.count }}</b>{% if c.slots_total %}/{{ c.slots_total }}{% endif %} giocatori · valore <b>{{ c.value|floatformat:0 }}</b> FM · crediti <b>{{ c.team.remaining_credits|floatformat:0 }}</b> FM{% if c.pending %} · {{ c.pending }} da tirare{% endif %}{% if c.expired %} · {{ c.expired }} scadut{{ c.expired|pluralize:"o,i" }}{% endif %}</div>
+        </div>
+        <div class="ro-card-body">
+            {% for g in c.groups %}
+            <div class="ro-role"><span class="role-badge role-{{ g.code }}">{{ g.code }}</span> {{ g.label }}<small>{{ g.list|length }}{% if g.slots %}/{{ g.slots }}{% endif %} · {{ g.cost|floatformat:0 }} FM</small></div>
+            {% for pl in g.list %}
+            <div class="ro-mini">
+                <span class="nm" title="{{ pl.name }}">{{ pl.name }}</span>
+                <span class="club">{{ pl.team }}</span>
+                <span class="cost">{{ pl.cost|floatformat:0 }}</span>
+                {% if rose.contracts_on %}{% include "auctions/_contract_badge.html" %}{% endif %}
+            </div>
+            {% empty %}
+            <div class="ro-none">Nessuno</div>
+            {% endfor %}
+            {% endfor %}
+        </div>
+        <div class="ro-card-foot">
+            <a class="fm-btn fm-btn-ghost fm-btn-sm" href="{{ rose.team_url }}{{ c.team.id }}">{% if rose.manage %}Gestisci{% else %}Apri{% endif %} <svg class="ic"><use href="#i-arrow-right"/></svg></a>
+        </div>
+    </section>
+    {% endfor %}
+</div>
+
+{% else %}
+{# ---------------------------------------------------------------- una squadra #}
+{% with c=rose.selected team=rose.selected.team %}
+<div class="ro-team-head">
+    <h2>{{ team.display_name }}</h2>
+    {% if c.is_mine %}<span class="ro-tag">la tua</span>{% endif %}
+    {% if not team.is_active %}<span class="ro-tag">disattivata</span>{% endif %}
+</div>
+<div class="ro-kpis">
+    <div class="ro-kpi"><span>Crediti residui</span><b>{{ team.remaining_credits|floatformat:0 }} <small>FM</small></b></div>
+    <div class="ro-kpi"><span>Spesi / budget</span><b>{{ team.spent_credits|floatformat:0 }} <small>/ {{ team.credits|floatformat:0 }} FM</small></b></div>
+    <div class="ro-kpi"><span>Giocatori</span><b>{{ c.count }}{% if c.slots_total %} <small>/ {{ c.slots_total }}</small>{% endif %}</b></div>
+    <div class="ro-kpi"><span>Valore rosa</span><b>{{ c.value|floatformat:0 }} <small>FM</small></b>{% if c.pending or c.expired %}<small>{% if c.pending %}{{ c.pending }} da tirare{% endif %}{% if c.pending and c.expired %} · {% endif %}{% if c.expired %}{{ c.expired }} scadut{{ c.expired|pluralize:"o,i" }}{% endif %}</small>{% endif %}</div>
+</div>
+
+{% if rose.manage %}
+<div class="ro-actions fm-onerow noprint">
+    <form method="post" action="{% url 'app_view_as' team.id %}">
+        {% csrf_token %}<button type="submit" class="fm-btn fm-btn-secondary fm-btn-sm" title="Apri l'app come questa squadra"><svg class="ic"><use href="#i-eye"/></svg> Vedi come {{ team.display_name }}</button>
+    </form>
+    {% if rose.contracts_on %}<a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% purl 'admin_contracts' %}?league={{ current_league.id }}#team-{{ team.id }}"><svg class="ic"><use href="#i-doc"/></svg> Dadi e rinnovi</a>{% endif %}
+    <a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% purl 'admin_market_moves' %}?league={{ current_league.id }}"><svg class="ic"><use href="#i-swap"/></svg> Movimenti</a>
+</div>
+
+<div class="ro-tools noprint">
+    <section class="panel ro-tool" aria-labelledby="ro-add-h">
+        <h3 id="ro-add-h"><svg class="ic"><use href="#i-plus"/></svg> Aggiungi un giocatore</h3>
+        <p>Fra i {{ rose.free_count }} giocatori liberi del listone: scrivi nome o club e premi <b>Cerca</b>, poi <b>Aggiungi</b> accanto a quello giusto.</p>
+        <form method="get" class="ro-form" role="search">
+            <input type="hidden" name="league" value="{{ current_league.id }}">
+            <input type="hidden" name="team" value="{{ team.id }}">
+            <input class="ro-in grow" type="search" name="cerca" value="{{ rose.query }}" minlength="2" placeholder="Es. Lautaro o Inter" aria-label="Nome o club">
+            <button type="submit" class="fm-btn fm-btn-primary fm-btn-sm"><svg class="ic"><use href="#i-search"/></svg> Cerca</button>
+        </form>
+        {% if rose.query %}
+        <div class="ro-found">
+            {% for pl in rose.found %}
+            <div class="ro-found-row">
+                <span class="role-badge role-{{ pl.role }}">{{ pl.role }}</span>
+                <span class="nm">{{ pl.name }} <small>{{ pl.team }} · quot. {{ pl.initial_price|floatformat:0 }}</small></span>
+                <form method="post" action="{% url 'admin_rose_action' %}" class="ro-form">
+                    {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    <input type="hidden" name="action" value="assign">
+                    <input type="hidden" name="participant_id" value="{{ team.id }}">
+                    <input type="hidden" name="player_id" value="{{ pl.id }}">
+                    <input class="ro-in num" type="number" name="price" min="0" step="1" value="{{ pl.initial_price|floatformat:0 }}" aria-label="Prezzo in FM" title="Prezzo in FM">
+                    <button type="submit" class="fm-btn fm-btn-primary fm-btn-sm">Aggiungi</button>
+                </form>
+            </div>
+            {% empty %}
+            <div class="ro-note">Nessun giocatore libero con «{{ rose.query }}»: controlla come è scritto, oppure caricalo nel listone da <a href="{% purl 'admin_players' %}?league={{ current_league.id }}">Giocatori</a>.</div>
+            {% endfor %}
+            {% if rose.found_total > rose.found|length %}<div class="ro-note">Ne vedi {{ rose.found|length }} su {{ rose.found_total }}: scrivi qualcosa in più per trovarlo.</div>{% endif %}
+        </div>
+        {% endif %}
+    </section>
+
+    <section class="panel ro-tool" aria-labelledby="ro-cred-h">
+        <h3 id="ro-cred-h"><svg class="ic"><use href="#i-coin"/></svg> Crediti</h3>
+        <p>Budget {{ team.credits|floatformat:0 }} FM, spesi {{ team.spent_credits|floatformat:0 }}, ne restano <b>{{ team.remaining_credits|floatformat:0 }}</b>.</p>
+        <form method="post" action="{% url 'admin_rose_action' %}" class="ro-form">
+            {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <input type="hidden" name="action" value="credits">
+            <input type="hidden" name="participant_id" value="{{ team.id }}">
+            <select class="ro-in" name="mode" aria-label="Operazione">
+                <option value="add">Aggiungi (bonus)</option>
+                <option value="sub">Togli (malus)</option>
+                <option value="set">Imposta il budget totale</option>
+            </select>
+            <input class="ro-in num" type="number" name="amount" min="0" step="1" required placeholder="FM" aria-label="Importo in FM">
+            <button type="submit" class="fm-btn fm-btn-primary fm-btn-sm">Applica</button>
+        </form>
+    </section>
+</div>
+{% endif %}
+
+<div class="ro-depts">
+    {% for g in c.groups %}
+    <section class="panel ro-dept" aria-label="{{ g.label }}">
+        <div class="ro-dept-head">
+            <span class="role-badge role-{{ g.code }}">{{ g.code }}</span> {{ g.label }}
+            <span class="cnt{% if g.slots and g.list|length >= g.slots %} full{% endif %}">{{ g.list|length }}{% if g.slots %}/{{ g.slots }}{% endif %} · {{ g.cost|floatformat:0 }} FM</span>
+        </div>
+        {% for pl in g.list %}
+        {% if rose.manage %}
+        <details class="ro-row" id="pl-{{ pl.id }}">
+            <summary class="ro-row-top">
+                <span class="ro-row-id"><span class="nm">{{ pl.name }}</span><span class="club">{{ pl.team }}{% if pl.loan_from_id %} · in prestito da {{ pl.loan_from.display_name }}{% endif %}</span></span>
+                <span class="cost">{{ pl.cost|floatformat:0 }} FM</span>
+                {% if rose.contracts_on %}{% include "auctions/_contract_badge.html" %}{% endif %}
+                <span class="ro-edit-btn">Modifica</span>
+            </summary>
+            <div class="ro-edit">
+                <form method="post" action="{% url 'admin_rose_action' %}" class="ro-form">
+                    {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    <input type="hidden" name="action" value="edit">
+                    <input type="hidden" name="player_id" value="{{ pl.id }}">
+                    <label>Costo FM<input class="ro-in num" type="number" name="price" min="0" step="1" value="{{ pl.cost|floatformat:0 }}"></label>
+                    <label>Squadra<select class="ro-in" name="participant_id">
+                        {% for o in rose.cards %}<option value="{{ o.team.id }}"{% if o.team.id == team.id %} selected{% endif %}>{{ o.team.display_name }}</option>{% endfor %}
+                    </select></label>
+                    {% if rose.contracts_on %}
+                    <label>Contratto<select class="ro-in" name="contract">
+                        <option value=""{% if pl.contract_years is None %} selected{% endif %}>da tirare</option>
+                        {% for y in rose.contract_years %}<option value="{{ y }}"{% if pl.contract_years == y %} selected{% endif %}>{% if y == 0 %}0 (scaduto){% else %}{{ y }} ann{{ y|pluralize:"o,i" }}{% endif %}</option>{% endfor %}
+                    </select></label>
+                    {% endif %}
+                    <button type="submit" class="fm-btn fm-btn-primary fm-btn-sm">Salva</button>
+                </form>
+                <div class="sep">Svincolo: il giocatore torna libero nel listone.</div>
+                <form method="post" action="{% url 'admin_rose_action' %}" class="ro-form"
+                      onsubmit="return confirm('Svincolare {{ pl.name|escapejs }} da {{ team.display_name|escapejs }}?');">
+                    {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    <input type="hidden" name="action" value="release">
+                    <input type="hidden" name="player_id" value="{{ pl.id }}">
+                    <select class="ro-in" name="refund" aria-label="Rimborso">
+                        {% for value, label in rose.refund_choices %}<option value="{{ value }}">{{ label|capfirst }}{% if value == "purchase" %} ({{ pl.cost|floatformat:0 }} FM){% elif value == "current" %} ({{ pl.initial_price|floatformat:0 }} FM){% endif %}</option>{% endfor %}
+                    </select>
+                    <button type="submit" class="fm-btn fm-btn-danger fm-btn-sm">Svincola</button>
+                </form>
+            </div>
+        </details>
+        {% else %}
+        <div class="ro-row">
+            <div class="ro-row-top">
+                <span class="ro-row-id"><span class="nm">{{ pl.name }}</span><span class="club">{{ pl.team }}{% if pl.loan_from_id %} · in prestito da {{ pl.loan_from.display_name }}{% endif %}{% if pl.fanta_avg %} · Fm {{ pl.fanta_avg|floatformat:2 }}{% endif %}</span></span>
+                <span class="cost">{{ pl.cost|floatformat:0 }} FM</span>
+                {% if rose.contracts_on %}{% include "auctions/_contract_badge.html" %}{% endif %}
+            </div>
+        </div>
+        {% endif %}
+        {% empty %}
+        <div class="ro-none" style="padding:10px 12px">Nessun giocatore in questo ruolo.</div>
+        {% endfor %}
+    </section>
+    {% endfor %}
+</div>
+
+{% if c.abroad %}
+<section class="panel ro-dept" style="margin-top:12px" aria-label="Lista ceduti">
+    <div class="ro-dept-head"><svg class="ic"><use href="#i-globe"/></svg> Lista ceduti temporanei <span class="cnt">{{ c.abroad|length }}</span></div>
+    {% for pl in c.abroad %}
+    <div class="ro-row"><div class="ro-row-top">
+        <span class="role-badge role-{{ pl.role }}">{{ pl.role }}</span>
+        <span class="ro-row-id"><span class="nm">{{ pl.name }}</span><span class="club">{{ pl.left_club|default:"estero" }}</span></span>
+        <span class="cost">{{ pl.cost|floatformat:0 }} FM</span>
+    </div></div>
+    {% endfor %}
+</section>
+{% endif %}
+{% endwith %}
+{% endif %}
+{% endif %}
+</div>
+<!-- rose:end -->

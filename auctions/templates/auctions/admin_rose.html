@@ -1,0 +1,14 @@
+{% extends page_frame|default:"auctions/_frame_console.html" %}
+{% comment %}
+Rose della lega per l'admin: console (/dashboard/rose/) e Regia dell'app
+(/app/regia/rose/), stessa view (views/admin_rose.py) e stesso contenuto. Il
+contenuto è il partial _rose.html, lo stesso dell'app del manager (app_rose.html).
+{% endcomment %}
+{% block title %}Rose — FantaManager{% endblock %}
+{% block page %}
+{% if not current_league %}
+<div class="panel muted" style="padding:24px;text-align:center">Seleziona una lega dal menu in alto.</div>
+{% else %}
+{% include "auctions/_rose.html" %}
+{% endif %}
+{% endblock %}

@@ -101,6 +101,7 @@ from .abroad import compensation as abroad_compensation
 from .contracts import (
     close_renewals,
     contract_faces,
+    contract_max_years,
     contract_rules,
     declare_u21,
     declare_renewals,
@@ -224,6 +225,7 @@ __all__ = [
     "abroad_compensation",
     "roll_contract",
     "contract_faces",
+    "contract_max_years",
     "contract_rules",
     "declare_u21",
     "set_contract",

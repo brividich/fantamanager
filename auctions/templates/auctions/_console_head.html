@@ -114,6 +114,8 @@ button) and everything else opens as a full-screen menu: ``.fm-chrome`` is
         <svg class="ic"><use href="#i-gavel"/></svg> Asta Live</a>
     <a class="fm-nav-link {% if console_active == 'players' %}is-active{% endif %}" href="{% url 'admin_players' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
         <svg class="ic"><use href="#i-users"/></svg> Giocatori</a>
+    <a class="fm-nav-link {% if console_active == 'rose' %}is-active{% endif %}" href="{% url 'admin_rose' %}{% if current_league %}?league={{ current_league.id }}{% endif %}" title="Le rose di tutte le squadre: aggiungi, sposta, svincola, costi, contratti e crediti">
+        <svg class="ic"><use href="#i-shirt"/></svg> Rose</a>
     <a class="fm-nav-link {% if console_active == 'footballers' %}is-active{% endif %}" href="{% url 'admin_footballers' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
         <svg class="ic"><use href="#i-ball"/></svg> Calciatori</a>
     <a class="fm-nav-link {% if console_active == 'teams' %}is-active{% endif %}" href="{% url 'admin_participants' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
