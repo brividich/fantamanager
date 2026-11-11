@@ -1515,6 +1515,50 @@ class ReleaseAfterCountTests(TestCase):
         self.assertTrue(self.choose(self.session.id, self._won(z)["bid_id"], y.id)["ok"])
         self.assertEqual({x1.pk, x2.pk, z.pk}, set(Player.objects.filter(owner=self.a, role="P").values_list("pk", flat=True)))
 
+    def test_goalkeepers_stay_within_two_clubs_across_several_wins(self):
+        # Inter, Inter, Roma in rosa; vince Lazio, poi un altro Inter e un
+        # altro Roma: escono per forza i tre portieri originali e restano
+        # Lazio, Inter, Roma (tre club). Il terzo acquisto non è ammesso.
+        self.league.gk_max_clubs = 2
+        self.league.save()
+        for name, club in (("GK Inter 1", "Inter"), ("GK Inter 2", "Inter"), ("GK Roma 1", "Roma")):
+            Player.objects.create(name=name, role="P", team=club, league=self.league, owner=self.a)
+        lazio = Player.objects.create(name="GK Lazio", role="P", team="Lazio", league=self.league)
+        inter3 = Player.objects.create(name="GK Inter 3", role="P", team="Inter", league=self.league)
+        roma2 = Player.objects.create(name="GK Roma 2", role="P", team="Roma", league=self.league)
+        for pl, amount in ((lazio, 30), (inter3, 20), (roma2, 10)):
+            self.assertTrue(place_market_bid(self.session.id, self.a.id, pl.id, amount)["ok"])
+        self._resolve()
+        owned = set(Player.objects.filter(owner=self.a, role="P").values_list("name", flat=True))
+        self.assertIn("GK Lazio", owned)
+        self.assertIn("GK Inter 3", owned)
+        self.assertNotIn("GK Roma 2", owned)
+        self.assertIn("Portieri", MarketBid.objects.get(player=roma2).note)
+        # Le scelte: per il Lazio può uscire chiunque dei tre, ma poi resta una
+        # sola scelta che non lascia tre club. I vinti contano tutti.
+        w_lazio, w_inter = self._won(lazio), self._won(inter3)
+        self.assertEqual([p.name for p in self.options(self.session, w_lazio)],
+                         ["GK Inter 1", "GK Inter 2", "GK Roma 1"])
+        inter1 = Player.objects.get(name="GK Inter 1")
+        self.assertTrue(self.choose(self.session.id, w_lazio["bid_id"], inter1.id)["ok"])
+        self.session.refresh_from_db()
+        self.assertEqual([p.name for p in self.options(self.session, w_inter)], ["GK Roma 1"])
+        self.assertFalse(self.choose(self.session.id, w_inter["bid_id"], Player.objects.get(name="GK Inter 2").id)["ok"])
+        self.assertTrue(self.choose(self.session.id, w_inter["bid_id"], Player.objects.get(name="GK Roma 1").id)["ok"])
+        self.assertEqual(set(Player.objects.filter(owner=self.a, role="P").values_list("team", flat=True)),
+                         {"Inter", "Lazio"})
+
+    def test_the_player_is_checked_again_once_locked(self):
+        place_market_bid(self.session.id, self.a.id, self.boban.id, 20)
+        self._resolve()
+        c0 = self.mid[self.a.id][0]
+        # Ceduto a un'altra squadra fra la pagina e la scelta: non esce dalla sua nuova rosa.
+        Player.objects.filter(pk=c0.pk).update(owner=self.b)
+        res = self.choose(self.session.id, self._won(self.boban)["bid_id"], c0.id)
+        self.assertFalse(res["ok"])
+        c0.refresh_from_db()
+        self.assertEqual(c0.owner, self.b)
+
     def test_pages_ask_who_leaves(self):
         place_market_bid(self.session.id, self.a.id, self.boban.id, 20)
         self._resolve()

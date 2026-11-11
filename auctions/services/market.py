@@ -62,6 +62,25 @@ def _cut_problem(player):
     return release_problem(player)
 
 
+def _gk_feasible(limit, fixed, releasable, k):
+    """Portieri (2.02) col taglio dopo lo spoglio: togliendo ``k`` dei club
+    in ``releasable`` (uno per portiere sostituibile), i club che restano
+    insieme a ``fixed`` possono stare entro ``limit``? Le rose hanno pochi
+    portieri: si provano tutte le scelte."""
+    from itertools import combinations
+    if not limit:
+        return True
+    if k <= 0:
+        return len({t for t in fixed + releasable if t}) <= limit
+    if k > len(releasable):
+        return False
+    for out in combinations(range(len(releasable)), k):
+        keep = [t for i, t in enumerate(releasable) if i not in out]
+        if len({t for t in fixed + keep if t}) <= limit:
+            return True
+    return False
+
+
 def _gk_swap_frees_club(participant):
     """Col taglio dopo lo spoglio, un portiere di un club nuovo va bene se
     la squadra ha l'unico portiere di un altro club da far uscire (2.02:
@@ -437,7 +456,8 @@ class _Plan:
         # ne sia uno sostituibile per ogni acquisto di quel ruolo.
         self.after = session.release_after_count
         self.releasable = defaultdict(lambda: defaultdict(int))
-        self.releasable_gk = defaultdict(lambda: defaultdict(int))
+        self.gk_fixed = defaultdict(list)    # club dei portieri che restano di sicuro
+        self.gk_rel = defaultdict(list)      # club dei portieri che possono uscire
         self.pending = defaultdict(lambda: defaultdict(int))
         if self.after:
             # Allo spareggio (dopo lo spoglio) i vinti di questa sessione non
@@ -449,10 +469,13 @@ class _Plan:
                     self.pending[w["winner_id"]][w["player_role"]] += 1
             for pl in Player.objects.filter(owner_id__in=list(self.participants), abroad_list=False):
                 if pl.pk in won_ids or _cut_problem(pl):
+                    # Restano in rosa comunque: vinti qui o non svincolabili.
+                    if pl.role == "P":
+                        self.gk_fixed[pl.owner_id].append(pl.team)
                     continue
                 self.releasable[pl.owner_id][pl.role] += 1
-                if pl.role == "P" and pl.team:
-                    self.releasable_gk[pl.owner_id][pl.team] += 1
+                if pl.role == "P":
+                    self.gk_rel[pl.owner_id].append(pl.team)
         self.role_acquisitions = defaultdict(lambda: defaultdict(int))
         for pid, role in session.bids.filter(status=MarketBid.Status.WON).values_list(
             "participant_id", "player__role"
@@ -550,13 +573,13 @@ class _Plan:
         if self.releasable[pid][role] - self.pending[pid][role] <= 0:
             return False, f"Nessun giocatore di pari ruolo ({role}) da sostituire in rosa", None, no
         player = bid.player
-        if self.gk_limit and role == "P" and player.team:
-            clubs = {t: n for t, n in self.gk_clubs[pid].items() if n > 0}
-            if player.team not in clubs and len(clubs) >= self.gk_limit:
-                # Si può solo se esce l'unico portiere di uno di quei club.
-                frees_one = any(n == 1 and self.releasable_gk[pid][t] for t, n in clubs.items())
-                if not (frees_one and len(clubs) - 1 < self.gk_limit):
-                    return False, f"Portieri già di {len(clubs)} squadre di Serie A", None, no
+        if self.gk_limit and role == "P":
+            # Con questo acquisto, uscendo un portiere per ogni acquisto di
+            # portiere ancora da sostituire, si resta entro i club ammessi?
+            if not _gk_feasible(self.gk_limit, self.gk_fixed[pid] + [player.team],
+                                self.gk_rel[pid], self.pending[pid]["P"] + 1):
+                clubs = len({t for t in self.gk_fixed[pid] + self.gk_rel[pid] if t})
+                return False, f"Portieri: con questo acquisto la rosa non tornerebbe entro {self.gk_limit} squadre di Serie A (ora {clubs})", None, no
         if self.remaining[pid] < bid.amount:
             return False, f"Crediti insufficienti al momento dello spoglio (disponibili: {self.remaining[pid]:.0f} FM)", None, no
         room = self.cap_room.get(pid)
@@ -582,6 +605,8 @@ class _Plan:
         self.role_acquisitions[pid][player.role] += 1
         if self.after:
             self.pending[pid][player.role] += 1
+            if player.role == "P":
+                self.gk_fixed[pid].append(player.team)
         self.awards[bid.id] = (release, refund)
         self._decide(bid, MarketBid.Status.WON, ("Aggiudicato con successo " + note).strip())
         self.won.append({
@@ -1169,22 +1194,21 @@ def release_options(session, entry):
     prestito o bloccato dalle regole dello svincolo; per un portiere, solo chi
     lascia i portieri entro i club ammessi."""
     league = session.league
-    won_ids = {w["player_id"] for w in (session.results_summary or {}).get("won", [])}
-    mine = list(Player.objects.filter(owner_id=entry["winner_id"], abroad_list=False)
-                .exclude(pk__in=won_ids - {entry["player_id"]}).order_by("name"))
-    gk_clubs = [p.team for p in mine if p.role == "P" and p.team]
-    options = []
-    for pl in mine:
-        if pl.pk == entry["player_id"] or pl.role != entry["player_role"] or _cut_problem(pl):
-            continue
-        if league.gk_max_clubs and pl.role == "P":
-            clubs = list(gk_clubs)
-            if pl.team:
-                clubs.remove(pl.team)
-            if len(set(clubs)) > league.gk_max_clubs:
-                continue
-        options.append(pl)
-    return options
+    won = (session.results_summary or {}).get("won", [])
+    won_ids = {w["player_id"] for w in won}
+    owned = list(Player.objects.filter(owner_id=entry["winner_id"], abroad_list=False).order_by("name"))
+    candidates = [pl for pl in owned if pl.pk not in won_ids and pl.role == entry["player_role"]
+                  and not _cut_problem(pl)]
+    limit = league.gk_max_clubs
+    if entry["player_role"] != "P" or not limit:
+        return candidates
+    # Portieri: dopo questa uscita, le altre sostituzioni di portieri ancora
+    # da scegliere devono poter riportare la rosa entro i club ammessi.
+    fixed = [pl.team for pl in owned if pl.role == "P" and (pl.pk in won_ids or _cut_problem(pl))]
+    still = sum(1 for w in won if w.get("release_pending") and w.get("winner_id") == entry["winner_id"]
+                and w.get("player_role") == "P") - 1
+    return [o for o in candidates
+            if _gk_feasible(limit, fixed, [pl.team for pl in candidates if pl.pk != o.pk], still)]
 
 
 @transaction.atomic
@@ -1215,6 +1239,9 @@ def choose_market_release(session_id, bid_id, release_player_id, *, participant_
         return {"ok": False, "message": f"Scegli un {entry['player_role']} della rosa che può uscire al posto "
                                         f"di {entry['player_name']}: stesso ruolo, non preso in queste buste."}
     release = Player.objects.select_for_update().get(pk=chosen.pk)
+    # Fra la lettura e il blocco può essere passato di mano (scambio, admin).
+    if release.owner_id != entry["winner_id"] or release.role != entry["player_role"] or _cut_problem(release):
+        return {"ok": False, "message": f"{release.name} non può più uscire dalla rosa: ricarica la pagina e scegli di nuovo."}
     participant = Participant.objects.select_for_update().get(pk=entry["winner_id"])
     refund = min(_calc_release_refund(session, release), participant.spent_credits)
     cost = release.cost
