@@ -1759,6 +1759,72 @@ class ReleaseAfterCountTests(TestCase):
         self.assertIsNone(Player.objects.get(pk=self.boban.pk).contract_years)   # dadi da tirare
         self.assertTrue(RosterLog.objects.filter(player_name="Team A C2", note__contains="tempo per confermare").exists())
 
+    def test_late_confirmation_from_the_app_gets_the_list(self):
+        from ..services.market import choose_market_release, confirm_market_releases, set_release_list
+        self.session.release_confirm_hours = 24
+        self.session.save()
+        c0, c1, c2 = self.mid[self.a.id]
+        set_release_list(self.session.id, self.a.id, [c2.id])
+        place_market_bid(self.session.id, self.a.id, self.boban.id, 20)
+        self._resolve()
+        bid = self._won(self.boban)["bid_id"]
+        self._age_pending(25)                                    # scaduto, lo scheduler non è ancora passato
+        res = choose_market_release(self.session.id, bid, c0.id, participant_id=self.a.id)
+        self.assertEqual(res["error"], "deadline_passed")
+        res = confirm_market_releases(self.session.id, self.a.id, {bid: c0.id}, participant_id=self.a.id)
+        self.assertFalse(res["ok"])
+        self.assertIn("scaduto", res["message"])
+        self.assertIsNone(Player.objects.get(pk=c2.pk).owner)   # è uscito quello della lista
+        self.assertEqual(Player.objects.get(pk=c0.pk).owner, self.a)
+
+    def test_an_expired_purchase_does_not_block_a_newer_one(self):
+        from ..services.market import confirm_market_releases
+        self.session.release_confirm_hours = 24
+        self.session.save()
+        MarketReleaseIntent.objects.filter(participant=self.a).delete()
+        self._declare_all(self.a)
+        place_market_bid(self.session.id, self.a.id, self.boban.id, 20)
+        place_market_bid(self.session.id, self.a.id, self.iniesta.id, 20)
+        MarketReleaseIntent.objects.filter(participant=self.a).delete()     # nessuna proposta dalla lista
+        self._resolve()
+        # Boban scaduto (decide l'admin), Iniesta ancora nei tempi (come uno spareggio vinto dopo).
+        self.session.refresh_from_db()
+        summary = self.session.results_summary
+        for w in summary["won"]:
+            if w["player_id"] == self.boban.id:
+                w["pending_since"] = (timezone.now() - timedelta(hours=30)).isoformat()
+        MarketSession.objects.filter(pk=self.session.pk).update(results_summary=summary)
+        sess = self.client.session
+        sess["participant_id"] = self.a.id
+        sess.save()
+        page = self.client.get(reverse("app_mercato") + f"?session_id={self.session.id}")
+        self.assertContains(page, "Il tempo per confermare chi esce al posto di Boban è scaduto")
+        self.assertContains(self.client.get(reverse("app_home")), "conferma chi esce per 1 giocatore")
+        self.session.refresh_from_db()
+        c1 = self.mid[self.a.id][1]
+        res = confirm_market_releases(self.session.id, self.a.id, {self._won(self.iniesta)["bid_id"]: c1.id},
+                                      participant_id=self.a.id)
+        self.assertTrue(res["ok"], res)
+        self.session.refresh_from_db()
+        self.assertTrue(self._won(self.boban)["release_pending"])          # resta all'admin
+        self.assertFalse(self._won(self.iniesta)["release_pending"])
+
+    def test_admin_can_still_decide_after_the_deadline(self):
+        from ..services.market import confirm_market_releases
+        self.session.release_confirm_hours = 1
+        self.session.save()
+        MarketReleaseIntent.objects.filter(participant=self.a).delete()
+        c0 = self.mid[self.a.id][0]
+        res = place_market_bid(self.session.id, self.a.id, self.boban.id, 20)
+        self.assertFalse(res["ok"])                              # senza lista non si offre
+        self._declare_all(self.a)
+        place_market_bid(self.session.id, self.a.id, self.boban.id, 20)
+        MarketReleaseIntent.objects.filter(participant=self.a).delete()     # lista svuotata: nessuna proposta
+        self._resolve()
+        self._age_pending(2)
+        res = confirm_market_releases(self.session.id, self.a.id, {self._won(self.boban)["bid_id"]: c0.id})
+        self.assertTrue(res["ok"], res)
+
     def test_deadline_without_a_valid_proposal_waits_for_the_admin(self):
         from ..services.market import apply_overdue_releases, set_release_list, team_release_deadlines
         self.session.release_confirm_hours = 1

@@ -1458,7 +1458,25 @@ def confirm_market_releases(session_id, winner_id, choices, *, roll_dice=False, 
         return {"ok": False, "message": "Sessione non trovata: ricarica la pagina."}
     if participant_id is not None and participant_id != winner_id:
         return {"ok": False, "message": "Puoi confermare solo i tuoi acquisti."}
+
+    def expired(w):
+        when = release_deadline(session, w)
+        return when is not None and when <= timezone.now()
+
+    was_late = participant_id is not None and any(expired(w) for w in pending_releases(session, winner_id))
+    if was_late:
+        # In ritardo: prima si applica la lista agli acquisti scaduti.
+        apply_overdue_releases(league=session.league)
+        session.refresh_from_db()
     pending = pending_releases(session, winner_id)
+    if participant_id is not None:
+        # La squadra conferma solo gli acquisti ancora nei tempi; quelli
+        # scaduti senza proposta dalla lista li decide l'admin.
+        pending = [w for w in pending if not expired(w)]
+        if not pending and was_late:
+            return {"ok": False, "error": "deadline_passed",
+                    "message": "Il tempo per confermare è scaduto: esce chi era nella tua lista "
+                               "(dove manca, decide l'admin). Per cambiare qualcosa chiedi all'admin della lega."}
     if not pending:
         return {"ok": False, "message": "Non ci sono sostituzioni da confermare."}
     picks = []
@@ -1562,6 +1580,13 @@ def choose_market_release(session_id, bid_id, release_player_id, *, participant_
     if not entry.get("release_pending"):
         return {"ok": False, "message": f"Per {entry['player_name']} chi esce è già stato scelto "
                                         f"({entry.get('released_player') or '—'})."}
+    # Scaduto il tempo per confermare, la squadra non sceglie più: vale la sua
+    # lista (o decide l'admin). Controllato qui, con la sessione bloccata.
+    deadline = release_deadline(session, entry)
+    if participant_id is not None and deadline is not None and deadline <= timezone.now():
+        return {"ok": False, "error": "deadline_passed",
+                "message": f"Il tempo per confermare è scaduto il {timezone.localtime(deadline):%d/%m alle %H:%M}: "
+                           "esce chi era nella tua lista. Per cambiarlo chiedi all'admin della lega."}
     chosen = next((pl for pl in release_options(session, entry) if str(pl.pk) == str(release_player_id)), None)
     if chosen is None:
         return {"ok": False, "message": f"Scegli un {entry['player_role']} della rosa che può uscire al posto "
