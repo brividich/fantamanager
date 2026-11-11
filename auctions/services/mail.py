@@ -65,6 +65,18 @@ def status(cfg=None):
     return False, ""
 
 
+def not_ready_reason(cfg=None):
+    """Perché la posta non parte, detto con il rimedio."""
+    cfg = cfg or get_settings()
+    if not cfg.enabled:
+        return ("Posta non attiva: in Supervisor → Server SMTP & Posta accendi «Abilita invio email "
+                "con questa configurazione», premi Salva e riprova.")
+    if not cfg.host or not cfg.from_email:
+        return ("Posta non configurata: mancano il server SMTP o l'indirizzo del mittente. "
+                "Completali in Supervisor → Server SMTP & Posta e premi Salva.")
+    return "Posta non configurata."
+
+
 def is_ready():
     try:
         return status()[0]
@@ -103,7 +115,7 @@ def send(subject, to, text, html=None, reply_to=None, cfg=None, conn=None):
     cfg = cfg or get_settings()
     ready, _source = status(cfg)
     if not ready:
-        return False, "Posta non configurata."
+        return False, not_ready_reason(cfg)
     recipients = [to] if isinstance(to, str) else [t for t in to if t]
     if not recipients:
         return False, "Nessun destinatario."
@@ -228,7 +240,7 @@ def _send_to_teams(request, teams, subject, template, extra, on_sent=None):
         report["skipped"] = len(teams)
         return report
     if not status(cfg)[0]:
-        report["errors"].append("Posta non configurata.")
+        report["errors"].append(not_ready_reason(cfg))
         report["skipped"] = len(teams)
         return report
     from . import privacy
