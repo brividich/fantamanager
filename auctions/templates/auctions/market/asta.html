@@ -29,6 +29,7 @@
             <li>Poi conducila dalla regia, come l'asta iniziale: in <b>Aste della lega</b> il tasto <b>Regia</b> la apre.</li>
             {% endif %}
             <li>In <b>Svincolati disponibili</b> tocca un ruolo per vedere chi è ancora libero.</li>
+            <li>Durante o dopo l'asta, <b>Registro</b> mostra ogni rilancio di ogni lotto con l'orario al millesimo e i secondi rimasti al timer: serve per chiarire una contestazione.</li>
         </ol>
         <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Gli acquisti dell'asta finiscono nelle rose e nei Movimenti del Mercato.</div>
     </div>
@@ -57,8 +58,9 @@
             {% elif a.status == "PAUSED" %}<span class="tag t-warn">In pausa</span>
             {% elif a.status == "CLOSED" %}<span class="tag t-done">Chiusa</span>
             {% else %}<span class="tag t-info">Non iniziata</span>{% endif %}
-            <div class="btns">
+            <div class="btns fm-onerow">
                 <a class="fm-btn fm-btn-secondary fm-btn-sm" href="{% url 'admin_dashboard' %}?auction={{ a.id }}">Regia</a>
+                {% if a.status != "DRAFT" %}<a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% url 'admin_report_auction' a.id %}" target="_blank" rel="noopener" title="Ogni rilancio di ogni lotto con l'orario al millesimo, da stampare o scaricare"><svg class="ic"><use href="#i-print"/></svg> Registro</a>{% endif %}
             </div>
         </div>
         {% empty %}
@@ -75,7 +77,7 @@
             <h3 class="mk-card-t"><svg class="ic"><use href="#i-users"/></svg> Svincolati disponibili <span class="cnt">{{ free_total }}</span></h3>
             <div class="mk-free">
                 {% for r, n in free_by_role %}
-                <a href="{% purl 'admin_players' %}?league={{ current_league.id }}&status=free&role={{ r }}" title="Apri gli svincolati di questo ruolo">
+                <a href="{% purl 'admin_footballers' %}?league={{ current_league.id }}&status=free&role={{ r }}" title="Apri gli svincolati di questo ruolo">
                     <span class="role-badge role-{{ r }}">{{ r }}</span>
                     <span><b>{{ n }}</b><small>{% if r == "P" %}Portieri{% elif r == "D" %}Difensori{% elif r == "C" %}Centrocampisti{% else %}Attaccanti{% endif %}</small></span>
                 </a>
@@ -87,7 +89,7 @@
             <ul class="mk-hist">
                 <li><span>Le rose sono aggiornate?</span> <a class="when" href="{% purl 'admin_participants' %}?league={{ current_league.id }}">Squadre →</a></li>
                 <li><span>Serve importarle da un file?</span> <a class="when" href="{% purl 'admin_fantapazz' %}?league={{ current_league.id }}">Importa →</a></li>
-                <li><span>Listone e quotazioni aggiornati?</span> <a class="when" href="{% purl 'admin_players' %}?league={{ current_league.id }}">Giocatori →</a></li>
+                <li><span>Listone e quotazioni aggiornati?</span> <a class="when" href="{% purl 'admin_footballers' %}?league={{ current_league.id }}">Listone →</a></li>
             </ul>
         </div>
     </div>

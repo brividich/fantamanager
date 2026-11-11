@@ -123,16 +123,48 @@ class RegistrySyncTests(ApiTestCase):
         self.sync()
         moved = {496: SQUADS[496][:2] + [squad_player(6, "N. Barella", "Midfielder", 29, 23)], 505: SQUADS[505][:2]}
         report = self.sync(squads=moved)
-        self.assertEqual((report["created"], report["left"]), (0, 1))
+        # Locatelli manca per la prima volta: si aspetta il prossimo giro.
+        self.assertEqual((report["created"], report["left"], report["missing"]), (0, 0, 1))
+        self.assertIn("se mancano anche al prossimo", footballers.sync_summary(report))
         barella = Footballer.objects.get(api_id=6)
         self.assertEqual((barella.club_name, barella.age, barella.in_serie_a), ("Juventus", 29, True))
+        self.assertTrue(Footballer.objects.get(api_id=3).in_serie_a)
+        report = self.sync(squads=moved)
+        self.assertEqual((report["left"], report["missing"]), (1, 0))
         self.assertFalse(Footballer.objects.get(api_id=3).in_serie_a)
+
+    def test_who_comes_back_starts_counting_again(self):
+        self.sync()
+        self.sync(squads={496: SQUADS[496][:2], 505: SQUADS[505]})   # Locatelli manca una volta
+        self.sync()                                                   # torna
+        self.sync(squads={496: SQUADS[496][:2], 505: SQUADS[505]})   # manca di nuovo, una volta
+        locatelli = Footballer.objects.get(api_id=3)
+        self.assertEqual((locatelli.in_serie_a, locatelli.missed_syncs), (True, 1))
 
     def test_an_interrupted_sync_makes_nobody_leave(self):
         self.sync()
         report = self.sync(squads={496: SQUADS[496], 505: []}, fail_on=505)
         self.assertIn("limite giornaliero", report["error"])
         self.assertEqual(report["left"], 0)
+        self.assertEqual(Footballer.objects.filter(in_serie_a=True).count(), 6)
+
+    def test_an_empty_squad_from_the_api_makes_nobody_leave(self):
+        """API-Football risponde 200 con una rosa vuota (piano, limite): non è
+        un club senza giocatori, nessuno esce dalla Serie A."""
+        self.sync()
+        report = self.sync(squads={496: SQUADS[496], 505: []})
+        self.assertEqual(report["left"], 0)
+        self.assertEqual(report["empty_clubs"], ["Inter"])
+        self.assertIn("rose vuote", footballers.sync_summary(report))
+        self.assertEqual(Footballer.objects.filter(in_serie_a=True).count(), 6)
+
+    def test_too_many_leaving_at_once_is_a_bad_answer(self):
+        self.sync()
+        moved = {496: SQUADS[496][:1], 505: SQUADS[505][:1]}  # 4 su 6 «usciti»
+        with mock.patch.object(footballers, "MAX_LEFT_MIN", 0):
+            report = self.sync(squads=moved)
+        self.assertEqual(report["left"], 0)
+        self.assertIn("risposta incompleta", report["error"])
         self.assertEqual(Footballer.objects.filter(in_serie_a=True).count(), 6)
 
     def test_free_plan_recognises_clubs_from_the_listone(self):
@@ -209,11 +241,29 @@ class DefaultListoneTests(ApiTestCase):
         Player.objects.filter(league=league, footballer__api_id=4).update(owner=team, cost=Decimal("50"))
         moved = {496: SQUADS[496][:2], 505: SQUADS[505][1:]}  # escono Locatelli (libero) e Lautaro (in rosa)
         self.sync(squads=moved)
+        self.assertIn("M. Locatelli", Player.objects.filter(league=league).values_list("name", flat=True))
+        self.sync(squads=moved)  # assenti due volte di fila: escono
         names = set(Player.objects.filter(league=league).values_list("name", flat=True))
         self.assertNotIn("M. Locatelli", names)
         lautaro = Player.objects.get(league=league, footballer__api_id=4)
         self.assertEqual((lautaro.owner, lautaro.cost), (team, Decimal("50")))
         self.assertIsNotNone(lautaro.left_serie_a_at)
+
+    def test_who_left_with_votes_stays_in_the_listone(self):
+        """Uno svincolato uscito dalla Serie A con voti della lega non si
+        cancella: si porterebbe via lo storico delle giornate."""
+        from ..models import Giornata, PlayerPerformance, Season
+        self.sync()
+        league = League.objects.create(name="Generale")
+        season = Season.objects.create(league=league, name="2026/27", is_current=True)
+        giornata = Giornata.objects.create(season=season, number=1)
+        locatelli = Player.objects.get(league=league, footballer__api_id=3)
+        PlayerPerformance.objects.create(giornata=giornata, player=locatelli, vote=Decimal("6.5"))
+        for _ in range(2):
+            self.sync(squads={496: SQUADS[496][:2], 505: SQUADS[505]})  # esce Locatelli
+        self.assertFalse(Footballer.objects.get(api_id=3).in_serie_a)
+        self.assertTrue(Player.objects.filter(pk=locatelli.pk).exists())
+        self.assertEqual(PlayerPerformance.objects.filter(player=locatelli).count(), 1)
 
     def test_uploading_a_listone_makes_it_the_league_own(self):
         self.sync()
@@ -306,20 +356,32 @@ class FootballersPageTests(TestCase):
     def _part(resp):
         html = resp.content.decode()
         part = html[html.index("<!-- footballers:start -->"):html.index("<!-- footballers:end -->")]
-        return re.sub(r'name="(next|csrfmiddlewaretoken)" value="[^"]*"', "", part)
+        part = re.sub(r'name="(next|csrfmiddlewaretoken)" value="[^"]*"', "", part)
+        # I link fra pagine ({% purl %}) puntano alla console o all'app: forma canonica.
+        from ..views.common import APP_PAGES
+        for console_name, app_name in APP_PAGES.items():
+            try:
+                urls = (reverse(console_name), reverse(app_name))
+            except Exception:  # noqa: BLE001 — pagine con argomenti
+                continue
+            for url in urls:
+                part = re.sub('"' + re.escape(url) + r'(?=["?#])', f'"PAGE:{console_name}', part)
+        return part
 
     def test_same_screen_in_console_and_app(self):
         self.client.force_login(self.owner)
-        q = f"?league={self.league.id}"
-        console = self.client.get(reverse("admin_footballers") + q)
-        app = self.client.get(reverse("app_footballers") + q)
-        self.assertEqual(console.status_code, 200)
-        self.assertEqual(app.status_code, 200)
-        self.assertEqual(self._part(console), self._part(app))
+        for vista in ("listone", "anagrafica"):
+            with self.subTest(vista=vista):
+                q = f"?league={self.league.id}&vista={vista}"
+                console = self.client.get(reverse("admin_footballers") + q)
+                app = self.client.get(reverse("app_footballers") + q)
+                self.assertEqual(console.status_code, 200)
+                self.assertEqual(app.status_code, 200)
+                self.assertEqual(self._part(console), self._part(app))
 
     def test_shows_who_owns_the_player_in_your_league_only(self):
         self.client.force_login(self.owner)
-        resp = self.client.get(reverse("app_footballers"))
+        resp = self.client.get(reverse("app_footballers") + "?vista=anagrafica")
         self.assertContains(resp, "Lautaro Martínez")
         self.assertContains(resp, "Owner FC")
         self.assertContains(resp, "Non nel listone")  # Barella è di un'altra lega
@@ -335,12 +397,12 @@ class FootballersPageTests(TestCase):
 
     def test_filters(self):
         self.client.force_login(self.owner)
-        url = reverse("app_footballers")
-        self.assertNotContains(self.client.get(url + "?role=C"), "Lautaro Martínez")
-        self.assertNotContains(self.client.get(url + "?lega=owned"), "N. Barella")
-        self.assertNotContains(self.client.get(url + "?lega=out"), "Lautaro Martínez")
-        self.assertContains(self.client.get(url + "?q=martinez l"), "Lautaro Martínez")  # nome del listone
-        self.assertContains(self.client.get(url + "?usciti=1"), "A. Gone")
+        url = reverse("app_footballers") + "?vista=anagrafica&"
+        self.assertNotContains(self.client.get(url + "role=C"), "Lautaro Martínez")
+        self.assertNotContains(self.client.get(url + "lega=owned"), "N. Barella")
+        self.assertNotContains(self.client.get(url + "lega=out"), "Lautaro Martínez")
+        self.assertContains(self.client.get(url + "q=martinez l"), "Lautaro Martínez")  # nome del listone
+        self.assertContains(self.client.get(url + "usciti=1"), "A. Gone")
 
     def test_only_a_superuser_edits_the_roles(self):
         url = reverse("admin_footballer_edit", args=[self.barella.id])
@@ -348,11 +410,11 @@ class FootballersPageTests(TestCase):
         self.client.post(url, {"role": "A"})
         self.barella.refresh_from_db()
         self.assertEqual(self.barella.role, "")
-        self.assertNotContains(self.client.get(reverse("app_footballers")), "Ruoli Mantra")
+        self.assertNotContains(self.client.get(reverse("app_footballers") + "?vista=anagrafica"), "Ruoli Mantra")
 
         root = User.objects.create_superuser("root_fb", password="pw")
         self.client.force_login(root)
-        self.assertContains(self.client.get(reverse("admin_footballers")), "Ruoli Mantra")
+        self.assertContains(self.client.get(reverse("admin_footballers") + "?vista=anagrafica"), "Ruoli Mantra")
         back = reverse("admin_footballers")
         resp = self.client.post(url, {"role": "C", "mantra_roles": "M;C", "next": back})
         self.assertRedirects(resp, back, fetch_redirect_response=False)
@@ -368,7 +430,7 @@ class FootballersPageTests(TestCase):
         self.assertTrue(self.league.own_listone)
 
         self.client.force_login(self.owner)
-        self.assertContains(self.client.get(reverse("app_footballers")), "Usa la lista generale")
+        self.assertContains(self.client.get(reverse("app_footballers") + "?vista=anagrafica"), "Usa la lista generale")
         self.client.post(url, {"next": reverse("app_footballers")})
         self.league.refresh_from_db()
         self.assertFalse(self.league.own_listone)
@@ -390,3 +452,146 @@ class FootballersPageTests(TestCase):
             resp = self.client.post(reverse("admin_footballers_sync"), {"next": back})
         start.assert_called_once()
         self.assertRedirects(resp, back, fetch_redirect_response=False)
+
+
+class ListoneTabTests(TestCase):
+    """Calciatori → Listone: i giocatori della lega, anche senza API-Football;
+    gli strumenti solo a chi gestisce la lega."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user("pres_lst", password="pw")
+        self.mgr = User.objects.create_user("mgr_lst", password="pw")
+        self.league = League.objects.create(name="Lega Listone", owner=self.owner)
+        self.team = Participant.objects.create(display_name="Alfa", league=self.league, user=self.mgr,
+                                               credits=Decimal("300"))
+        Player.objects.create(name="Lautaro", role="A", team="Inter", league=self.league,
+                              owner=self.team, cost=Decimal("40"), initial_price=Decimal("35"))
+        Player.objects.create(name="Barella", role="C", team="Inter", league=self.league,
+                              initial_price=Decimal("20"))
+
+    def test_the_listone_is_the_first_tab_even_with_an_empty_registry(self):
+        self.client.force_login(self.owner)
+        resp = self.client.get(reverse("admin_footballers") + f"?league={self.league.id}")
+        self.assertEqual(Footballer.objects.count(), 0)
+        self.assertEqual(resp.context["fb_view"], "listone")
+        self.assertContains(resp, "Lautaro")
+        self.assertContains(resp, "Strumenti listone")
+        self.assertContains(resp, reverse("admin_import_players"))
+        # Nella scheda Anagrafica vuota si dice dove andare.
+        resp = self.client.get(reverse("admin_footballers") + f"?league={self.league.id}&vista=anagrafica")
+        self.assertContains(resp, "Listone della lega</a>")
+
+    def test_a_manager_sees_the_listone_without_tools(self):
+        self.client.force_login(self.mgr)
+        resp = self.client.get(reverse("app_footballers"))
+        self.assertContains(resp, "Barella")
+        self.assertContains(resp, "Svincolato")
+        self.assertNotContains(resp, "Strumenti listone")
+        self.assertNotContains(resp, reverse("admin_import_players"))
+        self.assertNotContains(resp, "openAssign")
+
+    def test_status_and_role_filters(self):
+        self.client.force_login(self.owner)
+        url = reverse("app_footballers") + f"?league={self.league.id}&"
+        rows = lambda q: [p.name for p in self.client.get(url + q).context["lst_rows"]]
+        self.assertEqual(rows("status=free"), ["Barella"])
+        self.assertEqual(rows("status=owned"), ["Lautaro"])
+        self.assertEqual(rows("role=A"), ["Lautaro"])
+        self.assertEqual(rows("sort=-quota"), ["Lautaro", "Barella"])
+
+
+    def test_rose_import_is_the_same_on_importa_and_listone(self):
+        """Un solo «Importa rose squadre» (_rose_import.html) per la pagina
+        Importa e per gli strumenti del Listone."""
+        self.client.force_login(self.owner)
+        q = f"?league={self.league.id}"
+
+        def section(url):
+            html = self.client.get(url + q).content.decode()
+            start = html.index('<section class="fm-card ri-card" id="rose-import"')
+            return html[start:html.index("</section>", start)]
+        importa = section(reverse("admin_fantapazz"))
+        self.assertEqual(importa, section(reverse("admin_footballers")))
+        self.assertIn(f'data-league="{self.league.id}"', importa)
+        self.assertIn(reverse("admin_import_rose"), importa)
+
+
+class OutageTests(ApiTestCase):
+    """API-Football ferma: dopo un errore che vale per tutti le chiamate vere
+    falliscono subito (niente 15 s di attesa ciascuna) fino a quando riprova
+    da sola o un tasto dell'admin la fa riprovare."""
+
+    def _real(self, side_effect):
+        calls = []
+
+        def get(*args, **kwargs):
+            calls.append(args)
+            return side_effect()
+        return calls, mock.patch.object(apifootball.requests, "get", get)
+
+    def call(self):
+        # get=requests.get come le chiamate vere: solo queste passano dall'interruttore.
+        return apifootball._get("/teams", {"league": 135}, get=apifootball.requests.get)
+
+    def test_a_network_failure_fails_fast_until_retry(self):
+        import requests
+
+        def boom():
+            raise requests.ConnectionError("rete giù")
+        calls, patch = self._real(boom)
+        with patch:
+            with self.assertRaisesRegex(apifootball.ApiFootballError, "non raggiungibile"):
+                self.call()
+            with self.assertRaisesRegex(apifootball.ApiFootballError, "riprova da sola dopo le"):
+                self.call()
+            self.assertEqual(len(calls), 1)
+            self.assertIn("non raggiungibile", apifootball.status()["outage"]["reason"])
+            apifootball.retry_now()
+            with self.assertRaises(apifootball.ApiFootballError):
+                self.call()
+        self.assertEqual(len(calls), 2)
+
+    def test_the_daily_limit_lasts_until_midnight_utc(self):
+        calls, patch = self._real(lambda: Resp({"errors": {"requests": "limit reached"}}))
+        with patch, self.assertRaisesRegex(apifootball.ApiFootballError, "limite giornaliero"):
+            self.call()
+        state = apifootball.outage()
+        self.assertEqual(state["until"].astimezone(__import__("datetime").timezone.utc).hour, 0)
+
+    def test_an_answer_clears_it_and_a_season_refusal_does_not_trip_it(self):
+        apifootball._trip("prova", 60)
+        apifootball.retry_now()
+        calls, patch = self._real(lambda: Resp({"errors": {"plan": "Free plans do not have access"}}))
+        with patch, self.assertRaisesRegex(apifootball.ApiFootballError, "non copre la stagione"):
+            self.call()
+        self.assertIsNone(apifootball.outage())
+        calls, patch = self._real(lambda: Resp({"response": [{"team": {"id": 1}}]}))
+        apifootball._trip("prova", 60)
+        apifootball.retry_now()
+        with patch:
+            self.assertEqual(len(self.call()), 1)
+        self.assertIsNone(apifootball.outage())
+
+    def test_test_doubles_are_not_guarded(self):
+        """Le prove passano il loro ``get``: l'interruttore non le tocca."""
+        get = self.fake_get(fail_on=496)
+        for _ in range(2):
+            with self.assertRaises(apifootball.ApiFootballError):
+                apifootball._get("/players/squads", {"team": 496}, get=get)
+        self.assertIsNone(apifootball.outage())
+
+    def test_a_page_never_waits_a_minute_for_the_rate_limit(self):
+        apifootball._limits["minute"] = 0
+        with self.assertRaisesRegex(apifootball.RateLimited, "riprova tra un minuto"):
+            apifootball.paced(lambda: None, sleep=apifootball.impatient)
+
+    def test_pages_say_it_is_down_and_what_to_do(self):
+        owner = User.objects.create_user("pres_out", password="pw")
+        league = League.objects.create(name="Lega Ferma", owner=owner)
+        self.client.force_login(owner)
+        apifootball._trip("API-Football non raggiungibile da questo server", 300)
+        resp = self.client.get(reverse("admin_footballers") + f"?league={league.id}&vista=anagrafica")
+        self.assertContains(resp, "API-Football ferma")
+        self.assertContains(resp, "file Quotazioni")
+        resp = self.client.get(reverse("admin_contracts") + f"?league={league.id}")
+        self.assertContains(resp, "API-Football ferma")

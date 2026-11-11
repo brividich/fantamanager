@@ -1,0 +1,14 @@
+{% comment %}
+API-Football ferma (views: ``api_status`` = providers.apifootball.status()).
+Dice cosa non va, da quando, quando riprova da sola e cosa fare intanto
+(``remedy``, passato da chi include). Niente se l'API risponde.
+{% endcomment %}
+{% if api_status.outage %}
+<div class="fm-api-down" role="status" style="display:flex;gap:10px;align-items:flex-start;padding:10px 12px;margin:0 0 10px;
+     border-radius:10px;border:1px solid rgba(251,191,36,.45);background:rgba(251,191,36,.10);font-size:12.5px;line-height:1.45">
+    <span aria-hidden="true">⚠</span>
+    <div><b>API-Football ferma</b> dalle {{ api_status.outage.since|time:"H:i" }}: {{ api_status.outage.reason }}.
+        Le ricerche automatiche si fermano fino alle {{ api_status.outage.until|time:"H:i" }}, poi riprovano da sole; un tasto premuto riprova subito.
+        {% if remedy %}<br>Intanto: {{ remedy }}{% endif %}</div>
+</div>
+{% endif %}

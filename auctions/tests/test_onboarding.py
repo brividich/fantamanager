@@ -77,6 +77,22 @@ class WizardTests(TestCase):
         data.update(extra)
         return self.client.post(reverse("admin_setup_create"), data)
 
+    def test_without_the_general_list_no_empty_auction_is_created(self):
+        """API-Football ferma: la lega nasce senza listone, l'asta non si crea
+        vuota e la pagina «Lega pronta» dice cosa fare."""
+        Footballer.objects.all().delete()
+        page = self.client.get(reverse("admin_setup")).content.decode()
+        self.assertIn("adesso non è disponibile", page)
+        resp = self._create(create_auction="1", start_now="1")
+        league = League.objects.get(name="Lega Senza File")
+        self.assertRedirects(resp, reverse("admin_setup_done", args=[league.id]), fetch_redirect_response=False)
+        self.assertFalse(Auction.objects.filter(league=league).exists())
+        done = self.client.get(reverse("admin_setup_done", args=[league.id]))
+        self.assertContains(done, "L'asta non è stata creata")
+        self.assertContains(done, "Calciatori → Listone")
+        steps = {s["key"]: s for s in onboarding.setup_steps(league)}
+        self.assertFalse(steps["listone"]["done"])
+
     def test_creates_the_league_without_a_file_with_the_general_listone(self):
         resp = self._create()
         league = League.objects.get(name="Lega Senza File")
@@ -342,7 +358,7 @@ class InviteStatusTests(TestCase):
         self.assertRedirects(resp, back, fetch_redirect_response=False)
         self.assertEqual(Participant.objects.get(display_name="Delta").email, "d@x.it")
         page = self.client.get(back).content.decode()
-        self.assertIn(reverse("app_regia_players"), page)       # «Importa rose» resta nell'app
+        self.assertIn(reverse("app_footballers"), page)         # «Importa rose» resta nell'app
 
     def test_mail_off_message_for_president_and_superuser(self):
         page = self.client.get(reverse("admin_participants") + f"?league={self.league.id}")
@@ -437,6 +453,9 @@ class SetupCardTests(TestCase):
             onboarding.link_team(u, t)
         onboarding.set_setup_flag(self.league, "rules_checked")
         Auction.objects.create(league=self.league, title="Asta")
+        # Senza listone la lega non è pronta (la lista generale può non arrivare).
+        self.assertIsNotNone(onboarding.setup_card(League.objects.get(pk=self.league.pk)))
+        Player.objects.create(league=self.league, name="Lautaro", role="A")
         self.assertIsNone(onboarding.setup_card(League.objects.get(pk=self.league.pk)))
         self.assertIsNotNone(League.objects.get(pk=self.league.pk).ready_at)
 

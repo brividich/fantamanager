@@ -20,6 +20,7 @@ shared backups folder; the periodic ticker asks nothing, the service already
 keeps its own schedule.
 """
 import logging
+import os
 import threading
 import time
 from datetime import datetime, timezone
@@ -29,6 +30,18 @@ logger = logging.getLogger(__name__)
 
 PERIODIC = "periodico"          # the live ticker's reason: see consumers.RoomTicker
 PG_REQUEST_FILE = ".richiesta"  # watched by the backup service in docker-compose
+PG_SERVICE_FILE = ".servizio"   # touched by the backup service at every round
+PG_ERROR_FILE = ".errore"       # what the last failed pg_dump said (gone on success)
+# The service looks for a request every minute: one still there after three
+# means nobody is picking it up. Its heartbeat is at most ten minutes apart
+# (the wait after a failed dump).
+PG_REQUEST_STALE_SECONDS = 180
+PG_SERVICE_STALE_SECONDS = 12 * 60
+# While it dumps, the service keeps the request as .richiesta.in-corso (back
+# to .richiesta if the dump fails, gone when it succeeds). One left there for
+# longer than this is a leftover of a killed container, not a dump running.
+PG_RUNNING_FILE = ".richiesta.in-corso"
+PG_RUNNING_MAX_SECONDS = 30 * 60
 
 _bg_lock = threading.Lock()
 _last_bg_backup = 0.0
@@ -59,15 +72,102 @@ def _backup_dir():
 
 def request_pg_dump(reason=""):
     """Ask the backup service for a PostgreSQL dump now. Returns the request
-    file, or None when it could not be written (logged, never raised)."""
+    file, or None when it could not be written (logged, never raised).
+
+    A request already waiting keeps its time: that is how
+    :func:`pg_backup_status` tells a service that never picks requests up."""
     path = _backup_dir() / PG_REQUEST_FILE
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(f"{reason or 'richiesta'}\n", encoding="utf-8")
+        try:
+            waiting = path.stat()
+        except OSError:
+            waiting = None
+        with path.open("a", encoding="utf-8") as fh:
+            fh.write(f"{reason or 'richiesta'}\n")
+        if waiting is not None:
+            os.utime(path, (waiting.st_atime, waiting.st_mtime))
     except OSError:
         logger.exception("could not request a database dump (%s)", reason or "no reason given")
         return None
     return path
+
+
+def _mtime(path):
+    try:
+        return path.stat().st_mtime
+    except OSError:
+        return None
+
+
+def pg_backup_status(now=None):
+    """What the backups folder says about the compose backup service:
+    ``{"pending", "running", "stuck", "seen", "error", "error_at", "problem"}``.
+
+    ``pending`` is when the request still waiting was made (None: nothing
+    waiting), ``running`` when the dump now in progress started, ``stuck``
+    whether the waiting request has waited too long, ``seen`` the service's
+    last heartbeat (None with a compose from before the heartbeat, or a
+    service that never ran), ``error`` what the last failed dump said, and
+    ``problem`` the sentence for the Supervisor, or "" when all is well."""
+    folder = _backup_dir()
+    now = time.time() if now is None else now
+    pending = _mtime(folder / PG_REQUEST_FILE)
+    running_at = None
+    try:
+        # ctime: when the service renamed it, i.e. when the dump started.
+        running_at = (folder / PG_RUNNING_FILE).stat().st_ctime
+    except OSError:
+        pass
+    running = running_at is not None and now - running_at < PG_RUNNING_MAX_SECONDS
+    seen = _mtime(folder / PG_SERVICE_FILE)
+    error_at = _mtime(folder / PG_ERROR_FILE)
+    error = ""
+    if error_at is not None:
+        try:
+            error = (folder / PG_ERROR_FILE).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            error = ""
+        error = " ".join(error.split())[:300]
+
+    def when(ts):
+        return datetime.fromtimestamp(ts, tz=timezone.utc)
+
+    stuck = pending is not None and now - pending > PG_REQUEST_STALE_SECONDS
+    status = {
+        "pending": when(pending) if pending is not None else None,
+        "running": when(running_at) if running else None,
+        "stuck": stuck,
+        "seen": when(seen) if seen is not None else None,
+        "error": error,
+        "error_at": when(error_at) if error_at is not None else None,
+        "problem": "",
+    }
+
+    def hhmm(ts):
+        from django.utils import timezone as dj_tz
+        return dj_tz.localtime(when(ts)).strftime("%d/%m %H:%M")
+
+    logs = "docker compose logs backup"
+    if error_at is not None:
+        status["problem"] = (
+            f"L'ultimo backup non è riuscito ({hhmm(error_at)}): «{error or 'nessun dettaglio'}». "
+            f"Il servizio backup riprova da solo ogni 10 minuti; per capire cosa non va: {logs}.")
+    elif stuck and seen is None:
+        status["problem"] = (
+            f"Il servizio backup non ha ancora risposto alla richiesta del {hhmm(pending)}. "
+            "Controlla che il container fantamanager-backup esista e sia acceso "
+            "(docker compose up -d backup). Su Synology: aggiorna il progetto con il "
+            "docker-compose.yml nuovo, che contiene il servizio backup, e ricompilalo.")
+    elif stuck and now - seen > PG_SERVICE_STALE_SECONDS:
+        status["problem"] = (
+            f"Il servizio backup è fermo dal {hhmm(seen)}: la richiesta del {hhmm(pending)} è ancora in "
+            f"attesa. Riavvialo (docker compose up -d backup) e guarda cosa dice: {logs}.")
+    elif stuck:
+        status["problem"] = (
+            f"Il servizio backup è acceso ma non ha ancora eseguito la richiesta del {hhmm(pending)}: "
+            f"guarda cosa dice ({logs}).")
+    return status
 
 
 def latest_backup():

@@ -29,6 +29,7 @@ from .. import scoring, services, throttle
 from ..models.participant import AMBIGUOUS_CODE_MESSAGE, custom_code_error, find_team_by_code
 from ..services import mail, onboarding, sala
 from ..services.market import buyout_price, fa_period_start, session_moves, waiver_order
+from ..services.reports import league_auctions_with_log
 from .admin_market import rule_choices, session_labels
 from .auth import authenticate_identifier
 from .common import (
@@ -780,6 +781,7 @@ def app_mercato(request):
         **rule_choices(),
         "trades_enabled": bool(league and league.trades_enabled),
         "incoming_trades": Trade.objects.filter(receiver=participant, status=Trade.Status.PENDING).count(),
+        "report_auctions": league_auctions_with_log(league, limit=3) if league else [],
         "role": role,
         "q": q,
         "sort": sort,

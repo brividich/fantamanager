@@ -11,7 +11,7 @@ dell'app (_footballers.html): qui c'è solo la cornice.
 {% include "auctions/_console_head.html" %}
 <div style="margin:6px 0 14px">
     <h1 style="margin:0;font-size:26px">Calciatori</h1>
-    <div style="font-size:12.5px;color:var(--fm-text-secondary)">Anagrafica dei calciatori di Serie A da API-Football{% if current_league %} · accanto, la lega {{ current_league.name }}{% endif %}</div>
+    <div style="font-size:12.5px;color:var(--fm-text-secondary)">{% if fb_view == 'listone' %}Il listone di {{ fb_league.name|default:'questa lega' }}: chi è in rosa, chi è svincolato, quotazioni{% else %}Anagrafica dei calciatori di Serie A da API-Football{% if current_league %} · accanto, la lega {{ current_league.name }}{% endif %}{% endif %}</div>
 </div>
 <style>
     .fb-msg { padding:10px 14px; border-radius:var(--fm-radius-sm); font-size:13px; margin-bottom:10px;

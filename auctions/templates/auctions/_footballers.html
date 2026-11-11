@@ -1,28 +1,34 @@
 {% comment %}
-Anagrafica dei calciatori (API-Football): unica per tutto FantaManager.
+Calciatori: due schede.
+- Listone (?vista=listone, la prima quando c'è una lega): i giocatori della
+  lega, quelli che vanno all'asta, con gli strumenti per chi la gestisce
+  (_listone.html). Non dipende da API-Football.
+- Anagrafica Serie A (?vista=anagrafica): l'elenco di API-Football, unico per
+  tutto FantaManager, con accanto lo stato di ogni calciatore nella lega.
 
 UNICA per console web (admin_footballers.html) e app (app_footballers.html):
 filtri, righe e testi si cambiano qui, valgono per entrambe.
 
-Dati da views/footballers.py:footballers_context (fb_*); i link restano
+Dati da views/footballers.py:footballers_context (fb_*, lst_*); i link restano
 relativi alla pagina che include il partial, la lega in ?league= compresa.
 {% endcomment %}
 {% load fm_privacy %}
 <!-- footballers:start -->
 <style>
-    .fb-stats { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
-    .fb-stat { flex:1 1 150px; padding:11px 14px; background:var(--fm-card); border:1px solid var(--fm-border);
-        border-radius:var(--fm-radius-md); }
-    .fb-stat .n { font-family:var(--fm-display); font-weight:800; font-size:22px; line-height:1.1; }
-    .fb-stat .k { font-size:11.5px; color:var(--fm-text-muted); }
-    .fb-sync { display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:11px 14px; margin-bottom:14px;
+    /* Conteggi compatti: una riga di chip. */
+    .fb-stats { gap:6px; margin-bottom:10px; }
+    .fb-stat { display:inline-flex; align-items:baseline; gap:6px; height:32px; padding:0 12px; line-height:32px;
+        background:var(--fm-card); border:1px solid var(--fm-border); border-radius:16px; }
+    .fb-stat .n { font-family:var(--fm-display); font-weight:800; font-size:15px; }
+    .fb-stat .k { font-size:12px; color:var(--fm-text-muted); }
+    .fb-sync { display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:9px 12px; margin-bottom:10px;
         border-radius:var(--fm-radius-md); border:1px solid var(--fm-border); background:rgba(255,255,255,.03);
         font-size:12.5px; color:var(--fm-text-secondary); }
     .fb-sync .grow { flex:1 1 240px; }
     .fb-sync.is-error { border-color:rgba(255,61,80,.40); }
     .fb-filters { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px; }
     .fb-filters input[type=search] { flex:1 1 220px; width:auto; min-width:0; }
-    .fb-filters select { flex:0 1 auto; width:auto; max-width:100%; }
+    .fb-filters select { flex:0 1 auto; width:auto; max-width:100%; height:34px; padding-top:0; padding-bottom:0; font-size:13px; }
     .fb-filters .fb-check { display:inline-flex; gap:6px; align-items:center; margin:0; font-size:12.5px;
         font-weight:600; text-transform:none; letter-spacing:normal; color:var(--fm-text-secondary); }
     .fb-filters .fb-check input { width:auto; }
@@ -55,12 +61,33 @@ relativi alla pagina che include il partial, la lega in ?league= compresa.
     .fb-pager { display:flex; align-items:center; gap:8px; margin-top:12px; font-size:12.5px; color:var(--fm-text-muted); }
     .fb-pager .grow { flex:1 1 auto; }
     .fb-empty { padding:26px 10px; text-align:center; color:var(--fm-text-muted); font-size:13px; }
+    .fb-tabs { gap:4px; margin:0 0 14px; padding:4px; border-radius:12px; background:rgba(255,255,255,.03);
+        border:1px solid var(--fm-border); width:max-content; max-width:100%; }
+    .fb-tabs a { padding:8px 14px; border-radius:9px; font-weight:800; font-size:13px; color:var(--fm-text-muted);
+        text-decoration:none; display:inline-flex; gap:6px; align-items:center; }
+    .fb-tabs a:hover { color:var(--fm-text); }
+    .fb-tabs a.on { background:var(--fm-card); color:var(--fm-text); }
+    .fb-tabs .n { font-size:11px; font-weight:800; color:var(--fm-text-muted); }
 </style>
+
+{% if fb_has_league %}
+<nav class="fb-tabs fm-onerow" aria-label="Schede di Calciatori">
+    <a href="?{% if request.GET.league %}league={{ request.GET.league }}&{% endif %}vista=listone" class="{% if fb_view == 'listone' %}on{% endif %}"
+       {% if fb_view == 'listone' %}aria-current="page"{% endif %}><svg class="ic"><use href="#i-users"/></svg> Listone della lega <span class="n">{{ fb_listone }}</span></a>
+    <a href="?{% if request.GET.league %}league={{ request.GET.league }}&{% endif %}vista=anagrafica" class="{% if fb_view == 'anagrafica' %}on{% endif %}"
+       {% if fb_view == 'anagrafica' %}aria-current="page"{% endif %}><svg class="ic"><use href="#i-ball"/></svg> Anagrafica Serie A <span class="n">{{ fb_total }}</span></a>
+</nav>
+{% endif %}
+
+{% if fb_view == "listone" %}
+{% include "auctions/_listone.html" %}
+{% else %}
 
 <details class="howto noprint">
     <summary><svg class="ic"><use href="#i-search"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
     <div class="howto-body">
         L'elenco dei calciatori di Serie A preso da API-Football: è lo stesso per tutte le leghe.
+        {% if fb_has_league %}I giocatori che vanno all'asta, con rose e quotazioni, sono nella scheda <b>Listone della lega</b>.{% endif %}
         <ol>
             <li>Scrivi un nome o un club e premi <b>Cerca</b>; restringi con ruolo, club{% if fb_has_league %}, stato nella lega{% endif %}
                 o <b>Usciti dalla Serie A</b>. <b>Azzera</b> toglie i filtri.</li>
@@ -84,15 +111,16 @@ relativi alla pagina che include il partial, la lega in ?league= compresa.
     </div>
 </details>
 
-<div class="fb-stats">
+<div class="fb-stats fm-onerow">
     <div class="fb-stat"><div class="n">{{ fb_total }}</div><div class="k">Calciatori in Serie A</div></div>
     <div class="fb-stat"><div class="n">{{ fb_clubs|length }}</div><div class="k">Club</div></div>
     {% if fb_has_league %}
-    <div class="fb-stat"><div class="n">{{ fb_linked }}<small style="font-size:13px;color:var(--fm-text-muted)"> / {{ fb_listone }}</small></div>
-        <div class="k">Giocatori del listone collegati</div></div>
+    <div class="fb-stat"><div class="n">{{ fb_linked }}<small style="font-size:12px;color:var(--fm-text-muted)">/{{ fb_listone }}</small></div>
+        <div class="k">del listone collegati</div></div>
     {% endif %}
 </div>
 
+{% include "auctions/_api_status.html" with remedy="il listone di ogni lega resta com'è (scheda Listone); per una lega puoi caricare il file Quotazioni." %}
 <div class="fb-sync{% if fb_sync.error %} is-error{% endif %}">
     <div class="grow">
         {% if fb_sync.status == "running" %}
@@ -109,6 +137,7 @@ relativi alla pagina che include il partial, la lega in ?league= compresa.
             Calciatori dalle rose dei club di Serie A su API-Football.
         {% endif %}
         L'anagrafica è la stessa per tutte le leghe.
+        {% if fb_sync.error %}<br>Le leghe non si fermano: il listone di ogni lega resta com'è{% if fb_has_league %} (scheda Listone){% endif %}; si riprova più tardi o, per una lega, si carica il file Quotazioni.{% endif %}
     </div>
     {% if fb_can_sync %}
         {% if fb_api_ready %}
@@ -149,6 +178,7 @@ relativi alla pagina che include il partial, la lega in ?league= compresa.
 <div class="fm-card">
     <form method="get" class="fb-filters">
         {% if request.GET.league %}<input type="hidden" name="league" value="{{ request.GET.league }}">{% endif %}
+        {% if fb_has_league %}<input type="hidden" name="vista" value="anagrafica">{% endif %}
         <input name="q" type="search" value="{{ fb_filters.q }}" placeholder="Cerca calciatore o club…" aria-label="Cerca calciatore o club">
         <select name="role" aria-label="Filtra per ruolo" onchange="this.form.submit()">
             <option value="">Tutti i ruoli</option>
@@ -177,7 +207,7 @@ relativi alla pagina che include il partial, la lega in ?league= compresa.
         </label>
         <button type="submit" class="fm-btn fm-btn-secondary"><svg class="ic"><use href="#i-search"/></svg> Cerca</button>
         {% if fb_filters.q or fb_filters.role or fb_filters.club or fb_filters.lega or fb_filters.usciti %}
-        <a class="fm-btn fm-btn-ghost" href="?{% if request.GET.league %}league={{ request.GET.league }}{% endif %}">Azzera</a>
+        <a class="fm-btn fm-btn-ghost" href="?{% if request.GET.league %}league={{ request.GET.league }}&{% endif %}vista=anagrafica">Azzera</a>
         {% endif %}
     </form>
 
@@ -223,7 +253,10 @@ relativi alla pagina che include il partial, la lega in ?league= compresa.
     {% empty %}
         <div class="fb-empty">
             {% if fb_filters.q or fb_filters.role or fb_filters.club or fb_filters.lega or fb_filters.usciti %}Nessun calciatore per questi filtri.
-            {% else %}Nessun calciatore in anagrafica: va aggiornata da API-Football.{% endif %}
+            {% elif fb_has_league %}Nessun calciatore in anagrafica: si riempie da API-Football{% if fb_can_sync %} con «Aggiorna da API-Football»{% endif %}.
+            Se l'API non risponde la lega non si ferma: rose e quotazioni sono nella scheda
+            <a href="?{% if request.GET.league %}league={{ request.GET.league }}&{% endif %}vista=listone">Listone della lega</a>{% if fb_can_manage %}, dove carichi il file Quotazioni{% endif %}.
+            {% else %}Nessun calciatore in anagrafica: si riempie da API-Football{% if fb_can_sync %} con «Aggiorna da API-Football»{% endif %}.{% endif %}
         </div>
     {% endfor %}
     </div>
@@ -236,4 +269,5 @@ relativi alla pagina che include il partial, la lega in ?league= compresa.
         {% if fb_page.has_next %}<a class="fm-btn fm-btn-secondary fm-btn-sm" href="?{{ fb_filter_qs }}{% if fb_filter_qs %}&{% endif %}page={{ fb_page.next_page_number }}">Succ. ›</a>{% endif %}
     </nav>
 </div>
+{% endif %}
 <!-- footballers:end -->

@@ -42,6 +42,16 @@ Prima versione numerata (prima l'etichetta era 1.2.0, senza rilasci).
   millesimo di secondo e il distacco dalla prima offerta; evidenziate le
   offerte a pari importo, dove l'orario può decidere. Visibile solo dopo lo
   spoglio. Corretta la data di spoglio, che restava «In corso».
+- Report di mercato da stampare o scaricare (PDF e CSV), dalla console e
+  dall'app delle squadre: **registro dell'asta live** (ogni rilancio di ogni
+  lotto con l'orario al millesimo, i secondi rimasti al timer, i rilanci
+  rifiutati col motivo e le buste di spareggio), **report degli scambi** (chi
+  cede cosa, tempi di risposta e di ratifica, bilancio per squadra) e
+  **report di mercato della stagione** (ogni movimento squadra per squadra
+  con la spesa netta progressiva).
+- Buste: a consegna chiusa, appena l'admin guarda le offerte, «Pareggi in
+  vista» dice quali giocatori finirebbero in parità e cosa farà la regola
+  (con «vince chi ha offerto prima»: chi vince, con orari e distacco).
 
 ### Rose e contratti
 - Nuova pagina **Rose**, uguale nella console (barra in alto) e nell'app
@@ -62,6 +72,14 @@ Prima versione numerata (prima l'etichetta era 1.2.0, senza rilasci).
 - Su PostgreSQL (NAS, Docker) il Supervisor ripristina un backup dal browser:
   prima salva lo stato attuale, poi ripristina tutto in una transazione.
   Chi ripristina resta collegato anche se la copia è di prima del suo login.
+- Su PostgreSQL «Crea Snapshot» non dice più «completato con successo:
+  .richiesta»: dice che il dump è chiesto al servizio `backup`, mostra la
+  richiesta in attesa finché il file non compare in elenco (la pagina si
+  aggiorna da sola) e, se il servizio non risponde, è fermo o il `pg_dump`
+  non riesce, lo dice con cosa fare. Il servizio `backup` del compose lascia
+  un battito (`.servizio`) e l'errore dell'ultimo dump (`.errore`) in
+  `./backups`, e una richiesta non riuscita resta in attesa: per averli,
+  aggiorna il `docker-compose.yml`.
 
 ### Rilascio
 - L'immagine Docker si pubblica solo dopo test verdi e un avvio di prova

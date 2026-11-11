@@ -308,6 +308,14 @@ class PostgresBackupRequestTests(TestCase):
         self.assertEqual(path, self.dir / self.backup.PG_REQUEST_FILE)
         self.assertEqual(path.read_text(encoding="utf-8").strip(), "asta terminata")
 
+    def test_a_waiting_request_keeps_its_time(self):
+        # Così una richiesta che nessuno esegue si vede, anche se se ne fanno altre.
+        path = self.backup.request_pg_dump("prima")
+        os.utime(path, (1_700_000_000, 1_700_000_000))
+        self.backup.request_pg_dump("seconda")
+        self.assertEqual(path.stat().st_mtime, 1_700_000_000)
+        self.assertEqual(path.read_text(encoding="utf-8").split(), ["prima", "seconda"])
+
     def test_the_live_tickers_periodic_call_asks_nothing(self):
         # The service keeps its own schedule; a dump every five minutes of a
         # live auction would only rotate the older ones away.

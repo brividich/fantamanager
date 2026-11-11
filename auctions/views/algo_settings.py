@@ -286,6 +286,8 @@ def supervisor_algo_sample_import(request):
     if not apifootball_configured():
         messages.error(request, "API-Football non configurata: imposta APIFOOTBALL_KEY sul server e riavvia.")
         return redirect(_page_url())
+    from ..providers.apifootball import retry_now
+    retry_now()  # un tasto premuto: si riprova anche se l'API era segnata ferma
     try:
         sample = voto_algo.import_apifootball_round(round_number, request.user)
     except (ApiFootballError, ValueError) as exc:

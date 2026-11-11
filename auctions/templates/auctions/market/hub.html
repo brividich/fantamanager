@@ -181,7 +181,7 @@ of a market's content is on this page: every item opens its own screen.
 <nav class="mk-links fm-onerow" aria-label="Pagine collegate" style="margin-top:10px">
     <span class="lbl">Vai a</span>
     <a class="mk-link" href="{% purl 'admin_participants' %}?league={{ current_league.id }}"><svg class="ic"><use href="#i-shield"/></svg> Squadre e rose</a>
-    <a class="mk-link" href="{% purl 'admin_players' %}?league={{ current_league.id }}&status=free"><svg class="ic"><use href="#i-users"/></svg> Svincolati <span class="n">{{ free_total }}</span></a>
+    <a class="mk-link" href="{% purl 'admin_footballers' %}?league={{ current_league.id }}&status=free"><svg class="ic"><use href="#i-users"/></svg> Svincolati <span class="n">{{ free_total }}</span></a>
     <a class="mk-link" href="{% purl 'admin_contracts' %}?league={{ current_league.id }}"><svg class="ic"><use href="#i-doc"/></svg> Contratti</a>
     <a class="mk-link" href="{% purl 'admin_season' %}?league={{ current_league.id }}"><svg class="ic"><use href="#i-trophy"/></svg> Stagione</a>
     <a class="mk-link" href="{% purl 'admin_export' %}?league={{ current_league.id }}"><svg class="ic"><use href="#i-export"/></svg> Export rose</a>

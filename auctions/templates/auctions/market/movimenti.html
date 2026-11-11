@@ -10,7 +10,10 @@
     <div class="sub">Ogni acquisto, svincolo e scambio delle squadre della lega — dall'asta, dalle buste, dall'app o fatto a mano dalla regia.</div>
 </div>
 <span class="spacer"></span>
-{% if current_league %}<a class="fm-btn fm-btn-secondary" href="{% purl 'admin_export' %}?league={{ current_league.id }}"><svg class="ic"><use href="#i-export"/></svg> Export rose</a>{% endif %}
+{% if current_league %}<div class="mk-head-actions fm-onerow">
+<a class="fm-btn fm-btn-primary" href="{% url 'admin_report_season' %}?league={{ current_league.id }}" target="_blank" rel="noopener" title="Ogni movimento della stagione squadra per squadra, da stampare o scaricare"><svg class="ic"><use href="#i-print"/></svg> Report di stagione</a>
+<a class="fm-btn fm-btn-secondary" href="{% purl 'admin_export' %}?league={{ current_league.id }}"><svg class="ic"><use href="#i-export"/></svg> Export rose</a>
+</div>{% endif %}
 {% endblock %}
 
 {% block mk_body %}
@@ -21,7 +24,7 @@
         <ol>
             <li>{% if moves %}Usa <b>Tutti</b>, <b>Acquisti</b>, <b>Svincoli</b> e <b>Scambi</b> per vedere un tipo di movimento alla volta.{% else %}Per ora non c'è nessun movimento: compaiono appena una squadra compra, svincola o scambia.{% endif %}</li>
             <li>Ogni riga dice data, giocatore, squadra e crediti: in meno se spesi, in più se rimborsati.</li>
-            <li>Per avere le rose in un file premi <b>Export rose</b>.</li>
+            <li>Per il resoconto della stagione squadra per squadra, con la spesa progressiva, premi <b>Report di stagione</b> (PDF o CSV); per le rose in un file premi <b>Export rose</b>.</li>
         </ol>
     </div>
 </details>

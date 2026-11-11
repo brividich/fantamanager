@@ -82,6 +82,12 @@ and the Regia show) and every team's invite, one by one (_team_invites.html).
 {% for m in messages %}
 <div class="msg {% if m.tags %}{{ m.tags }}{% endif %}" role="status">{{ m }}</div>
 {% endfor %}
+{% if report.no_listone %}
+<div class="msg warning" role="status">L'asta non è stata creata: la lega non ha ancora il listone (la lista generale
+    da API-Football adesso non è disponibile). Carica il file Quotazioni in
+    <a href="{% purl 'admin_footballers' %}?league={{ league.id }}">Calciatori → Listone</a>, poi crea l'asta da
+    <a href="{% purl 'admin_auction_wizard' %}?league={{ league.id }}">Nuova asta</a>.</div>
+{% endif %}
 {% if invites_line %}
 <div class="msg {% if report.invites.sent and not report.invites.failed %}success{% else %}warning{% endif %}" role="status">Inviti: {{ invites_line }}</div>
 {% endif %}

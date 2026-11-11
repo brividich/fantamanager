@@ -1,4 +1,4 @@
-{% comment %}
+{% load fm_pages %}{% comment %}
 Gestione di una sessione di mercato: stato e azioni, consegne per squadra,
 anteprima o esito dello spoglio, pareggi e (solo admin) le buste.
 
@@ -10,7 +10,7 @@ arrivano da mk_labels (SESSION_LABELS in views/admin_market.py) e i rinnovi
 hanno un quadro tutto loro (renewals: contratti da dichiarare e dadi per squadra).
 
 Parametri: s, current_league, participants_stats, delivered, bids_list,
-results, is_preview, sealed, pending_releases, pending_teams, free_total, free_by_role, reachable, mail_ready, now,
+results, is_preview, sealed, ties_ahead (pareggi previsti, a consegna chiusa), pending_releases, pending_teams, free_total, free_by_role, reachable, mail_ready, now,
 release_board, list_team, list_view (lista «Chi lasceresti andare», buste aperte), share_text (riepilogo da copiare),
 mk_labels, is_buste, is_renewals, renewals,
   mk_back  pagina a cui tornare dopo un'azione (questa)
@@ -43,7 +43,7 @@ mk_labels, is_buste, is_renewals, renewals,
                 {% elif s.status == "closed" %}✓ {{ mk_labels.closed }}: se serve altro tempo premi <b>Riapri finestra</b>, prima di guardare le offerte.
                 {% else %}✓ Fase «{{ mk_labels.step_open }}» finita.{% endif %}</li>
             {% if mk_labels.preview and s.status != "resolved" %}
-            <li>{% if sealed %}Quando la finestra è chiusa{% else %}Prima di concludere{% endif %} puoi premere <b>{{ mk_labels.preview }}</b>: vedi l'esito senza assegnare nulla.</li>
+            <li>{% if sealed %}Quando la finestra è chiusa{% else %}Prima di concludere{% endif %} puoi premere <b>{{ mk_labels.preview }}</b>: vedi l'esito senza assegnare nulla{% if is_buste %} e, in <b>Pareggi in vista</b>, le offerte pari e chi vincerà per la regola di parità{% endif %}.</li>
             {% endif %}
             <li>{% if s.status == "resolved" %}✓ {{ mk_labels.resolved }}.
                 {% else %}{% if s.status == "closed" or s.status == "open" and not is_buste and s.session_type != "waiver_wire" %}{% if s.status == "closed" %}<b>Adesso:</b> premi{% else %}Alla fine premi{% endif %}
@@ -219,7 +219,7 @@ mk_labels, is_buste, is_renewals, renewals,
             <div class="s">{{ renewals.to_roll }} rinnovo · {{ renewals.new_contracts }} contratti</div>
         </div>
         {% else %}
-        <a class="mk-kpi" href="{% url 'admin_players' %}?league={{ current_league.id }}&status=free" title="Apri il listone degli svincolati">
+        <a class="mk-kpi" href="{% purl 'admin_footballers' %}?league={{ current_league.id }}&status=free" title="Apri il listone degli svincolati">
             <div class="k">Svincolati disponibili</div>
             <div class="v">{{ free_total }}</div>
             <div class="s">{% for r, n in free_by_role %}{{ r }} {{ n }}{% if not forloop.last %} · {% endif %}{% endfor %}</div>
@@ -273,6 +273,30 @@ mk_labels, is_buste, is_renewals, renewals,
     </div>
     {% endif %}
 </article>
+
+{% if ties_ahead %}
+<div class="fm-card" style="border-color:rgba(255,181,38,.45)">
+    <h3 class="mk-card-t" style="color:var(--fm-warning)"><svg class="ic"><use href="#i-info"/></svg> Pareggi in vista <span class="cnt warn">{{ ties_ahead|length }}</span></h3>
+    <p class="mk-hint">Lo spoglio, fatto adesso, troverebbe la stessa offerta migliore da più squadre su {{ ties_ahead|length }} giocator{{ ties_ahead|length|pluralize:"e,i" }}.
+        Regola di parità della sessione: <b>{{ s.get_tie_break_display }}</b>{% if s.tie_break == "first" %}: decide l'orario di consegna (vale l'ultimo cambio d'importo){% elif s.tie_break == "rebid" %}: dopo lo spoglio inserisci le nuove offerte in <b>Pareggi riscontrati</b>{% else %}: dopo lo spoglio scegli tu o sorteggi in <b>Pareggi riscontrati</b>{% endif %}.
+        Per cambiarla premi <b>Regole</b> prima di <b>{{ mk_labels.resolve }}</b>.</p>
+    <div class="table-scroll">
+        <table>
+            <thead><tr><th>Giocatore</th><th>Offerta</th><th>Squadre, in ordine di consegna</th><th>Esito previsto</th></tr></thead>
+            <tbody>
+            {% for t in ties_ahead %}
+            <tr>
+                <td><span class="mk-player"><span class="role-badge role-{{ t.player_role }}">{{ t.player_role }}</span> <b>{{ t.player_name }}</b> <small>{{ t.player_team }}</small></span></td>
+                <td><span class="mk-fm">{{ t.amount }} FM</span></td>
+                <td>{% for c in t.teams %}<div><b>{{ c.name }}</b>{% if c.at %} <small class="muted">{{ c.at.date }} {{ c.at.time }}.{{ c.at.ms }} · {{ c.gap_label }}</small>{% endif %}</div>{% endfor %}</td>
+                <td>{% if t.winner %}<span class="mk-pill ok">Vince {{ t.winner }}</span> <small class="muted">ha offerto prima</small>{% elif t.rule == "rebid" %}<span class="mk-pill warn">Secondo sfoglio</span>{% else %}<span class="mk-pill warn">Decidi tu (scelta o sorteggio)</span>{% endif %}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
 
 {% if results %}
 <div>
@@ -531,7 +555,7 @@ mk_labels, is_buste, is_renewals, renewals,
                     {% else %}<span class="tag">Contratti da tirare</span>{% endif %}</td>
             </tr>
             {% empty %}
-            <tr><td colspan="6" class="muted" style="text-align:center">Nessuna squadra nella lega. <a href="{% url 'admin_participants' %}?league={{ current_league.id }}">Aggiungile</a></td></tr>
+            <tr><td colspan="6" class="muted" style="text-align:center">Nessuna squadra nella lega. <a href="{% purl 'admin_participants' %}?league={{ current_league.id }}">Aggiungile</a></td></tr>
             {% endfor %}
             </tbody>
         </table>
@@ -554,7 +578,7 @@ mk_labels, is_buste, is_renewals, renewals,
                 <td>{% if item.has_submitted %}<span class="tag t-live">{{ mk_labels.done }}</span>{% else %}<span class="tag">{{ mk_labels.pending }}</span>{% endif %}</td>
             </tr>
             {% empty %}
-            <tr><td colspan="5" class="muted" style="text-align:center">Nessuna squadra nella lega. <a href="{% url 'admin_participants' %}?league={{ current_league.id }}">Aggiungile</a></td></tr>
+            <tr><td colspan="5" class="muted" style="text-align:center">Nessuna squadra nella lega. <a href="{% purl 'admin_participants' %}?league={{ current_league.id }}">Aggiungile</a></td></tr>
             {% endfor %}
             </tbody>
         </table>
