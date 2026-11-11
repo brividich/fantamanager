@@ -1,8 +1,8 @@
-"""Admin player management: listone, imports, assignments, and search."""
-from django.core.paginator import Paginator
-from django.db.models import Q
+"""Admin player management: listone imports, assignments, and search.
+
+La pagina del listone è la scheda Listone di Calciatori (views/footballers.py):
+qui restano le azioni che la pagina chiama."""
 from django.http import JsonResponse
-from django.shortcuts import render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
@@ -13,113 +13,14 @@ from ..services.sala import ensure_unlocked as _sala_guard
 from ..uploads import UploadRejected
 from .common import (
     broadcast_state,
-    current_auction,
-    current_league,
     league_scope_or_403,
-    manageable_leagues,
     league_mismatch_json,
     managed_or_403,
     mixed_leagues,
-    page_frame,
     staff_member_required,
     target_league,
     user_can_manage_scope,
 )
-
-
-@staff_member_required
-def admin_players(request):
-    """The listone of one league, filtered and paginated server-side.
-
-    500+ players used to render as one enormous page (tens of thousands of DOM
-    nodes). Search, role, team and status now filter in the database and only a
-    page of rows is sent; every filter travels in the querystring so pagination
-    links keep them — the league included.
-    """
-    leagues = list(manageable_leagues(request.user))
-    league = current_league(request)
-    # No league picked: the global pool, which belongs to nobody but superusers.
-    in_scope = user_can_manage_scope(request.user, league)
-
-    if league is not None:
-        all_players = Player.objects.filter(league=league)
-    elif in_scope:
-        all_players = Player.objects.filter(league__isnull=True)
-    else:
-        all_players = Player.objects.none()
-    counts  = {r: all_players.filter(role=r).count() for r in ["P", "D", "C", "A"]}
-    free_count = all_players.filter(owner__isnull=True).count()
-    total_count = all_players.count()
-
-    q      = (request.GET.get("q") or "").strip()
-    role   = (request.GET.get("role") or "").strip().upper()[:1]
-    team   = (request.GET.get("team") or "").strip()
-    status = (request.GET.get("status") or "").strip()
-    sort   = (request.GET.get("sort") or "name").strip()
-
-    players = all_players.select_related("owner")
-    if q:
-        players = players.filter(Q(name__icontains=q) | Q(team__icontains=q))
-    if role in ("P", "D", "C", "A"):
-        players = players.filter(role=role)
-    if team:
-        players = players.filter(team=team)
-    if status == "free":
-        players = players.filter(owner__isnull=True)
-    elif status == "owned":
-        players = players.filter(owner__isnull=False)
-
-    ORDERS = {
-        "name":  ["name"],
-        "-name": ["-name"],
-        "quota": ["initial_price", "name"],
-        "-quota": ["-initial_price", "name"],
-        "role":  ["role", "name"],
-        "team":  ["team", "name"],
-    }
-    players = players.order_by(*ORDERS.get(sort, ORDERS["name"]))
-
-    paginator = Paginator(players, 50)
-    page = paginator.get_page(request.GET.get("page"))
-
-    # Querystring without page/league, so the pager can re-append them.
-    keep = request.GET.copy()
-    for k in ("page",):
-        keep.pop(k, None)
-    filter_qs = keep.urlencode()
-
-    teams = list(all_players.exclude(team="").order_by("team")
-                 .values_list("team", flat=True).distinct())
-
-    # Teams available as assignment targets (scoped to the current league).
-    participants = Participant.objects.filter(is_active=True)
-    if league is not None:
-        participants = participants.filter(league=league)
-    elif not in_scope:
-        participants = participants.none()
-    return render(request, "auctions/admin_players.html", {
-        **page_frame(request, league),
-        "players": page.object_list, "page_obj": page, "paginator": paginator,
-        "counts": counts, "free_count": free_count, "total_count": total_count,
-        "filters": {"q": q, "role": role, "team": team, "status": status, "sort": sort},
-        "filter_qs": filter_qs, "teams": teams,
-        "leagues": leagues, "current_league": league,
-        "participants": participants.order_by("display_name"),
-        # The stats card reports coverage. A server may provide its own stats
-        # file (FANTAMANAGER_STATS_FILE) that imports apply by themselves;
-        # otherwise the league uploads one.
-        "stats_season": importers.server_stats_season(),
-        "stats_server_file": importers.server_stats_path() is not None,
-        "stats_covered": all_players.exclude(fanta_avg__isnull=True).count(),
-        "console_section": "Giocatori",
-        "console_active": "players",
-        # Keeps the "Asta" tab pointing back at the auction being run.
-        "selected": current_auction(request, league),
-        # Set when the wizard (or a resumed session) bounced here: this league
-        # has no listone yet.
-        "need_listone": request.GET.get("need_listone") == "1",
-        "need_listone_from": request.GET.get("from", ""),
-    })
 
 
 @staff_member_required

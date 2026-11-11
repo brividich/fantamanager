@@ -10,7 +10,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from .. import remote, services
-from ..models import Auction, League, LeagueConfig, Participant, Player
+from ..models import Auction, Footballer, League, LeagueConfig, Participant, Player
 from ..models.participant import generate_access_code
 from ..providers import importers
 from ..services import mail, onboarding
@@ -165,7 +165,7 @@ def admin_wizard_create(request):
         return HttpResponseForbidden(FORBIDDEN_LEAGUE_MSG)
 
     if not league.players.exists():
-        return redirect(f"{reverse('admin_players')}?league={league.id}&need_listone=1&from=wizard")
+        return redirect(f"{reverse('admin_footballers')}?league={league.id}&need_listone=1&from=wizard")
 
     mode = request.POST.get("mode", "").strip()
     if mode not in Auction.Mode.values:
@@ -275,6 +275,9 @@ def _setup_wizard_context(request, error=""):
         "within_roles": Auction.WithinRole.choices,
         "opening_price_modes": Auction.OpeningPriceMode.choices,
         "mail_ready": mail.is_ready(),
+        # La lista generale (API-Football) da cui parte una lega senza file:
+        # se è vuota il wizard non promette un listone che non arriva.
+        "registry_count": Footballer.objects.filter(in_serie_a=True).count(),
         "error": error,
     }
 

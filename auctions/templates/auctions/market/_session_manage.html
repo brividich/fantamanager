@@ -1,4 +1,4 @@
-{% comment %}
+{% load fm_pages %}{% comment %}
 Gestione di una sessione di mercato: stato e azioni, consegne per squadra,
 anteprima o esito dello spoglio, pareggi e (solo admin) le buste.
 
@@ -219,7 +219,7 @@ mk_labels, is_buste, is_renewals, renewals,
             <div class="s">{{ renewals.to_roll }} rinnovo · {{ renewals.new_contracts }} contratti</div>
         </div>
         {% else %}
-        <a class="mk-kpi" href="{% url 'admin_players' %}?league={{ current_league.id }}&status=free" title="Apri il listone degli svincolati">
+        <a class="mk-kpi" href="{% purl 'admin_footballers' %}?league={{ current_league.id }}&status=free" title="Apri il listone degli svincolati">
             <div class="k">Svincolati disponibili</div>
             <div class="v">{{ free_total }}</div>
             <div class="s">{% for r, n in free_by_role %}{{ r }} {{ n }}{% if not forloop.last %} · {% endif %}{% endfor %}</div>
@@ -531,7 +531,7 @@ mk_labels, is_buste, is_renewals, renewals,
                     {% else %}<span class="tag">Contratti da tirare</span>{% endif %}</td>
             </tr>
             {% empty %}
-            <tr><td colspan="6" class="muted" style="text-align:center">Nessuna squadra nella lega. <a href="{% url 'admin_participants' %}?league={{ current_league.id }}">Aggiungile</a></td></tr>
+            <tr><td colspan="6" class="muted" style="text-align:center">Nessuna squadra nella lega. <a href="{% purl 'admin_participants' %}?league={{ current_league.id }}">Aggiungile</a></td></tr>
             {% endfor %}
             </tbody>
         </table>
@@ -554,7 +554,7 @@ mk_labels, is_buste, is_renewals, renewals,
                 <td>{% if item.has_submitted %}<span class="tag t-live">{{ mk_labels.done }}</span>{% else %}<span class="tag">{{ mk_labels.pending }}</span>{% endif %}</td>
             </tr>
             {% empty %}
-            <tr><td colspan="5" class="muted" style="text-align:center">Nessuna squadra nella lega. <a href="{% url 'admin_participants' %}?league={{ current_league.id }}">Aggiungile</a></td></tr>
+            <tr><td colspan="5" class="muted" style="text-align:center">Nessuna squadra nella lega. <a href="{% purl 'admin_participants' %}?league={{ current_league.id }}">Aggiungile</a></td></tr>
             {% endfor %}
             </tbody>
         </table>

@@ -14,6 +14,7 @@ from datetime import timedelta
 
 from django.core.cache import cache
 from django.db import connection
+from django.db.models import Q
 from django.utils import timezone
 
 from ..models import Footballer, Player
@@ -44,6 +45,12 @@ def _clubs(af, get, sleep, report):
     return sorted({(tid, tname, "") for tid, tname in mapping.values()}, key=lambda t: t[1]), False
 
 
+# Un giro che farebbe uscire dalla Serie A più di così (un terzo, almeno 40)
+# è una risposta sbagliata dell'API, non il mercato: nessuno esce.
+MAX_LEFT_SHARE = 0.33
+MAX_LEFT_MIN = 40
+
+
 def sync_registry(*, get=None, sleep=time.sleep, progress=None):
     """Aggiorna l'anagrafica con le rose attuali dei club di Serie A.
 
@@ -57,7 +64,7 @@ def sync_registry(*, get=None, sleep=time.sleep, progress=None):
 
     get = get or requests.get
     report = {"clubs": 0, "players": 0, "created": 0, "updated": 0, "left": 0, "linked": 0, "leagues": 0,
-              "unmatched_clubs": [], "error": ""}
+              "unmatched_clubs": [], "empty_clubs": [], "error": ""}
     if not af.is_configured():
         report["error"] = "API-Football non configurata: imposta APIFOOTBALL_KEY sul server e riavvia"
         return report
@@ -76,6 +83,10 @@ def sync_registry(*, get=None, sleep=time.sleep, progress=None):
             if progress:
                 progress(i, len(teams))
             players = af.paced(af.squad, club_id, get=get, sleep=sleep)
+            if not players:
+                # Una rosa vuota è una risposta sbagliata (piano, limite), non
+                # un club senza giocatori: il giro non vale come completo.
+                report["empty_clubs"].append(club_name)
             now = timezone.now()
             new, changed = [], []
             for p in players:
@@ -109,12 +120,21 @@ def sync_registry(*, get=None, sleep=time.sleep, progress=None):
             report["players"] += len(players)
             report["created"] += len(new)
             report["updated"] += len(changed)
-        complete = official or not report["unmatched_clubs"]
+        complete = (official or not report["unmatched_clubs"]) and not report["empty_clubs"]
     except af.ApiFootballError as exc:
         report["error"] = str(exc)
     if complete:
-        report["left"] = (Footballer.objects.filter(in_serie_a=True).exclude(api_id__in=seen)
-                          .update(in_serie_a=False))
+        leaving = Footballer.objects.filter(in_serie_a=True).exclude(api_id__in=seen)
+        before = Footballer.objects.filter(in_serie_a=True).count()
+        n_leaving = leaving.count()
+        if before and n_leaving > max(MAX_LEFT_MIN, before * MAX_LEFT_SHARE):
+            # Troppi in uscita in un colpo solo: è l'API che ha risposto male
+            # (rose a metà), non un mercato. Nessuno esce dalla Serie A.
+            report["error"] = (f"{n_leaving} calciatori su {before} risulterebbero usciti dalla Serie A: "
+                               "è una risposta incompleta di API-Football, l'anagrafica non è stata cambiata. "
+                               "Riprova più tardi; intanto i listoni delle leghe restano com'erano")
+        else:
+            report["left"] = leaving.update(in_serie_a=False)
     if report["players"]:
         report["linked"] = link_players()
         report["leagues"] = apply_default_listoni()
@@ -137,6 +157,9 @@ def sync_summary(report):
             parts.append(f"lista generale aggiornata in {report['leagues']} leghe")
     if report["unmatched_clubs"]:
         parts.append("club non riconosciuti su API-Football: " + ", ".join(report["unmatched_clubs"]))
+    if report.get("empty_clubs"):
+        parts.append("rose vuote da API-Football (nessuno è uscito dalla Serie A, riprova più tardi): "
+                     + ", ".join(report["empty_clubs"]))
     if report["error"]:
         parts.append(report["error"])
     return " · ".join(parts) or "nessun calciatore scaricato"
@@ -277,7 +300,11 @@ def apply_default_listone(league):
 
     gone = pool.filter(footballer__in_serie_a=False)
     on_block = Auction.objects.exclude(player__isnull=True).values("player_id")
-    removed, _ = gone.filter(owner__isnull=True).exclude(id__in=on_block).delete()
+    # Chi ha già voti, buste o liste di questa lega non si cancella (si
+    # porterebbe via lo storico): resta svincolato e segnalato.
+    keep = gone.filter(Q(performances__isnull=False) | Q(market_bids__isnull=False)
+                       | Q(release_intents__isnull=False)).values("id")
+    removed, _ = gone.filter(owner__isnull=True).exclude(id__in=on_block).exclude(id__in=keep).delete()
     flag_missing(league, list(gone.filter(owner__isnull=False).values_list("name", flat=True)))
     return {"created": len(new), "updated": len(changed), "removed": removed}
 

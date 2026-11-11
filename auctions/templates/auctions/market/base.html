@@ -36,7 +36,7 @@ go in ``mk_after``.
     {% for lg in leagues %}
     <a class="fm-btn fm-btn-secondary fm-btn-sm" href="?league={{ lg.id }}">{{ lg.name }}</a>
     {% empty %}
-    <a class="fm-btn fm-btn-primary" href="{% url 'admin_setup' %}"><svg class="ic"><use href="#i-plus"/></svg> Crea una lega</a>
+    <a class="fm-btn fm-btn-primary" href="{% purl 'admin_setup' %}"><svg class="ic"><use href="#i-plus"/></svg> Crea una lega</a>
     {% endfor %}
 </div>
 {% else %}

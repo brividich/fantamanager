@@ -7,7 +7,7 @@ console (_footballers.html): qui c'è solo la cornice.
 {% block app %}
 <div class="tab-head">
     <h1>Calciatori</h1>
-    <p>Anagrafica dei calciatori di Serie A da API-Football{% if app_league %} · accanto, la lega {{ app_league.name }}{% endif %}</p>
+    <p>{% if fb_view == 'listone' %}Il listone di {{ fb_league.name|default:'questa lega' }}: chi è in rosa, chi è svincolato, quotazioni{% else %}Anagrafica dei calciatori di Serie A da API-Football{% if app_league %} · accanto, la lega {{ app_league.name }}{% endif %}{% endif %}</p>
 </div>
 {% include "auctions/_footballers.html" %}
 {% endblock %}

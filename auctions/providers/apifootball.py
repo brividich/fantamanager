@@ -47,8 +47,14 @@ class RateLimited(ApiFootballError):
     """Troppe richieste in questo minuto: fra poco si può riprovare."""
 
 
-class _SeasonRefused(Exception):
-    pass
+class _SeasonRefused(ApiFootballError):
+    """Il piano della chiave non copre la stagione chiesta. Le ricerche che
+    hanno un'alternativa la intercettano; altrimenti arriva a chi chiama come
+    ogni altro errore dell'API (non come un errore interno)."""
+
+    def __init__(self, detail=""):
+        super().__init__("il piano di API-Football non copre la stagione in corso"
+                         + (f" ({detail})" if detail else ""))
 
 
 # Richieste rimaste secondo le intestazioni dell'ultima risposta (None = ignoto).

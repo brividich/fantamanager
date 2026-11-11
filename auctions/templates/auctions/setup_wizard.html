@@ -306,7 +306,7 @@ resta nel browser (localStorage, con try/catch); i file vanno ricaricati.
             <div class="cards start-cards" role="radiogroup" aria-label="Da dove parti">
                 <label class="card-opt"><input type="radio" name="start_choice" value="new" checked>
                     <div class="t"><svg class="ic"><use href="#i-plus"/></svg> Lega nuova</div>
-                    <div class="d">Nessun file: il listone generale dei calciatori di Serie A arriva da solo e si aggiorna.</div></label>
+                    <div class="d">{% if registry_count %}Nessun file: il listone generale dei calciatori di Serie A ({{ registry_count }}) arriva da solo e si aggiorna.{% else %}La lista generale dei calciatori (API-Football) adesso non è disponibile: la lega parte senza listone e lo carichi dopo da Calciatori → Listone. Se hai il file Quotazioni scegli «Ho il mio listone».{% endif %}</div></label>
                 <label class="card-opt"><input type="radio" name="start_choice" value="rose">
                     <div class="t"><svg class="ic"><use href="#i-users"/></svg> Ho già le rose</div>
                     <div class="d">Fantapazz, un Excel o il .csv di Leghe Fantacalcio: squadre, giocatori e crediti dal file.</div></label>

@@ -35,12 +35,15 @@
     <summary>↓ Cosa fare in questa pagina <span class="chev">▼</span></summary>
     <div class="howto-body">
         <ol>
-            <li>Sul sito della tua lega scarica l'export delle rose di <b>tutta la lega</b> (su Fantapazz: «Rose Lega», <code>.xls</code>).</li>
+            <li>Sul sito della tua lega scarica l'export delle rose di <b>tutta la lega</b>: il formato si riconosce da solo
+                (Fantapazz «Rose Lega» <code>.xls</code>, Fantacalcio.it «Lista calciatori» <code>.xlsx</code>,
+                Leghe Fantacalcio «Rose Mantra/Classic» <code>.csv</code> o un file con una colonna squadra).</li>
             <li>Caricalo qui e premi <b><svg class="ic"><use href="#i-eye"/></svg> Anteprima</b> per controllare squadre e giocatori.</li>
             <li>Premi <b><svg class="ic"><use href="#i-import"/></svg> Importa</b> per confermare.</li>
         </ol>
         <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> FantaManager non accede al sito della tua lega: usa solo i file che carichi tu.
-            Per il listone (giocatori liberi) vai su <b>Giocatori</b>.</div>
+            Il listone (giocatori liberi, quotazioni) è in <a href="{% purl 'admin_footballers' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">Calciatori → Listone</a>,
+            dove ci sono anche le schede squadra e le statistiche.</div>
     </div>
 </details>
 
@@ -60,8 +63,8 @@
     </div>
 
     <div style="margin-top:16px">
-        <label>File rose (.xls / .xlsx)</label>
-        <input type="file" id="rose-file" accept=".xls,.xlsx" style="margin-top:4px">
+        <label>File rose (.xls / .xlsx / .csv)</label>
+        <input type="file" id="rose-file" accept=".xls,.xlsx,.csv,.txt" style="margin-top:4px">
     </div>
 
     <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;margin:16px 0;text-transform:none;letter-spacing:0;color:var(--ink)">
@@ -111,29 +114,46 @@
         msg.textContent = action === "preview" ? "Lettura rose…" : "Importazione rose…";
 
         const body = new FormData();
-        if (TARGET_LEAGUE_ID) body.append("target_league_id", TARGET_LEAGUE_ID);
-        body.append("action", action);
+        // Lo stesso import di Calciatori → Listone (formato riconosciuto da solo,
+        // listone del file, giocatori non abbinati): un solo comportamento.
+        if (TARGET_LEAGUE_ID) body.append("league_id", TARGET_LEAGUE_ID);
+        if (action === "preview") body.append("action", "preview");
         body.append("replace", document.getElementById("fp-replace").checked ? "1" : "0");
         body.append("rose_file", file);
 
         let data;
         try {
-            const r = await fetch("{% url 'admin_fantapazz_import_rose' %}", { method: "POST", body, headers: { "X-CSRFToken": CSRF } });
-            data = await r.json();
+            const r = await fetch("{% url 'admin_import_rose' %}", { method: "POST", body, headers: { "X-CSRFToken": CSRF } });
+            data = await r.json().catch(() => ({ ok: false, error: `errore del server (${r.status}): riprova` }));
         } catch (e) {
-            msg.style.color = "var(--closed)"; msg.textContent = "✗ Errore di rete."; return;
+            msg.style.color = "var(--closed)"; msg.textContent = "✗ Errore di rete: controlla la connessione e riprova."; return;
         }
-        if (!data.ok) { msg.style.color = "var(--closed)"; msg.textContent = "✗ " + data.error; return; }
+        if (!data.ok) { msg.style.color = "var(--closed)"; msg.textContent = "✗ " + (data.error || "import non riuscito: riprova"); return; }
 
         if (action === "preview") {
             msg.style.color = data.warning ? "var(--paused)" : "var(--live)";
-            msg.textContent = data.warning ? "⚠ " + data.warning
-                : `✓ ${data.teams.length} squadre · ${data.total_players} giocatori. Controlla e conferma.`;
+            msg.textContent = (data.source_label ? `Formato: ${data.source_label} · ` : "") + (data.warning ? "⚠ " + data.warning
+                : `✓ ${data.teams.length} squadre · ${data.total_players} giocatori. Controlla e conferma.`);
             renderRosePreview(data);
         } else {
-            msg.style.color = "var(--live)";
-            msg.textContent = `✓ Importate ${data.teams} squadre e ${data.players} giocatori con rose complete!`;
+            msg.style.color = data.warning ? "var(--paused)" : "var(--live)";
+            msg.textContent = `✓ Importate ${data.teams} squadre e ${data.players} giocatori` +
+                (data.listone_created ? ` · ${data.listone_created} aggiunti al listone` : "") +
+                (data.warning ? ` · ⚠ ${data.warning}` : "");
+            renderUnmatched(data.unmatched);
         }
+    }
+
+    // I giocatori del file che il listone non abbina con certezza: da assegnare a mano.
+    function renderUnmatched(list) {
+        if (!list || !list.length) return;
+        document.getElementById("fp-results").style.display = "block";
+        document.getElementById("fp-results-title").textContent = `Da assegnare a mano (${list.length})`;
+        document.getElementById("fp-teams").textContent = "Cercali in Calciatori → Listone e assegnali alla squadra col loro costo.";
+        document.getElementById("fp-player-rows").innerHTML = list.map(u =>
+            `<tr><td class="muted" style="font-size:12px">${fmEsc(u.team)}</td><td style="font-weight:600">${fmEsc(u.name)}</td>` +
+            `<td></td><td class="muted">${fmEsc(u.why)}</td><td style="text-align:right">${fmEsc(u.cost)}</td></tr>`).join("");
+        document.getElementById("fp-total").textContent = "";
     }
 
     function renderRosePreview(data) {

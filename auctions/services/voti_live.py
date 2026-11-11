@@ -246,11 +246,13 @@ class LiveSyncManager:
                     connection.close()
 
     def sync_now(self, giornata_num: Optional[int] = None, is_provisional: bool = True,
-                 leagues=None) -> Dict[str, Any]:
+                 leagues=None, serie_a_round: Optional[int] = None) -> Dict[str, Any]:
         """Execute one live synchronization pass across all relevant active seasons.
 
         ``leagues`` limits it to those leagues (a league admin's button); None
-        is every league (the Supervisor and the background worker)."""
+        is every league (the Supervisor and the background worker).
+        ``serie_a_round``: the Serie A round to ask the provider for when it is
+        not the league's giornata number (``Giornata.serie_a_matchday``)."""
         self.last_status = "SYNCING"
         now = timezone.now()
 
@@ -274,7 +276,7 @@ class LiveSyncManager:
             rows = fetch_simulation_live(target_num, leagues=leagues)
         else:
             try:
-                rows = fetch_apifootball_live(target_num)
+                rows = fetch_apifootball_live(serie_a_round or target_num)
             except apifootball.ApiFootballError as exc:
                 self.last_status = "ERROR"
                 self.last_message = f"API-Football: {exc}."

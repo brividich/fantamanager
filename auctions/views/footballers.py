@@ -1,8 +1,16 @@
-"""Anagrafica dei calciatori: la stessa pagina in console e nell'app.
+"""Calciatori: la stessa pagina in console e nell'app, con due schede.
 
-L'anagrafica è unica per tutto FantaManager; accanto a ogni calciatore si vede
-cosa è nella lega che si sta guardando (svincolato, di chi è, o fuori listone).
-L'aggiornamento da API-Football riguarda tutte le leghe: lo avvia un superuser.
+- **Listone**: i giocatori della lega (``Player``), cioè quelli che vanno
+  all'asta, con stato, quotazione e, per chi gestisce la lega, gli strumenti
+  (importa listone, rose, schede, statistiche; assegna, svincola, elimina).
+  Non dipende da API-Football: c'è anche quando l'API non risponde.
+- **Anagrafica Serie A**: l'elenco unico per tutto FantaManager preso da
+  API-Football; accanto a ogni calciatore si vede cosa è nella lega
+  (svincolato, di chi è, o fuori listone). L'aggiornamento riguarda tutte le
+  leghe: lo avvia un superuser.
+
+Prima il listone era una pagina a parte («Giocatori», /dashboard/players/):
+i vecchi indirizzi portano qui (``admin_players``).
 """
 from django.contrib import messages
 from django.core.paginator import Paginator
@@ -11,14 +19,18 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from ..models import Footballer, League, Player
+from .. import remote
+from ..models import Footballer, League, Participant, Player
+from ..providers import importers
 from ..providers.apifootball import is_configured as apifootball_configured
 from ..services import footballers
 from .admin_market import _back
 from .app import _redirect_login
 from .common import (
     _app_ctx,
+    current_auction,
     current_league,
+    in_app,
     manageable_leagues,
     staff_member_required,
     user_can_manage_league,
@@ -26,6 +38,15 @@ from .common import (
 )
 
 LEAGUE_FILTERS = ("free", "owned", "out")
+VIEWS = ("listone", "anagrafica")
+LISTONE_ORDERS = {
+    "name": ["name"],
+    "-name": ["-name"],
+    "quota": ["initial_price", "name"],
+    "-quota": ["-initial_price", "name"],
+    "role": ["role", "name"],
+    "team": ["team", "name"],
+}
 
 
 def _pool(league):
@@ -33,11 +54,107 @@ def _pool(league):
     return Player.objects.filter(league=league) if league is not None else Player.objects.filter(league__isnull=True)
 
 
-def footballers_context(request, pool, base_url, league=None):
-    """I dati di ``_footballers.html``: filtri, una pagina di calciatori e,
-    per ognuno, il giocatore del listone ``pool`` collegato (se c'è).
-    ``pool`` None: nessuna lega da mostrare accanto all'anagrafica.
-    ``league`` è la lega di ``pool``, per dire se usa la lista generale."""
+def _can_manage_pool(request, pool, league):
+    """Chi vede gli strumenti del listone: chi gestisce la lega (il listone
+    senza lega solo il superuser). Da internet serve anche il PIN della regia,
+    come per le altre pagine di gestione: senza, i tasti fallirebbero."""
+    user = request.user
+    if pool is None or not user.is_authenticated:
+        return False
+    allowed = user_can_manage_league(user, league) if league is not None else user.is_superuser
+    if allowed and remote.request_is_remote(request) and not request.session.get("regia_unlocked"):
+        return False
+    return bool(allowed)
+
+
+def listone_context(request, pool, league, can_manage):
+    """La scheda Listone: i giocatori della lega filtrati e paginati nel
+    database (50 per pagina), conteggi per ruolo e, per chi gestisce la lega,
+    i dati degli strumenti (squadre per «Assegna», statistiche)."""
+    q = (request.GET.get("q") or "").strip()
+    role = (request.GET.get("role") or "").strip().upper()[:1]
+    team = (request.GET.get("team") or "").strip()
+    status = (request.GET.get("status") or "").strip()
+    if status not in ("free", "owned"):
+        status = ""
+    sort = (request.GET.get("sort") or "name").strip()
+    if sort not in LISTONE_ORDERS:
+        sort = "name"
+
+    players = pool.select_related("owner")
+    if q:
+        players = players.filter(Q(name__icontains=q) | Q(team__icontains=q))
+    if role in ("P", "D", "C", "A"):
+        players = players.filter(role=role)
+    if team:
+        players = players.filter(team=team)
+    if status == "free":
+        players = players.filter(owner__isnull=True)
+    elif status == "owned":
+        players = players.filter(owner__isnull=False)
+    page = Paginator(players.order_by(*LISTONE_ORDERS[sort]), 50).get_page(request.GET.get("page"))
+
+    keep = request.GET.copy()
+    keep.pop("page", None)
+    total = pool.count()
+    free = pool.filter(owner__isnull=True).count()
+    ctx = {
+        "lst_rows": page.object_list,
+        "lst_page": page,
+        "lst_filters": {"q": q, "role": role, "team": team, "status": status, "sort": sort},
+        "lst_filter_qs": keep.urlencode(),
+        "lst_teams": list(pool.exclude(team="").order_by("team").values_list("team", flat=True).distinct()),
+        "lst_roles": [(r, pool.filter(role=r).count(), label) for r, label in
+                      (("P", "Portieri"), ("D", "Difensori"), ("C", "Centrocampisti"), ("A", "Attaccanti"))],
+        "lst_free": free,
+        "lst_total": total,
+        "lst_owned": total - free,
+        "lst_can_manage": can_manage,
+        "lst_mantra": bool(league is not None and league.is_mantra),
+        # Arrivati dal wizard o da una sessione ripresa: la lega non ha ancora il listone.
+        "need_listone": request.GET.get("need_listone") == "1",
+        "need_listone_from": request.GET.get("from", ""),
+    }
+    if can_manage:
+        teams = Participant.objects.filter(is_active=True)
+        teams = teams.filter(league=league) if league is not None else teams.filter(league__isnull=True)
+        ctx.update({
+            "lst_participants": list(teams.order_by("display_name")),
+            # Le statistiche: un file del server (FANTAMANAGER_STATS_FILE) si
+            # applica da solo agli import; altrimenti la lega ne carica uno.
+            "stats_season": importers.server_stats_season(),
+            "stats_server_file": importers.server_stats_path() is not None,
+            "stats_covered": pool.exclude(fanta_avg__isnull=True).count(),
+        })
+    return ctx
+
+
+def footballers_context(request, pool, base_url, league=None, can_manage=None):
+    """I dati di ``_footballers.html``: la scheda scelta (``?vista=``), i suoi
+    filtri e una pagina di righe.
+
+    Scheda Listone: i giocatori di ``pool`` (vedi ``listone_context``).
+    Scheda Anagrafica: una pagina di calciatori e, per ognuno, il giocatore
+    del listone ``pool`` collegato (se c'è).
+    ``pool`` None: nessuna lega da mostrare (solo l'anagrafica).
+    ``league`` è la lega di ``pool``, per dire se usa la lista generale.
+    ``can_manage``: chi guarda può usare gli strumenti del listone (None = calcolalo)."""
+    if can_manage is None:
+        can_manage = _can_manage_pool(request, pool, league)
+    vista = (request.GET.get("vista") or "").strip()
+    if pool is None:
+        vista = "anagrafica"
+    elif vista not in VIEWS:
+        vista = "listone"
+    ctx = {"fb_view": vista}
+    if vista == "listone":
+        ctx.update(listone_context(request, pool, league, can_manage))
+    ctx.update(_registry_context(request, pool, base_url, league, can_manage, vista))
+    return ctx
+
+
+def _registry_context(request, pool, base_url, league, can_manage, vista):
+    """Scheda Anagrafica (e i numeri che servono anche all'altra scheda)."""
     q = (request.GET.get("q") or "").strip()
     role = (request.GET.get("role") or "").strip().upper()[:1]
     club = (request.GET.get("club") or "").strip()
@@ -62,9 +179,10 @@ def footballers_context(request, pool, base_url, league=None):
     elif in_league == "out":
         registry = registry.exclude(id__in=players.values("footballer_id"))
 
-    page = Paginator(registry.order_by("name", "id"), 50).get_page(request.GET.get("page"))
+    page = Paginator(registry.order_by("name", "id") if vista == "anagrafica" else registry.none(),
+                     50).get_page(request.GET.get("page"))
     rows = list(page.object_list)
-    if players is not None:
+    if players is not None and rows:
         linked = {p.footballer_id: p for p in players.filter(footballer__in=rows).select_related("owner")}
         for f in rows:
             f.league_player = linked.get(f.id)
@@ -90,6 +208,7 @@ def footballers_context(request, pool, base_url, league=None):
         "fb_roles": Footballer.Position.choices,
         "fb_league": league,
         "fb_can_manage_league": bool(league is not None and user_can_manage_league(request.user, league)),
+        "fb_can_manage": can_manage,
         "fb_api_ready": apifootball_configured(),
         "fb_base": base_url,
     }
@@ -107,8 +226,19 @@ def admin_footballers(request):
         "current_league": league if in_scope else None,
         "console_section": "Calciatori",
         "console_active": "footballers",
+        # La voce «Asta Live» della console resta sull'asta che si sta facendo.
+        "selected": current_auction(request, league) if in_scope else None,
     })
     return render(request, "auctions/admin_footballers.html", ctx)
+
+
+@staff_member_required
+def admin_players(request):
+    """Il vecchio indirizzo del listone («Giocatori»): ora è la scheda Listone
+    di Calciatori. Porta lì con gli stessi filtri (lega, ruolo, stato…)."""
+    target = reverse("app_footballers" if in_app(request) else "admin_footballers")
+    query = request.META.get("QUERY_STRING", "")
+    return redirect(f"{target}?{query}" if query else target)
 
 
 def app_footballers(request):

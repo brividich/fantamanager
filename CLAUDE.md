@@ -46,10 +46,15 @@ stessi testi**.
   (il manager, prossima giornata) e nell'editor dell'admin per una giornata
   qualsiasi (`admin_formazione.html` console, `app_regia_formazione.html` app,
   testata `_formation_admin_head.html`; view `admin_formation_edit`).
-- L'anagrafica dei calciatori (API-Football, unica per tutte le leghe):
-  `_footballers.html`, in `admin_footballers.html` (console) e
+- Calciatori: `_footballers.html`, in `admin_footballers.html` (console) e
   `app_footballers.html` (app); dati da `footballers_context`
-  (`views/footballers.py`).
+  (`views/footballers.py`). Due schede: **Listone della lega** (la prima,
+  `_listone.html`: i `Player` della lega con stato e quotazione; a chi gestisce
+  la lega gli strumenti — importa listone, rose, schede, statistiche; Assegna,
+  Svincola, ✕) e **Anagrafica Serie A** (API-Football, unica per tutte le
+  leghe). Il listone non dipende da API-Football. La vecchia pagina
+  «Giocatori» (`/dashboard/players/`, `/app/regia/giocatori/`) è un rinvio qui:
+  i link al listone usano `{% purl 'admin_footballers' %}`.
 - Lo storico della lega (albo d'oro e classifica di sempre), che vedono anche i
   manager: `_season_history.html`, in `admin_storico.html` (console) e
   `app_storico.html` (app, dalla pagina Lega); dati da `league_history`
@@ -66,7 +71,7 @@ stessi testi**.
   `page`; la view aggiunge `**page_frame(request, league)` al contesto
   (`views/common.py`), che dall'indirizzo `/app/regia/…` sceglie
   `_frame_app.html` (guscio dell'app) invece di `_frame_console.html` (testata
-  della console). Sono così Giocatori, Contratti, Stagione, Importa, Export,
+  della console). Sono così Contratti, Stagione, Importa, Export,
   Impostazioni, Competizioni, Mercato (hub, buste, asta, movimenti) e Nuova
   asta; la Dashboard della console nell'app è la Regia.
   - Una pagina nuova: stessa view su due indirizzi (`dashboard/…` e
