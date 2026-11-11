@@ -273,6 +273,63 @@ def _read_recent_logs(max_lines=250, level_filter=None, query_filter=None):
     return lines, log_name
 
 
+def _keep_session(request):
+    """Dopo un ripristino la tabella delle sessioni è quella della copia:
+    la sessione di chi ha premuto il tasto può non esserci più, e salvarla
+    darebbe errore (SessionInterrupted). La si riscrive, così resta dentro e
+    vede l'esito."""
+    from django.contrib.sessions.backends.base import CreateError
+    try:
+        request.session.save(must_create=True)
+    except CreateError:
+        request.session.save()      # c'era già nella copia: basta aggiornarla
+
+
+PG_RESTORE_KEY = "pg_restore_pending"
+PG_SAFETY_WAIT = 15 * 60   # la copia di sicurezza vale se fatta negli ultimi 15 minuti
+
+
+def _restore_postgres_step(request, name):
+    """Ripristino di un dump PostgreSQL in due tempi.
+
+    Nel container dell'app non c'è pg_dump: la copia dello stato attuale la fa
+    il servizio «backup» del compose, entro un minuto dalla richiesta. Il primo
+    clic la chiede; il secondo, quando la copia c'è, ripristina. Così anche un
+    ripristino sbagliato si annulla ripristinando quella copia.
+    """
+    if backup.backup_file(name) is None:
+        messages.error(request, "Copia non trovata: ricarica la pagina e scegli di nuovo.")
+        return
+    pending = request.session.get(PG_RESTORE_KEY) or {}
+    asked = pending.get("at", 0) if pending.get("file") == name else 0
+    safety = backup.pg_dump_since(asked, exclude=name) if asked and time.time() - asked < PG_SAFETY_WAIT else None
+    if safety is None:
+        if backup.request_pg_dump("prima del ripristino") is None:
+            messages.error(request, "Non riesco a chiedere la copia dello stato attuale (cartella dei backup "
+                                    "non scrivibile): ripristino non fatto.")
+            return
+        request.session[PG_RESTORE_KEY] = {"file": name, "at": time.time()}
+        if asked:
+            messages.warning(request, "La copia dello stato attuale non è ancora pronta: aspetta un minuto e premi "
+                                      f"di nuovo «Ripristina» su {name}. Se non arriva mai, controlla che il "
+                                      "container fantamanager-backup sia acceso.")
+        else:
+            messages.info(request, "Passo 1 di 2: sto salvando lo stato attuale (entro un minuto compare in elenco). "
+                                   f"Poi premi di nuovo «Ripristina» su {name} per rimettere quella copia.")
+        return
+    request.session.pop(PG_RESTORE_KEY, None)
+    try:
+        backup.restore_postgres(name)
+    except backup.RestoreError as exc:
+        messages.error(request, str(exc))
+        return
+    _keep_session(request)
+    logger.warning("Supervisor %s ha ripristinato il database PostgreSQL da %s (copia di sicurezza %s)",
+                   request.user.username, name, safety.name)
+    messages.success(request, f"Database ripristinato da {name}. Lo stato di prima è in {safety.name}: "
+                              "se serve, si ripristina quello. Se la pagina ti chiede di entrare, rientra.")
+
+
 @supervisor_required
 def supervisor_dashboard(request):
     """Comprehensive Master Supervisor Cockpit."""
@@ -688,12 +745,15 @@ def supervisor_dashboard(request):
             live = Auction.objects.filter(status=Auction.Status.LIVE).count()
             if live:
                 messages.error(request, f"Ci sono {live} aste in corso: mettile in pausa o chiudile prima di ripristinare una copia.")
+            elif backup._is_postgres():
+                _restore_postgres_step(request, name)
             else:
                 try:
                     safety = backup.restore_sqlite(name)
                 except backup.RestoreError as exc:
                     messages.error(request, str(exc))
                 else:
+                    _keep_session(request)
                     logger.warning("Supervisor %s ha ripristinato il database da %s", request.user.username, name)
                     messages.success(request, f"Database ripristinato da {name}. Lo stato di prima è salvato in {safety.name}: se serve, si ripristina quello.")
             return redirect(f"{reverse('supervisor_dashboard')}?tab=reports")
@@ -834,6 +894,8 @@ def supervisor_dashboard(request):
             "recent_backups": recent_backups,
             "stalled_auctions": stalled_auctions,
             "is_sqlite": backup._db_path() is not None,
+            "is_postgres": backup._is_postgres(),
+            "pg_restore_pending": (request.session.get(PG_RESTORE_KEY) or {}).get("file", ""),
             "backups_folder": backups_folder,
             "system_settings": system_settings,
         },

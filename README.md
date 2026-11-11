@@ -160,7 +160,14 @@ Copia ogni tanto `./backups` fuori dal NAS: un backup sullo stesso disco non
 protegge dal disco che si rompe.
 
 Ripristino (sostituisce **tutto** il contenuto del database con quello del
-file scelto):
+file scelto). Dal browser: **Supervisor → Snapshot di Backup su Disco →
+Ripristina** sulla copia scelta, in due clic. Il primo chiede al servizio
+`backup` una copia dello stato attuale (compare in elenco entro un minuto), il
+secondo ripristina. Tutto avviene in una transazione: se qualcosa va storto, il
+database resta com'era. Le aste devono essere in pausa o chiuse. Per annullare
+un ripristino, ripristina la copia fatta prima.
+
+Dal terminale del NAS, con l'app ferma:
 
 ```bash
 docker stop fantamanager                       # niente scritture durante il ripristino
