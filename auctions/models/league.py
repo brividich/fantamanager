@@ -105,6 +105,7 @@ class League(models.Model):
         APP = "app", "Wizard (app)"
         CONSOLE = "console", "Console"
         SALA = "sala", "Asta in sala"
+        DEMO = "demo", "Lega di prova"
 
     created_via          = models.CharField(max_length=10, choices=CreatedVia.choices, blank=True)
     first_invite_at      = models.DateTimeField(null=True, blank=True)

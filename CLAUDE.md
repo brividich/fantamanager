@@ -268,6 +268,11 @@ python manage.py collectstatic --noinput   # serve una volta: i template usano i
 python manage.py test auctions
 ```
 
+Le leghe di prova (Supervisor → Prove, `services/demo.py`, `League.created_via = "demo"`)
+simulano ogni tipo di mercato fino alla fase scelta, con le mosse fatte dagli
+stessi servizi delle pagine: un tipo di mercato nuovo si aggiunge anche lì
+(`KINDS`) e in `test_demo.py`.
+
 `test_e2e_buste.py` prova il mercato a buste dall'inizio alla fine dagli stessi
 indirizzi delle pagine (wizard con import delle rose, inviti, lista, buste,
 chiusura dello scheduler, spoglio, conferme, scadenza, verbale): chi cambia un
