@@ -109,3 +109,24 @@ class OutOfListoneTests(TestCase):
         # Svincolato dalla rosa mentre è fuori listone: non torna in coda.
         release_player(self.owned.id, auction_id=auction.id, by_admin=True)
         self.assertFalse(AuctionQueueItem.objects.filter(auction=auction, player=self.owned, done=False).exists())
+
+
+class MigrationTests(TestCase):
+    """0077: chi è già fuori listone prima dell'aggiornamento."""
+
+    def test_only_departures_of_the_current_season_are_out(self):
+        import importlib
+        from django.apps import apps
+        from ..models import ContractEvent
+        mig = importlib.import_module("auctions.migrations.0077_player_in_listone")
+        league = League.objects.create(name="L", own_listone=True, season_number=3)
+        gone = Player.objects.create(name="Partito", league=league)
+        back = Player.objects.create(name="Tornato", league=league)
+        for p, season in ((gone, 3), (back, 2)):
+            ContractEvent.objects.create(league=league, player=p, player_name=p.name,
+                                         kind=ContractEvent.Kind.LEFT, season=season)
+        mig.mark_out_of_listone(apps, None)
+        gone.refresh_from_db()
+        back.refresh_from_db()
+        self.assertFalse(gone.in_listone)
+        self.assertTrue(back.in_listone)
