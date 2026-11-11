@@ -169,8 +169,22 @@ def build_queue(auction):
     return len(to_create) + len(to_update)
 
 
+def drop_from_queues(player_ids):
+    """Toglie dalle code delle aste chi è appena uscito dal listone: non va più
+    all'asta. Resta solo il lotto già sul banco (lo chiude la regia)."""
+    ids = list(player_ids)
+    if not ids:
+        return 0
+    on_block = Auction.objects.filter(player_id__in=ids).values("player_id")
+    deleted, _ = (AuctionQueueItem.objects.filter(player_id__in=ids, done=False)
+                  .exclude(player_id__in=on_block).delete())
+    return deleted
+
+
 def _next_pending(auction):
-    return auction.queue_items.filter(done=False).order_by("order", "id").first()
+    # Chi è uscito dal listone dopo che la coda è stata fatta non va all'asta.
+    return (auction.queue_items.filter(done=False, player__in_listone=True)
+            .order_by("order", "id").first())
 
 
 def _role_rank_for_nav(auction, role):
@@ -276,6 +290,8 @@ def enqueue_released_player(auction, player, *, unsold=False):
     - ROLE_END: queued at the end of their own role band (default).
     """
     if auction is None or player is None:
+        return None
+    if not player.in_listone:   # fuori listone: svincolato sì, all'asta no
         return None
     existing = auction.queue_items.filter(player=player, done=False).first()
     if existing is not None:

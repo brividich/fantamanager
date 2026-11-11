@@ -647,7 +647,8 @@ class _Plan:
 
     def _resolve_player(self, player_id, bids):
         player = bids[0].player
-        if self.owner.get(player_id) is not None:
+        # Preso nel frattempo, o uscito dal listone dopo l'offerta.
+        if self.owner.get(player_id) is not None or not player.in_listone:
             for b in bids:
                 self._decide(b, MarketBid.Status.LOST, "Calciatore non più disponibile")
             return

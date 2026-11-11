@@ -431,6 +431,8 @@ def _lose(player, amount, note):
     # nuovo non lo riporta).
     player.in_listone = False
     player.save()
+    from .queue import drop_from_queues
+    drop_from_queues([player.pk])
     return amount
 
 

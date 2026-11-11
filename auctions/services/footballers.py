@@ -324,7 +324,10 @@ def apply_default_listone(league):
     # Chi non è nella lista generale (uscito dalla Serie A, o rimasto da un
     # listone caricato prima) non è uno svincolato: resta solo per la rosa o
     # lo storico.
-    pool.exclude(footballer__in_serie_a=True).filter(in_listone=True).update(in_listone=False)
+    out = list(pool.exclude(footballer__in_serie_a=True).filter(in_listone=True).values_list("id", flat=True))
+    Player.objects.filter(pk__in=out).update(in_listone=False)
+    from .queue import drop_from_queues
+    drop_from_queues(out)
     flag_missing(league, list(gone.filter(owner__isnull=False).values_list("name", flat=True)))
     return {"created": len(new), "updated": len(changed), "removed": removed}
 

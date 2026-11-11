@@ -274,6 +274,8 @@ def sync_players(rows, *, league=None, replace=False, prune=False):
         # Chi non è nel listone nuovo non è più uno svincolato: chi è in rosa
         # resta di chi è (5.05), gli altri restano solo per lo storico.
         Player.objects.filter(pk__in=dropped, in_listone=True).update(in_listone=False)
+        from ..services.queue import drop_from_queues
+        drop_from_queues(dropped)
 
     flagged_left = 0
     if league is not None and not replace:
