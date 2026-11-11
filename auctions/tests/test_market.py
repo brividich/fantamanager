@@ -1548,6 +1548,24 @@ class ReleaseAfterCountTests(TestCase):
         self.assertEqual(set(Player.objects.filter(owner=self.a, role="P").values_list("team", flat=True)),
                          {"Inter", "Lazio"})
 
+    def test_open_replacements_of_another_session_count(self):
+        # Un solo centrocampista sostituibile: vinto un C nella prima sessione
+        # (sostituzione ancora da scegliere), la seconda non ne assegna un altro.
+        Player.objects.filter(pk__in=[p.pk for p in self.mid[self.a.id][1:]]).update(owner=None)
+        place_market_bid(self.session.id, self.a.id, self.boban.id, 20)
+        self._resolve()
+        second = MarketSession.objects.create(
+            league=self.league, title="Buste bis", status=MarketSession.Status.OPEN,
+            require_same_role_release=True, release_after=True)
+        self.assertTrue(place_market_bid(second.id, self.a.id, self.iniesta.id, 20)["ok"])
+        second.status = MarketSession.Status.CLOSED
+        second.save()
+        resolve_market_session(second.id)
+        self.assertIsNone(Player.objects.get(pk=self.iniesta.pk).owner)
+        self.assertIn("Nessun giocatore di pari ruolo", MarketBid.objects.get(session=second).note)
+        # E fra chi può uscire per Boban non compare un vinto in altre buste ancora da sostituire.
+        self.assertEqual([p.name for p in self.options(self.session, self._won(self.boban))], ["Team A C0"])
+
     def test_the_player_is_checked_again_once_locked(self):
         place_market_bid(self.session.id, self.a.id, self.boban.id, 20)
         self._resolve()

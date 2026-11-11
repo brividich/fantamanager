@@ -467,6 +467,11 @@ class _Plan:
             for w in won:
                 if w.get("release_pending"):
                     self.pending[w["winner_id"]][w["player_role"]] += 1
+            # Anche le sostituzioni ancora da scegliere di altre buste della
+            # lega impegnano un pari ruolo, e i loro vinti restano.
+            for w in _other_pending(session):
+                self.pending[w["winner_id"]][w["player_role"]] += 1
+                won_ids.add(w["player_id"])
             for pl in Player.objects.filter(owner_id__in=list(self.participants), abroad_list=False):
                 if pl.pk in won_ids or _cut_problem(pl):
                     # Restano in rosa comunque: vinti qui o non svincolabili.
@@ -1181,6 +1186,13 @@ def settle_market_tie(session_id, player_id, winner_id=None, rng=None, rebids=No
 # --- Dopo lo spoglio: chi esce per ogni giocatore vinto (5.03) ----------------
 
 
+def _other_pending(session):
+    """Le sostituzioni ancora da scegliere nelle altre buste della lega."""
+    others = MarketSession.objects.filter(league_id=session.league_id, status=MarketSession.Status.RESOLVED,
+                                          release_after=True).exclude(pk=session.pk)
+    return [w for other in others for w in pending_releases(other)]
+
+
 def pending_releases(session, participant_id=None):
     """Gli acquisti di ``session`` che aspettano chi esce dalla rosa."""
     won = (session.results_summary or {}).get("won", [])
@@ -1196,6 +1208,8 @@ def release_options(session, entry):
     league = session.league
     won = (session.results_summary or {}).get("won", [])
     won_ids = {w["player_id"] for w in won}
+    others = [w for w in _other_pending(session) if w.get("winner_id") == entry["winner_id"]]
+    won_ids |= {w["player_id"] for w in others}
     owned = list(Player.objects.filter(owner_id=entry["winner_id"], abroad_list=False).order_by("name"))
     candidates = [pl for pl in owned if pl.pk not in won_ids and pl.role == entry["player_role"]
                   and not _cut_problem(pl)]
@@ -1205,7 +1219,7 @@ def release_options(session, entry):
     # Portieri: dopo questa uscita, le altre sostituzioni di portieri ancora
     # da scegliere devono poter riportare la rosa entro i club ammessi.
     fixed = [pl.team for pl in owned if pl.role == "P" and (pl.pk in won_ids or _cut_problem(pl))]
-    still = sum(1 for w in won if w.get("release_pending") and w.get("winner_id") == entry["winner_id"]
+    still = sum(1 for w in won + others if w.get("release_pending") and w.get("winner_id") == entry["winner_id"]
                 and w.get("player_role") == "P") - 1
     return [o for o in candidates
             if _gk_feasible(limit, fixed, [pl.team for pl in candidates if pl.pk != o.pk], still)]
