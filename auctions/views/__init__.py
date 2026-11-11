@@ -121,10 +121,10 @@ from .admin_players import (
     admin_import_rose,
     admin_import_stats,
     admin_player_search,
-    admin_players,
     admin_release_player,
 )
 from .footballers import (
+    admin_players,
     admin_footballer_edit,
     admin_footballers,
     admin_footballers_sync,

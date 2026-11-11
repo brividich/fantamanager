@@ -13,6 +13,7 @@ Parametri dell'include:
 
 Apertura dalla pagina: openMarketWizard() / closeMarketWizard().
 {% endcomment %}
+{% load fm_pages %}
 <style>
     .mwz {
         --mwz-accent: var(--accent, var(--fm-primary-light, #10b981));
@@ -380,7 +381,7 @@ Apertura dalla pagina: openMarketWizard() / closeMarketWizard().
         buyout_clause: "Sessione Clausole Rescissorie",
         renewals: "Mercato Rinnovi Contratti",
     };
-    const LIVE_URL = "{% url 'admin_auction_wizard' %}?league={{ wz_league.id }}&mode=REPAIR_AUCTION";
+    const LIVE_URL = "{% purl 'admin_auction_wizard' %}?league={{ wz_league.id }}&mode=REPAIR_AUCTION";
     let kind = "buste";
     const $ = (id) => document.getElementById(id);
 

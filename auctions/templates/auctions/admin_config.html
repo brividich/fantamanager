@@ -163,7 +163,7 @@ its name to be typed: it takes teams, listone, auctions and sessions with it.
         <input type="search" id="lg-search" placeholder="Cerca una lega…" aria-label="Cerca una lega">
     </div>
     {% endif %}
-    <a class="fm-btn fm-btn-primary" href="{% url 'admin_setup' %}"><svg class="ic"><use href="#i-plus"/></svg> Nuova lega</a>
+    <a class="fm-btn fm-btn-primary" href="{% purl 'admin_setup' %}"><svg class="ic"><use href="#i-plus"/></svg> Nuova lega</a>
 </div>
 
 <details class="howto noprint">
@@ -238,7 +238,7 @@ its name to be typed: it takes teams, listone, auctions and sessions with it.
         <ul class="lg-check" aria-label="Stato della lega">
             <li class="{% if r.pool %}ok{% else %}todo{% endif %}"><span class="dot">{% if r.pool %}✓{% else %}!{% endif %}</span>
                 <span>{% if r.pool %}Listone caricato{% else %}Manca il listone{% endif %}</span>
-                {% if not r.pool %}<a href="{% purl 'admin_players' %}?league={{ lg.id }}&need_listone=1">Carica</a>{% endif %}</li>
+                {% if not r.pool %}<a href="{% purl 'admin_footballers' %}?league={{ lg.id }}&need_listone=1">Carica</a>{% endif %}</li>
             <li class="{% if r.teams %}ok{% else %}todo{% endif %}"><span class="dot">{% if r.teams %}✓{% else %}!{% endif %}</span>
                 <span>{% if r.teams %}{{ r.teams }} squadr{{ r.teams|pluralize:"a,e" }} iscritt{{ r.teams|pluralize:"a,e" }}{% else %}Nessuna squadra{% endif %}</span>
                 {% if not r.teams %}<a href="{% purl 'admin_participants' %}?league={{ lg.id }}">Aggiungi</a>{% endif %}</li>
@@ -362,7 +362,7 @@ its name to be typed: it takes teams, listone, auctions and sessions with it.
     <div class="fm-card empty" style="grid-column:1/-1">
         <b>Non gestisci ancora nessuna lega</b>
         Creane una: listone, squadre e prima asta in tre passi.
-        <div style="margin-top:14px"><a class="fm-btn fm-btn-primary" href="{% url 'admin_setup' %}"><svg class="ic"><use href="#i-plus"/></svg> Nuova lega</a></div>
+        <div style="margin-top:14px"><a class="fm-btn fm-btn-primary" href="{% purl 'admin_setup' %}"><svg class="ic"><use href="#i-plus"/></svg> Nuova lega</a></div>
     </div>
     {% endfor %}
     </div>

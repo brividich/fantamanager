@@ -44,6 +44,8 @@ i successivi spiegati. Ogni form manda next = questa pagina (console o app).
                     </form>
                     {% endif %}
                     <a class="fm-btn {% if mail_ready %}fm-btn-secondary{% else %}fm-btn-primary{% endif %} fm-btn-sm" href="{% purl 'admin_participants' %}?league={{ lg.id }}"><svg class="ic"><use href="#i-share"/></svg> Condividi gli inviti</a>
+                {% elif s.key == "listone" %}
+                    <a class="fm-btn {% if s.now %}fm-btn-primary{% else %}fm-btn-secondary{% endif %} fm-btn-sm" href="{% purl 'admin_footballers' %}?league={{ lg.id }}"><svg class="ic"><use href="#i-import"/></svg> Carica il listone</a>
                 {% elif s.key == "rules" %}
                     <a class="fm-btn fm-btn-secondary fm-btn-sm" href="{% purl 'admin_config' %}?league={{ lg.id }}#lg-{{ lg.id }}"><svg class="ic"><use href="#i-gear"/></svg> Apri le regole</a>
                     <form method="post" action="{% url 'admin_setup_card' lg.id %}">{% csrf_token %}

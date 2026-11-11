@@ -35,17 +35,20 @@
     <summary>↓ Cosa fare in questa pagina <span class="chev">▼</span></summary>
     <div class="howto-body">
         <ol>
-            <li>Sul sito della tua lega scarica l'export delle rose di <b>tutta la lega</b> (su Fantapazz: «Rose Lega», <code>.xls</code>).</li>
-            <li>Caricalo qui e premi <b><svg class="ic"><use href="#i-eye"/></svg> Anteprima</b> per controllare squadre e giocatori.</li>
-            <li>Premi <b><svg class="ic"><use href="#i-import"/></svg> Importa</b> per confermare.</li>
+            <li>Sul sito della tua lega scarica l'export delle rose di <b>tutta la lega</b>: il formato si riconosce da solo
+                (Fantapazz «Rose Lega» <code>.xls</code>, Fantacalcio.it «Lista calciatori» <code>.xlsx</code>,
+                Leghe Fantacalcio «Rose Mantra/Classic» <code>.csv</code> o un file con una colonna squadra).</li>
+            <li>Caricalo qui sotto e premi <b>Anteprima</b> per controllare squadre e giocatori.</li>
+            <li>Premi <b>Importa rose</b> per confermare. È lo stesso import di Calciatori → Listone → Strumenti.</li>
         </ol>
         <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> FantaManager non accede al sito della tua lega: usa solo i file che carichi tu.
-            Per il listone (giocatori liberi) vai su <b>Giocatori</b>.</div>
+            Il listone (giocatori liberi, quotazioni) è in <a href="{% purl 'admin_footballers' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">Calciatori → Listone</a>,
+            dove ci sono anche le schede squadra e le statistiche.</div>
     </div>
 </details>
 
-<div class="panel">
-    <div class="fp-target">
+<div class="panel" style="padding:10px 12px;margin-bottom:12px">
+    <div class="fp-target" style="margin-top:0">
         <span class="k">Destinazione</span>
         <b>{% if current_league %}{{ current_league.name }}{% else %}— nessuna lega —{% endif %}</b>
         {% if leagues|length > 1 %}
@@ -58,101 +61,7 @@
         </form>
         {% endif %}
     </div>
-
-    <div style="margin-top:16px">
-        <label>File rose (.xls / .xlsx)</label>
-        <input type="file" id="rose-file" accept=".xls,.xlsx" style="margin-top:4px">
-    </div>
-
-    <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;margin:16px 0;text-transform:none;letter-spacing:0;color:var(--ink)">
-        <input type="checkbox" id="fp-replace" style="width:auto;margin-top:3px">
-        <span>Sostituisci le rose esistenti
-            <span style="display:block;color:var(--muted);font-size:12px">
-                Azzera le assegnazioni ma mantiene gli svincolati nel pool.
-            </span>
-        </span>
-    </label>
-
-    <div class="fm-onerow" style="display:flex;gap:10px">
-        <button onclick="importRose('preview')" class="btn-ghost" style="padding:13px 22px"><svg class="ic"><use href="#i-eye"/></svg> Anteprima</button>
-        <button onclick="importRose('import')" class="btn-ok" style="padding:13px 26px"><svg class="ic"><use href="#i-import"/></svg> Importa</button>
-    </div>
-    <p id="fp-msg" style="margin:12px 0 0;font-size:13px;font-weight:700;display:none"></p>
 </div>
 
-<div id="fp-results" class="panel" style="display:none">
-    <h2 style="margin-bottom:14px" id="fp-results-title">Anteprima rose</h2>
-    <div id="fp-teams" style="margin-bottom:14px"></div>
-    <div class="preview-table table-scroll">
-        <table>
-            <thead><tr><th>Squadra</th><th>Nome</th><th>R</th><th>Club</th><th style="text-align:right">Costo</th></tr></thead>
-            <tbody id="fp-player-rows"></tbody>
-        </table>
-    </div>
-    <p id="fp-total" class="muted" style="font-size:12px;margin-top:8px;text-align:right"></p>
-</div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-    function getCsrfCookie() {
-        const m = document.cookie.match("(^|;)\\s*csrftoken\\s*=\\s*([^;]+)");
-        return m ? m.pop() : "";
-    }
-    const CSRF = getCsrfCookie();
-    const TARGET_LEAGUE_ID = "{{ current_league.id|default:'' }}";
-
-    async function importRose(action) {
-        const msg = document.getElementById("fp-msg");
-        const file = document.getElementById("rose-file").files[0];
-        msg.style.display = "block";
-        if (!file) { msg.style.color = "var(--closed)"; msg.textContent = "✗ Scegli prima il file delle rose."; return; }
-        msg.style.color = "var(--muted)";
-        msg.textContent = action === "preview" ? "Lettura rose…" : "Importazione rose…";
-
-        const body = new FormData();
-        if (TARGET_LEAGUE_ID) body.append("target_league_id", TARGET_LEAGUE_ID);
-        body.append("action", action);
-        body.append("replace", document.getElementById("fp-replace").checked ? "1" : "0");
-        body.append("rose_file", file);
-
-        let data;
-        try {
-            const r = await fetch("{% url 'admin_fantapazz_import_rose' %}", { method: "POST", body, headers: { "X-CSRFToken": CSRF } });
-            data = await r.json();
-        } catch (e) {
-            msg.style.color = "var(--closed)"; msg.textContent = "✗ Errore di rete."; return;
-        }
-        if (!data.ok) { msg.style.color = "var(--closed)"; msg.textContent = "✗ " + data.error; return; }
-
-        if (action === "preview") {
-            msg.style.color = data.warning ? "var(--paused)" : "var(--live)";
-            msg.textContent = data.warning ? "⚠ " + data.warning
-                : `✓ ${data.teams.length} squadre · ${data.total_players} giocatori. Controlla e conferma.`;
-            renderRosePreview(data);
-        } else {
-            msg.style.color = "var(--live)";
-            msg.textContent = `✓ Importate ${data.teams} squadre e ${data.players} giocatori con rose complete!`;
-        }
-    }
-
-    function renderRosePreview(data) {
-        document.getElementById("fp-results").style.display = "block";
-        document.getElementById("fp-teams").innerHTML = data.teams.map(t =>
-            `<span style="display:inline-block;margin:3px;padding:6px 12px;border-radius:8px;
-             background:var(--accent-soft);border:1px solid var(--accent-line);font-size:13px;font-weight:700">
-             ${fmEsc(t.name)} <span class="muted">· ${fmEsc(t.n_players)} gioc.</span>
-             <span style="color:var(--accent);margin-left:4px">${fmEsc(t.credits)} FM res.</span></span>`).join("");
-        const rows = [];
-        data.teams.forEach(t => t.players.forEach(p => rows.push(
-            `<tr><td class="muted" style="font-size:12px">${fmEsc(t.name)}</td>
-             <td style="font-weight:600">${fmEsc(p.name)}</td>
-             <td><span class="role-pill">${fmEsc(p.role)}</span></td>
-             <td class="muted">${fmEsc(p.club)}</td>
-             <td style="text-align:right;color:var(--accent);font-weight:700">${fmEsc(p.cost)}</td></tr>`)));
-        document.getElementById("fp-player-rows").innerHTML = rows.join("");
-        document.getElementById("fp-total").innerHTML =
-            `Anteprima (primi 5 per squadra) · <button onclick="importRose('import')" class="btn-ok" style="padding:8px 18px;font-size:13px;margin-left:8px">Conferma import →</button>`;
-    }
-</script>
+{% include "auctions/_rose_import.html" with rose_league=current_league %}
 {% endblock %}

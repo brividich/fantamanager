@@ -193,13 +193,14 @@ def setup_steps(league):
     Ogni passo: ``key``, ``title``, ``done``, ``text``, ``optional``. Il primo
     non fatto è quello «adesso».
     """
-    from ..models import Auction, MarketSession, Participant
+    from ..models import Auction, MarketSession, Participant, Player
 
     state = league.setup_state or {}
     teams = list(Participant.objects.filter(league=league, is_active=True))
     n = len(teams)
     joined = sum(1 for t in teams if t.user_id is not None)
     pending = n - joined
+    pool = Player.objects.filter(league=league).count()
     has_auction = (Auction.objects.filter(league=league).exists()
                    or MarketSession.objects.filter(league=league).exists())
     steps = [
@@ -208,6 +209,13 @@ def setup_steps(league):
         {"key": "invites", "title": "Inviti", "done": n >= 2 and pending == 0,
          "text": f"Entrate {joined} su {n}." + (f" Mancano {pending}." if pending else ""),
          "joined": joined, "total": n, "pending": pending},
+        # Senza listone non c'è niente da comprare. La lista generale arriva da
+        # API-Football: se l'API non risponde la lega parte vuota e va caricato
+        # il file Quotazioni.
+        {"key": "listone", "title": "Listone", "done": pool > 0,
+         "text": (f"{pool} giocatori nel listone." if pool else
+                  "Il listone è vuoto: carica il file Quotazioni in Calciatori → Listone "
+                  "(o le rose, che lo portano con sé).")},
         {"key": "rules", "title": "Regole controllate", "done": bool(state.get("rules_checked")),
          "text": "Budget, rosa, scambi e punteggi: dai un'occhiata in Impostazioni."},
         {"key": "auction", "title": "Prima asta o mercato", "done": has_auction,

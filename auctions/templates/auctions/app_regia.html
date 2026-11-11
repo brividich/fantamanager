@@ -615,7 +615,7 @@ the same league.
         <div class="a-label" id="rg-tools-h"><svg class="ic"><use href="#i-gear"/></svg> Strumenti della lega</div>
         <div class="rg-tools">
             <a class="rg-tool primary" href="{% url 'dashboard_league' app_league.id %}"><svg class="ic"><use href="#i-table"/></svg>Console<small>Dashboard e asta dal vivo</small></a>
-            <a class="rg-tool" href="{% url 'app_regia_players' %}{{ league_q }}"><svg class="ic"><use href="#i-users"/></svg>Giocatori<small>Listone e svincolati</small></a>
+            <a class="rg-tool" href="{% url 'app_footballers' %}{{ league_q }}"><svg class="ic"><use href="#i-ball"/></svg>Calciatori<small>Listone, svincolati e anagrafica</small></a>
             <a class="rg-tool" href="{% url 'app_regia_competitions' %}{{ league_q }}"><svg class="ic"><use href="#i-trophy"/></svg>Competizioni<small>1vs1, coppe, calendari</small></a>
             <a class="rg-tool" href="{% url 'app_giornate' %}{{ league_q }}"><svg class="ic"><use href="#i-pulse"/></svg>Giornate & Voti<small>Formazioni, voti e calcolo</small></a>
             <a class="rg-tool" href="{% url 'app_regia_teams' %}{{ league_q }}"><svg class="ic"><use href="#i-shield"/></svg>Squadre<small>PIN, inviti, loghi</small></a>

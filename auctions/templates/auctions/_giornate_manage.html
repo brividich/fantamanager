@@ -339,6 +339,7 @@ schede si vedono tutte, una sotto l'altra.
             <h3><svg class="ic"><use href="#i-pulse"/></svg> Voti live</h3>
             <p>Voti e bonus/malus da API-Football mentre si gioca la giornata {{ current_giornata.serie_a_matchday|default:current_giornata.number }} di Serie A. I punteggi restano provvisori finché non li rendi ufficiali.
                 {% if is_live %}<br>Ora: <b>{{ live_count }} voti live</b>.{% endif %}</p>
+            {% include "auctions/_api_status.html" with remedy="carica il file dei voti qui accanto o scrivi i punteggi a mano." %}
             <div class="gv-actions">
                 <form method="post" action="{% url 'app_live_voti_sync' %}">
                     {% csrf_token %}

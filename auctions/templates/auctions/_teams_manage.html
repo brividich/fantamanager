@@ -183,7 +183,7 @@ mostra la cornice.
     </div>
     <span class="spacer"></span>
     <div class="pg-head-actions fm-onerow">
-        <a class="fm-btn fm-btn-secondary" href="{% purl 'admin_players' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
+        <a class="fm-btn fm-btn-secondary" href="{% purl 'admin_footballers' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
             <svg class="ic"><use href="#i-import"/></svg> Importa rose</a>
         {% if current_league %}
         <button type="button" class="fm-btn fm-btn-primary" data-open-add-team>
@@ -285,7 +285,7 @@ mostra la cornice.
             </thead>
             <tbody>
             {% for r in rows %}
-                <tr>
+                <tr id="team-{{ r.p.id }}">
                     <td class="rank-cell">{{ forloop.counter }}</td>
                     <td class="c-team">
                         <div class="team-name">{{ r.p.display_name }}</div>

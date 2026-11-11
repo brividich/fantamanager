@@ -139,7 +139,7 @@ def league_admin_digest(league):
         items.append(_todo(
             "warn", "import", "Carica il listone",
             "Senza listone non c'è niente da mettere all'asta.",
-            reverse("app_regia_players") + q + "&need_listone=1", "Carica"))
+            reverse("app_footballers") + q + "&need_listone=1", "Carica"))
     if not teams_n:
         items.append(_todo(
             "warn", "shield", "Aggiungi le squadre",

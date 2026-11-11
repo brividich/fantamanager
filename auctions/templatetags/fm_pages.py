@@ -2,7 +2,7 @@
 
 Una pagina della console aperta da /app/regia/… usa la cornice dell'app; i
 suoi link verso altre pagine devono restare nell'app quando la pagina di
-arrivo ce l'ha. ``{% purl 'admin_players' %}`` è ``{% url %}`` in console e
+arrivo ce l'ha. ``{% purl 'admin_footballers' %}`` è ``{% url %}`` in console e
 l'indirizzo dell'app (``APP_PAGES``) dentro l'app.
 """
 from django import template

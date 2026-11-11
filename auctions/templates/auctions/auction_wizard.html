@@ -67,7 +67,7 @@
     <p class="hint" style="margin:0 auto 18px; max-width:440px">
         L'asta si gioca su una <b>lega</b> (squadre + budget + listone). Crea prima la lega, poi torna qui per l'asta.
     </p>
-    <a class="btn-ok" href="{% url 'admin_setup' %}"><svg class="ic"><use href="#i-trophy"/></svg> Crea la prima lega</a>
+    <a class="btn-ok" href="{% purl 'admin_setup' %}"><svg class="ic"><use href="#i-trophy"/></svg> Crea la prima lega</a>
 </div>
 {% else %}
 
@@ -111,11 +111,11 @@
         <div class="lg-meta" id="lg-meta"></div>
         <div id="no-listone" class="hint" style="display:none; color:var(--closed); font-weight:700">
             Questa lega non ha ancora il listone: caricalo da
-            <a href="{% purl 'admin_players' %}" target="_blank">Listone &amp; giocatori</a> prima di creare l'asta.
+            <a href="{% purl 'admin_footballers' %}" target="_blank">Calciatori → Listone</a> prima di creare l'asta.
         </div>
         <div class="hint">
-            Manca qualcosa? <a href="{% url 'admin_setup' %}">＋ Nuova lega</a> ·
-            <a href="{% purl 'admin_players' %}" target="_blank">Listone &amp; giocatori →</a> ·
+            Manca qualcosa? <a href="{% purl 'admin_setup' %}">＋ Nuova lega</a> ·
+            <a href="{% purl 'admin_footballers' %}" target="_blank">Listone (Calciatori) →</a> ·
             <a href="{% purl 'admin_fantapazz' %}" target="_blank">Importa rose →</a>
         </div>
 
