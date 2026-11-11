@@ -1566,6 +1566,18 @@ class ReleaseAfterCountTests(TestCase):
         # E fra chi può uscire per Boban non compare un vinto in altre buste ancora da sostituire.
         self.assertEqual([p.name for p in self.options(self.session, self._won(self.boban))], ["Team A C0"])
 
+    def test_session_with_open_replacements_cannot_be_deleted(self):
+        place_market_bid(self.session.id, self.a.id, self.boban.id, 20)
+        self._resolve()
+        self.client.force_login(self.owner)
+        url = reverse("admin_market_delete", args=[self.session.id])
+        resp = self.client.post(url, follow=True)
+        self.assertContains(resp, "1 sostituzione da scegliere")
+        self.assertTrue(MarketSession.objects.filter(pk=self.session.id).exists())
+        self.choose(self.session.id, self._won(self.boban)["bid_id"], self.mid[self.a.id][0].id)
+        self.client.post(url)
+        self.assertFalse(MarketSession.objects.filter(pk=self.session.id).exists())
+
     def test_the_player_is_checked_again_once_locked(self):
         place_market_bid(self.session.id, self.a.id, self.boban.id, 20)
         self._resolve()

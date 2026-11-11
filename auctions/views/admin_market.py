@@ -898,6 +898,14 @@ def admin_market_delete(request, session_id):
     session, denied = _managed_session_or_403(request, session_id)
     if denied:
         return denied
+    waiting = pending_releases(session)
+    if waiting:
+        # Senza la sessione resterebbero acquisti a cui nessuno può più far
+        # uscire il pari ruolo: prima si scelgono, o si annulla lo spoglio.
+        messages.error(request, f"La sessione ha ancora {len(waiting)} sostituzion{'e' if len(waiting) == 1 else 'i'} "
+                                "da scegliere: scegli chi esce per ogni giocatore vinto, oppure premi «Annulla spoglio», "
+                                "poi elimina la sessione.")
+        return redirect(_back(request, _dashboard_url(request, session)))
     league_id = session.league_id
     league = session.league
     title = session.title
