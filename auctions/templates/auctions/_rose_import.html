@@ -1,0 +1,126 @@
+{% comment %}
+«Importa rose squadre»: UNICO per Calciatori → Listone (_listone.html, negli
+strumenti) e per la pagina Importa (admin_fantapazz.html). Testi, opzioni e
+comportamento si cambiano qui. Manda il file a ``admin_import_rose`` (formato
+riconosciuto da solo, listone del file, giocatori non abbinati).
+
+``rose_league``: la lega in cui si importa (None = il listone senza lega).
+{% endcomment %}
+<style>
+    .ri-form { display:flex; gap:14px 18px; align-items:flex-end; flex-wrap:wrap; }
+    .ri-form .file { flex:1 1 220px; min-width:0; }
+    .ri-form .file input { padding:10px; font-size:14px; }
+    .ri-form .opts { display:flex; flex-direction:column; gap:9px; }
+    .ri-form .btns { display:flex; gap:10px; flex-wrap:wrap; }
+    .ri-opt { display:flex; align-items:center; gap:8px; cursor:pointer; margin:0;
+        text-transform:none; letter-spacing:0; font-size:12.5px; color:var(--fm-text); font-weight:500; }
+    .ri-opt input { width:auto; }
+    .ri-msg { margin:14px 0 0; font-size:13px; font-weight:700; display:none; }
+    .ri-card p.muted { font-size:13px; margin:0 0 16px; line-height:1.6; }
+</style>
+<section class="fm-card ri-card" id="rose-import" data-league="{{ rose_league.id|default:'' }}"
+         data-url="{% url 'admin_import_rose' %}">
+    <div class="fm-section-title"><svg class="ic"><use href="#i-users"/></svg> Importa rose squadre <span class="sep"></span></div>
+    <p class="muted">
+        L'export delle rose di <b>tutta la lega</b>: Fantapazz <code>.xls</code>, Fantacalcio.it <code>.xlsx</code>,
+        Leghe Fantacalcio <code>.csv</code> o un file con una colonna squadra (il formato si riconosce da solo).
+        <b>Anteprima</b> per controllare, poi <b>Importa rose</b>: i giocatori vanno alle squadre, gli svincolati restano liberi.
+        {% if rose_league %}In <b>{{ rose_league.name }}</b>.{% endif %}
+    </p>
+    <details class="muted" style="font-size:12px;margin:-8px 0 14px">
+        <summary style="cursor:pointer">Come vengono riconosciuti i giocatori</summary>
+        Per nome sul listone della lega, o per Id ufficiale con l'export Leghe Fantacalcio (carica prima il listone di questa lega).
+        Chi non si abbina con certezza resta fuori e compare in un elenco, da assegnare a mano in Calciatori → Listone.
+    </details>
+    <div class="ri-form">
+        <div class="file"><label for="rose-file">File rose (.xls / .xlsx / .csv)</label>
+            <input type="file" id="rose-file" accept=".xlsx,.xls,.csv,.txt"
+                   onchange="document.getElementById('rose-msg').style.display='none'"></div>
+        <div class="opts">
+            <label class="ri-opt"><input type="checkbox" id="rose-listone" value="1" checked> Importa anche il listone dal file (se presente)</label>
+            <label class="ri-opt"><input type="checkbox" id="rose-replace" value="1"> Sostituisci tutto (azzera le rose esistenti)</label>
+        </div>
+        <div class="btns">
+            <button type="button" onclick="importRose(true)" class="btn-ghost">Anteprima</button>
+            <button type="button" onclick="importRose(false)" class="btn-ok">Importa rose</button>
+        </div>
+    </div>
+    <p id="rose-msg" class="ri-msg" role="status"></p>
+    <div id="rose-preview" style="display:none;margin-top:14px"></div>
+</section>
+<script>
+(function () {
+    const box = document.getElementById("rose-import");
+    const CSRF = (document.cookie.match("(^|;)\\s*csrftoken\\s*=\\s*([^;]+)") || []).pop() || "";
+
+    function msg(text, color) {
+        const el = document.getElementById("rose-msg");
+        el.style.display = "block"; el.style.color = color; el.textContent = text;
+    }
+
+    // I giocatori del file che il listone non abbina con certezza.
+    function unmatched(list) {
+        if (!list || !list.length) return "";
+        const rows = list.map(u =>
+            `<tr><td style="font-weight:600">${fmEsc(u.name)}</td><td>${fmEsc(u.team)}</td>` +
+            `<td style="text-align:right">${fmEsc(u.cost)}</td><td class="muted">${fmEsc(u.why)}</td></tr>`).join("");
+        return `<div style="margin-top:12px;font-size:12px;color:var(--closed)">` +
+            `Da assegnare a mano (${list.length}): cercali in Calciatori → Listone e assegnali alla squadra col loro costo.</div>` +
+            `<div class="table-scroll"><table><thead><tr><th>Nel file</th><th>Squadra</th>` +
+            `<th style="text-align:right">Costo</th><th>Perché</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    }
+
+    window.importRose = async function (preview) {
+        const file = document.getElementById("rose-file").files[0];
+        if (!file) { msg("Scegli prima il file delle rose.", "var(--closed)"); return; }
+        const form = new FormData();
+        form.append("rose_file", file);
+        if (preview) form.append("action", "preview");
+        form.append("replace", document.getElementById("rose-replace").checked ? "1" : "0");
+        form.append("import_listone", document.getElementById("rose-listone").checked ? "1" : "0");
+        if (box.dataset.league) form.append("league_id", box.dataset.league);
+        const out = document.getElementById("rose-preview");
+        out.style.display = "none";
+        msg(preview ? "Analisi del file…" : "Importazione…", "var(--muted)");
+        let data;
+        try {
+            const r = await fetch(box.dataset.url, { method: "POST", body: form, headers: { "X-CSRFToken": CSRF } });
+            data = await r.json().catch(() => ({ ok: false, error: `errore del server (${r.status}): riprova` }));
+        } catch (e) {
+            data = { ok: false, error: "errore di rete: controlla la connessione e riprova" };
+        }
+        if (!data.ok) { msg("✗ " + (data.error || "import non riuscito: riprova"), "var(--closed)"); return; }
+
+        if (data.preview) {
+            const rows = data.teams.map(t =>
+                `<tr><td style="font-weight:600">${fmEsc(t.name)}</td>` +
+                `<td style="text-align:right">${fmEsc(t.n_players)}</td>` +
+                `<td style="text-align:right" class="muted">${t.credits == null ? "—" : Math.round(t.credits)}</td>` +
+                `<td class="muted" style="font-size:12px">${t.players.map(p => fmEsc(p.name)).join(", ")}${t.n_players > t.players.length ? "…" : ""}</td></tr>`).join("");
+            out.innerHTML =
+                `<div class="muted" style="font-size:12px;margin-bottom:8px">` +
+                `Formato rilevato: <b style="color:var(--accent-bright)">${fmEsc(data.source_label)}</b> · ` +
+                `${data.teams.length} squadre · ${fmEsc(data.total_players)} giocatori in rosa` +
+                (data.n_listone ? ` · listone ${fmEsc(data.n_listone)}` : "") + `</div>` +
+                `<div class="table-scroll"><table><thead><tr><th>Squadra</th>` +
+                `<th style="text-align:right">Giocatori</th><th style="text-align:right">Crediti residui</th><th>Primi giocatori</th>` +
+                `</tr></thead><tbody>${rows}</tbody></table></div>` + unmatched(data.unmatched);
+            out.style.display = "block";
+            msg("Anteprima: se è giusta premi «Importa rose» per confermare." +
+                (data.warning ? " ⚠ " + data.warning : ""), data.warning ? "var(--closed)" : "var(--gold)");
+            return;
+        }
+        if (data.unmatched && data.unmatched.length) {
+            // Restano da assegnare a mano: l'elenco resta a schermo, niente ricarica.
+            out.innerHTML = unmatched(data.unmatched);
+            out.style.display = "block";
+            msg(`✓ ${data.teams} squadre · ${data.players} giocatori assegnati · ⚠ ${data.warning}`, "var(--gold)");
+            return;
+        }
+        const parts = [`${data.teams} squadre`, `${data.players} giocatori assegnati`];
+        if (data.listone_created) parts.push(`${data.listone_created} aggiunti al listone`);
+        msg(`✓ ${data.source_label}: ` + parts.join(" · ") + (data.warning ? " · ⚠ " + data.warning : ""), "var(--live)");
+        setTimeout(() => location.reload(), 1800);
+    };
+})();
+</script>

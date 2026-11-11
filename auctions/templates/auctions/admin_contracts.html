@@ -1504,7 +1504,12 @@
             <h3 class="ct-departures-title">Usciti dalla Serie A (5.05 – 5.09)</h3>
         </div>
         <div class="ct-departures-pills">
-            {% if apifootball %}
+            {% if apifootball and api_status.outage %}
+            <span class="ct-pill warn" title="{{ api_status.outage.reason }}">
+                <span class="ct-status-dot" style="background:#f59e0b"></span>
+                <span>API-Football ferma fino alle {{ api_status.outage.until|time:"H:i" }}</span>
+            </span>
+            {% elif apifootball %}
             <span class="ct-pill good">
                 <span class="ct-status-dot" style="background:#22c55e"></span>
                 <span>API-Football attiva</span>
@@ -1521,6 +1526,7 @@
         </div>
     </div>
 
+    {% include "auctions/_api_status.html" with remedy="indica a mano il club di destinazione di ogni uscito (Segnala / Conferma qui sotto)." %}
     <div class="muted" style="font-size:12.5px;margin-bottom:14px;line-height:1.45">
         Quando importi il listone ufficiale, chi è in una rosa ma non compare più viene rilevato automaticamente.
         {% if apifootball %}API-Football cerca subito il club di destinazione con la posizione nel ranking UEFA.{% else %}Con API-Football attiva il club di destinazione e il ranking UEFA si cercherebbero automaticamente.{% endif %}

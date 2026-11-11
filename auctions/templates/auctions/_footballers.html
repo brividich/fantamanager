@@ -120,6 +120,7 @@ relativi alla pagina che include il partial, la lega in ?league= compresa.
     {% endif %}
 </div>
 
+{% include "auctions/_api_status.html" with remedy="il listone di ogni lega resta com'è (scheda Listone); per una lega puoi caricare il file Quotazioni." %}
 <div class="fb-sync{% if fb_sync.error %} is-error{% endif %}">
     <div class="grow">
         {% if fb_sync.status == "running" %}

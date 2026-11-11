@@ -30,6 +30,8 @@ stessi testi**.
     `market/session.html` (console) e `app_regia_session.html` (app);
   - gli scambi (ratifiche, regole, periodi): `market/_trades_manage.html`, in
     `market/scambi.html` (console) e `app_regia_trades.html` (app).
+  «Importa rose squadre» è `_rose_import.html`, lo stesso in Calciatori →
+  Listone e nella pagina Importa.
   La lista «Chi lasceresti andare» delle buste è `market/_release_list_form.html`,
   la stessa per il manager (`app_mercato.html`) e per l'admin che la compila
   per una squadra (`_session_manage.html`).
@@ -177,6 +179,30 @@ chi usa il PC da solo non ci passa mai.
 - Con l'asta raggiungibile da internet (`PUBLIC_TOKENS_REQUIRED`) la
   connessione in tempo reale accetta solo le squadre dell'asta, chi gestisce
   la lega e il maxischermo aperto col suo codice (`screen_ok_<id>` in sessione).
+
+## API-Football ferma
+
+API-Football (`providers/apifootball.py`) può non rispondere (rete, chiave,
+piano, limite del giorno): la lega non si ferma mai per questo.
+
+- Ogni chiamata passa da `_get`. Dopo un errore che vale per tutti l'API è
+  «ferma» (`outage()`, in cache: 5 min la rete, 30 la chiave, fino a
+  mezzanotte UTC il limite del giorno) e le chiamate vere falliscono subito.
+  **Un tasto premuto dall'admin chiama `retry_now()` prima di chiamare l'API**;
+  le cose automatiche (dopo l'import del listone, scheduler, sync in
+  background) aspettano.
+- Una pagina che usa l'API mostra `_api_status.html` (con `api_status` =
+  `apifootball.status()` e un `remedy`: cosa fare intanto). Nelle pagine
+  niente attese del limite al minuto (`paced(..., sleep=impatient)`).
+- Il listone della lega (Calciatori → Listone) non dipende dall'API.
+- Anagrafica: un calciatore esce dalla Serie A solo se manca in due
+  aggiornamenti completi di fila (`missed_syncs`, `MISSES_TO_LEAVE`); una rosa
+  vuota o più di un terzo di assenti = risposta sbagliata, non conta. Uno
+  svincolato uscito con voti, buste o liste non si cancella.
+- Voti live (`services/voti_live.py`): ogni lega chiede la *sua* giornata di
+  Serie A (`serie_a_matchday`), una chiamata per giornata di Serie A; il sync
+  in background prende la giornata che ogni lega sta giocando, non crea
+  giornate, non tocca i punteggi scritti a mano e dopo errori aspetta di più.
 
 ## Formazioni: una per giornata
 

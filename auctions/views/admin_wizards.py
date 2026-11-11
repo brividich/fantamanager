@@ -429,6 +429,11 @@ def admin_setup_create(request):
     # Mercato, when the league knows what it needs.
     if request.POST.get("create_auction", "1") == "0":
         return redirect(done_url)
+    # Senza listone (la lista generale da API-Football può mancare) l'asta
+    # non ha niente da mettere in vendita: la lega c'è, l'asta si crea dopo.
+    if not Player.objects.filter(league=league).exists():
+        request.session[SETUP_REPORT_KEY] = {**request.session[SETUP_REPORT_KEY], "no_listone": True}
+        return redirect(done_url)
 
     mode = request.POST.get("mode", "").strip()
     if mode not in Auction.Mode.values:

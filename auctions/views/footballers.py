@@ -23,6 +23,8 @@ from .. import remote
 from ..models import Footballer, League, Participant, Player
 from ..providers import importers
 from ..providers.apifootball import is_configured as apifootball_configured
+from ..providers.apifootball import retry_now as apifootball_retry
+from ..providers.apifootball import status as apifootball_status
 from ..services import footballers
 from .admin_market import _back
 from .app import _redirect_login
@@ -210,6 +212,7 @@ def _registry_context(request, pool, base_url, league, can_manage, vista):
         "fb_can_manage_league": bool(league is not None and user_can_manage_league(request.user, league)),
         "fb_can_manage": can_manage,
         "fb_api_ready": apifootball_configured(),
+        "api_status": apifootball_status(),
         "fb_base": base_url,
     }
 
@@ -261,10 +264,12 @@ def admin_footballers_sync(request):
         messages.error(request, "L'anagrafica è comune a tutte le leghe: la aggiorna solo il superuser.")
     elif not apifootball_configured():
         messages.error(request, "API-Football non configurata: imposta APIFOOTBALL_KEY sul server e riavvia.")
-    elif footballers.start_sync():
-        messages.success(request, "Aggiornamento avviato: serve qualche minuto, ricarica la pagina per vedere l'esito.")
     else:
-        messages.info(request, "C'è già un aggiornamento in corso.")
+        apifootball_retry()  # un tasto premuto: si riprova anche se l'API era segnata ferma
+        if footballers.start_sync():
+            messages.success(request, "Aggiornamento avviato: serve qualche minuto, ricarica la pagina per vedere l'esito.")
+        else:
+            messages.info(request, "C'è già un aggiornamento in corso.")
     return redirect(back)
 
 

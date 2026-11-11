@@ -3,6 +3,7 @@ import io
 from decimal import Decimal
 from django.test import TestCase
 from django.contrib.auth.models import User
+from django.urls import reverse
 
 from ..models import (
     League,
@@ -893,3 +894,77 @@ class CaptainTests(TestCase):
         self.season.rules = {}
         self.season.save()
         self.assertNotIn('name="captain"', self.client.get(reverse("app_formazione")).content.decode())
+
+
+class LiveSyncPerLeagueTests(TestCase):
+    """Il sync live lavora lega per lega: ogni lega chiede la sua giornata di
+    Serie A, una chiamata per giornata di Serie A, e il sync automatico non
+    tocca i punteggi scritti a mano."""
+
+    def setUp(self):
+        from ..services.voti_live import LiveSyncManager
+        self.mgr = LiveSyncManager()          # non il singleton: stato pulito
+        self.mgr.provider = "apifootball"
+
+    def _league(self, name, number, status, serie_a=None):
+        league = League.objects.create(name=name, budget=Decimal("500"))
+        season = Season.objects.create(name="2026/27", league=league, is_current=True)
+        g = Giornata.objects.create(season=season, number=number, status=status, serie_a_matchday=serie_a)
+        player = Player.objects.create(league=league, name="Lautaro", role="A", team="Inter", initial_price=1)
+        return league, g, player
+
+    ROWS = [{"name": "Lautaro", "team": "Inter", "role": "A", "vote": "6.5", "goals": 0, "assists": 0,
+             "own_goals": 0, "pen_scored": 0, "pen_missed": 0, "pen_saved": 0, "goals_conceded": 0,
+             "yellow": False, "red": False}]
+
+    def test_each_league_asks_for_its_serie_a_round_once(self):
+        from unittest import mock
+        _a, ga, pa = self._league("A", 5, Giornata.Status.LOCKED)
+        _b, gb, pb = self._league("B", 3, Giornata.Status.LIVE, serie_a=5)      # partita dopo
+        _c, gc, pc = self._league("C", 2, Giornata.Status.LOCKED)
+        with mock.patch("auctions.providers.apifootball.matchday_live_rows", return_value=self.ROWS) as api:
+            res = self.mgr.sync_now(background=True)
+        self.assertEqual(res["status"], "SUCCESS")
+        self.assertEqual(sorted(c.args[0] for c in api.call_args_list), [2, 5])
+        for g, p in ((ga, pa), (gb, pb), (gc, pc)):
+            self.assertTrue(PlayerPerformance.objects.filter(giornata=g, player=p).exists(), g)
+        # In automatico nessuna giornata nuova viene creata.
+        self.assertEqual(Giornata.objects.count(), 3)
+
+    def test_background_leaves_manual_scores_alone(self):
+        from unittest import mock
+        from ..models import GiornataScore, Participant
+        league, g, p = self._league("Manuale", 4, Giornata.Status.LOCKED)
+        team = Participant.objects.create(league=league, display_name="Alfa")
+        GiornataScore.objects.create(giornata=g, participant=team, total=Decimal("72"),
+                                     breakdown={"manual": True})
+        with mock.patch("auctions.providers.apifootball.matchday_live_rows", return_value=self.ROWS) as api:
+            res = self.mgr.sync_now(background=True)
+        api.assert_not_called()
+        self.assertEqual(res["status"], "NO_DATA")
+        self.assertIn("punteggi a mano", self.mgr.last_message)
+        self.assertEqual(GiornataScore.objects.get(giornata=g).total, Decimal("72"))
+        # Il tasto dell'admin invece sincronizza (e ricalcola dai voti, come da regola).
+        with mock.patch("auctions.providers.apifootball.matchday_live_rows", return_value=self.ROWS):
+            res = self.mgr.sync_now(giornata_num=4, leagues=[league])
+        self.assertEqual(res["status"], "SUCCESS")
+
+    def test_the_admin_button_asks_for_the_serie_a_round(self):
+        from unittest import mock
+        owner = User.objects.create_user("pres_live", password="pw")
+        league, g, _p = self._league("Lega Dopo", 3, Giornata.Status.LOCKED, serie_a=7)
+        league.owner = owner
+        league.save()
+        self.client.force_login(owner)
+        with mock.patch("auctions.providers.apifootball.matchday_live_rows", return_value=self.ROWS) as api:
+            self.client.post(reverse("admin_live_voti_sync") + f"?league={league.id}",
+                             {"giornata_number": 3, "provider": "apifootball", "league_id": league.id})
+        self.assertEqual(api.call_args.args[0], 7)
+
+    def test_errors_make_the_background_wait_longer(self):
+        self.mgr.interval_seconds = 60
+        self.assertEqual(self.mgr._wait_seconds(), 60)
+        self.mgr.failures = 3
+        self.assertEqual(self.mgr._wait_seconds(), 480)
+        self.mgr.failures = 20
+        self.assertEqual(self.mgr._wait_seconds(), 30 * 60)

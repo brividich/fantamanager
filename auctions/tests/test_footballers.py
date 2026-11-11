@@ -123,10 +123,23 @@ class RegistrySyncTests(ApiTestCase):
         self.sync()
         moved = {496: SQUADS[496][:2] + [squad_player(6, "N. Barella", "Midfielder", 29, 23)], 505: SQUADS[505][:2]}
         report = self.sync(squads=moved)
-        self.assertEqual((report["created"], report["left"]), (0, 1))
+        # Locatelli manca per la prima volta: si aspetta il prossimo giro.
+        self.assertEqual((report["created"], report["left"], report["missing"]), (0, 0, 1))
+        self.assertIn("se mancano anche al prossimo", footballers.sync_summary(report))
         barella = Footballer.objects.get(api_id=6)
         self.assertEqual((barella.club_name, barella.age, barella.in_serie_a), ("Juventus", 29, True))
+        self.assertTrue(Footballer.objects.get(api_id=3).in_serie_a)
+        report = self.sync(squads=moved)
+        self.assertEqual((report["left"], report["missing"]), (1, 0))
         self.assertFalse(Footballer.objects.get(api_id=3).in_serie_a)
+
+    def test_who_comes_back_starts_counting_again(self):
+        self.sync()
+        self.sync(squads={496: SQUADS[496][:2], 505: SQUADS[505]})   # Locatelli manca una volta
+        self.sync()                                                   # torna
+        self.sync(squads={496: SQUADS[496][:2], 505: SQUADS[505]})   # manca di nuovo, una volta
+        locatelli = Footballer.objects.get(api_id=3)
+        self.assertEqual((locatelli.in_serie_a, locatelli.missed_syncs), (True, 1))
 
     def test_an_interrupted_sync_makes_nobody_leave(self):
         self.sync()
@@ -228,6 +241,8 @@ class DefaultListoneTests(ApiTestCase):
         Player.objects.filter(league=league, footballer__api_id=4).update(owner=team, cost=Decimal("50"))
         moved = {496: SQUADS[496][:2], 505: SQUADS[505][1:]}  # escono Locatelli (libero) e Lautaro (in rosa)
         self.sync(squads=moved)
+        self.assertIn("M. Locatelli", Player.objects.filter(league=league).values_list("name", flat=True))
+        self.sync(squads=moved)  # assenti due volte di fila: escono
         names = set(Player.objects.filter(league=league).values_list("name", flat=True))
         self.assertNotIn("M. Locatelli", names)
         lautaro = Player.objects.get(league=league, footballer__api_id=4)
@@ -244,7 +259,9 @@ class DefaultListoneTests(ApiTestCase):
         giornata = Giornata.objects.create(season=season, number=1)
         locatelli = Player.objects.get(league=league, footballer__api_id=3)
         PlayerPerformance.objects.create(giornata=giornata, player=locatelli, vote=Decimal("6.5"))
-        self.sync(squads={496: SQUADS[496][:2], 505: SQUADS[505]})  # esce Locatelli
+        for _ in range(2):
+            self.sync(squads={496: SQUADS[496][:2], 505: SQUADS[505]})  # esce Locatelli
+        self.assertFalse(Footballer.objects.get(api_id=3).in_serie_a)
         self.assertTrue(Player.objects.filter(pk=locatelli.pk).exists())
         self.assertEqual(PlayerPerformance.objects.filter(player=locatelli).count(), 1)
 
@@ -481,3 +498,100 @@ class ListoneTabTests(TestCase):
         self.assertEqual(rows("status=owned"), ["Lautaro"])
         self.assertEqual(rows("role=A"), ["Lautaro"])
         self.assertEqual(rows("sort=-quota"), ["Lautaro", "Barella"])
+
+
+    def test_rose_import_is_the_same_on_importa_and_listone(self):
+        """Un solo «Importa rose squadre» (_rose_import.html) per la pagina
+        Importa e per gli strumenti del Listone."""
+        self.client.force_login(self.owner)
+        q = f"?league={self.league.id}"
+
+        def section(url):
+            html = self.client.get(url + q).content.decode()
+            start = html.index('<section class="fm-card ri-card" id="rose-import"')
+            return html[start:html.index("</section>", start)]
+        importa = section(reverse("admin_fantapazz"))
+        self.assertEqual(importa, section(reverse("admin_footballers")))
+        self.assertIn(f'data-league="{self.league.id}"', importa)
+        self.assertIn(reverse("admin_import_rose"), importa)
+
+
+class OutageTests(ApiTestCase):
+    """API-Football ferma: dopo un errore che vale per tutti le chiamate vere
+    falliscono subito (niente 15 s di attesa ciascuna) fino a quando riprova
+    da sola o un tasto dell'admin la fa riprovare."""
+
+    def _real(self, side_effect):
+        calls = []
+
+        def get(*args, **kwargs):
+            calls.append(args)
+            return side_effect()
+        return calls, mock.patch.object(apifootball.requests, "get", get)
+
+    def call(self):
+        # get=requests.get come le chiamate vere: solo queste passano dall'interruttore.
+        return apifootball._get("/teams", {"league": 135}, get=apifootball.requests.get)
+
+    def test_a_network_failure_fails_fast_until_retry(self):
+        import requests
+
+        def boom():
+            raise requests.ConnectionError("rete giù")
+        calls, patch = self._real(boom)
+        with patch:
+            with self.assertRaisesRegex(apifootball.ApiFootballError, "non raggiungibile"):
+                self.call()
+            with self.assertRaisesRegex(apifootball.ApiFootballError, "riprova da sola dopo le"):
+                self.call()
+            self.assertEqual(len(calls), 1)
+            self.assertIn("non raggiungibile", apifootball.status()["outage"]["reason"])
+            apifootball.retry_now()
+            with self.assertRaises(apifootball.ApiFootballError):
+                self.call()
+        self.assertEqual(len(calls), 2)
+
+    def test_the_daily_limit_lasts_until_midnight_utc(self):
+        calls, patch = self._real(lambda: Resp({"errors": {"requests": "limit reached"}}))
+        with patch, self.assertRaisesRegex(apifootball.ApiFootballError, "limite giornaliero"):
+            self.call()
+        state = apifootball.outage()
+        self.assertEqual(state["until"].astimezone(__import__("datetime").timezone.utc).hour, 0)
+
+    def test_an_answer_clears_it_and_a_season_refusal_does_not_trip_it(self):
+        apifootball._trip("prova", 60)
+        apifootball.retry_now()
+        calls, patch = self._real(lambda: Resp({"errors": {"plan": "Free plans do not have access"}}))
+        with patch, self.assertRaisesRegex(apifootball.ApiFootballError, "non copre la stagione"):
+            self.call()
+        self.assertIsNone(apifootball.outage())
+        calls, patch = self._real(lambda: Resp({"response": [{"team": {"id": 1}}]}))
+        apifootball._trip("prova", 60)
+        apifootball.retry_now()
+        with patch:
+            self.assertEqual(len(self.call()), 1)
+        self.assertIsNone(apifootball.outage())
+
+    def test_test_doubles_are_not_guarded(self):
+        """Le prove passano il loro ``get``: l'interruttore non le tocca."""
+        get = self.fake_get(fail_on=496)
+        for _ in range(2):
+            with self.assertRaises(apifootball.ApiFootballError):
+                apifootball._get("/players/squads", {"team": 496}, get=get)
+        self.assertIsNone(apifootball.outage())
+
+    def test_a_page_never_waits_a_minute_for_the_rate_limit(self):
+        apifootball._limits["minute"] = 0
+        with self.assertRaisesRegex(apifootball.RateLimited, "riprova tra un minuto"):
+            apifootball.paced(lambda: None, sleep=apifootball.impatient)
+
+    def test_pages_say_it_is_down_and_what_to_do(self):
+        owner = User.objects.create_user("pres_out", password="pw")
+        league = League.objects.create(name="Lega Ferma", owner=owner)
+        self.client.force_login(owner)
+        apifootball._trip("API-Football non raggiungibile da questo server", 300)
+        resp = self.client.get(reverse("admin_footballers") + f"?league={league.id}&vista=anagrafica")
+        self.assertContains(resp, "API-Football ferma")
+        self.assertContains(resp, "file Quotazioni")
+        resp = self.client.get(reverse("admin_contracts") + f"?league={league.id}")
+        self.assertContains(resp, "API-Football ferma")

@@ -681,6 +681,9 @@ def supervisor_dashboard(request):
             provider = normalize_provider(request.POST.get("provider"))
             mgr = LiveSyncManager.get_instance()
             mgr.provider = provider
+            if provider == "apifootball":
+                from ..providers.apifootball import retry_now
+                retry_now()  # un tasto premuto: si riprova anche se l'API era segnata ferma
             res = mgr.sync_now(giornata_num=target_g, is_provisional=True)
             if res.get("status") == "SUCCESS":
                 messages.success(request, f"Sync Live completato: {res.get('total_updated')} calciatori aggiornati per G{res.get('giornata')} ({provider}).")
