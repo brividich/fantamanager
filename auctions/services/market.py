@@ -62,6 +62,19 @@ def _cut_problem(player):
     return release_problem(player)
 
 
+def _gk_swap_frees_club(participant):
+    """Col taglio dopo lo spoglio, un portiere di un club nuovo va bene se
+    la squadra ha l'unico portiere di un altro club da far uscire (2.02:
+    dopo la sostituzione restano al massimo ``gk_max_clubs`` club)."""
+    limit = participant.league.gk_max_clubs if participant.league_id else 0
+    keepers = list(Player.objects.filter(owner=participant, role="P", abroad_list=False).exclude(team=""))
+    per_club = defaultdict(int)
+    for pl in keepers:
+        per_club[pl.team] += 1
+    alone = [pl for pl in keepers if per_club[pl.team] == 1 and not _cut_problem(pl)]
+    return bool(limit) and len(per_club) - 1 < limit and bool(alone)
+
+
 def _floored_refund(participant_id, amount, refund):
     """Il rimborso del taglio non porta mai la spesa sotto zero (creerebbe
     crediti dal nulla), come nello svincolo."""
@@ -156,7 +169,7 @@ def place_market_bid(
     if player.owner_id is not None or player.league_id != session.league_id:
         return {"ok": False, "error": "player_unavailable", "message": "Calciatore non disponibile sul mercato svincolati."}
     from .bidding import gk_clubs_problem
-    if gk_clubs_problem(participant, player):
+    if gk_clubs_problem(participant, player) and not (session.release_after_count and _gk_swap_frees_club(participant)):
         return {"ok": False, "error": "gk_clubs",
                 "message": "Hai già portieri di due squadre di Serie A: puoi prendere solo portieri di quelle squadre."}
     if player.rescinded_from_id == participant.id:
@@ -183,7 +196,13 @@ def place_market_bid(
             "message": f"Hai già inviato il massimo di {session.max_bids} offerte per questa sessione.",
         }
 
-    if session.require_same_role_release and not release_player_id:
+    if session.release_after_count and release_player_id:
+        return {
+            "ok": False, "error": "release_after",
+            "message": "In questa sessione chi esce dalla rosa si sceglie dopo lo spoglio, per ogni "
+                       "giocatore vinto: consegna la busta senza indicare il taglio.",
+        }
+    if session.require_same_role_release and not session.release_after and not release_player_id:
         return {
             "ok": False, "error": "release_required",
             "message": f"Ogni acquisto deve sostituire un tuo giocatore di pari ruolo ({player.role}): scegli chi tagliare.",
@@ -413,6 +432,27 @@ class _Plan:
             owner_id__in=list(self.participants), role="P", abroad_list=False,
         ).exclude(team="").values_list("owner_id", "team"):
             self.gk_clubs[owner_id][team] += 1
+        # Taglio dopo lo spoglio (5.03): ogni acquisto prenderà il posto di
+        # un pari ruolo che la squadra sceglie poi. Allo spoglio basta che ce
+        # ne sia uno sostituibile per ogni acquisto di quel ruolo.
+        self.after = session.release_after_count
+        self.releasable = defaultdict(lambda: defaultdict(int))
+        self.releasable_gk = defaultdict(lambda: defaultdict(int))
+        self.pending = defaultdict(lambda: defaultdict(int))
+        if self.after:
+            # Allo spareggio (dopo lo spoglio) i vinti di questa sessione non
+            # sono sostituibili e le sostituzioni ancora da scegliere contano.
+            won = (session.results_summary or {}).get("won", [])
+            won_ids = {w["player_id"] for w in won}
+            for w in won:
+                if w.get("release_pending"):
+                    self.pending[w["winner_id"]][w["player_role"]] += 1
+            for pl in Player.objects.filter(owner_id__in=list(self.participants), abroad_list=False):
+                if pl.pk in won_ids or _cut_problem(pl):
+                    continue
+                self.releasable[pl.owner_id][pl.role] += 1
+                if pl.role == "P" and pl.team:
+                    self.releasable_gk[pl.owner_id][pl.team] += 1
         self.role_acquisitions = defaultdict(lambda: defaultdict(int))
         for pid, role in session.bids.filter(status=MarketBid.Status.WON).values_list(
             "participant_id", "player__role"
@@ -448,6 +488,9 @@ class _Plan:
         max_role = self.session.max_for_role(role)
         if max_role > 0 and self.role_acquisitions[participant.id][role] >= max_role:
             return False, f"Raggiunto limite acquisti per ruolo {role} ({max_role})", None, Decimal("0")
+
+        if self.after:
+            return self._check_after(participant, bid, role)
 
         release = None
         refund = Decimal("0")
@@ -498,6 +541,29 @@ class _Plan:
 
         return True, release_note.strip(), release, refund
 
+    def _check_after(self, participant, bid, role):
+        """``_check`` col taglio dopo lo spoglio: il giocatore entra al posto
+        di un pari ruolo ancora da scegliere, quindi gli slot non cambiano;
+        serve un pari ruolo sostituibile e i crediti senza rimborso."""
+        pid = participant.id
+        no = Decimal("0")
+        if self.releasable[pid][role] - self.pending[pid][role] <= 0:
+            return False, f"Nessun giocatore di pari ruolo ({role}) da sostituire in rosa", None, no
+        player = bid.player
+        if self.gk_limit and role == "P" and player.team:
+            clubs = {t: n for t, n in self.gk_clubs[pid].items() if n > 0}
+            if player.team not in clubs and len(clubs) >= self.gk_limit:
+                # Si può solo se esce l'unico portiere di uno di quei club.
+                frees_one = any(n == 1 and self.releasable_gk[pid][t] for t, n in clubs.items())
+                if not (frees_one and len(clubs) - 1 < self.gk_limit):
+                    return False, f"Portieri già di {len(clubs)} squadre di Serie A", None, no
+        if self.remaining[pid] < bid.amount:
+            return False, f"Crediti insufficienti al momento dello spoglio (disponibili: {self.remaining[pid]:.0f} FM)", None, no
+        room = self.cap_room.get(pid)
+        if room is not None and bid.amount > room:
+            return False, f"Tetto salariale: margine rimasto {room:.0f} FM", None, no
+        return True, "", None, no
+
     def _award(self, bid, release, refund, note):
         pid = bid.participant_id
         player = bid.player
@@ -514,6 +580,8 @@ class _Plan:
         if self.cap_room.get(pid) is not None:
             self.cap_room[pid] -= bid.amount
         self.role_acquisitions[pid][player.role] += 1
+        if self.after:
+            self.pending[pid][player.role] += 1
         self.awards[bid.id] = (release, refund)
         self._decide(bid, MarketBid.Status.WON, ("Aggiudicato con successo " + note).strip())
         self.won.append({
@@ -530,6 +598,7 @@ class _Plan:
             "released_player_cost": str(release.cost) if release else None,
             "refund": int(refund),
             "refund_exact": str(refund),
+            "release_pending": self.after,
         })
 
     def _resolve_player(self, player_id, bids):
@@ -1071,6 +1140,7 @@ def settle_market_tie(session_id, player_id, winner_id=None, rng=None, rebids=No
         "refund": int(refund),
         "refund_exact": str(refund),
         "tie_break": method,
+        "release_pending": session.release_after_count,
     })
     summary["total_acquisitions"] = len(summary["won"])
     summary["open_ties"] = sum(1 for t in summary.get("tied", []) if not t.get("settled"))
@@ -1081,6 +1151,97 @@ def settle_market_tie(session_id, player_id, winner_id=None, rng=None, rebids=No
         f"winner='{participant.display_name}'"
     )
     return {"ok": True, "winner_id": participant.id, "winner_name": participant.display_name, "method": method}
+
+
+# --- Dopo lo spoglio: chi esce per ogni giocatore vinto (5.03) ----------------
+
+
+def pending_releases(session, participant_id=None):
+    """Gli acquisti di ``session`` che aspettano chi esce dalla rosa."""
+    won = (session.results_summary or {}).get("won", [])
+    return [w for w in won if w.get("release_pending")
+            and (participant_id is None or w.get("winner_id") == participant_id)]
+
+
+def release_options(session, entry):
+    """Chi può uscire al posto del giocatore vinto in ``entry``: pari ruolo,
+    della squadra, non vinto in questa sessione, non in lista ceduti, in
+    prestito o bloccato dalle regole dello svincolo; per un portiere, solo chi
+    lascia i portieri entro i club ammessi."""
+    league = session.league
+    won_ids = {w["player_id"] for w in (session.results_summary or {}).get("won", [])}
+    mine = list(Player.objects.filter(owner_id=entry["winner_id"], abroad_list=False)
+                .exclude(pk__in=won_ids - {entry["player_id"]}).order_by("name"))
+    gk_clubs = [p.team for p in mine if p.role == "P" and p.team]
+    options = []
+    for pl in mine:
+        if pl.pk == entry["player_id"] or pl.role != entry["player_role"] or _cut_problem(pl):
+            continue
+        if league.gk_max_clubs and pl.role == "P":
+            clubs = list(gk_clubs)
+            if pl.team:
+                clubs.remove(pl.team)
+            if len(set(clubs)) > league.gk_max_clubs:
+                continue
+        options.append(pl)
+    return options
+
+
+@transaction.atomic
+def choose_market_release(session_id, bid_id, release_player_id, *, participant_id=None):
+    """Chi esce dalla rosa al posto del giocatore vinto con la busta ``bid_id``.
+
+    ``participant_id`` = la squadra che sceglie dall'app (solo per i suoi
+    acquisti); None = l'admin. Il giocatore che esce torna svincolato col
+    rimborso della sessione, come un taglio di mercato.
+    """
+    session = MarketSession.objects.select_for_update().select_related("league").get(pk=session_id)
+    _sala_guard(session.league_id)
+    try:
+        bid_id = int(bid_id)
+    except (TypeError, ValueError):
+        bid_id = 0
+    summary = session.results_summary or {}
+    entry = next((w for w in summary.get("won", []) if w.get("bid_id") == bid_id), None)
+    if session.status != MarketSession.Status.RESOLVED or entry is None:
+        return {"ok": False, "message": "Acquisto non trovato: ricarica la pagina della sessione."}
+    if participant_id is not None and entry.get("winner_id") != participant_id:
+        return {"ok": False, "message": "Puoi scegliere solo per i giocatori che hai vinto tu."}
+    if not entry.get("release_pending"):
+        return {"ok": False, "message": f"Per {entry['player_name']} chi esce è già stato scelto "
+                                        f"({entry.get('released_player') or '—'})."}
+    chosen = next((pl for pl in release_options(session, entry) if str(pl.pk) == str(release_player_id)), None)
+    if chosen is None:
+        return {"ok": False, "message": f"Scegli un {entry['player_role']} della rosa che può uscire al posto "
+                                        f"di {entry['player_name']}: stesso ruolo, non preso in queste buste."}
+    release = Player.objects.select_for_update().get(pk=chosen.pk)
+    participant = Participant.objects.select_for_update().get(pk=entry["winner_id"])
+    refund = min(_calc_release_refund(session, release), participant.spent_credits)
+    cost = release.cost
+    release.owner = None
+    release.cost = Decimal("0")
+    release.save(update_fields=["owner", "cost"])
+    RosterLog.objects.create(
+        participant=participant, participant_name=participant.display_name,
+        player_name=release.name, player_role=release.role,
+        action=RosterLog.Action.RELEASE, credits_delta=-refund, by_admin=participant_id is None,
+        note=f"Sostituito da {entry['player_name']}: {session.title}",
+    )
+    Participant.objects.filter(pk=participant.pk).update(spent_credits=F("spent_credits") - refund)
+    entry.update({
+        "release_pending": False,
+        "released_player_id": release.pk,
+        "released_player": release.name,
+        "released_player_cost": str(cost if cost is not None else Decimal("0")),
+        "refund": int(refund),
+        "refund_exact": str(refund),
+    })
+    session.results_summary = summary
+    session.save(update_fields=["results_summary", "updated_at"])
+    logger.info(f"Market release chosen: session={session_id}, '{release.name}' out for '{entry['player_name']}' "
+                f"({participant.display_name}), refund={refund:.0f} FM")
+    return {"ok": True, "message": f"{release.name} esce, al suo posto {entry['player_name']}"
+                                   + (f" (+{refund:.0f} FM)." if refund else ".")}
 
 
 @transaction.atomic

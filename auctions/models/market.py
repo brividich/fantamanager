@@ -73,6 +73,9 @@ class MarketSession(models.Model):
     max_bids = models.PositiveIntegerField(default=0)
     # Ogni acquisto deve sostituire un giocatore della rosa di pari ruolo.
     require_same_role_release = models.BooleanField(default=False)
+    # Con la sostituzione obbligatoria: chi esce si sceglie dopo lo spoglio,
+    # per ogni giocatore vinto (regolamento 5.03), invece che con la busta.
+    release_after = models.BooleanField(default=False)
     budget_rule = models.CharField(max_length=10, choices=BudgetRule.choices, default=BudgetRule.PRIORITY)
     tie_break = models.CharField(max_length=10, choices=TieBreak.choices, default=TieBreak.MANUAL)
 
@@ -117,6 +120,11 @@ class MarketSession(models.Model):
     def fa_within(self):
         """«limite raggiunto *in questa giornata*»."""
         return self.FA_PERIODS[self.fa_period][1]
+
+    @property
+    def release_after_count(self):
+        """Chi esce dalla rosa si sceglie dopo lo spoglio (non con la busta)."""
+        return self.require_same_role_release and self.release_after
 
     def max_for_role(self, role):
         field = f"max_acquisitions_{role.lower()}" if role else ""

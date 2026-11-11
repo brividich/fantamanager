@@ -1398,6 +1398,167 @@ class RegolamentoBusteTests(TestCase):
         self.assertNotContains(resp, "Priorità di scelta")
 
 
+class ReleaseAfterCountTests(TestCase):
+    """Regolamento 5.03, chi esce si sceglie dopo lo spoglio: si offre senza
+    taglio, il vincitore entra anche a rosa piena e poi la squadra (o l'admin)
+    sceglie quale pari ruolo esce."""
+
+    def setUp(self):
+        from ..services.market import choose_market_release, release_options
+        self.choose, self.options = choose_market_release, release_options
+        self.owner = User.objects.create_user("pres_r", password="pw")
+        self.league = League.objects.create(name="Lega Lugnanese", owner=self.owner,
+                                            slots_p=2, slots_d=2, slots_c=3, slots_a=1)
+        self.a = Participant.objects.create(display_name="Team A", league=self.league,
+                                            credits=Decimal("200"), spent_credits=Decimal("30"))
+        self.b = Participant.objects.create(display_name="Team B", league=self.league,
+                                            credits=Decimal("200"), spent_credits=Decimal("30"))
+        self.mid = {}
+        for team in (self.a, self.b):
+            self.mid[team.id] = [Player.objects.create(name=f"{team.display_name} C{i}", role="C", team="Milan",
+                                                       league=self.league, owner=team, cost=Decimal("10"))
+                                 for i in range(3)]
+        self.boban = Player.objects.create(name="Boban", role="C", team="Inter", league=self.league)
+        self.iniesta = Player.objects.create(name="Iniesta", role="C", team="Inter", league=self.league)
+        self.raul = Player.objects.create(name="Raul", role="A", team="Roma", league=self.league)
+        self.session = MarketSession.objects.create(
+            league=self.league, title="Buste", status=MarketSession.Status.OPEN, max_bids=5,
+            require_same_role_release=True, release_after=True,
+            budget_rule=MarketSession.BudgetRule.TOTAL, tie_break=MarketSession.TieBreak.FIRST,
+            release_refund_mode=Auction.RefundMode.PURCHASE)
+
+    def _resolve(self):
+        self.session.status = MarketSession.Status.CLOSED
+        self.session.save()
+        resolve_market_session(self.session.id)
+        self.session.refresh_from_db()
+
+    def _won(self, player):
+        return next(w for w in self.session.results_summary["won"] if w["player_id"] == player.id)
+
+    def test_bids_go_in_without_a_cut(self):
+        self.assertTrue(place_market_bid(self.session.id, self.a.id, self.boban.id, 20)["ok"])
+        res = place_market_bid(self.session.id, self.a.id, self.iniesta.id, 20,
+                               release_player_id=self.mid[self.a.id][0].id)
+        self.assertEqual(res["error"], "release_after")
+        self.assertIn("dopo lo spoglio", res["message"])
+
+    def test_full_roster_wins_then_chooses_who_leaves(self):
+        place_market_bid(self.session.id, self.a.id, self.boban.id, 20)
+        place_market_bid(self.session.id, self.a.id, self.iniesta.id, 30)
+        self._resolve()
+        self.assertEqual(Player.objects.filter(owner=self.a, role="C").count(), 5)   # 3 + 2, rosa piena
+        boban, iniesta = self._won(self.boban), self._won(self.iniesta)
+        self.assertTrue(boban["release_pending"] and iniesta["release_pending"])
+        names = [p.name for p in self.options(self.session, boban)]
+        self.assertEqual(names, ["Team A C0", "Team A C1", "Team A C2"])           # non Iniesta né Boban
+        c0, c1, c2 = self.mid[self.a.id]
+        # La squadra sceglie per Boban; un'altra squadra non può.
+        self.assertFalse(self.choose(self.session.id, boban["bid_id"], c0.id, participant_id=self.b.id)["ok"])
+        res = self.choose(self.session.id, boban["bid_id"], c0.id, participant_id=self.a.id)
+        self.assertTrue(res["ok"], res)
+        c0.refresh_from_db()
+        self.assertIsNone(c0.owner)
+        self.a.refresh_from_db()
+        self.assertEqual(self.a.spent_credits, Decimal("70"))      # 30 + 20 + 30 - 10 di rimborso
+        self.assertTrue(RosterLog.objects.filter(player_name="Team A C0", note__startswith="Sostituito da Boban").exists())
+        # Una seconda scelta per Boban, o un giocatore di un altro ruolo, no.
+        self.session.refresh_from_db()
+        self.assertFalse(self.choose(self.session.id, boban["bid_id"], c1.id)["ok"])
+        self.assertFalse(self.choose(self.session.id, iniesta["bid_id"], self.boban.id)["ok"])
+        # L'admin sceglie per Iniesta.
+        self.assertTrue(self.choose(self.session.id, iniesta["bid_id"], c2.id)["ok"])
+        self.session.refresh_from_db()
+        self.assertEqual(Player.objects.filter(owner=self.a, role="C").count(), 3)
+        self.assertEqual([w.get("release_pending") for w in self.session.results_summary["won"]], [False, False])
+
+    def test_a_win_needs_a_same_role_player_to_replace(self):
+        place_market_bid(self.session.id, self.a.id, self.raul.id, 10)    # nessun attaccante in rosa
+        self._resolve()
+        bid = MarketBid.objects.get(player=self.raul)
+        self.assertEqual(bid.status, MarketBid.Status.LOST)
+        self.assertIn("Nessun giocatore di pari ruolo (A)", bid.note)
+
+    def test_each_win_takes_one_replaceable_player(self):
+        Player.objects.filter(pk__in=[p.pk for p in self.mid[self.a.id][1:]]).update(owner=None)
+        place_market_bid(self.session.id, self.a.id, self.boban.id, 30)
+        place_market_bid(self.session.id, self.a.id, self.iniesta.id, 20)
+        self._resolve()
+        self.assertEqual(Player.objects.get(pk=self.boban.pk).owner, self.a)
+        self.assertIn("Nessun giocatore di pari ruolo", MarketBid.objects.get(player=self.iniesta).note)
+
+    def test_undo_puts_everyone_back(self):
+        place_market_bid(self.session.id, self.a.id, self.boban.id, 20)
+        self._resolve()
+        c0 = self.mid[self.a.id][0]
+        self.choose(self.session.id, self._won(self.boban)["bid_id"], c0.id)
+        self.assertTrue(undo_market_resolution(self.session.id)["ok"])
+        c0.refresh_from_db()
+        self.assertEqual((c0.owner, c0.cost), (self.a, Decimal("10")))
+        self.assertIsNone(Player.objects.get(pk=self.boban.pk).owner)
+        self.a.refresh_from_db()
+        self.assertEqual(self.a.spent_credits, Decimal("30"))
+
+    def test_goalkeeper_replacement_keeps_two_clubs(self):
+        self.league.gk_max_clubs = 2
+        self.league.save()
+        x1 = Player.objects.create(name="Portiere X1", role="P", team="Inter", league=self.league, owner=self.a)
+        x2 = Player.objects.create(name="Portiere X2", role="P", team="Inter", league=self.league, owner=self.a)
+        y = Player.objects.create(name="Portiere Y", role="P", team="Roma", league=self.league, owner=self.a)
+        z = Player.objects.create(name="Portiere Z", role="P", team="Lazio", league=self.league)
+        place_market_bid(self.session.id, self.a.id, z.id, 5)
+        self._resolve()
+        self.assertEqual(Player.objects.get(pk=z.pk).owner, self.a)
+        # Solo l'unico portiere della Roma può uscire: togliendo un interista resterebbero 3 club.
+        self.assertEqual(self.options(self.session, self._won(z)), [y])
+        self.assertFalse(self.choose(self.session.id, self._won(z)["bid_id"], x1.id)["ok"])
+        self.assertTrue(self.choose(self.session.id, self._won(z)["bid_id"], y.id)["ok"])
+        self.assertEqual({x1.pk, x2.pk, z.pk}, set(Player.objects.filter(owner=self.a, role="P").values_list("pk", flat=True)))
+
+    def test_pages_ask_who_leaves(self):
+        place_market_bid(self.session.id, self.a.id, self.boban.id, 20)
+        self._resolve()
+        self.client.force_login(self.owner)
+        for url in (reverse("admin_market_session", args=[self.session.id]),
+                    reverse("app_regia_market_session", args=[self.session.id])):
+            page = self.client.get(url)
+            self.assertContains(page, "1 sostituzione da scegliere")
+            self.assertContains(page, "Sostituisci")
+            self.assertContains(page, "Team A C0")
+        page = self.client.get(reverse("app_regia") + f"?league={self.league.id}")
+        self.assertContains(page, "1 sostituzione da scegliere")
+        # Il manager: dalla home al Mercato, e la scelta dall'app.
+        self.client.logout()
+        sess = self.client.session
+        sess["participant_id"] = self.a.id
+        sess.save()
+        self.assertContains(self.client.get(reverse("app_home")), "scegli chi esce per 1 giocatore")
+        page = self.client.get(reverse("app_mercato") + f"?session_id={self.session.id}")
+        self.assertContains(page, "Chi esce al posto di Boban?")
+        c1 = self.mid[self.a.id][1]
+        resp = self.client.post(reverse("app_market_release"), {
+            "session_id": self.session.id, "bid_id": self._won(self.boban)["bid_id"], "release_player_id": c1.id})
+        self.assertRedirects(resp, reverse("app_mercato") + f"?session_id={self.session.id}",
+                             fetch_redirect_response=False)
+        c1.refresh_from_db()
+        self.assertIsNone(c1.owner)
+        self.assertNotContains(self.client.get(reverse("app_home")), "scegli chi esce")
+
+    def test_wizard_and_rules_set_the_timing(self):
+        self.client.force_login(self.owner)
+        self.client.post(reverse("admin_market_create"), {
+            "league_id": self.league.id, "market_kind": "buste", "title": "Dopo", "open_timing": "now",
+            "require_same_role_release": "1", "release_timing": "after"})
+        self.assertTrue(MarketSession.objects.get(title="Dopo").release_after_count)
+        self.client.post(reverse("admin_market_create"), {
+            "league_id": self.league.id, "market_kind": "free_agency", "title": "FA", "open_timing": "now",
+            "require_same_role_release": "1", "release_timing": "after"})
+        self.assertFalse(MarketSession.objects.get(title="FA").release_after)
+        self.client.post(reverse("admin_market_rules", args=[self.session.id]), {"release_timing": "bid"})
+        self.session.refresh_from_db()
+        self.assertFalse(self.session.release_after)
+
+
 class SealedUntilClosedTests(TestCase):
     """L'admin ha una sua squadra: finché la consegna è aperta non vede le
     offerte degli altri, e una volta viste la consegna non si riapre."""
