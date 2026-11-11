@@ -455,6 +455,9 @@
     <a href="?tab=live_sync" class="super-tab-link {% if tab == 'live_sync' %}active{% endif %}" style="border:1px solid rgba(234,179,8,0.3)">
         ⚡ Live Matchday & Voti
     </a>
+    <a href="?tab=prove" class="super-tab-link {% if tab == 'prove' %}active{% endif %}">
+        🧪 Prove dei mercati
+    </a>
     <a href="?tab=audit" class="super-tab-link {% if tab == 'audit' %}active{% endif %}">
         🛡️ Registro privacy
     </a>
@@ -487,6 +490,12 @@
             <li><b>Svuota Cache Ora</b>, <b>Esegui VACUUM</b> ed <b>Elimina Sessioni</b> fanno pulizia: usali se il sito rallenta o il database cresce troppo.</li>
             {% elif tab == 'logs' %}
             <li>Scegli il livello o scrivi una parola e premi <b>Filtra</b>; ↻ ricarica il log.</li>
+            {% elif tab == 'prove' %}
+            <li>Scegli il <b>tipo di mercato</b> (o «Tutti i tipi») e la <b>fase</b> a cui fermarsi, poi premi <b>Crea la prova</b>:
+                nasce una lega finta «PROVA – …» con 8 squadre, rose e crediti, e le mosse delle squadre già fatte.</li>
+            <li>Nella tabella <b>Apri</b> porta alla sessione (o alla regia dell'asta) come admin; <b>Squadre</b> ha il link e il QR di ogni
+                squadra per entrare nell'app come lei. «La tua squadra (prova)» non ha mosse: è quella con cui provi tu.</li>
+            <li>Quando hai finito premi <b>Cancella</b>: la lega di prova sparisce con tutto quello che ha. Le leghe vere non vengono mai toccate.</li>
             {% elif tab == 'audit' %}
             <li>Ogni riga è un'azione sensibile: «Vedi come», credenziali cambiate da un admin, export dei dati, email tolte, disiscrizioni, account eliminati.</li>
             <li>Se un utente chiede chi ha guardato o cambiato il suo account, cercalo qui: lui vede le sue righe in <b>Il mio account</b>.</li>
@@ -1290,6 +1299,76 @@
                 <td colspan="8" style="text-align:center;padding:24px;color:var(--muted)">Nessuna lega presente nel database.</td>
             </tr>
             {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+{% if tab == 'prove' %}
+<div class="super-table-wrap" style="margin-bottom:16px">
+    <div class="super-table-head"><h2 class="super-table-title">Crea una lega di prova</h2></div>
+    <p style="font-size:12.5px;color:var(--muted);margin:0 0 12px">Una lega finta, separata dalle vere, con 8 squadre, rose di 21 giocatori e 500 crediti.
+        Le squadre fanno le loro mosse con le stesse regole del sito (se una mossa non è permessa, il resoconto lo dice) fino alla fase che scegli.</p>
+    <form method="post" style="display:grid;gap:10px;max-width:720px">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="create_demo">
+        <label style="display:grid;gap:4px"><span style="font-weight:700;font-size:13px">1. Tipo di mercato</span>
+            <select name="kind" required style="width:100%;padding:9px 12px;background:#1e2430;border:1px solid rgba(255,255,255,0.15);color:#fff;border-radius:6px;font-size:13px">
+                <option value="tutti">Tutti i tipi (una lega di prova per ciascuno)</option>
+                {% for value, label in demo.kinds %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+            </select></label>
+        <label style="display:grid;gap:4px"><span style="font-weight:700;font-size:13px">2. Fermati a</span>
+            <select name="stage" required style="width:100%;padding:9px 12px;background:#1e2430;border:1px solid rgba(255,255,255,0.15);color:#fff;border-radius:6px;font-size:13px">
+                {% for value, label in demo.stages %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+            </select></label>
+        <div><button type="submit" class="btn-super-action" style="background:#2563eb;color:#fff;border:none;padding:9px 16px">3. Crea la prova</button></div>
+    </form>
+</div>
+{% if demo.log %}
+<div class="super-table-wrap" style="margin-bottom:16px">
+    <div class="super-table-head"><h2 class="super-table-title">Cosa hanno fatto le squadre</h2></div>
+    {% for item in demo.log %}
+    <details{% if forloop.first %} open{% endif %} style="margin-bottom:8px">
+        <summary style="cursor:pointer;font-weight:800">{{ item.league }}</summary>
+        <ul style="margin:6px 0 0 18px;font-size:12.5px;line-height:1.55">
+            {% for line in item.lines %}<li>{{ line }}</li>{% endfor %}
+        </ul>
+    </details>
+    {% endfor %}
+</div>
+{% endif %}
+<div class="super-table-wrap">
+    <div class="super-table-head">
+        <h2 class="super-table-title">Leghe di prova ({{ demo.rows|length }})</h2>
+        {% if demo.rows %}
+        <form method="post" onsubmit="return confirm('Cancellare tutte le leghe di prova? Le leghe vere non vengono toccate.');">
+            {% csrf_token %}<input type="hidden" name="action" value="delete_all_demos">
+            <button type="submit" class="btn-super-action btn-super-danger">Cancella tutte</button>
+        </form>
+        {% endif %}
+    </div>
+    <table class="super-table">
+        <thead><tr><th>Lega</th><th>Mercato</th><th>Stato</th><th>Creata</th><th style="text-align:right">Azioni</th></tr></thead>
+        <tbody>
+        {% for r in demo.rows %}
+        <tr>
+            <td><b>{{ r.league.name }}</b></td>
+            <td>{{ r.what }}</td>
+            <td>{{ r.state }}</td>
+            <td>{{ r.league.created_at|date:"d/m H:i" }}</td>
+            <td style="text-align:right;white-space:nowrap">
+                {% if r.manage %}<a href="{{ r.manage }}" class="btn-super-action" style="text-decoration:none">Apri</a>{% endif %}
+                <a href="{{ r.teams }}" class="btn-super-action" style="text-decoration:none">Squadre</a>
+                <a href="{{ r.regia }}" class="btn-super-action" style="text-decoration:none">Regia app</a>
+                <form method="post" style="display:inline" onsubmit="return confirm('Cancellare la lega di prova {{ r.league.name|escapejs }}?');">
+                    {% csrf_token %}<input type="hidden" name="action" value="delete_demo"><input type="hidden" name="league_id" value="{{ r.league.id }}">
+                    <button type="submit" class="btn-super-action btn-super-danger">Cancella</button>
+                </form>
+            </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" style="text-align:center;padding:24px;color:var(--muted)">Nessuna lega di prova: creane una qui sopra.</td></tr>
+        {% endfor %}
         </tbody>
     </table>
 </div>

@@ -268,7 +268,7 @@ def funnel():
 
     from ..models import League, Participant
 
-    leagues = list(League.objects.all())
+    leagues = list(League.objects.exclude(created_via="demo"))   # le leghe di prova non contano
     total = len(leagues)
     if not total:
         return {"total": 0, "invited_pct": 0, "half_joined_pct": 0, "median_ready_hours": None, "by_via": []}

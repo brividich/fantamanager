@@ -32,7 +32,7 @@ from django.utils import timezone
 
 import django
 from .. import backup
-from ..models import Auction, Bid, League, MailSettings, Participant, Player
+from ..models import Auction, Bid, League, MailSettings, MarketSession, Participant, Player
 from ..consumers import _ROOM_TICKERS
 from ..services import mail, privacy
 from ..services.voti_live import LiveSyncManager, normalize_provider
@@ -330,6 +330,27 @@ def _restore_postgres_step(request, name):
                               "se serve, si ripristina quello. Se la pagina ti chiede di entrare, rientra.")
 
 
+def _demo_context(request):
+    """Scheda «Prove»: tipi, fasi, leghe di prova con i loro link e il
+    resoconto dell'ultima creazione."""
+    from ..services import demo
+    rows = []
+    for lg in demo.demo_leagues():
+        session = MarketSession.objects.filter(league=lg).first()
+        auction = Auction.objects.filter(league=lg).first()
+        rows.append({
+            "league": lg,
+            "what": session.get_session_type_display() if session else ("Asta live" if auction else ""),
+            "state": session.get_status_display() if session else (auction.get_status_display() if auction else ""),
+            "manage": (reverse("admin_market_session", args=[session.id]) if session
+                       else reverse("regia_auction", args=[auction.id]) if auction else ""),
+            "teams": f"{reverse('admin_participants')}?league={lg.id}",
+            "regia": f"{reverse('app_regia')}?league={lg.id}",
+        })
+    return {"kinds": demo.KINDS, "stages": demo.STAGES, "rows": rows,
+            "log": request.session.pop("demo_log", None)}
+
+
 @supervisor_required
 def supervisor_dashboard(request):
     """Comprehensive Master Supervisor Cockpit."""
@@ -580,6 +601,38 @@ def supervisor_dashboard(request):
             league.delete()
             messages.success(request, f"Lega '{name}' eliminata definitivamente.")
             return redirect(f"{reverse('supervisor_dashboard')}?tab=leagues")
+
+        elif action == "create_demo":
+            from ..services import demo
+            kind = request.POST.get("kind") or ""
+            stage = request.POST.get("stage") or ""
+            kinds = [k for k, _ in demo.KINDS] if kind == "tutti" else [kind]
+            if stage not in demo.STAGE_LABELS or any(k not in demo.KIND_LABELS for k in kinds):
+                messages.error(request, "Scegli il tipo di mercato e la fase, poi premi di nuovo «Crea la prova».")
+                return redirect(f"{reverse('supervisor_dashboard')}?tab=prove")
+            logs = []
+            for k in kinds:
+                res = demo.create_demo(request.user, k, stage)
+                logs.append({"league": res["league"].name, "lines": res["log"]})
+            request.session["demo_log"] = logs
+            messages.success(request, f"Pront{'a' if len(kinds) == 1 else 'e'} {len(kinds)} leg{'a' if len(kinds) == 1 else 'he'} "
+                                      "di prova: aprile qui sotto.")
+            return redirect(f"{reverse('supervisor_dashboard')}?tab=prove")
+
+        elif action == "delete_demo":
+            from ..services import demo
+            report = demo.delete_demo(request.POST.get("league_id"))
+            if report is None:
+                messages.error(request, "Lega di prova non trovata: forse è già stata cancellata.")
+            else:
+                messages.success(request, f"Lega di prova «{report['name']}» cancellata.")
+            return redirect(f"{reverse('supervisor_dashboard')}?tab=prove")
+
+        elif action == "delete_all_demos":
+            from ..services import demo
+            n = sum(1 for lg in list(demo.demo_leagues()) if demo.delete_demo(lg.id))
+            messages.success(request, f"Cancellate {n} leghe di prova.")
+            return redirect(f"{reverse('supervisor_dashboard')}?tab=prove")
 
         elif action == "assign_league_owner":
             lid = request.POST.get("league_id")
@@ -857,12 +910,14 @@ def supervisor_dashboard(request):
     audit_rows = AuditLog.objects.select_related("league").all()[:300] if tab == "audit" else []
     from ..services import onboarding
     funnel = onboarding.funnel() if tab == "leagues" else None
+    demo_ctx = _demo_context(request) if tab == "prove" else None
 
     return render(
         request,
         "auctions/supervisor.html",
         {
             "tab": tab,
+            "demo": demo_ctx,
             "audit_rows": audit_rows,
             "funnel": funnel,
             "metrics": metrics,
