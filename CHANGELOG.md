@@ -53,6 +53,21 @@ Prima versione numerata (prima l'etichetta era 1.2.0, senza rilasci).
   vista» dice quali giocatori finirebbero in parità e cosa farà la regola
   (con «vince chi ha offerto prima»: chi vince, con orari e distacco).
 
+### Rose e contratti
+- Nuova pagina **Rose**, uguale nella console (barra in alto) e nell'app
+  (Regia → Strumenti → Rose): le rose di tutte le squadre in una schermata,
+  oppure una squadra alla volta. L'admin aggiunge un giocatore libero, cambia
+  costo, squadra o anni di contratto, svincola scegliendo il rimborso e regola
+  i crediti. I manager la aprono dalla Rosa («Tutte le rose»), in sola lettura.
+- Contratti: «Imposta» (anni scritti a mano) c'è per ogni giocatore, anche per
+  chi è «da tirare» o in rinnovo; vuoto lo rimette «da tirare»; il massimo
+  segue il dado della lega (prima era fisso a 4).
+- Tutto registrato: ogni cambio di crediti (Dashboard e Rose) è una riga
+  «Crediti» nei Movimenti, con il budget prima e dopo; le azioni di Rose e i
+  contratti scritti a mano riportano chi li ha fatti. Nei Movimenti nuovo filtro
+  «Modifiche e crediti», e gli svincoli si leggono come rimborso (+FM): prima
+  alcuni apparivano come spesa.
+
 ### Backup e ripristino
 - Su PostgreSQL (NAS, Docker) il Supervisor ripristina un backup dal browser:
   prima salva lo stato attuale, poi ripristina tutto in una transazione.

@@ -17,6 +17,7 @@ from ..views.common import APP_PAGES
 # (pagina in console, pagina nell'app): quelle che usano la cornice condivisa.
 FRAMED_PAGES = [
     ("admin_contracts", "app_regia_contracts"),
+    ("admin_rose", "app_regia_rose"),
     ("admin_season", "app_regia_season"),
     ("admin_fantapazz", "app_regia_import"),
     ("admin_export", "app_regia_export"),

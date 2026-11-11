@@ -625,6 +625,10 @@
                     onclick="toggleRoseViewMode('all')">
                     📋 Tutte le Rose
                 </button>
+                <a class="fm-btn fm-btn-secondary fm-btn-sm" href="{% url 'admin_rose' %}?league={{ current_league.id }}"
+                    title="La pagina Rose: costi, spostamenti, contratti e crediti di ogni squadra (uguale nell'app)">
+                    <svg class="ic"><use href="#i-shirt" /></svg> Pagina Rose
+                </a>
                 <button type="button" class="fm-btn fm-btn-primary fm-btn-sm" onclick="openAddTeamModal()">
                     <svg class="ic">
                         <use href="#i-plus" />

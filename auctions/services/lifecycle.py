@@ -738,13 +738,15 @@ def _record_unsold(auction):
 
 
 @transaction.atomic
-def release_player(player_id, *, auction_id=None, by_admin=False, participant_id=None):
+def release_player(player_id, *, auction_id=None, by_admin=False, participant_id=None, refund_mode=None,
+                   note=""):
     """Release (svincola) an owned player back to the free-agent pool.
 
     Refund policy comes from the auction in context (``auction_id``):
     ``PURCHASE`` returns what was paid (``Player.cost``), ``CURRENT`` returns
     the player's current listone quotazione (``Player.initial_price``), and
-    ``NONE`` returns nothing. The refund lowers the owner's ``spent_credits``
+    ``NONE`` returns nothing. An admin may pass ``refund_mode`` (one of those
+    three) to choose it instead (pagina Rose). The refund lowers the owner's ``spent_credits``
     (floored at 0 so a roster can never yield more credits than it cost),
     writes a ``RosterLog`` audit row, and frees the player.
 
@@ -771,9 +773,13 @@ def release_player(player_id, *, auction_id=None, by_admin=False, participant_id
 
     owner = Participant.objects.select_for_update().get(pk=player.owner_id)
 
-    refund_mode = Auction.RefundMode.PURCHASE
     auction = Auction.objects.filter(pk=auction_id).first() if auction_id else None
-    if auction is not None:
+    chosen = refund_mode if by_admin and refund_mode in (
+        Auction.RefundMode.PURCHASE, Auction.RefundMode.CURRENT, Auction.RefundMode.NONE) else None
+    refund_mode = Auction.RefundMode.PURCHASE
+    if chosen:
+        refund_mode = chosen
+    elif auction is not None:
         refund_mode = auction.release_refund_mode
 
     if refund_mode == Auction.RefundMode.CURRENT:
@@ -813,7 +819,8 @@ def release_player(player_id, *, auction_id=None, by_admin=False, participant_id
         action=RosterLog.Action.ADMIN_RELEASE if by_admin else RosterLog.Action.RELEASE,
         credits_delta=applied,
         by_admin=by_admin,
-        note=f"Svincolo · rimborso {refund_mode}" + (f" · asta #{auction.id}" if auction else ""),
+        note=(f"Svincolo · rimborso {refund_mode}" + (f" · asta #{auction.id}" if auction else "")
+              + (f" · {note}" if note else ""))[:200],
     )
 
     player.owner = None

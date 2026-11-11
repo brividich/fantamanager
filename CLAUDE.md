@@ -67,6 +67,11 @@ stessi testi**.
   (`views/admin_participants.py`). Colonne e schede seguono la larghezza del
   riquadro (container query), non della finestra: la colonna dell'app è più
   stretta della pagina della console.
+- Le rose di tutte le squadre: `_rose.html`, in `admin_rose.html` (console
+  `/dashboard/rose/` e Regia `/app/regia/rose/`, stessa view `admin_rose`, con
+  i comandi: aggiungi, costo, squadra, contratto, svincolo, crediti) e
+  `app_rose.html` (il manager, `/app/rose/`, sola lettura); dati da
+  `rose_context`, azioni da `admin_rose_action` (`views/admin_rose.py`).
 - Le altre pagine della console girano anche nell'app con la **stessa view e lo
   stesso template**: cambia solo la cornice. Il template estende
   `page_frame|default:"auctions/_frame_console.html"` e riempie il blocco
@@ -74,8 +79,8 @@ stessi testi**.
   (`views/common.py`), che dall'indirizzo `/app/regia/…` sceglie
   `_frame_app.html` (guscio dell'app) invece di `_frame_console.html` (testata
   della console). Sono così Contratti, Stagione, Importa, Export,
-  Impostazioni, Competizioni, Mercato (hub, buste, asta, movimenti) e Nuova
-  asta; la Dashboard della console nell'app è la Regia.
+  Impostazioni, Competizioni, Mercato (hub, buste, asta, movimenti), Rose e
+  Nuova asta; la Dashboard della console nell'app è la Regia.
   - Una pagina nuova: stessa view su due indirizzi (`dashboard/…` e
     `app/regia/…`), la coppia in `APP_PAGES` e in `FRAMED_PAGES`
     (`auctions/tests/test_app_pages.py`).
@@ -97,7 +102,8 @@ stessi testi**.
   `TeamsPageTests` in `auctions/tests/test_participant_accounts.py`,
   `AppPagesParityTests` in `auctions/tests/test_app_pages.py`,
   `GiornatePageTests` e `AdminFormationEditorTests` in `auctions/tests/test_voti.py`,
-  `HistoryPageTests` in `auctions/tests/test_competitions.py`.
+  `HistoryPageTests` in `auctions/tests/test_competitions.py`,
+  `RosePageTests` in `auctions/tests/test_rose.py`.
 
 ## Asta live: una sola connessione
 

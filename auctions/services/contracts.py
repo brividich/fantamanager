@@ -48,6 +48,11 @@ def contract_faces(league):
     return tuple(int(f) for f in contract_rules(league)["faces"])
 
 
+def contract_max_years(league):
+    """La durata più lunga che l'admin può scrivere a mano: il dado più alto più uno."""
+    return max(contract_faces(league)) + 1
+
+
 def _err(message):
     return {"ok": False, "message": message}
 
@@ -144,17 +149,23 @@ def roll_contract(player_id, *, participant_id=None, by_admin=False, manual_face
 
 @transaction.atomic
 def set_contract(player_id, years, *, note=""):
-    """Admin: imposta a mano la durata (es. rose importate da un'altra stagione)."""
+    """Admin: imposta a mano la durata (es. rose importate da un'altra stagione).
+
+    ``years`` vuoto rimette il contratto «da tirare» (durata da assegnare col dado).
+    """
     player, error = _owned_player(player_id, by_admin=True)
     if error:
         return error
-    try:
-        years = int(years)
-    except (TypeError, ValueError):
-        return _err("Durata non valida.")
-    top = max(contract_faces(player.owner.league)) + 1
-    if not 0 <= years <= top:
-        return _err(f"La durata va da 0 (scaduto) a {top} anni.")
+    top = contract_max_years(player.owner.league)
+    if years is None or str(years).strip() == "":
+        years = None
+    else:
+        try:
+            years = int(years)
+        except (TypeError, ValueError):
+            return _err("Durata non valida: scrivi gli anni (da 0 a %d) o lascia vuoto per «da tirare»." % top)
+        if not 0 <= years <= top:
+            return _err(f"La durata va da 0 (scaduto) a {top} anni; lascia vuoto per «da tirare».")
     player.contract_years = years
     player.save(update_fields=["contract_years"])
     _sync_block(player)

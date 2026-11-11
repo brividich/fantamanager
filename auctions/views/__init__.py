@@ -50,6 +50,7 @@ from .admin_exports import (
     admin_export_xlsx,
 )
 from .admin_contracts import admin_contracts, admin_contracts_action
+from .admin_rose import admin_rose, admin_rose_action
 from .admin_team_sheets import (
     admin_export_renewals,
     admin_export_team_sheets,
@@ -187,6 +188,7 @@ from .app import (
     app_trade_propose,
     app_trade_respond,
     app_rosa,
+    app_rose,
     app_update_pin,
     app_fixture_detail,
     app_print_team_sheet,
@@ -453,6 +455,7 @@ __all__ = [
     # app
     "app_home",
     "app_rosa",
+    "app_rose",
     "app_live",
     "app_lega",
     "app_mercato",
@@ -474,6 +477,8 @@ __all__ = [
     "admin_auction_turns",
     "admin_contracts",
     "admin_contracts_action",
+    "admin_rose",
+    "admin_rose_action",
     "admin_season",
     "admin_season_action",
     "app_trade_propose",

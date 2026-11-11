@@ -563,6 +563,7 @@ APP_PAGES = {
     "admin_giornate": "app_giornate",
     "admin_market_trades": "app_regia_trades",
     "admin_contracts": "app_regia_contracts",
+    "admin_rose": "app_regia_rose",
     "admin_season": "app_regia_season",
     "admin_fantapazz": "app_regia_import",
     "admin_export": "app_regia_export",

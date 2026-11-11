@@ -643,6 +643,7 @@
         padding: 8px 8px;
         display: flex;
         align-items: center;
+        flex-wrap: wrap;
         justify-content: space-between;
         gap: 10px;
         border-radius: 8px;
@@ -656,7 +657,8 @@
         display: flex;
         align-items: center;
         gap: 8px;
-        flex: 1;
+        /* Con «Tira» e «Imposta» insieme i comandi vanno sotto il nome. */
+        flex: 1 1 230px;
         min-width: 0;
     }
     .ct-row-top .role-badge {
@@ -706,6 +708,7 @@
 
     .ct-act {
         display: flex;
+        flex-wrap: wrap;
         gap: 6px;
         align-items: center;
         justify-content: flex-end;
@@ -1190,7 +1193,9 @@
                 la <b>clausola FM</b> e l'<b>incasso max</b>. Se cambi qualcosa premi <b>Salva impostazioni</b>.</li>
             <li>Apri una squadra in <b>Squadre della Lega</b>: per ogni giocatore <b>da tirare</b> premi <b>Tira</b>.
                 Lascia 🎲 per il dado virtuale, oppure scegli il numero se avete tirato un dado vero.</li>
-            <li>Per correggere un contratto scrivi gli anni accanto al giocatore e premi <b>Imposta</b>.</li>
+            <li>Per scrivere un contratto a mano (rose importate, dado tirato altrove, correzioni): apri la squadra, scrivi gli anni
+                accanto al giocatore (da 0, scaduto, a {{ contract_max }}; vuoto per rimetterlo <b>da tirare</b>) e premi <b>Imposta</b>.
+                Lo stesso si fa da <a href="{% purl 'admin_rose' %}?league={{ current_league.id }}">Rose</a> → <b>Modifica</b> sul giocatore.</li>
             {% if current_league.renewals_open %}
             <li>I rinnovi sono aperti: ogni squadra dichiara dall'app quali giocatori scaduti vuole tenere.
                 Per ognuno di quelli premi <b>Rinnovo</b>: dado verde o rosso e, se esce verde, il dado contratti.</li>
@@ -1411,14 +1416,15 @@
                         <select name="manual_face" title="Dado contratti (se verde inserito a mano)"><option value="">🎲</option>{% for f in contract_faces %}<option value="{{ f }}">{{ f }}</option>{% endfor %}</select>
                         <button type="submit" class="ct-btn go">Rinnovo</button>
                     </form>
-                    {% else %}
+                    {% endif %}
+                    {# A mano, per ogni giocatore: anche chi è da tirare o in rinnovo (es. rose importate, dado tirato altrove). #}
                     <form method="post" action="{% url 'admin_contracts_action' %}">
                         {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="league_id" value="{{ current_league.id }}">
                         <input type="hidden" name="action" value="set"><input type="hidden" name="player_id" value="{{ p.id }}">
-                        <input type="number" name="years" min="0" max="4" value="{{ p.contract_years|default_if_none:'' }}" style="width:48px" title="Anni di contratto">
+                        <input type="number" name="years" min="0" max="{{ contract_max }}" value="{{ p.contract_years|default_if_none:'' }}" placeholder="—" style="width:52px"
+                               title="Anni di contratto, da 0 (scaduto) a {{ contract_max }}; vuoto = da tirare" aria-label="Anni di contratto di {{ p.name }}">
                         <button type="submit" class="ct-btn">Imposta</button>
                     </form>
-                    {% endif %}
                 </div>
             </div>
             {% empty %}

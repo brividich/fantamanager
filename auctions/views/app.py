@@ -214,6 +214,23 @@ def app_rosa(request):
     return render(request, "auctions/app_rosa.html", ctx)
 
 
+def app_rose(request):
+    """Rose: la mia e quelle di tutte le squadre della lega, in sola lettura.
+    Lo stesso partial della pagina Rose dell'admin (``_rose.html``), che nella
+    console e in Regia ha anche i comandi per gestirle."""
+    from .admin_rose import rose_context
+
+    participant, ctx = _app_ctx(request, "rosa")
+    if ctx is None:
+        return _redirect_login(request, ctx)
+    league = ctx.get("app_league")
+    if league is None:
+        return redirect("app_home")
+    ctx.update(rose_context(request, league, manage=False, mine=participant))
+    ctx["can_manage_rose"] = user_can_manage_league(request.user, league)
+    return render(request, "auctions/app_rose.html", ctx)
+
+
 def app_live(request):
     participant, ctx = _app_ctx(request, "live")
     if participant is None:
