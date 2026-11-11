@@ -1,0 +1,88 @@
+{% extends "auctions/_print_base.html" %}
+{% block title %}Report di mercato della stagione{% endblock %}
+{% block toolbar %}Report di mercato della stagione{% endblock %}
+
+{% block howto %}
+<ol>
+    <li>Nella prima pagina il riepilogo di tutte le squadre: acquisti, svincoli, scambi, spesa, rimborsi e crediti che restano.</li>
+    <li>Poi una pagina per squadra con ogni movimento della stagione in ordine di data e la <b>spesa netta progressiva</b>: quanto ha speso fino a quel momento, tolti i rimborsi.</li>
+    <li>Per condividerlo premi <b>Stampa / salva PDF</b> o <b>Scarica CSV</b>.</li>
+</ol>
+{% endblock %}
+
+{% block sheets %}
+<section class="sheet">
+    <div class="header-box">
+        <div>
+            <div class="league-name">{{ league.name }}</div>
+            <div class="main-title">Report di mercato della stagione</div>
+            <div class="meta">
+                {% if season %}{{ season.name }} · {% endif %}{% if since %}movimenti dal {{ since|date:"d/m/Y" }}{% else %}tutti i movimenti{% endif %}
+                · Generato il {{ generated_at|date:"d/m/Y H:i" }}
+            </div>
+        </div>
+        <div class="brand"><b>FantaManager</b><br>Report di lega</div>
+    </div>
+
+    <div class="summary-grid">
+        <div class="sum-box"><div class="sum-val">{{ total_moves }}</div><div class="sum-lbl">Movimenti</div></div>
+        <div class="sum-box"><div class="sum-val">{{ total_spent }} <small>FM</small></div><div class="sum-lbl">Spesa totale</div></div>
+        <div class="sum-box"><div class="sum-val">{{ total_refund }} <small>FM</small></div><div class="sum-lbl">Rimborsi totali</div></div>
+        <div class="sum-box"><div class="sum-val">{{ active_teams|length }}/{{ teams|length }}</div><div class="sum-lbl">Squadre attive</div></div>
+    </div>
+
+    <table>
+        <colgroup><col style="width:26%"><col><col><col><col><col><col><col><col></colgroup>
+        <thead>
+            <tr><td class="sec-hdr" colspan="9">RIEPILOGO PER SQUADRA</td></tr>
+            <tr><th>SOCIETÀ</th><th>ACQUISTI</th><th>SVINCOLI</th><th>SCAMBI</th><th>SPESA</th><th>RIMBORSI</th><th>NETTO</th><th>RESIDUI</th><th>IN ROSA</th></tr>
+        </thead>
+        <tbody>
+        {% for t in teams %}
+        <tr>
+            <td class="b">{{ t.name }}</td>
+            <td class="c">{{ t.bought }}</td><td class="c">{{ t.released }}</td><td class="c">{{ t.traded }}</td>
+            <td class="c neg">{% if t.spent %}−{{ t.spent }}{% else %}—{% endif %}</td>
+            <td class="c pos">{% if t.refund %}+{{ t.refund }}{% else %}—{% endif %}</td>
+            <td class="c b">{{ t.net }} FM</td>
+            <td class="c fm">{{ t.remaining }} FM</td>
+            <td class="c">{{ t.roster }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% if not active_teams %}<div class="empty">Nessun movimento di rosa in questa stagione.</div>{% endif %}
+</section>
+
+{% for t in active_teams %}
+<section class="sheet">
+    <div class="header-box">
+        <div>
+            <div class="league-name">{{ league.name }}{% if season %} · {{ season.name }}{% endif %}</div>
+            <div class="main-title">{{ t.name }}</div>
+            <div class="meta">
+                {{ t.bought }} acquist{{ t.bought|pluralize:"o,i" }} · {{ t.released }} svincol{{ t.released|pluralize:"o,i" }} · {{ t.traded }} moviment{{ t.traded|pluralize:"o,i" }} da scambi ·
+                spesa {{ t.spent }} FM, rimborsi {{ t.refund }} FM, netto <b>{{ t.net }} FM</b> · crediti residui <b>{{ t.remaining }} FM</b>
+            </div>
+        </div>
+    </div>
+    <table>
+        <colgroup><col style="width:17%"><col style="width:13%"><col style="width:24%"><col style="width:9%"><col style="width:12%"><col style="width:10%"><col style="width:15%"></colgroup>
+        <thead><tr><th>DATA</th><th>MOVIMENTO</th><th>CALCIATORE</th><th>SPESA</th><th>RIMBORSO</th><th>NETTO</th><th>NOTE</th></tr></thead>
+        <tbody>
+        {% for m in t.moves %}
+        <tr>
+            <td class="c">{{ m.at.date }} <b>{{ m.at.time }}</b></td>
+            <td class="{% if m.kind == 'acquisto' %}ok{% elif m.kind == 'svincolo' %}bad{% elif m.kind == 'scambio' %}warn{% endif %}">{{ m.label }}</td>
+            <td>{% if m.player_role %}<span class="role-badge role-{{ m.player_role }}">{{ m.player_role }}</span> {% endif %}<b>{{ m.player_name }}</b></td>
+            <td class="c neg">{% if m.spent %}−{{ m.spent }}{% else %}<span class="muted">—</span>{% endif %}</td>
+            <td class="c pos">{% if m.refund %}+{{ m.refund }}{% else %}<span class="muted">—</span>{% endif %}</td>
+            <td class="c b">{{ m.net_after }} FM</td>
+            <td class="wrap" style="font-size:7.4pt">{% if m.by_admin %}Regia. {% endif %}{{ m.note }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endfor %}
+{% endblock %}

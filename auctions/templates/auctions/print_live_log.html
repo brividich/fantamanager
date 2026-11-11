@@ -1,0 +1,91 @@
+{% extends "auctions/_print_base.html" %}
+{% block title %}Registro dell'asta {{ auction.title }}{% endblock %}
+{% block toolbar %}Registro dell'asta · {{ auction.title }}{% endblock %}
+
+{% block howto %}
+<ol>
+    <li>Ogni lotto mostra tutti i rilanci nell'ordine in cui sono arrivati al server, con l'orario al millesimo di secondo: è quell'orario che conta, non quello del telefono.</li>
+    <li><b>Timer</b> sono i secondi che restavano quando il rilancio è arrivato. La riga verde è il rilancio che si è aggiudicato il lotto.</li>
+    <li>Le righe grigie sono rilanci rifiutati, con il motivo (per esempio «Tempo scaduto»: arrivato a lotto chiuso).</li>
+    <li>Per una contestazione premi <b>Stampa / salva PDF</b> o <b>Scarica CSV</b> e condividi il file.</li>
+</ol>
+{% endblock %}
+
+{% block sheets %}
+<section class="sheet">
+    <div class="header-box">
+        <div>
+            <div class="league-name">{{ league.name }}</div>
+            <div class="main-title">Registro dell'asta</div>
+            <div class="meta">
+                Asta: <b>{{ auction.title }}</b> · {{ auction.get_mode_display }}<br>
+                Orari in ora locale, quando il server ha ricevuto il rilancio · Generato il {{ generated_at|date:"d/m/Y H:i" }}
+            </div>
+        </div>
+        <div class="brand"><b>FantaManager</b><br>Registro ufficiale</div>
+    </div>
+
+    <div class="summary-grid">
+        <div class="sum-box"><div class="sum-val">{{ sold }}</div><div class="sum-lbl">Aggiudicati</div></div>
+        <div class="sum-box"><div class="sum-val">{{ total_spent }} <small>FM</small></div><div class="sum-lbl">Crediti spesi</div></div>
+        <div class="sum-box"><div class="sum-val">{{ total_bids }}</div><div class="sum-lbl">Rilanci validi</div></div>
+        <div class="sum-box"><div class="sum-val">{{ total_rejected }}</div><div class="sum-lbl">Rilanci rifiutati</div></div>
+        <div class="sum-box"><div class="sum-val">{{ close_calls }}</div><div class="sum-lbl">Vinti negli ultimi 3 s</div></div>
+        <div class="sum-box"><div class="sum-val">{{ unsold }}</div><div class="sum-lbl">Invenduti</div></div>
+    </div>
+
+    {% if lots %}
+    <table>
+        <colgroup>
+            <col style="width:6%"><col style="width:25%"><col style="width:10%"><col style="width:9%">
+            <col style="width:20%"><col style="width:11%"><col style="width:19%">
+        </colgroup>
+        {% for l in lots %}
+        <tbody class="block">
+            <tr><td class="sec-hdr" colspan="7">
+                {% if l.player_role %}<span class="role-badge role-{{ l.player_role }}">{{ l.player_role }}</span>{% endif %}
+                {{ l.player_name }}{% if l.player_team %} <span class="muted">({{ l.player_team }})</span>{% endif %}
+                · {% if l.open %}<span class="warn">in corso</span>
+                  {% elif l.winner_name %}a <b>{{ l.winner_name }}</b> per <b>{{ l.amount }} FM</b>{% if l.margin_label %} · ultimo rilancio a <b>{{ l.margin_label }}</b> dalla fine{% endif %}
+                  {% else %}invenduto{% endif %}
+                · {{ l.n_valid }} rilanc{{ l.n_valid|pluralize:"io,i" }}{% if l.teams %} da {{ l.teams }} squadr{{ l.teams|pluralize:"a,e" }}{% endif %}{% if l.duration_label %} in {{ l.duration_label }}{% endif %}
+                {% if l.closed_at %}<span class="muted"> · chiuso alle {{ l.closed_at.time }}</span>{% endif %}
+            </td></tr>
+            {% if l.bids %}
+            <tr><th>N.</th><th>SOCIETÀ</th><th>IMPORTO</th><th>RILANCIO</th><th>ARRIVATO ALLE</th><th>TIMER</th><th>ESITO</th></tr>
+            {% for r in l.bids %}
+            <tr class="{% if r.winning %}win{% elif not r.accepted %}off{% endif %}">
+                <td class="c">{{ r.n }}</td>
+                <td class="b">{{ r.participant_name }}</td>
+                <td class="c {% if r.accepted %}fm{% endif %}">{{ r.amount }} FM</td>
+                <td class="c">{% if r.increment %}+{{ r.increment }}{% else %}—{% endif %}</td>
+                <td class="c">{{ r.at.date }} <b>{{ r.at.time }}</b><small>.{{ r.at.ms }}</small></td>
+                <td class="c">{{ r.remaining_label|default:"—" }}</td>
+                <td class="wrap {% if r.winning %}ok{% elif not r.accepted %}bad{% endif %}">{% if r.winning %}Si aggiudica il lotto{% else %}{{ r.status_label }}{% endif %}{% if r.late_label %} <small>({{ r.late_label }})</small>{% endif %}</td>
+            </tr>
+            {% endfor %}
+            {% else %}
+            <tr><td colspan="7" class="muted c">Nessun rilancio registrato{% if l.winner_name %}: assegnato dalla regia{% endif %}.</td></tr>
+            {% endif %}
+            {% if l.sealed %}
+            <tr><td colspan="7" class="b" style="background:#f3f4f6">Buste dello spareggio</td></tr>
+            {% for s in l.sealed %}
+            <tr>
+                <td class="c">G{{ s.round }}</td>
+                <td class="b">{{ s.participant_name }}</td>
+                <td class="c fm">{{ s.amount }} FM</td>
+                <td class="c">busta</td>
+                <td class="c">{{ s.at.date }} <b>{{ s.at.time }}</b><small>.{{ s.at.ms }}</small></td>
+                <td class="c">—</td>
+                <td class="wrap">Giro {{ s.round }}</td>
+            </tr>
+            {% endfor %}
+            {% endif %}
+        </tbody>
+        {% endfor %}
+    </table>
+    {% else %}
+    <div class="empty">Nessun lotto ancora chiamato in quest'asta.</div>
+    {% endif %}
+</section>
+{% endblock %}

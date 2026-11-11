@@ -1,0 +1,89 @@
+{% extends "auctions/_print_base.html" %}
+{% block title %}Report degli scambi{% endblock %}
+{% block toolbar %}Report degli scambi{% endblock %}
+
+{% block howto %}
+<ol>
+    <li>In alto il bilancio di ogni squadra: scambi proposti, ricevuti e conclusi, giocatori e crediti entrati e usciti.</li>
+    <li>Sotto ogni scambio, dal più recente: chi cede cosa, lo stato e gli orari di proposta, risposta ed esecuzione, con i tempi di attesa.</li>
+    <li>Per condividerlo premi <b>Stampa / salva PDF</b> o <b>Scarica CSV</b>.</li>
+</ol>
+{% endblock %}
+
+{% block sheets %}
+<section class="sheet">
+    <div class="header-box">
+        <div>
+            <div class="league-name">{{ league.name }}</div>
+            <div class="main-title">Report degli scambi</div>
+            <div class="meta">Tutti gli scambi della lega, dal più recente · Orari in ora locale · Generato il {{ generated_at|date:"d/m/Y H:i" }}</div>
+        </div>
+        <div class="brand"><b>FantaManager</b><br>Report di lega</div>
+    </div>
+
+    <div class="summary-grid">
+        <div class="sum-box"><div class="sum-val">{{ total }}</div><div class="sum-lbl">Proposte</div></div>
+        <div class="sum-box"><div class="sum-val">{{ completed }}</div><div class="sum-lbl">Concluse</div></div>
+        <div class="sum-box"><div class="sum-val">{{ open }}</div><div class="sum-lbl">In corso</div></div>
+        <div class="sum-box"><div class="sum-val">{{ refused }}</div><div class="sum-lbl">Rifiutate o annullate</div></div>
+        <div class="sum-box"><div class="sum-val">{{ avg_respond_label|default:"—" }}</div><div class="sum-lbl">Risposta media</div></div>
+    </div>
+
+    {% if teams %}
+    <table>
+        <colgroup><col style="width:28%"><col><col><col><col><col><col><col></colgroup>
+        <thead>
+            <tr><td class="sec-hdr" colspan="8">BILANCIO PER SQUADRA</td></tr>
+            <tr><th>SOCIETÀ</th><th>PROPOSTI</th><th>RICEVUTI</th><th>CONCLUSI</th><th>ARRIVI</th><th>PARTENZE</th><th>FM RIC.</th><th>FM DATI</th></tr>
+        </thead>
+        <tbody>
+        {% for t in teams %}
+        <tr>
+            <td class="b">{{ t.name }}</td>
+            <td class="c">{{ t.proposed }}</td><td class="c">{{ t.received }}</td><td class="c b">{{ t.completed }}</td>
+            <td class="c">{{ t.players_in }}</td><td class="c">{{ t.players_out }}</td>
+            <td class="c pos">{% if t.credits_in %}+{{ t.credits_in }}{% else %}—{% endif %}</td>
+            <td class="c neg">{% if t.credits_out %}−{{ t.credits_out }}{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    {% if trades %}
+    <table>
+        <colgroup><col style="width:22%"><col style="width:39%"><col style="width:39%"></colgroup>
+        <thead><tr><td class="sec-hdr" colspan="3">ELENCO DEGLI SCAMBI</td></tr></thead>
+        {% for t in trades %}
+        <tbody class="block">
+            <tr>
+                <td class="wrap" rowspan="2">
+                    <b>#{{ t.id }}</b> · {{ t.kind }}{% if t.is_loan %} ({{ t.loan_sessions }} sess.){% endif %}<br>
+                    <span class="{% if t.status == 'completed' %}ok{% elif t.status == 'pending' or t.status == 'accepted' %}warn{% else %}bad{% endif %}">{{ t.status_label }}</span>
+                    {% if t.status_note %}<br><small class="muted">{{ t.status_note }}</small>{% endif %}
+                </td>
+                <td class="wrap"><b>{{ t.proposer }}</b> cede:
+                    {% for p in t.proposer_players %}{% if p.role %}<span class="role-badge role-{{ p.role }}">{{ p.role }}</span> {% endif %}{{ p.name }}{% if not forloop.last %}, {% endif %}{% empty %}{% if not t.proposer_credits %}<span class="muted">nulla</span>{% endif %}{% endfor %}
+                    {% if t.proposer_credits %}<span class="fm">+ {{ t.proposer_credits }} FM</span>{% endif %}
+                </td>
+                <td class="wrap"><b>{{ t.receiver }}</b> cede:
+                    {% for p in t.receiver_players %}{% if p.role %}<span class="role-badge role-{{ p.role }}">{{ p.role }}</span> {% endif %}{{ p.name }}{% if not forloop.last %}, {% endif %}{% empty %}{% if not t.receiver_credits %}<span class="muted">nulla</span>{% endif %}{% endfor %}
+                    {% if t.receiver_credits %}<span class="fm">+ {{ t.receiver_credits }} FM</span>{% endif %}
+                </td>
+            </tr>
+            <tr>
+                <td class="wrap" colspan="2" style="font-size:7.8pt">
+                    Proposto il <b>{{ t.created.date }} {{ t.created.time }}</b>
+                    {% if t.responded %} · risposta il <b>{{ t.responded.date }} {{ t.responded.time }}</b> <span class="muted">(dopo {{ t.respond_label }})</span>{% endif %}
+                    {% if t.completed %} · eseguito il <b>{{ t.completed.date }} {{ t.completed.time }}</b>{% if t.ratify_label %} <span class="muted">(ratifica dopo {{ t.ratify_label }})</span>{% endif %}{% endif %}
+                    {% if t.message %}<br><span class="muted">«{{ t.message }}»</span>{% endif %}
+                </td>
+            </tr>
+        </tbody>
+        {% endfor %}
+    </table>
+    {% else %}
+    <div class="empty">Nessuno scambio proposto in questa lega.</div>
+    {% endif %}
+</section>
+{% endblock %}

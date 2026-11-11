@@ -19,6 +19,7 @@ from ..services import mail
 from ..services.contracts import contract_rules
 from ..services.trade import decide_trade
 from ..services.market import (
+    tie_forecast,
     build_buste_csv,
     choose_market_release,
     confirm_market_releases,
@@ -549,6 +550,14 @@ def session_manage_context(request, session):
     elif request.GET.get("preview") == "1" and labels["preview"] and not sealed:
         results = plan_market_resolution(session.id)
         is_preview = True
+    # Pareggi in vista: solo quando l'admin le offerte le guarda già (buste
+    # mostrate, anteprima o già viste), così vederli blocca la riapertura
+    # come vedere le buste.
+    ties_ahead = []
+    if session.status == MarketSession.Status.CLOSED and (
+        bids_list or is_preview or (session.config or {}).get("bids_seen_at")
+    ):
+        ties_ahead = tie_forecast(session)
     if (bids_list or is_preview) and session.status == MarketSession.Status.CLOSED:
         mark_bids_seen(session)
 
@@ -568,6 +577,7 @@ def session_manage_context(request, session):
         "results": results,
         "is_preview": is_preview,
         "sealed": sealed,
+        "ties_ahead": ties_ahead,
         "pending_releases": pending,
         "pending_teams": [{"id": wid, "name": next(w["winner_name"] for w in pending if w["winner_id"] == wid),
                            "count": sum(1 for w in pending if w["winner_id"] == wid),

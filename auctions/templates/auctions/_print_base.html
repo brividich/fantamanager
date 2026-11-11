@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Report{% endblock %} — {{ league.name }}</title>
+{# Base dei report di mercato da stampare (A4): registro dell'asta, scambi, stagione. #}
+<style>
+    @page { size: A4 {% block orientation %}portrait{% endblock %}; margin: 8mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #e9e9e9; color: #000;
+           font-family: "Century Gothic", "Avenir Next", "Avenir", "Trebuchet MS", Arial, sans-serif;
+           -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .toolbar { position: sticky; top: 0; z-index: 2; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+               padding: 10px 16px; background: #10223a; color: #fff; font-size: 14px; }
+    .toolbar b { flex: 1 1 20em; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .toolbar .acts { display: flex; gap: 8px; flex-wrap: nowrap; overflow-x: auto; max-width: 100%; scrollbar-width: none; }
+    .toolbar .acts > * { flex-shrink: 0; white-space: nowrap; }
+    .toolbar a, .toolbar button { font: inherit; font-weight: 700; color: #fff; background: #087cf0; border: 0;
+               border-radius: 8px; padding: 8px 14px; cursor: pointer; text-decoration: none; }
+    .toolbar a.ghost { background: transparent; border: 1px solid rgba(255,255,255,.35); }
+    .howto { background: #fff; margin: 12px auto 0; max-width: 196mm; padding: 10px 14px; border-radius: 8px;
+             font-size: 13px; line-height: 1.45; box-shadow: 0 2px 10px rgba(0,0,0,.12); }
+    .howto summary { font-weight: 800; cursor: pointer; }
+    .howto ol { margin: 6px 0 0; padding-left: 20px; }
+    .pages { overflow-x: auto; padding: 14px 0; }
+    .sheet { width: 196mm; min-height: 283mm; margin: 0 auto 14px; padding: 6mm; background: #fff;
+             box-shadow: 0 2px 10px rgba(0,0,0,.18); break-after: page; page-break-after: always; }
+    .sheet:last-child { break-after: auto; page-break-after: auto; }
+
+    .header-box { border-bottom: 2px solid #000; padding-bottom: 3.5mm; margin-bottom: 4mm; display: flex;
+                  justify-content: space-between; align-items: flex-start; gap: 4mm; }
+    .league-name { font-size: 11pt; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #444; }
+    .main-title { font-size: 17pt; font-weight: 800; text-transform: uppercase; margin: 1.5mm 0 1mm; line-height: 1.1; }
+    .meta { font-size: 9pt; color: #333; line-height: 1.35; }
+    .brand { text-align: right; font-size: 8.5pt; color: #666; white-space: nowrap; }
+
+    .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(30mm, 1fr)); gap: 2.5mm; margin-bottom: 4mm; }
+    .sum-box { border: 1px solid #aaa; padding: 2mm 1mm; text-align: center; background: #f8fafc; border-radius: 2mm; }
+    .sum-val { font-size: 13pt; font-weight: 800; color: #087cf0; line-height: 1; }
+    .sum-lbl { font-size: 7pt; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #555; margin-top: 1mm; }
+
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 8.3pt; margin-bottom: 4mm; }
+    td, th { border: 1px solid #aaa; padding: 1mm 1.2mm; height: 4.6mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    td.wrap { white-space: normal; }
+    th { background: #e7e6e6; font-size: 7.6pt; font-weight: 700; text-align: center; }
+    .sec-hdr { background: #e2efda; font-size: 9pt; font-weight: 800; text-align: left; padding: 1.5mm 2mm; border: 1px solid #aaa; white-space: normal; }
+    tbody.block { break-inside: avoid; }
+    .c { text-align: center; }
+    .r { text-align: right; }
+    .b { font-weight: 700; }
+    .muted { color: #777; }
+    .fm { color: #087cf0; font-weight: 700; }
+    .neg { color: #dc2626; font-weight: 700; }
+    .pos { color: #16a34a; font-weight: 700; }
+    .ok { color: #15803d; font-weight: 700; }
+    .bad { color: #b91c1c; }
+    .warn { color: #b45309; font-weight: 700; }
+    tr.hl td { background: #fff7d6; }
+    tr.win td { background: #e7f6ec; }
+    tr.off td { color: #888; }
+    small { font-size: 85%; }
+
+    .role-badge { display: inline-block; padding: 1px 4px; border-radius: 3px; font-weight: 800; font-size: 7.5pt; text-align: center; }
+    .role-P { background: #fef3c7; color: #b45309; }
+    .role-D { background: #e0f2fe; color: #0369a1; }
+    .role-C { background: #dcfce7; color: #15803d; }
+    .role-A { background: #fee2e2; color: #b91c1c; }
+    .empty { padding: 10mm; text-align: center; color: #777; font-size: 10pt; }
+    {% block extra_css %}{% endblock %}
+
+    @media print {
+        body { background: #fff; }
+        .toolbar, .howto { display: none; }
+        .pages { padding: 0; overflow: visible; }
+        .sheet { box-shadow: none; margin: 0; padding: 0; width: auto; min-height: 0; }
+    }
+</style>
+</head>
+<body>
+<div class="toolbar">
+    <b>{% block toolbar %}Report{% endblock %} · {{ league.name }}</b>
+    <div class="acts">
+        <button type="button" onclick="window.print()">Stampa / salva PDF</button>
+        {% if csv_url %}<a class="ghost" href="{{ csv_url }}">Scarica CSV</a>{% endif %}
+        {% if back_url %}<a class="ghost" href="{{ back_url }}">Torna indietro</a>{% endif %}
+    </div>
+</div>
+<details class="howto">
+    <summary>Cosa fare in questa pagina</summary>
+    {% block howto %}{% endblock %}
+</details>
+<div class="pages">
+{% block sheets %}{% endblock %}
+</div>
+</body>
+</html>

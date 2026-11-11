@@ -49,6 +49,9 @@
     }
 
     /* ---- Hub Section Styles ---- */
+    .mc-report-links { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+    .mc-report-links a { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; color: var(--accent, #60a5fa); text-decoration: none; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mc-report-links .ic { width: 14px; height: 14px; flex-shrink: 0; }
     .hub-section-title {
         display: flex; align-items: center; justify-content: space-between;
         margin: 16px 0 10px; font-family: var(--display); font-weight: 900;
@@ -589,6 +592,31 @@
             </div>
             <a href="?view=listone" class="mc-btn-secondary">
                 <span>Consulta Listone Svincolati</span>
+                <span>→</span>
+            </a>
+        </div>
+
+        <!-- Card Report di mercato: registro delle aste, scambi, stagione -->
+        <div class="hub-card" id="report">
+            <div>
+                <div class="hc-top">
+                    <div>
+                        <div class="hc-badge-tag"><svg class="ic" style="width:13px;height:13px"><use href="#i-print"/></svg> Trasparenza</div>
+                        <div class="hc-title">Report di mercato</div>
+                    </div>
+                </div>
+                <div class="hc-desc">
+                    Da stampare o scaricare: ogni rilancio delle aste con l'orario al millesimo, tutti gli scambi con i tempi di risposta e i movimenti della stagione squadra per squadra.
+                </div>
+                <div class="mc-report-links">
+                    {% for a in report_auctions %}
+                    <a href="{% url 'app_report_auction' a.id %}" target="_blank" rel="noopener"><svg class="ic"><use href="#i-gavel"/></svg> Registro: {{ a.title }}</a>
+                    {% endfor %}
+                    <a href="{% url 'app_report_trades' %}" target="_blank" rel="noopener"><svg class="ic"><use href="#i-swap"/></svg> Report degli scambi</a>
+                </div>
+            </div>
+            <a href="{% url 'app_report_season' %}" target="_blank" rel="noopener" class="mc-btn-secondary">
+                <span>Report della stagione</span>
                 <span>→</span>
             </a>
         </div>
