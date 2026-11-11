@@ -86,7 +86,15 @@ class MailSettingsPageTests(TestCase):
 
     def test_nothing_configured_means_not_ready(self):
         self.assertFalse(mail.is_ready())
-        self.assertEqual(mail.send("x", "a@x.it", "y"), (False, "Posta non configurata."))
+        ok, error = mail.send("x", "a@x.it", "y")
+        self.assertFalse(ok)
+        # Il messaggio dice cosa fare: l'interruttore spento è la causa più comune.
+        self.assertIn("accendi «Abilita invio email", error)
+        cfg = MailSettings.get()
+        cfg.enabled = True
+        cfg.provider = "custom"
+        cfg.save()
+        self.assertIn("mancano il server SMTP o l'indirizzo del mittente", mail.send("x", "a@x.it", "y")[1])
 
 
 # I link delle email partono dall'indirizzo pubblico del sito (FM_SITE_URL).
