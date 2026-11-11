@@ -325,7 +325,7 @@ def _after_resume(auction):
     """Where to land after rebuilding an auction from a session."""
     if not services.listone_loaded(auction):
         return redirect(
-            f"{reverse('admin_players')}?league={auction.league_id}&need_listone=1&from=resume"
+            f"{reverse('admin_footballers')}?league={auction.league_id}&need_listone=1&from=resume"
         )
     return redirect(f"/dashboard/?auction={auction.id}")
 

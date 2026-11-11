@@ -9,6 +9,8 @@ from django.views.decorators.http import require_POST
 from .. import services
 from ..models import ContractEvent, Participant, Player
 from ..providers.apifootball import is_configured as apifootball_configured
+from ..providers.apifootball import retry_now as apifootball_retry
+from ..providers.apifootball import status as apifootball_status
 from ..providers.uefa import RANKING_PAGE as UEFA_RANKING_PAGE
 from ..services.abroad import UEFA_MAX_AGE_DAYS, roster_check_state, uefa_ranking_date, uefa_ranking_stale
 from .common import (
@@ -84,6 +86,7 @@ def admin_contracts(request):
         "uefa_max_age": UEFA_MAX_AGE_DAYS,
         "uefa_ranking_page": UEFA_RANKING_PAGE,
         "apifootball": apifootball_configured() if league is not None else False,
+        "api_status": apifootball_status(),
         "to_detect": sum(1 for p in left if not p.left_club) if league is not None else 0,
         "roster_check": roster_check_state(league) if league is not None else None,
         "priced": priced,
@@ -138,11 +141,13 @@ def admin_contracts_action(request):
         from ..services import abroad
         if not apifootball_configured():
             messages.error(request, "API-Football non configurata: imposta APIFOOTBALL_KEY sul server e riavvia.")
-        elif abroad.start_roster_check(league):
-            messages.success(request, "Controllo di tutte le rose avviato: ci vuole qualche minuto, "
-                                      "la pagina si aggiorna da sola.")
         else:
-            messages.warning(request, "Il controllo delle rose è già in corso.")
+            apifootball_retry()  # un tasto premuto: si riprova anche se l'API era segnata ferma
+            if abroad.start_roster_check(league):
+                messages.success(request, "Controllo di tutte le rose avviato: ci vuole qualche minuto, "
+                                          "la pagina si aggiorna da sola.")
+            else:
+                messages.warning(request, "Il controllo delle rose è già in corso.")
         return redirect(safe_next(request, _url(league)))
 
     if action == "left_resolve_priced":
@@ -172,9 +177,11 @@ def admin_contracts_action(request):
                 found = abroad.detect(player_id)
                 ok += " " + (_detected(found) if found.get("ok") else found.get("message", ""))
         elif action == "left_detect":
+            apifootball_retry()  # un tasto premuto: si riprova anche se l'API era ferma
             res = abroad.detect(player_id)
             ok = _detected(res)
         elif action == "left_detect_all":
+            apifootball_retry()
             report = abroad.detect_all(league, limit=abroad.DETECT_ALL_LIMIT)
             summary = abroad.detect_summary(report)
             res = {"ok": bool(report["found"]) or not (report["missing"] or report["error"]),

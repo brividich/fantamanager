@@ -1999,7 +1999,17 @@ class MarketManageParityTests(TestCase):
     def _part(resp, tag):
         html = resp.content.decode()
         part = html[html.index(f"<!-- {tag}:start -->"):html.index(f"<!-- {tag}:end -->")]
-        return re.sub(r'name="(next|csrfmiddlewaretoken)" value="[^"]*"', "", part)
+        part = re.sub(r'name="(next|csrfmiddlewaretoken)" value="[^"]*"', "", part)
+        # I link fra pagine ({% purl %}) restano nella console o nell'app: forma canonica.
+        from ..views.common import APP_PAGES
+        for console_name, app_name in APP_PAGES.items():
+            try:
+                urls = (reverse(console_name), reverse(app_name))
+            except Exception:  # noqa: BLE001 — pagine con argomenti
+                continue
+            for url in urls:
+                part = re.sub('"' + re.escape(url) + r'(?=["?#])', f'"PAGE:{console_name}', part)
+        return part
 
     def test_session_screen_is_the_same_in_console_and_app(self):
         console = self.client.get(reverse("admin_market_session", args=[self.session.id]))

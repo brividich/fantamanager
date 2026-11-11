@@ -153,7 +153,8 @@ urlpatterns = [
     path("dashboard/export/rinnovi/", views.admin_export_renewals, name="admin_export_renewals"),
     path("dashboard/export/rinnovi/stampa/", views.admin_print_renewals, name="admin_print_renewals"),
     path("dashboard/rose/schede/import/", views.admin_import_team_sheets, name="admin_import_team_sheets"),
-    path("dashboard/players/", views.admin_players, name="admin_players"),
+    # Il listone era la pagina «Giocatori»: ora è la scheda Listone di Calciatori.
+    path("dashboard/players/", views.admin_players),
     path("dashboard/players/import/", views.admin_import_players, name="admin_import_players"),
     path("dashboard/players/photos/", views.admin_apply_photos, name="admin_apply_photos"),
     path("dashboard/players/stats/", views.admin_import_stats, name="admin_import_stats"),
@@ -371,7 +372,7 @@ urlpatterns = [
     path("api/sala/v1/sblocca/", views.sala_release, name="sala_release"),
     path("api/sala/v1/live/", views.sala_live, name="sala_live"),
     # Pagine della console nella cornice dell'app: stessa view, stesso template.
-    path("app/regia/giocatori/", views.admin_players, name="app_regia_players"),
+    path("app/regia/giocatori/", views.admin_players),  # → app/calciatori/
     path("app/regia/contratti/", views.admin_contracts, name="app_regia_contracts"),
     path("app/regia/stagione/", views.admin_season, name="app_regia_season"),
     path("app/regia/importa/", views.admin_fantapazz, name="app_regia_import"),

@@ -867,7 +867,7 @@ class MultiLeagueIsolationTests(TestCase):
         self.assertNotIn("Solo B", body)
 
     def test_the_listone_page_only_shows_its_own_league(self):
-        body = self.client.get(f"/admin-auction/players/?league={self.b.id}").content.decode()
+        body = self.client.get(f"/dashboard/calciatori/?league={self.b.id}").content.decode()
         self.assertIn("B1", body)
         self.assertNotIn(">A1<", body)
 
@@ -891,29 +891,42 @@ class ListoneSearchAndPagingTests(TestCase):
     # --- pagination --------------------------------------------------------
 
     def test_only_one_page_of_rows_is_rendered(self):
-        resp = self.client.get(f"/admin-auction/players/?league={self.league.id}")
-        self.assertEqual(len(resp.context["players"]), 50)
-        self.assertEqual(resp.context["page_obj"].paginator.count, 121)
+        resp = self.client.get(f"/dashboard/calciatori/?league={self.league.id}")
+        self.assertEqual(resp.context["fb_view"], "listone")
+        self.assertEqual(len(resp.context["lst_rows"]), 50)
+        self.assertEqual(resp.context["lst_page"].paginator.count, 121)
         # The headline count is the listone, not the page.
-        self.assertEqual(resp.context["total_count"], 121)
-        self.assertIn("Totale: <b>121</b>", resp.content.decode())
+        self.assertEqual(resp.context["lst_total"], 121)
+        self.assertIn("<b>121</b> totale", resp.content.decode())
 
     def test_filters_survive_the_pagination_links(self):
-        resp = self.client.get(f"/admin-auction/players/?league={self.league.id}&q=Giocatore&role=C&page=2")
-        self.assertEqual(resp.context["page_obj"].number, 2)
+        resp = self.client.get(f"/dashboard/calciatori/?league={self.league.id}&q=Giocatore&role=C&page=2")
+        self.assertEqual(resp.context["lst_page"].number, 2)
         body = resp.content.decode()
         self.assertIn("q=Giocatore", body)
         self.assertIn("role=C", body)
         self.assertIn(f"league={self.league.id}", body)
 
     def test_search_and_role_filter_run_in_the_database(self):
-        resp = self.client.get(f"/admin-auction/players/?league={self.league.id}&q=lautaro")
-        names = [p.name for p in resp.context["players"]]
+        resp = self.client.get(f"/dashboard/calciatori/?league={self.league.id}&q=lautaro")
+        names = [p.name for p in resp.context["lst_rows"]]
         self.assertEqual(names, ["Lautaro Martinez"])
 
     def test_another_league_never_shows_up(self):
-        resp = self.client.get(f"/admin-auction/players/?league={self.league.id}&q=segreto")
-        self.assertEqual(list(resp.context["players"]), [])
+        resp = self.client.get(f"/dashboard/calciatori/?league={self.league.id}&q=segreto")
+        self.assertEqual(list(resp.context["lst_rows"]), [])
+
+    def test_the_old_listone_address_keeps_its_filters(self):
+        """«Giocatori» è diventata la scheda Listone di Calciatori: i vecchi
+        indirizzi (anche dall'app) portano lì con gli stessi filtri."""
+        for old, new in (("/dashboard/players/", "/dashboard/calciatori/"),
+                         ("/admin-auction/players/", "/dashboard/calciatori/"),
+                         ("/app/regia/giocatori/", "/app/calciatori/")):
+            resp = self.client.get(f"{old}?league={self.league.id}&status=free&role=C")
+            self.assertRedirects(resp, f"{new}?league={self.league.id}&status=free&role=C",
+                                 fetch_redirect_response=False)
+        resp = self.client.get(f"/dashboard/calciatori/?league={self.league.id}&status=free&role=A")
+        self.assertEqual([p.name for p in resp.context["lst_rows"]], ["Lautaro Martinez"])
 
     # --- the console's player search ---------------------------------------
 
@@ -1474,7 +1487,7 @@ class ServerStatsTests(TestCase):
                               initial_price=1, fanta_avg=Decimal("7.5"))
         Player.objects.create(league=self.league, name="Senza", role="A", initial_price=1)
         with self._server_file():
-            r = self.client.get(f"/admin-auction/players/?league={self.league.id}")
+            r = self.client.get(f"/dashboard/calciatori/?league={self.league.id}")
         self.assertEqual(r.context["stats_covered"], 1)
         self.assertEqual(r.context["stats_season"], "2025/26")
         self.assertTrue(r.context["stats_server_file"])

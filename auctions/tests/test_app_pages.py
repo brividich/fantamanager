@@ -16,7 +16,6 @@ from ..views.common import APP_PAGES
 
 # (pagina in console, pagina nell'app): quelle che usano la cornice condivisa.
 FRAMED_PAGES = [
-    ("admin_players", "app_regia_players"),
     ("admin_contracts", "app_regia_contracts"),
     ("admin_season", "app_regia_season"),
     ("admin_fantapazz", "app_regia_import"),
@@ -80,8 +79,9 @@ class AppPagesParityTests(TestCase):
     def test_app_pages_stay_in_the_app(self):
         """Dall'app i link verso pagine che l'app ha restano nell'app."""
         self.client.force_login(self.owner)
-        html = self.client.get(reverse("app_regia_players") + f"?league={self.league.id}&q=lau").content.decode()  # con un filtro c'è «Azzera»
-        self.assertIn(f'href="{reverse("app_regia_players")}?league={self.league.id}"', html)
+        html = self.client.get(reverse("app_regia_market") + f"?league={self.league.id}").content.decode()
+        self.assertIn(f'href="{reverse("app_footballers")}?league={self.league.id}&status=free"', html)  # Svincolati
+        self.assertNotIn(f'href="{reverse("admin_footballers")}?', html)
 
     def test_only_your_leagues(self):
         self.client.force_login(self.stranger)

@@ -14,6 +14,7 @@ from datetime import timedelta
 
 from django.core.cache import cache
 from django.db import connection
+from django.db.models import F, Q
 from django.utils import timezone
 
 from ..models import Footballer, Player
@@ -38,26 +39,38 @@ def _clubs(af, get, sleep, report):
         return teams, True
     # Il piano non concede l'elenco della Serie A: si riconoscono i club
     # dalle squadre dei listoni delle leghe.
-    names = sorted(set(Player.objects.exclude(team="").values_list("team", flat=True)))
+    # Le leghe di prova hanno club inventati o vecchi: non contano.
+    names = sorted(set(Player.objects.exclude(team="").exclude(league__created_via="demo")
+                       .values_list("team", flat=True)))
     mapping = af.paced(af.italian_clubs, names, get=get, sleep=sleep) if names else {}
     report["unmatched_clubs"] = [n for n in names if n not in mapping]
     return sorted({(tid, tname, "") for tid, tname in mapping.values()}, key=lambda t: t[1]), False
+
+
+# Un giro che farebbe uscire dalla Serie A più di così (un terzo, almeno 40)
+# è una risposta sbagliata dell'API, non il mercato: nessuno esce.
+MAX_LEFT_SHARE = 0.33
+MAX_LEFT_MIN = 40
+# Aggiornamenti completi di fila senza un calciatore prima che esca dalla Serie A.
+MISSES_TO_LEAVE = 2
 
 
 def sync_registry(*, get=None, sleep=time.sleep, progress=None):
     """Aggiorna l'anagrafica con le rose attuali dei club di Serie A.
 
     Chi non compare più in nessuna rosa resta in anagrafica ma esce dalla
-    Serie A (``in_serie_a=False``), solo se il giro è stato completo: un
-    aggiornamento interrotto non fa sparire nessuno.
+    Serie A (``in_serie_a=False``) solo dopo due giri completi di fila senza di
+    lui (``MISSES_TO_LEAVE``): un aggiornamento interrotto, una rosa vuota o
+    una risposta a metà dell'API non fanno sparire nessuno.
     """
     import requests
 
     from ..providers import apifootball as af
 
     get = get or requests.get
-    report = {"clubs": 0, "players": 0, "created": 0, "updated": 0, "left": 0, "linked": 0, "leagues": 0,
-              "unmatched_clubs": [], "error": ""}
+    report = {"clubs": 0, "players": 0, "created": 0, "updated": 0, "left": 0, "missing": 0,
+              "linked": 0, "leagues": 0,
+              "unmatched_clubs": [], "empty_clubs": [], "error": ""}
     if not af.is_configured():
         report["error"] = "API-Football non configurata: imposta APIFOOTBALL_KEY sul server e riavvia"
         return report
@@ -76,6 +89,10 @@ def sync_registry(*, get=None, sleep=time.sleep, progress=None):
             if progress:
                 progress(i, len(teams))
             players = af.paced(af.squad, club_id, get=get, sleep=sleep)
+            if not players:
+                # Una rosa vuota è una risposta sbagliata (piano, limite), non
+                # un club senza giocatori: il giro non vale come completo.
+                report["empty_clubs"].append(club_name)
             now = timezone.now()
             new, changed = [], []
             for p in players:
@@ -86,7 +103,7 @@ def sync_registry(*, get=None, sleep=time.sleep, progress=None):
                     "name": p["name"][:120], "position": p["position"], "age": p["age"],
                     "number": p["number"], "photo_url": p["photo"][:200],
                     "club_api_id": club_id, "club_name": club_name[:120],
-                    "club_logo": club_logo[:200], "in_serie_a": True, "seen_at": now,
+                    "club_logo": club_logo[:200], "in_serie_a": True, "seen_at": now, "missed_syncs": 0,
                 }
                 f = existing.get(p["id"])
                 if f is None:
@@ -102,19 +119,18 @@ def sync_registry(*, get=None, sleep=time.sleep, progress=None):
             Footballer.objects.bulk_create(new)
             Footballer.objects.bulk_update(changed, ["name", "position", "role", "age", "number", "photo_url",
                                                      "club_api_id", "club_name", "club_logo",
-                                                     "in_serie_a", "seen_at"])
+                                                     "in_serie_a", "seen_at", "missed_syncs"])
             for f in new:
                 existing[f.api_id] = f
             report["clubs"] += 1
             report["players"] += len(players)
             report["created"] += len(new)
             report["updated"] += len(changed)
-        complete = official or not report["unmatched_clubs"]
+        complete = (official or not report["unmatched_clubs"]) and not report["empty_clubs"]
     except af.ApiFootballError as exc:
         report["error"] = str(exc)
     if complete:
-        report["left"] = (Footballer.objects.filter(in_serie_a=True).exclude(api_id__in=seen)
-                          .update(in_serie_a=False))
+        _mark_missing(report, seen)
     if report["players"]:
         report["linked"] = link_players()
         report["leagues"] = apply_default_listoni()
@@ -122,6 +138,23 @@ def sync_registry(*, get=None, sleep=time.sleep, progress=None):
                 "%s leghe sulla lista generale (%s)", report["clubs"], report["players"], report["created"],
                 report["left"], report["linked"], report["leagues"], report["error"])
     return report
+
+
+def _mark_missing(report, seen):
+    """Dopo un giro completo: chi non era in nessuna rosa conta un'assenza;
+    alla seconda di fila esce dalla Serie A. Se mancano troppi calciatori in
+    un colpo solo è l'API che ha risposto a metà: non si conta niente."""
+    missing = Footballer.objects.filter(in_serie_a=True).exclude(api_id__in=seen)
+    before = Footballer.objects.filter(in_serie_a=True).count()
+    n_missing = missing.count()
+    if before and n_missing > max(MAX_LEFT_MIN, before * MAX_LEFT_SHARE):
+        report["error"] = (f"{n_missing} calciatori su {before} non sono in nessuna rosa: è una risposta "
+                           "incompleta di API-Football, l'anagrafica non è stata cambiata. Riprova più tardi; "
+                           "intanto i listoni delle leghe restano com'erano")
+        return
+    missing.update(missed_syncs=F("missed_syncs") + 1)
+    report["left"] = missing.filter(missed_syncs__gte=MISSES_TO_LEAVE).update(in_serie_a=False, missed_syncs=0)
+    report["missing"] = n_missing - report["left"]
 
 
 def sync_summary(report):
@@ -132,11 +165,17 @@ def sync_summary(report):
                      f"({report['created']} nuovi)")
         if report["left"]:
             parts.append(f"{report['left']} non sono più in Serie A")
+        if report.get("missing"):
+            parts.append(f"{report['missing']} non trovati in nessuna rosa: escono dalla Serie A "
+                         "se mancano anche al prossimo aggiornamento")
         parts.append(f"{report['linked']} giocatori dei listoni collegati")
         if report["leagues"]:
             parts.append(f"lista generale aggiornata in {report['leagues']} leghe")
     if report["unmatched_clubs"]:
         parts.append("club non riconosciuti su API-Football: " + ", ".join(report["unmatched_clubs"]))
+    if report.get("empty_clubs"):
+        parts.append("rose vuote da API-Football (nessuno è uscito dalla Serie A, riprova più tardi): "
+                     + ", ".join(report["empty_clubs"]))
     if report["error"]:
         parts.append(report["error"])
     return " · ".join(parts) or "nessun calciatore scaricato"
@@ -277,7 +316,11 @@ def apply_default_listone(league):
 
     gone = pool.filter(footballer__in_serie_a=False)
     on_block = Auction.objects.exclude(player__isnull=True).values("player_id")
-    removed, _ = gone.filter(owner__isnull=True).exclude(id__in=on_block).delete()
+    # Chi ha già voti, buste o liste di questa lega non si cancella (si
+    # porterebbe via lo storico): resta, segnalato, ma fuori dal listone.
+    keep = gone.filter(Q(performances__isnull=False) | Q(market_bids__isnull=False)
+                       | Q(release_intents__isnull=False)).values("id")
+    removed, _ = gone.filter(owner__isnull=True).exclude(id__in=on_block).exclude(id__in=keep).delete()
     # Chi non è nella lista generale (uscito dalla Serie A, o rimasto da un
     # listone caricato prima) non è uno svincolato: resta solo per la rosa o
     # lo storico.

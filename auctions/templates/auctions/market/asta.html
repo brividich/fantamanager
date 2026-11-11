@@ -77,7 +77,7 @@
             <h3 class="mk-card-t"><svg class="ic"><use href="#i-users"/></svg> Svincolati disponibili <span class="cnt">{{ free_total }}</span></h3>
             <div class="mk-free">
                 {% for r, n in free_by_role %}
-                <a href="{% purl 'admin_players' %}?league={{ current_league.id }}&status=free&role={{ r }}" title="Apri gli svincolati di questo ruolo">
+                <a href="{% purl 'admin_footballers' %}?league={{ current_league.id }}&status=free&role={{ r }}" title="Apri gli svincolati di questo ruolo">
                     <span class="role-badge role-{{ r }}">{{ r }}</span>
                     <span><b>{{ n }}</b><small>{% if r == "P" %}Portieri{% elif r == "D" %}Difensori{% elif r == "C" %}Centrocampisti{% else %}Attaccanti{% endif %}</small></span>
                 </a>
@@ -89,7 +89,7 @@
             <ul class="mk-hist">
                 <li><span>Le rose sono aggiornate?</span> <a class="when" href="{% purl 'admin_participants' %}?league={{ current_league.id }}">Squadre →</a></li>
                 <li><span>Serve importarle da un file?</span> <a class="when" href="{% purl 'admin_fantapazz' %}?league={{ current_league.id }}">Importa →</a></li>
-                <li><span>Listone e quotazioni aggiornati?</span> <a class="when" href="{% purl 'admin_players' %}?league={{ current_league.id }}">Giocatori →</a></li>
+                <li><span>Listone e quotazioni aggiornati?</span> <a class="when" href="{% purl 'admin_footballers' %}?league={{ current_league.id }}">Listone →</a></li>
             </ul>
         </div>
     </div>

@@ -1,0 +1,577 @@
+{% comment %}
+Calciatori → scheda «Listone della lega»: i giocatori della lega (Player),
+quelli che vanno all'asta. Incluso da _footballers.html, quindi uguale in
+console (admin_footballers.html) e app (app_footballers.html).
+
+Tutti vedono il listone con stato e quotazione; chi gestisce la lega
+(lst_can_manage) ha anche gli strumenti: importa listone, rose, schede e
+statistiche, Svuota, e su ogni riga Assegna / Svincola / ✕.
+Era la pagina «Giocatori» (/dashboard/players/, ora un rinvio qui).
+Non dipende da API-Football: funziona anche quando l'API non risponde.
+
+Dati da views/footballers.py:listone_context (lst_*).
+{% endcomment %}
+{% load fm_pages %}
+<style>
+    /* Conteggi: una riga di chip (sono anche filtri), non una griglia di riquadri. */
+    .lst-stats { gap:6px; margin-bottom:10px; }
+    .lst-chip { display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 10px 0 6px; border-radius:16px;
+        background:var(--fm-card); border:1px solid var(--fm-border); font-size:12px; color:var(--fm-text-muted);
+        text-decoration:none; }
+    .lst-chip b { font-family:var(--fm-display); font-weight:800; font-size:15px; color:var(--fm-text); }
+    .lst-chip .role-badge { width:20px; height:20px; font-size:10px; }
+    .lst-chip.on { border-color:var(--fm-primary-light); background:rgba(8,124,240,.14); }
+    .lst-chip.is-free b { color:var(--fm-success); }
+    .lst-chip.is-total { padding-left:10px; }
+    .lst-chip.is-total b { color:var(--fm-primary-light); }
+    .lst-chip.is-free { padding-left:10px; }
+    .lst-chip.is-out { padding-left:10px; }
+    .lst-chip.is-out b { color:var(--fm-text-muted); }
+    .fb-league .out { color:var(--fm-text-muted); }
+    .lst-alert { margin-bottom:14px; padding:14px 16px; border-radius:12px; border:1px solid rgba(248,113,113,.45);
+        background:rgba(248,113,113,.10); color:#fca5a5; font-size:13.5px; line-height:1.5; }
+    .lst-alert b { color:#fff; }
+    .lst-steps { list-style:none; padding:0; margin:8px 0 0; display:flex; flex-direction:column; gap:6px; }
+    .lst-steps li { display:flex; gap:10px; align-items:flex-start; }
+    .lst-steps .dot { flex:0 0 22px; height:22px; border-radius:50%; display:inline-flex; align-items:center;
+        justify-content:center; font-size:11px; font-weight:800; background:rgba(255,255,255,.06); color:var(--fm-text-muted); }
+    .lst-steps li.ok .dot { background:rgba(22,217,104,.18); color:var(--fm-success); }
+    .lst-steps li.now .dot { background:rgba(8,124,240,.25); color:var(--fm-primary-light); }
+    .lst-steps li.now > span:last-child { color:var(--fm-text); }
+    .lst-tools { margin-bottom:10px; }
+    .lst-tools > summary { list-style:none; cursor:pointer; display:flex; align-items:center; gap:9px;
+        padding:9px 12px; border-radius:var(--fm-radius-md); background:var(--fm-card); border:1px solid var(--fm-border);
+        font-size:12.5px; font-weight:600; color:var(--fm-text-secondary); }
+    .lst-tools > summary::-webkit-details-marker { display:none; }
+    .lst-tools > summary .ic { color:var(--fm-primary-light); }
+    .lst-tools > summary .chev { margin-left:auto; font-size:11px; transition:transform .18s; }
+    .lst-tools[open] > summary .chev { transform:rotate(180deg); }
+    .lst-tools-body { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(420px,100%),1fr)); gap:12px; margin-top:12px; }
+    .lst-tools-body .fm-card { margin-bottom:0; }
+    .lst-tools-body p.muted { font-size:13px; margin:0 0 16px; line-height:1.6; }
+    .lst-form { display:flex; gap:14px 18px; align-items:flex-end; flex-wrap:wrap; }
+    .lst-form .file { flex:1 1 220px; min-width:0; }
+    .lst-form .file input { padding:10px; font-size:14px; }
+    .lst-form .opts { display:flex; flex-direction:column; gap:9px; }
+    .lst-form .btns { display:flex; gap:10px; flex-wrap:wrap; }
+    .lst-opt { display:flex; align-items:center; gap:8px; cursor:pointer; margin:0;
+        text-transform:none; letter-spacing:0; font-size:12.5px; color:var(--fm-text); font-weight:500; }
+    .lst-opt input { width:auto; }
+    .lst-msg { margin:14px 0 0; font-size:13px; font-weight:700; display:none; }
+    .lst-cover { display:flex; gap:14px; align-items:center; flex-wrap:wrap; padding:14px 16px; border-radius:12px;
+        background:rgba(255,255,255,.04); margin-bottom:18px; }
+    .lst-cover > div { flex:1 1 200px; font-size:13px; line-height:1.5; }
+    /* Filtri: la ricerca su una riga, ruolo/squadra/stato/ordine su un'altra (scorre se non ci sta). */
+    .lst-filters { display:flex; flex-direction:column; gap:8px; margin-bottom:10px; min-width:0; }
+    .lst-filters input[type=search] { width:100%; height:38px; }
+    .lst-filters .fm-onerow { gap:6px; }
+    .lst-filters select { width:auto; height:34px; padding-top:0; padding-bottom:0; font-size:13px; }
+    .lst-filters .fm-btn { height:34px; }
+    .lst-tools-links { grid-column:1 / -1; display:flex; gap:8px; }
+    .fb-row.lst-row { padding:7px 10px; gap:2px 10px; grid-template-columns:32px minmax(0,1fr) auto; }
+    .lst-row .lst-role { width:32px; display:flex; flex-direction:column; align-items:center; gap:3px; }
+    .lst-row .lst-mroles { font-size:10px; font-weight:800; letter-spacing:.05em; color:var(--fm-text-muted);
+        max-width:32px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .lst-quota { font-family:var(--fm-display); font-weight:800; font-size:15px; color:var(--fm-primary-light); }
+    .lst-actions { display:inline-flex; gap:6px; justify-content:flex-end; margin-top:4px; }
+    .lst-actions button { height:26px; padding:0 9px; font-size:11.5px; }
+    @media (max-width:600px) { .lst-actions { justify-content:flex-start; } }
+    #assign-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:100;
+        align-items:center; justify-content:center; }
+    #assign-overlay .box { background:var(--fm-card,#15171c); border:1px solid var(--fm-border); border-radius:14px;
+        padding:24px; width:min(420px,92vw); }
+</style>
+
+{% if need_listone and need_listone_from %}
+<div class="lst-alert" role="alert">
+    {% if need_listone_from == "resume" %}
+    <b>Sessione ripresa senza listone.</b> È stata salvata prima che il
+    listone viaggiasse dentro le sessioni: importa qui il file Quotazioni (Strumenti listone → Importa listone)
+    e l'asta parte. D'ora in poi le sessioni salvate se lo portano dietro da sole.
+    {% else %}
+    <b>L'asta non è stata creata.</b> La lega
+    {% if fb_league %}<b>{{ fb_league.name }}</b>{% endif %}
+    non ha ancora il listone: importa qui il file Quotazioni (Strumenti listone → Importa listone), poi torna a
+    <a href="{% purl 'admin_auction_wizard' %}{% if fb_league %}?league={{ fb_league.id }}{% endif %}">Nuova asta</a>.
+    {% endif %}
+</div>
+{% endif %}
+
+<details class="howto noprint">
+    <summary><svg class="ic"><use href="#i-search"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        Il <b>listone</b> della lega: i giocatori che vanno all'asta e al mercato, con la squadra che li ha in rosa
+        o lo stato di <b>svincolato</b> e la quotazione. È della lega e non dipende da API-Football.
+        {% if lst_can_manage %}
+        <ol class="lst-steps">
+            <li class="{% if lst_total %}ok{% else %}now{% endif %}"><span class="dot">{% if lst_total %}✓{% else %}1{% endif %}</span>
+                <span>{% if lst_total %}Listone caricato: {{ lst_total }} giocatori.{% else %}<b>Adesso:</b> apri <b>Strumenti listone</b> e in <b>Importa listone</b> carica il file ufficiale delle Quotazioni (<code>.xlsx</code>) o un <code>.csv</code>, poi premi <b>Importa</b>.{% endif %}</span></li>
+            <li class="{% if lst_owned %}ok{% elif lst_total %}now{% endif %}"><span class="dot">{% if lst_owned %}✓{% else %}2{% endif %}</span>
+                <span>{% if lst_owned %}Rose caricate: {{ lst_owned }} giocatori in rosa, {{ lst_free }} svincolati.{% else %}{% if lst_total %}<b>Adesso:</b> {% endif %}le rose delle squadre arrivano dall'asta oppure da un file: <b>Importa rose squadre</b> o <b>Importa schede squadra</b>; un giocatore alla volta con <b>Assegna</b>.{% endif %}</span></li>
+            <li class="{% if stats_covered %}ok{% endif %}"><span class="dot">{% if stats_covered %}✓{% else %}3{% endif %}</span>
+                <span>{% if stats_covered %}Statistiche su {{ stats_covered }} giocatori.{% else %}Facoltativo: <b>Statistiche giocatori</b> mostra presenze, media e fantamedia sul maxischermo e nella pagina offerte.{% endif %}</span></li>
+            <li><span class="dot">4</span>
+                <span>Durante la stagione cerca un giocatore con nome, ruolo, squadra o stato: <b>Assegna</b> lo mette in una rosa (o ne corregge il prezzo),
+                    <b>Svincola</b> lo rimette tra i liberi, <b>✕</b> lo toglie dal listone. Chi è uscito dal listone o dalla Serie A
+                    resta come <b>fuori listone</b> per lo storico: non è fra gli svincolati e non si compra.</span></li>
+        </ol>
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Un nuovo file Quotazioni aggiorna il listone senza toccare le rose; «Rimuovi svincolati non più in lista» toglie chi è uscito dalla Serie A. «Sostituisci tutto» azzera anche le rose: solo per ripartire da zero.</div>
+        {% else %}
+        <ol>
+            <li>Scrivi un nome o una squadra, oppure scegli ruolo e stato (<b>Svincolati</b> / <b>In rosa</b>), o tocca un conteggio in alto: l'elenco si filtra da solo.</li>
+            <li>Per ogni giocatore vedi chi lo ha in rosa o se è svincolato, e la quotazione.</li>
+        </ol>
+        {% endif %}
+    </div>
+</details>
+
+{% with lq=request.GET.league %}
+<nav class="lst-stats fm-onerow" aria-label="Conteggi del listone (tocca per filtrare)">
+    {% for r, n, label in lst_roles %}
+    <a class="lst-chip{% if lst_filters.role == r %} on{% endif %}" title="{{ label }}"
+       href="?{% if lq %}league={{ lq }}&{% endif %}vista=listone&role={{ r }}"><span class="role-badge role-{{ r }}">{{ r }}</span><b>{{ n }}</b></a>
+    {% endfor %}
+    <a class="lst-chip is-free{% if lst_filters.status == 'free' %} on{% endif %}"
+       href="?{% if lq %}league={{ lq }}&{% endif %}vista=listone&status=free"><b>{{ lst_free }}</b> svincolati</a>
+    {% if lst_out %}
+    <a class="lst-chip is-out{% if lst_filters.status == 'out' %} on{% endif %}" title="Usciti dal listone o dalla Serie A: restano per lo storico, non si comprano"
+       href="?{% if lq %}league={{ lq }}&{% endif %}vista=listone&status=out"><b>{{ lst_out }}</b> fuori listone</a>
+    {% endif %}
+    <a class="lst-chip is-total" href="?{% if lq %}league={{ lq }}&{% endif %}vista=listone"><b>{{ lst_total }}</b> totale</a>
+</nav>
+{% endwith %}
+
+{% if lst_can_manage %}
+<details class="lst-tools noprint" {% if need_listone or not lst_total %}open{% endif %}>
+    <summary><svg class="ic"><use href="#i-gear"/></svg> Strumenti listone <span class="muted" style="font-weight:500">· import, statistiche, export</span> <span class="chev">▼</span></summary>
+    <div class="lst-tools-body">
+        <div class="lst-tools-links fm-onerow">
+            <a class="fm-btn fm-btn-secondary fm-btn-sm" href="{% purl 'admin_export' %}{% if fb_league %}?league={{ fb_league.id }}{% endif %}">
+                <svg class="ic"><use href="#i-export"/></svg> Esporta rose</a>
+        </div>
+        <section class="fm-card"><div class="fm-section-title"><svg class="ic"><use href="#i-import"/></svg> Importa listone <span class="sep"></span></div>
+            <p class="muted">
+                Carica il file ufficiale delle <b>Quotazioni</b> (<code>.xlsx</code>) o un <code>.csv</code> con le colonne
+                <code>Nome, Ruolo, Squadra, Quotazione</code>. Il ruolo può essere <code>P / D / C / A</code> o esteso; le intestazioni possono variare.
+                I giocatori già in una rosa vengono <b>riconosciuti e lasciati al proprietario</b> (niente doppioni); i nuovi entrano come <b>svincolati</b>.
+            </p>
+            <div class="lst-form">
+                <div class="file"><label for="csv-file">File listone / CSV</label>
+                    <input type="file" id="csv-file" accept=".xlsx,.xls,.csv,.txt"></div>
+                <div class="opts">
+                    <label class="lst-opt"><input type="checkbox" id="csv-prune" value="1" checked> Rimuovi svincolati non più in lista</label>
+                    <label class="lst-opt"><input type="checkbox" id="csv-replace" value="1"> Sostituisci tutto (azzera anche le rose)</label>
+                </div>
+                <div class="btns">
+                    <button type="button" onclick="importCSV()" class="btn-ok">Importa</button>
+                    <button type="button" onclick="clearPlayers()" class="btn-bad">Svuota</button>
+                </div>
+            </div>
+            <p id="import-msg" class="lst-msg"></p>
+        </section>
+
+        {% include "auctions/_rose_import.html" with rose_league=fb_league %}
+
+        <section class="fm-card"><div class="fm-section-title"><svg class="ic"><use href="#i-users"/></svg> Importa schede squadra <span class="sep"></span></div>
+            <p class="muted">
+                Carica le <b>schede squadra</b> della lega: i <b>PDF</b> (una squadra per pagina) o l'<b>Excel</b> scaricato da
+                <a href="{% purl 'admin_export' %}{% if fb_league %}?league={{ fb_league.id }}{% endif %}">Export rose</a>, anche più file insieme.
+                Entrano presidente, allenatore, stadio, palmarès, logo e maglie, la rosa con <b>spesa e anni di contratto</b>
+                (RIN. = scaduto, - = da tirare), i giocatori <b>fuori dalla Serie A</b> (riga arancione), i prestiti e la lista ceduti temporanei.
+            </p>
+            <div class="lst-form">
+                <div class="file"><label for="sheet-files">Schede (.pdf / .xlsx)</label>
+                    <input type="file" id="sheet-files" multiple accept=".pdf,.xlsx,.xlsm" onchange="resetSheets()"></div>
+                <div class="opts">
+                    <label class="lst-opt"><input type="checkbox" id="sheet-replace" value="1" checked> La scheda è la rosa completa (svincola chi non c'è)</label>
+                    <label class="lst-opt"><input type="checkbox" id="sheet-images" value="1"> Sostituisci logo e maglie già caricati</label>
+                </div>
+                <div class="btns">
+                    <button type="button" onclick="importSheets(true)" class="btn-ghost">Anteprima</button>
+                    <button type="button" onclick="importSheets(false)" class="btn-ok">Importa schede</button>
+                </div>
+            </div>
+            <p id="sheet-msg" class="lst-msg"></p>
+            <div id="sheet-preview" style="display:none;margin-top:14px"></div>
+        </section>
+
+        <section class="fm-card"><div class="fm-section-title"><svg class="ic"><use href="#i-chart"/></svg> Statistiche giocatori <span class="sep"></span></div>
+            <p class="muted">
+                Presenze, media voto, fantamedia, gol e assist della stagione compaiono nella scheda del giocatore
+                <b>sul maxischermo e nella pagina offerte</b>, per decidere quanto spendere durante l'asta.
+                {% if stats_server_file %}
+                Questo server ha già un file di statistiche{% if stats_season %} ({{ stats_season }}){% endif %}: viene applicato da solo appena importi il listone.
+                {% else %}
+                Carica il file delle statistiche che hai scaricato (per esempio l'export «Statistiche» del tuo sito di fantacalcio).
+                {% endif %}
+            </p>
+            <div class="lst-cover">
+                <svg class="ic" style="width:20px;height:20px;color:var(--fm-success)"><use href="#i-chart"/></svg>
+                <div>
+                    <b>{{ stats_covered }}</b> di <b>{{ lst_total }}</b> giocatori hanno le statistiche{% if stats_season %} {{ stats_season }}{% endif %}.
+                    {% if stats_server_file and stats_covered == 0 and lst_total > 0 %}
+                    <span class="muted">Premi «Applica statistiche» per aggiungerle al listone già caricato.</span>
+                    {% endif %}
+                </div>
+                {% if stats_server_file %}
+                <button type="button" onclick="importStats(false)" class="btn-ok">Applica statistiche{% if stats_season %} {{ stats_season }}{% endif %}</button>
+                {% endif %}
+            </div>
+            <details{% if not stats_server_file %} open{% endif %}>
+                <summary class="muted" style="font-size:13px;cursor:pointer">{% if stats_server_file %}Usa un file diverso (stagione nuova o listone personale){% else %}Importa da file{% endif %}</summary>
+                <div class="lst-form" style="margin-top:14px">
+                    <div class="file"><label for="stats-file">File statistiche (.xlsx / .xls / .csv)</label>
+                        <input type="file" id="stats-file" accept=".xlsx,.xls,.csv"></div>
+                    <div class="btns"><button type="button" onclick="importStats(true)" class="btn-ok">Importa dal file</button></div>
+                </div>
+                <p class="muted" style="font-size:12px;margin:12px 0 0;line-height:1.6">
+                    Additivo: aggiorna solo i giocatori già presenti nel listone, senza toccare proprietà o prezzi.
+                </p>
+            </details>
+            <p id="stats-msg" class="lst-msg"></p>
+        </section>
+    </div>
+</details>
+{% endif %}
+
+<div class="fm-card">
+    <form method="get" class="lst-filters" id="player-filters">
+        {% if request.GET.league %}<input type="hidden" name="league" value="{{ request.GET.league }}">{% endif %}
+        <input type="hidden" name="vista" value="listone">
+        <input id="player-search" name="q" type="search" value="{{ lst_filters.q }}" enterkeyhint="search"
+               placeholder="Cerca giocatore o squadra…" aria-label="Cerca giocatore o squadra">
+        <div class="fm-onerow">
+            <select name="role" aria-label="Filtra per ruolo" onchange="this.form.submit()">
+                <option value="">Ruolo</option>
+                <option value="P" {% if lst_filters.role == "P" %}selected{% endif %}>Portieri</option>
+                <option value="D" {% if lst_filters.role == "D" %}selected{% endif %}>Difensori</option>
+                <option value="C" {% if lst_filters.role == "C" %}selected{% endif %}>Centrocampisti</option>
+                <option value="A" {% if lst_filters.role == "A" %}selected{% endif %}>Attaccanti</option>
+            </select>
+            <select name="team" aria-label="Filtra per squadra" onchange="this.form.submit()">
+                <option value="">Squadra</option>
+                {% for t in lst_teams %}
+                <option value="{{ t }}" {% if lst_filters.team == t %}selected{% endif %}>{{ t }}</option>
+                {% endfor %}
+            </select>
+            <select name="status" aria-label="Filtra per stato" onchange="this.form.submit()">
+                <option value="">Stato</option>
+                <option value="free" {% if lst_filters.status == "free" %}selected{% endif %}>Svincolati</option>
+                <option value="owned" {% if lst_filters.status == "owned" %}selected{% endif %}>In rosa</option>
+                <option value="out" {% if lst_filters.status == "out" %}selected{% endif %}>Fuori listone</option>
+            </select>
+            <select name="sort" aria-label="Ordina" onchange="this.form.submit()">
+                <option value="name"   {% if lst_filters.sort == "name" %}selected{% endif %}>Nome A-Z</option>
+                <option value="-name"  {% if lst_filters.sort == "-name" %}selected{% endif %}>Nome Z-A</option>
+                <option value="-quota" {% if lst_filters.sort == "-quota" %}selected{% endif %}>Quotazione ↓</option>
+                <option value="quota"  {% if lst_filters.sort == "quota" %}selected{% endif %}>Quotazione ↑</option>
+                <option value="role"   {% if lst_filters.sort == "role" %}selected{% endif %}>Ruolo</option>
+                <option value="team"   {% if lst_filters.sort == "team" %}selected{% endif %}>Squadra</option>
+            </select>
+            {% if lst_filters.q or lst_filters.role or lst_filters.team or lst_filters.status %}
+            <a class="fm-btn fm-btn-ghost fm-btn-sm" href="?{% if request.GET.league %}league={{ request.GET.league }}&{% endif %}vista=listone">Azzera</a>
+            {% endif %}
+        </div>
+    </form>
+
+    <div class="fb-list" id="player-list">
+    {% for p in lst_rows %}
+        <div class="fb-row lst-row">
+            <div class="lst-role"><span class="role-badge role-{{ p.role }}">{{ p.role }}</span>{% if lst_mantra and p.roles_display %}<span class="lst-mroles" title="Ruoli Mantra">{{ p.roles_display }}</span>{% endif %}</div>
+            <div class="fb-main">
+                <div class="fb-name">{{ p.name }}</div>
+                <div class="fb-sub"><span>{{ p.team|default:"—" }}</span></div>
+            </div>
+            <div class="fb-league">
+                {% if p.owner_id %}<span class="owner">{{ p.owner.display_name }}</span>
+                <span class="as">pagato {{ p.cost|floatformat:0 }} FM · quot. <span class="lst-quota">{{ p.initial_price|floatformat:0 }}</span></span>
+                {% elif not p.in_listone %}<span class="out" title="Non è più nel listone: non si compra e non è fra gli svincolati. Torna se ricompare in un listone.">Fuori listone</span>
+                {% else %}<span class="free">Svincolato</span>
+                <span class="as">quot. <span class="lst-quota">{{ p.initial_price|floatformat:0 }}</span> FM</span>{% endif %}
+                {% if lst_can_manage %}
+                <div class="lst-actions">
+                    <button type="button" class="btn-ghost" title="Assegna / correggi proprietario e prezzo"
+                            data-id="{{ p.id }}" data-name="{{ p.name }}" data-price="{{ p.initial_price|floatformat:0 }}" data-owner="{{ p.owner_id|default:'' }}"
+                            onclick="openAssign(this)">Assegna</button>
+                    {% if p.owner_id %}
+                    <button type="button" class="btn-warn" title="Svincola: rimette il giocatore tra i liberi" onclick="releasePlayer({{ p.id }}, this)">Svincola</button>
+                    {% endif %}
+                    <button type="button" class="btn-ghost" title="Elimina dal listone" aria-label="Elimina dal listone" onclick="deletePlayer({{ p.id }}, this)">✕</button>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    {% empty %}
+        <div class="fb-empty">
+            {% if lst_filters.q or lst_filters.role or lst_filters.team or lst_filters.status %}Nessun giocatore per questi filtri.
+            {% elif lst_can_manage %}Il listone è vuoto: apri <b>Strumenti listone</b> qui sopra e carica il file Quotazioni.
+            {% else %}Il listone della lega è vuoto: lo carica chi gestisce la lega.{% endif %}
+        </div>
+    {% endfor %}
+    </div>
+
+    <nav class="fb-pager" aria-label="Pagine del listone">
+        <span>{% if lst_page.paginator.count %}{{ lst_page.start_index }}–{{ lst_page.end_index }} di {{ lst_page.paginator.count }}{% if lst_page.paginator.count != lst_total %} (su {{ lst_total }}){% endif %}{% else %}0 risultati{% endif %}</span>
+        <span class="grow"></span>
+        {% if lst_page.has_previous %}<a class="fm-btn fm-btn-secondary fm-btn-sm" href="?{{ lst_filter_qs }}{% if lst_filter_qs %}&{% endif %}page={{ lst_page.previous_page_number }}">‹ Prec.</a>{% endif %}
+        {% if lst_page.paginator.num_pages > 1 %}<span>{{ lst_page.number }} / {{ lst_page.paginator.num_pages }}</span>{% endif %}
+        {% if lst_page.has_next %}<a class="fm-btn fm-btn-secondary fm-btn-sm" href="?{{ lst_filter_qs }}{% if lst_filter_qs %}&{% endif %}page={{ lst_page.next_page_number }}">Succ. ›</a>{% endif %}
+    </nav>
+</div>
+
+{% if lst_can_manage %}
+<div id="assign-overlay" role="dialog" aria-modal="true" aria-labelledby="assign-title">
+    <div class="box">
+        <h3 id="assign-title" style="margin:0 0 4px">Assegna giocatore</h3>
+        <p id="assign-pname" class="muted" style="margin:0 0 16px;font-weight:600"></p>
+        <label for="assign-team" class="muted" style="font-size:13px">Squadra</label>
+        <select id="assign-team" style="width:100%;margin:6px 0 14px">
+            {% for t in lst_participants %}
+            <option value="{{ t.id }}">{{ t.display_name }}</option>
+            {% empty %}
+            <option value="" disabled>Nessuna squadra nella lega: aggiungila da Squadre</option>
+            {% endfor %}
+        </select>
+        <label for="assign-price" class="muted" style="font-size:13px">Prezzo (FM)</label>
+        <input id="assign-price" type="number" min="0" step="1" style="width:100%;margin:6px 0 18px">
+        <div style="display:flex;gap:10px;justify-content:flex-end">
+            <button type="button" class="btn-ghost" onclick="closeAssign()">Annulla</button>
+            <button type="button" class="btn-primary" id="assign-go" onclick="doAssign()">Assegna</button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+(function () {
+    // La ricerca filtra nel database (form GET): basta inviarla dopo una pausa.
+    const search = document.getElementById("player-search");
+    if (!search) return;
+    let t = null;
+    search.addEventListener("input", () => {
+        clearTimeout(t);
+        t = setTimeout(() => document.getElementById("player-filters").submit(), 450);
+    });
+})();
+</script>
+
+{% if lst_can_manage %}
+<script>
+    const LST_CSRF = (document.cookie.match("(^|;)\\s*csrftoken\\s*=\\s*([^;]+)") || []).pop() || "";
+    const LST_LEAGUE_ID = "{{ fb_league.id|default:'' }}";
+    const LST_URLS = {
+        importPlayers: "{% url 'admin_import_players' %}",
+        importRose: "{% url 'admin_import_rose' %}",
+        importSheets: "{% url 'admin_import_team_sheets' %}",
+        importStats: "{% url 'admin_import_stats' %}",
+        clear: "{% url 'admin_clear_players' %}",
+        del: "{% url 'admin_delete_player' 0 %}",
+        release: "{% url 'admin_release_player' 0 %}",
+        assign: "{% url 'admin_assign_player' 0 %}",
+    };
+    const lstUrl = (tpl, id) => tpl.replace("/0/", `/${id}/`);
+
+    // Le risposte delle azioni: JSON con ok/error; il listone bloccato
+    // dall'asta in sala risponde 423 con il suo messaggio.
+    async function lstPost(url, form) {
+        try {
+            const r = await fetch(url, { method: "POST", body: form || new FormData(), headers: { "X-CSRFToken": LST_CSRF } });
+            const data = await r.json().catch(() => ({}));
+            if (!r.ok && data.ok === undefined) data.ok = false;
+            if (!data.ok && !data.error) data.error = r.status === 403 ? "Non puoi modificare questa lega." : `Errore del server (${r.status}): riprova.`;
+            return data;
+        } catch (e) {
+            return { ok: false, error: "Errore di rete: controlla la connessione e riprova." };
+        }
+    }
+
+    function lstMsg(id, text, color) {
+        const msg = document.getElementById(id);
+        msg.style.display = "block"; msg.style.color = color; msg.textContent = text;
+    }
+
+    async function importCSV() {
+        const file = document.getElementById("csv-file").files[0];
+        if (!file) { lstMsg("import-msg", "Scegli prima il file del listone.", "var(--closed)"); return; }
+        const form = new FormData();
+        form.append("csv_file", file);
+        form.append("replace", document.getElementById("csv-replace").checked ? "1" : "0");
+        form.append("prune", document.getElementById("csv-prune").checked ? "1" : "0");
+        if (LST_LEAGUE_ID) form.append("league_id", LST_LEAGUE_ID);
+        lstMsg("import-msg", "Importazione…", "var(--muted)");
+        const data = await lstPost(LST_URLS.importPlayers, form);
+        if (!data.ok) { lstMsg("import-msg", "✗ " + data.error, "var(--closed)"); return; }
+        const parts = [];
+        if (data.created) parts.push(`${data.created} nuovi svincolati`);
+        if (data.updated) parts.push(`${data.updated} aggiornati`);
+        if (data.matched_owned) parts.push(`${data.matched_owned} già in rosa preservati`);
+        if (data.pruned) parts.push(`${data.pruned} svincolati rimossi`);
+        lstMsg("import-msg", "✓ " + (parts.join(" · ") || "nessuna modifica") +
+            ((data.errors || []).length ? ` · ${data.errors.length} righe ignorate.` : ""), "var(--live)");
+        const left = data.left_serie_a;
+        if (left) {
+            // 5.05: chi è in rosa ma non è più nel listone. Resta il tempo di leggere e aprire Contratti.
+            const note = document.createElement("span");
+            note.style.cssText = "display:block;margin-top:6px;color:var(--gold)";
+            note.textContent = `⚠ ${left.flagged} giocator${left.flagged === 1 ? "e" : "i"} in rosa non ${left.flagged === 1 ? "è" : "sono"} più nel listone` +
+                (left.summary ? `: ${left.summary}` : "") + " ";
+            const link = document.createElement("a");
+            link.href = left.url; link.textContent = "Apri Contratti →";
+            note.appendChild(link);
+            document.getElementById("import-msg").appendChild(note);
+            return;
+        }
+        setTimeout(() => location.reload(), 1800);
+    }
+
+    // --- Schede squadra -------------------------------------------------------
+    // L'anteprima fa l'import vero e poi lo annulla: quello che mostra è quello
+    // che succederà. Le tendine scelgono la squadra di ogni scheda.
+    function resetSheets() {
+        const box = document.getElementById("sheet-preview");
+        box.style.display = "none"; box.innerHTML = "";
+        document.getElementById("sheet-msg").style.display = "none";
+    }
+
+    function sheetMapping() {
+        const map = {};
+        document.querySelectorAll("[data-sheet-map]").forEach(sel => { map[sel.dataset.sheetMap] = sel.value; });
+        return map;
+    }
+
+    function sheetList(label, items, color) {
+        if (!items || !items.length) return "";
+        return `<div style="margin-top:4px"><span style="color:${color};font-weight:700">${label}:</span> ` +
+            items.map(fmEsc).join(", ") + `</div>`;
+    }
+
+    function renderSheets(data) {
+        const teams = data.teams || [];
+        const cards = data.sheets.map(s => {
+            const pick = s.skipped ? "skip" : (s.team_id ? String(s.team_id) : (s.created_team ? "new" : ""));
+            const opts = teams.map(t => `<option value="${fmEsc(t.id)}" ${String(t.id) === pick ? "selected" : ""}>${fmEsc(t.name)}</option>`).join("");
+            const info = s.info || {};
+            const head = [info.president && `Presidente ${fmEsc(info.president)}`,
+                          info.coach && `allenatore ${fmEsc(info.coach)}`,
+                          info.stadium && `stadio ${fmEsc(info.stadium)}${info.capacity ? " (" + fmEsc(info.capacity) + ")" : ""}`]
+                .filter(Boolean).join(" · ");
+            const counts = s.skipped ? "scheda saltata" :
+                `${fmEsc(s.players)} giocatori` + (s.reserved ? ` · ${fmEsc(s.reserved)} in lista ceduti` : "") +
+                (s.loans ? ` · ${fmEsc(s.loans)} prestiti` : "") +
+                (s.images && s.images.length ? ` · immagini: ${s.images.map(k => ({logo: "logo", kit_home: "prima maglia", kit_away: "seconda maglia"})[k] || fmEsc(k)).join(", ")}` : "");
+            return `<div style="padding:12px 14px;border:1px solid var(--fm-border);border-radius:10px;margin-bottom:10px">` +
+                `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">` +
+                `<b style="flex:1 1 200px">${fmEsc(s.title || "(senza titolo)")}</b>` +
+                `<span class="muted" style="font-size:12px">${fmEsc(s.source)}</span>` +
+                `<select data-sheet-map="${fmEsc(s.index)}" style="width:auto;min-width:190px;margin:0">` +
+                `<option value="">Riconosci dal titolo</option>${opts}` +
+                `<option value="new" ${pick === "new" ? "selected" : ""}>➕ Nuova squadra</option>` +
+                `<option value="skip" ${pick === "skip" ? "selected" : ""}>Salta questa scheda</option></select></div>` +
+                `<div style="font-size:12.5px;margin-top:6px">${s.created_team ? "<b style='color:var(--gold)'>Nuova squadra</b> · " : ""}${counts}</div>` +
+                (head ? `<div class="muted" style="font-size:12px;margin-top:2px">${head}</div>` : "") +
+                `<div style="font-size:12px;margin-top:4px">` +
+                sheetList("Nuovi nel listone", s.created_players, "var(--gold)") +
+                sheetList("Spostati da un'altra squadra", s.moved, "var(--accent)") +
+                sheetList("Fuori dalla Serie A", s.flagged_out, "#f8a77a") +
+                sheetList("Svincolati (non nella scheda)", s.released, "var(--closed)") +
+                sheetList("Attenzione", s.warnings, "var(--closed)") + `</div></div>`;
+        }).join("");
+        const box = document.getElementById("sheet-preview");
+        box.innerHTML = cards + (data.errors && data.errors.length
+            ? `<div style="color:var(--closed);font-size:12.5px">${data.errors.map(fmEsc).join("<br>")}</div>` : "");
+        box.style.display = "block";
+    }
+
+    async function importSheets(preview) {
+        const files = document.getElementById("sheet-files").files;
+        if (!files.length) { lstMsg("sheet-msg", "Scegli prima uno o più file delle schede.", "var(--closed)"); return; }
+        const form = new FormData();
+        for (const f of files) form.append("sheet_files", f);
+        if (preview) form.append("action", "preview");
+        form.append("replace", document.getElementById("sheet-replace").checked ? "1" : "0");
+        form.append("overwrite_images", document.getElementById("sheet-images").checked ? "1" : "0");
+        form.append("mapping", JSON.stringify(sheetMapping()));
+        if (LST_LEAGUE_ID) form.append("league_id", LST_LEAGUE_ID);
+        lstMsg("sheet-msg", preview ? "Lettura delle schede…" : "Importazione…", "var(--muted)");
+        const data = await lstPost(LST_URLS.importSheets, form);
+        if (!data.ok) { lstMsg("sheet-msg", "✗ " + data.error, "var(--closed)"); return; }
+        renderSheets(data);
+        const total = data.sheets.filter(s => !s.skipped).reduce((n, s) => n + s.players, 0);
+        if (preview) {
+            lstMsg("sheet-msg", `Anteprima: ${data.sheets.length} schede, ${total} giocatori. Controlla le squadre e premi «Importa schede».` +
+                (data.contracts_on ? "" : " ⚠ I contratti non sono attivi in questa lega: gli anni vengono salvati ma non usati."),
+                "var(--gold)");
+            return;
+        }
+        lstMsg("sheet-msg", `✓ Importate ${data.sheets.filter(s => !s.skipped).length} schede · ${total} giocatori.`, "var(--live)");
+    }
+
+    async function clearPlayers() {
+        if (!confirm("Eliminare tutti i giocatori dal listone di questa lega?")) return;
+        const form = new FormData();
+        if (LST_LEAGUE_ID) form.append("league_id", LST_LEAGUE_ID);
+        const data = await lstPost(LST_URLS.clear, form);
+        if (!data.ok) { lstMsg("import-msg", "✗ " + data.error, "var(--closed)"); return; }
+        location.reload();
+    }
+
+    async function deletePlayer(id, btn) {
+        if (!confirm("Eliminare questo giocatore dal listone?")) return;
+        const data = await lstPost(lstUrl(LST_URLS.del, id));
+        if (!data.ok) { alert(data.error); return; }
+        btn.closest(".lst-row").remove();
+    }
+
+    async function releasePlayer(id, btn) {
+        if (!confirm("Svincolare il giocatore? Tornerà tra i liberi.")) return;
+        const data = await lstPost(lstUrl(LST_URLS.release, id));
+        if (!data.ok) { alert(data.error); return; }
+        location.reload();
+    }
+
+    async function importStats(fromFile) {
+        // Senza file vale quello del server, se configurato (altrimenti il server lo chiede).
+        const f = fromFile ? document.getElementById("stats-file").files[0] : null;
+        if (fromFile && !f) { lstMsg("stats-msg", "Scegli prima il file delle statistiche.", "var(--closed)"); return; }
+        lstMsg("stats-msg", "Applico le statistiche…", "var(--muted)");
+        const form = new FormData();
+        if (LST_LEAGUE_ID) form.append("league_id", LST_LEAGUE_ID);
+        if (f) form.append("stats_file", f);
+        const d = await lstPost(LST_URLS.importStats, form);
+        if (!d.ok) { lstMsg("stats-msg", "✗ " + d.error, "var(--closed)"); return; }
+        lstMsg("stats-msg", `✓ Statistiche aggiornate su ${d.matched} giocatori` +
+            (d.missing ? ` · ${d.missing} non abbinati` : "") + (d.source ? ` · ${d.source}` : ""), "var(--ok,#22c55e)");
+        setTimeout(() => location.reload(), 1600);
+    }
+
+    // Assegna / riassegna / correggi il prezzo.
+    let assignId = null;
+    function openAssign(btn) {
+        assignId = btn.dataset.id;
+        document.getElementById("assign-pname").textContent = btn.dataset.name;
+        document.getElementById("assign-price").value = btn.dataset.price;
+        if (btn.dataset.owner) document.getElementById("assign-team").value = btn.dataset.owner;
+        document.getElementById("assign-overlay").style.display = "flex";
+    }
+    function closeAssign() {
+        document.getElementById("assign-overlay").style.display = "none";
+        assignId = null;
+    }
+    async function doAssign() {
+        const team = document.getElementById("assign-team").value;
+        if (!team) { alert("Scegli la squadra a cui assegnarlo."); return; }
+        const btn = document.getElementById("assign-go");
+        btn.disabled = true;
+        const form = new FormData();
+        form.append("participant_id", team);
+        form.append("price", document.getElementById("assign-price").value || "0");
+        const data = await lstPost(lstUrl(LST_URLS.assign, assignId), form);
+        btn.disabled = false;
+        if (data.ok) location.reload();
+        else alert(data.error || "Assegnazione non riuscita: riprova.");
+    }
+    document.getElementById("assign-overlay").addEventListener("click", (e) => {
+        if (e.target.id === "assign-overlay") closeAssign();
+    });
+</script>
+{% endif %}

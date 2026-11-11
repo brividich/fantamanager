@@ -47,8 +47,14 @@ class RateLimited(ApiFootballError):
     """Troppe richieste in questo minuto: fra poco si può riprovare."""
 
 
-class _SeasonRefused(Exception):
-    pass
+class _SeasonRefused(ApiFootballError):
+    """Il piano della chiave non copre la stagione chiesta. Le ricerche che
+    hanno un'alternativa la intercettano; altrimenti arriva a chi chiama come
+    ogni altro errore dell'API (non come un errore interno)."""
+
+    def __init__(self, detail=""):
+        super().__init__("il piano di API-Football non copre la stagione in corso"
+                         + (f" ({detail})" if detail else ""))
 
 
 # Richieste rimaste secondo le intestazioni dell'ultima risposta (None = ignoto).
@@ -64,26 +70,89 @@ def _season():
     return today.year if today.month >= 7 else today.year - 1
 
 
+# --- API ferma: l'interruttore ----------------------------------------------------
+# Dopo un errore che vale per ogni richiesta (rete, chiave rifiutata, limite
+# del giorno) l'API si considera ferma per un po': le chiamate successive
+# falliscono subito con il motivo, invece di aspettare 15 s ciascuna (una
+# pagina con dieci ricerche restava ferma minuti). Lo stato sta nella cache,
+# così lo vedono anche le pagine. Un'azione esplicita dell'admin («Aggiorna»,
+# «Sincronizza», «Rileva») riprova subito con :func:`retry_now`.
+# Vale solo per le chiamate vere (``requests.get``): le prove passano il loro.
+OUTAGE_KEY = "apifootball:outage"
+OUTAGE_NETWORK = 5 * 60
+OUTAGE_KEY_REFUSED = 30 * 60
+
+
+def _until_midnight_utc():
+    """Secondi fino a mezzanotte UTC, quando API-Football azzera il limite del giorno."""
+    from datetime import datetime, timezone as dt_tz
+    now = datetime.now(dt_tz.utc)
+    tomorrow = (now + timedelta(days=1)).replace(hour=0, minute=0, second=5, microsecond=0)
+    return max(60, int((tomorrow - now).total_seconds()))
+
+
+def _trip(reason, seconds):
+    from django.core.cache import cache
+    from django.utils import timezone
+    now = timezone.now()
+    cache.set(OUTAGE_KEY, {"reason": reason, "since": now, "until": now + timedelta(seconds=seconds)}, seconds)
+    logger.warning("API-Football ferma per %ss: %s", seconds, reason)
+
+
+def outage():
+    """None se l'API risponde (o non si sa), altrimenti ``{"reason", "since", "until"}``."""
+    from django.core.cache import cache
+    return cache.get(OUTAGE_KEY)
+
+
+def retry_now():
+    """Un'azione esplicita dell'admin: si riprova subito, senza aspettare."""
+    from django.core.cache import cache
+    cache.delete(OUTAGE_KEY)
+
+
+def status():
+    """Stato per le pagine: ``{"configured", "outage"}`` (outage None = nessun problema noto)."""
+    return {"configured": is_configured(), "outage": outage() if is_configured() else None}
+
+
+def _outage_error(state):
+    from django.utils import timezone
+    until = timezone.localtime(state["until"]).strftime("%H:%M")
+    return ApiFootballError(f"{state['reason']} (riprova da sola dopo le {until})")
+
+
 def _get(path, params, *, get=requests.get):
     key = os.environ.get("APIFOOTBALL_KEY", "").strip()
     if not key:
         raise ApiFootballError("API-Football non configurata: imposta APIFOOTBALL_KEY sul server e riavvia")
+    guarded = get is requests.get
+    if guarded:
+        state = outage()
+        if state:
+            raise _outage_error(state)
+
+    def down(reason, seconds, cls=ApiFootballError):
+        if guarded:
+            _trip(reason, seconds)
+        return cls(reason)
+
     try:
         resp = get(f"{BASE}{path}", params=params, headers={"x-apisports-key": key}, timeout=15)
         _remember_limits(resp)
         resp.raise_for_status()
         data = resp.json()
     except requests.HTTPError as exc:
-        status = getattr(exc.response, "status_code", None)
-        logger.warning("API-Football %s: HTTP %s", path, status)
-        if status in (401, 403):
-            raise ApiFootballError("API-Football ha rifiutato la chiave (APIFOOTBALL_KEY)") from exc
-        if status == 429:
+        status_code = getattr(exc.response, "status_code", None)
+        logger.warning("API-Football %s: HTTP %s", path, status_code)
+        if status_code in (401, 403):
+            raise down("API-Football ha rifiutato la chiave (APIFOOTBALL_KEY)", OUTAGE_KEY_REFUSED) from exc
+        if status_code == 429:
             raise RateLimited("troppe richieste ad API-Football: riprova tra un minuto") from exc
-        raise ApiFootballError(f"API-Football non risponde (HTTP {status})") from exc
+        raise down(f"API-Football non risponde (HTTP {status_code})", OUTAGE_NETWORK) from exc
     except (requests.RequestException, ValueError) as exc:
         logger.warning("API-Football %s non disponibile: %s", path, exc)
-        raise ApiFootballError("API-Football non raggiungibile da questo server") from exc
+        raise down("API-Football non raggiungibile da questo server", OUTAGE_NETWORK) from exc
     errors = data.get("errors") if isinstance(data, dict) else None
     if errors:
         logger.warning("API-Football %s %s: %s", path, params, errors)
@@ -91,13 +160,15 @@ def _get(path, params, *, get=requests.get):
             if "plan" in errors:
                 raise _SeasonRefused(str(errors["plan"]))
             if "token" in errors or "access" in errors:
-                raise ApiFootballError("API-Football ha rifiutato la chiave (APIFOOTBALL_KEY)")
+                raise down("API-Football ha rifiutato la chiave (APIFOOTBALL_KEY)", OUTAGE_KEY_REFUSED)
             if "rateLimit" in errors:
                 raise RateLimited("troppe richieste al minuto ad API-Football: riprova tra un minuto")
             if "requests" in errors:
-                raise ApiFootballError("limite giornaliero di richieste API-Football raggiunto: riprova domani")
+                raise down("limite giornaliero di richieste API-Football raggiunto", _until_midnight_utc())
         # Un parametro che l'API non accetta vale solo per questa ricerca.
         return []
+    if guarded and outage():
+        retry_now()  # ha risposto: non è più ferma
     return (data.get("response") if isinstance(data, dict) else None) or []
 
 
@@ -107,6 +178,12 @@ def _remember_limits(resp):
         value = str(headers.get(header, "")).strip()
         if value.isdigit():
             _limits[key] = int(value)
+
+
+def impatient(seconds):
+    """Lo ``sleep`` di :func:`paced` dentro una pagina: niente attese di un
+    minuto mentre l'admin aspetta, si dice di riprovare."""
+    raise RateLimited("limite di richieste al minuto di API-Football raggiunto: riprova tra un minuto")
 
 
 def paced(fn, *args, sleep=time.sleep, **kwargs):
@@ -570,18 +647,20 @@ def fixture_player_rows(fixture_id, *, get=requests.get):
     return rows
 
 
-def matchday_live_rows(round_number, *, season=None, get=requests.get):
+def matchday_live_rows(round_number, *, season=None, get=requests.get, sleep=impatient):
     """Tutte le righe delle partite già iniziate della giornata ``round_number``.
 
     Solleva :class:`ApiFootballError` se la chiave manca, è rifiutata o il
     limite è finito: chi chiama lo mostra all'admin invece di tacere.
+    ``sleep``: di default non aspetta il minuto del limite (una pagina che
+    aspetta); il sync in background passa ``time.sleep``.
     """
     try:
         rows = []
-        for fixture_id, status in matchday_fixtures(round_number, season=season, get=get):
-            if status in NOT_PLAYED:
+        for fixture_id, fixture_status in matchday_fixtures(round_number, season=season, get=get):
+            if fixture_status in NOT_PLAYED:
                 continue
-            rows.extend(paced(fixture_player_rows, fixture_id, get=get))
+            rows.extend(paced(fixture_player_rows, fixture_id, get=get, sleep=sleep))
         return rows
     except _SeasonRefused as exc:
         raise ApiFootballError(

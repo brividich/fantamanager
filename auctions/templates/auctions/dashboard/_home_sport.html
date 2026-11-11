@@ -155,7 +155,7 @@
                     <use href="#i-swap" />
                 </svg> Mercato
             </a>
-            <a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% url 'admin_players' %}?league={{ current_league.id }}">
+            <a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% url 'admin_footballers' %}?league={{ current_league.id }}">
                 <svg class="ic">
                     <use href="#i-users" />
                 </svg> Listone FVM
@@ -518,7 +518,7 @@
                             </div>
                         </a>
 
-                        <a class="sport-tool-tile" href="{% url 'admin_players' %}?league={{ current_league.id }}">
+                        <a class="sport-tool-tile" href="{% url 'admin_footballers' %}?league={{ current_league.id }}">
                             <div class="tool-icon icon-blue"><svg class="ic">
                                     <use href="#i-users" />
                                 </svg></div>
@@ -1198,12 +1198,12 @@
                                         🔑 PIN
                                     </button>
                                     {% if can_manage_accounts %}
-                                    <button type="button" class="fm-btn fm-btn-primary fm-btn-xs"
-                                        style="background:linear-gradient(135deg,#3b82f6,#2563eb);border:none"
-                                        onclick="openManageUserModal({{ p.id }}, '{{ p.display_name|escapejs }}', '{{ p.user.id|default:'' }}', '{{ p.user.username|default:''|escapejs }}', '{{ p.user.email|default:''|escapejs }}', '{{ p.user.first_name|default:''|escapejs }}', '{{ p.league_role }}', {% if p.user %}{{ p.user.is_active|lower }}{% else %}true{% endif %})"
-                                        title="Gestisci account utente, email, reset password e ruolo">
+                                    {# L'account del portale si gestisce in Squadre (lo stesso form di console e app). #}
+                                    <a class="fm-btn fm-btn-primary fm-btn-xs"
+                                        href="{% url 'admin_participants' %}?league={{ current_league.id }}#team-{{ p.id }}"
+                                        title="Account del portale, email, password: in Squadre">
                                         👤 Utente
-                                    </button>
+                                    </a>
                                     {% endif %}
                                 </div>
                             </td>
@@ -1627,167 +1627,6 @@
                 <button type="button" class="fm-btn fm-btn-ghost fm-btn-sm"
                     onclick="closeModal('modal-qr')">Chiudi</button>
             </div>
-        </div>
-    </div>
-
-    <!-- 7. MODALE GESTIONE UTENTE, CAMBIO EMAIL, RESET PASSWORD & RUOLO -->
-    <div id="modal-manage-user" class="fm-modal-backdrop" style="display:none"
-        onclick="if(event.target===this)closeModal('modal-manage-user')">
-        <div class="fm-modal-dialog" style="max-width:540px">
-            <div class="fm-modal-header">
-                <div>
-                    <h3 class="fm-modal-title" id="manage-user-modal-title">Gestione Utente & Ruolo</h3>
-                    <div style="font-size:12px;color:var(--fm-text-secondary);margin-top:2px" id="manage-user-modal-subtitle">
-                        Cambio email, reset password, attivazione e ruolo di lega.
-                    </div>
-                </div>
-                <button type="button" class="fm-modal-close" onclick="closeModal('modal-manage-user')">&times;</button>
-            </div>
-            <form id="form-manage-user" method="post" action="">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="manage">
-                <input type="hidden" name="next" value="{{ request.get_full_path }}#iscritti">
-                <input type="hidden" name="unlink_account" id="manage-user-unlink" value="0">
-                <input type="hidden" name="generate_password" id="manage-user-gen-pwd" value="0">
-                <input type="hidden" name="manage_subaction" id="manage-user-subaction" value="edit">
-
-                <div class="fm-modal-body" style="gap:14px;max-height:75vh;overflow-y:auto;padding-right:4px">
-
-                    <!-- Info banner if unlinked -->
-                    <div id="manage-unlinked-box" style="display:none;background:rgba(234,179,8,0.12);border:1px solid rgba(234,179,8,0.3);border-radius:10px;padding:12px 14px">
-                        <div style="display:flex;align-items:center;gap:8px">
-                            <span style="font-size:18px">ℹ️</span>
-                            <div style="font-size:12px;color:#fef08a">
-                                <b>Nessun account attualmente collegato</b> a questa squadra.<br>
-                                Puoi creare un account nuovo adesso oppure collegarne uno già esistente.
-                            </div>
-                        </div>
-                        <div style="display:flex;gap:12px;margin-top:10px">
-                            <label style="font-size:12px;font-weight:600;color:#fff;cursor:pointer;display:flex;align-items:center;gap:6px">
-                                <input type="radio" name="unlinked_mode" value="create" checked onchange="toggleManageUnlinkedMode('create')">
-                                Crea Nuovo Account
-                            </label>
-                            <label style="font-size:12px;font-weight:600;color:#fff;cursor:pointer;display:flex;align-items:center;gap:6px">
-                                <input type="radio" name="unlinked_mode" value="link" onchange="toggleManageUnlinkedMode('link')">
-                                Collega Utente Esistente
-                            </label>
-                        </div>
-                    </div>
-
-                    <!-- Dropdown for linking existing account -->
-                    <div id="manage-link-existing-group" style="display:none" class="fm-form-group">
-                        <label class="fm-form-label">Seleziona Account Esistente da Collegare</label>
-                        <select name="link_user_id" id="manage-link-user-select" class="fm-form-select">
-                            <option value="">— Seleziona utente —</option>
-                            {% for u in available_users %}
-                            <option value="{{ u.id }}">{{ u.username }} {% if u.email %}({{ u.email }}){% endif %}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-
-                    <!-- Fields for Account Data (Username, Email, Nome) -->
-                    <div id="manage-account-fields-group" style="display:flex;flex-direction:column;gap:12px">
-                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-                            <div class="fm-form-group">
-                                <label class="fm-form-label">Nome Utente (Username) <span style="color:#f87171">*</span></label>
-                                <input type="text" name="username" id="manage-user-username" class="fm-form-input" required
-                                    placeholder="Es. mario_rossi" autocomplete="off" autocapitalize="none">
-                            </div>
-                            <div class="fm-form-group">
-                                <label class="fm-form-label">Email Utente <span style="color:var(--fm-text-muted)">(opzionale)</span></label>
-                                <input type="email" name="email" id="manage-user-email" class="fm-form-input"
-                                    placeholder="mario@example.com" autocomplete="off">
-                            </div>
-                        </div>
-
-                        <div class="fm-form-group">
-                            <label class="fm-form-label">Nome Allenatore / Display Name</label>
-                            <input type="text" name="first_name" id="manage-user-firstname" class="fm-form-input"
-                                placeholder="Mario Rossi">
-                        </div>
-
-                        <!-- Reset Password Box -->
-                        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px">
-                            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-                                <label class="fm-form-label" style="margin:0">
-                                    🔑 Nuova Password / Reset
-                                </label>
-                                <button type="button" class="fm-btn fm-btn-ghost fm-btn-xs" style="color:#38bdf8"
-                                    onclick="generateRandomPasswordForManage()">
-                                    ⚡ Genera Password Casuale
-                                </button>
-                            </div>
-                            <div style="display:flex;gap:6px">
-                                <input type="text" name="password" id="manage-user-password" class="fm-form-input"
-                                    placeholder="Lascia vuoto per non modificare la password" autocomplete="new-password">
-                                <button type="button" class="fm-btn fm-btn-secondary fm-btn-sm" id="btn-copy-manage-pwd"
-                                    style="display:none;white-space:nowrap" onclick="copyManagePassword()">
-                                    📋 Copia
-                                </button>
-                            </div>
-                            <div style="font-size:11px;color:var(--fm-text-muted);margin-top:4px" id="manage-pwd-hint">
-                                Minimo 4 caratteri. Se lasci vuoto, la password corrente rimarrà invariata.
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Ruolo di Lega -->
-                    <div class="fm-form-group">
-                        <label class="fm-form-label">Ruolo all'interno di {{ current_league.name }}</label>
-                        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
-                            <label style="display:flex;flex-direction:column;gap:4px;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.02);cursor:pointer;font-size:12px">
-                                <div style="display:flex;align-items:center;gap:6px">
-                                    <input type="radio" name="league_role" id="manage-role-owner" value="owner">
-                                    <b style="color:#f59e0b">👑 Presidente</b>
-                                </div>
-                                <span style="font-size:10.5px;color:var(--fm-text-secondary);line-height:1.2">Controllo totale e proprietà lega</span>
-                            </label>
-
-                            <label style="display:flex;flex-direction:column;gap:4px;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.02);cursor:pointer;font-size:12px">
-                                <div style="display:flex;align-items:center;gap:6px">
-                                    <input type="radio" name="league_role" id="manage-role-admin" value="admin">
-                                    <b style="color:#60a5fa">🛡️ Co-Admin</b>
-                                </div>
-                                <span style="font-size:10.5px;color:var(--fm-text-secondary);line-height:1.2">Gestione sessioni asta e rose</span>
-                            </label>
-
-                            <label style="display:flex;flex-direction:column;gap:4px;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.02);cursor:pointer;font-size:12px">
-                                <div style="display:flex;align-items:center;gap:6px">
-                                    <input type="radio" name="league_role" id="manage-role-manager" value="manager">
-                                    <b style="color:#4ade80">⚽ Allenatore</b>
-                                </div>
-                                <span style="font-size:10.5px;color:var(--fm-text-secondary);line-height:1.2">Partecipa all'asta e rosa propria</span>
-                            </label>
-                        </div>
-                    </div>
-
-                    <!-- Stato Account Attivo -->
-                    <div id="manage-active-group" style="display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:10px 12px">
-                        <div>
-                            <div style="font-weight:600;font-size:12.5px;color:#fff">Stato Account Attivo</div>
-                            <div style="font-size:11px;color:var(--fm-text-secondary)">Se disattivato, l'utente non potrà accedere con username e password</div>
-                        </div>
-                        <input type="checkbox" name="is_active" id="manage-user-active" value="1" style="transform:scale(1.2);cursor:pointer">
-                    </div>
-
-                    <!-- Danger Zone: Scollega Account -->
-                    <div id="manage-unlink-group" style="display:flex;align-items:center;justify-content:space-between;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:10px 12px">
-                        <div>
-                            <div style="font-weight:600;font-size:12px;color:#f87171">Scollega Account da questa Squadra</div>
-                            <div style="font-size:11px;color:var(--fm-text-secondary)">La squadra rimarrà raggiungibile solo con il link d'accesso e PIN</div>
-                        </div>
-                        <button type="button" class="fm-btn fm-btn-danger fm-btn-xs" onclick="unlinkAccountFromManage()">
-                            Scollega
-                        </button>
-                    </div>
-
-                </div>
-                <div class="fm-modal-footer">
-                    <button type="button" class="fm-btn fm-btn-ghost fm-btn-sm"
-                        onclick="closeModal('modal-manage-user')">Annulla</button>
-                    <button type="submit" class="fm-btn fm-btn-primary fm-btn-sm" id="btn-save-manage-user">Salva Modifiche</button>
-                </div>
-            </form>
         </div>
     </div>
 

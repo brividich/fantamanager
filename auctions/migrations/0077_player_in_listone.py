@@ -19,7 +19,7 @@ def mark_out_of_listone(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("auctions", "0075_league_demo"),
+        ("auctions", "0076_footballer_missed_syncs"),
     ]
 
     operations = [

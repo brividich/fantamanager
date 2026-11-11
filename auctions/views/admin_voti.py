@@ -11,6 +11,7 @@ from django.utils.dateparse import parse_datetime
 from django.views.decorators.http import require_POST
 
 from ..models import Competition, Formation, Giornata, League, Participant, Season
+from ..providers.apifootball import status as apifootball_status
 from ..services import voto_algo
 from ..services.competitions import season_name
 from .. import scoring as scoring_engine
@@ -75,14 +76,16 @@ def admin_giornate(request):
 
     if request.method == "POST" and current_giornata:
         if request.POST.get("action") == "deadlines_from_calendar":
-            from ..providers.apifootball import ApiFootballError
+            from ..providers.apifootball import ApiFootballError, retry_now
             from ..services.scheduler import deadlines_from_calendar
+            retry_now()  # un tasto premuto: si riprova anche se l'API era segnata ferma
             try:
                 n = deadlines_from_calendar(season)
                 messages.success(request, f"Scadenze prese dal calendario di Serie A: {n} giornate aggiornate."
                                  if n else "Le scadenze erano già quelle del calendario di Serie A.")
             except ApiFootballError as exc:
-                messages.error(request, f"Calendario di Serie A non disponibile: {exc}.")
+                messages.error(request, f"Calendario di Serie A non disponibile: {exc}. "
+                                        "Scrivi la scadenza a mano: «Scadenza formazioni» della giornata, poi Salva.")
             return redirect(_back(request, _giornate_url(request, current_giornata.number)))
         sa_matchday = request.POST.get("serie_a_matchday")
         if sa_matchday and sa_matchday.isdigit():
@@ -167,6 +170,7 @@ def admin_giornate(request):
         "teams_count": teams_count,
         "live_sync_status": LiveSyncManager.get_instance().get_status(),
         "gv_base": base,
+        "api_status": apifootball_status(),
         "gv_league_q": f"league={league.id}",
         "gv_back": f"{base}?league={league.id}&giornata={current_giornata.number if current_giornata else 1}",
         "console_section": "Giornate & Voti",
@@ -630,9 +634,18 @@ def admin_live_voti_sync(request):
                                 "per i voti veri scegli API-Football o carica il file dei voti.")
         return redirect(_back(request, _giornate_url(request, giornata_num)))
 
+    # La giornata della lega può essere un'altra giornata di Serie A (lega
+    # partita dopo, turni saltati): all'API si chiede quella di Serie A.
+    g = Giornata.objects.filter(season__league=league, season__is_current=True, number=giornata_num).first()
+    serie_a_round = (g.serie_a_matchday or g.number) if g is not None else None
+
+    if provider == "apifootball":
+        from ..providers.apifootball import retry_now
+        retry_now()  # un tasto premuto: si riprova anche se l'API era segnata ferma
     mgr = LiveSyncManager.get_instance()
     mgr.provider = provider
-    res = mgr.sync_now(giornata_num=giornata_num, is_provisional=True, leagues=[league])
+    res = mgr.sync_now(giornata_num=giornata_num, is_provisional=True, leagues=[league],
+                       serie_a_round=serie_a_round)
 
     if res.get("status") == "SUCCESS":
         messages.success(
@@ -640,7 +653,8 @@ def admin_live_voti_sync(request):
             f"🔴 Sync Live completato: {res.get('total_updated')} calciatori aggiornati in tempo reale per Giornata {giornata_num} ({PROVIDERS[provider]})."
         )
     elif res.get("status") == "ERROR":
-        messages.error(request, f"Sync Live non riuscito: {res.get('message')}.")
+        messages.error(request, f"Sync Live non riuscito: {res.get('message')}. Intanto i voti si caricano "
+                                "da file o i punteggi si scrivono a mano, nella scheda Voti.")
     else:
         messages.warning(request, f"Sync Live: {res.get('status')} - nessun dato disponibile al momento per G{giornata_num}.")
 

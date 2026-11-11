@@ -562,7 +562,6 @@ APP_PAGES = {
     "admin_footballers": "app_footballers",
     "admin_giornate": "app_giornate",
     "admin_market_trades": "app_regia_trades",
-    "admin_players": "app_regia_players",
     "admin_contracts": "app_regia_contracts",
     "admin_season": "app_regia_season",
     "admin_fantapazz": "app_regia_import",

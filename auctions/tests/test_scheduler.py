@@ -123,6 +123,29 @@ class MarketAndLineupTests(TestCase):
         self.assertEqual(self.g1.starts_at.isoformat(), "2026-08-22T16:30:00+00:00")
 
 
+    def test_a_plan_that_does_not_cover_the_season_is_an_api_error(self):
+        """Il piano gratuito rifiuta la stagione: è un ApiFootballError come gli
+        altri (la pagina lo mostra), non un errore interno."""
+        import os
+        from unittest import mock
+
+        from ..providers.apifootball import ApiFootballError
+
+        class Resp:
+            status_code = 200
+            headers = {}
+
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return {"response": [], "errors": {"plan": "Free plans do not have access to this season."}}
+
+        with mock.patch.dict(os.environ, {"APIFOOTBALL_KEY": "k"}), \
+                self.assertRaisesRegex(ApiFootballError, "non copre la stagione"):
+            scheduler.deadlines_from_calendar(self.season, get=lambda *a, **k: Resp())
+
+
 class DeadlineFormTests(TestCase):
     """The deadline is set from the Giornate page, the same in console and app."""
 

@@ -36,6 +36,9 @@ class Footballer(models.Model):
     club_logo = models.URLField(blank=True)
     # In una rosa di Serie A all'ultimo aggiornamento completo.
     in_serie_a = models.BooleanField(default=True, db_index=True)
+    # Aggiornamenti completi di fila in cui non era in nessuna rosa: esce dalla
+    # Serie A solo al secondo (una rosa a metà dall'API non basta).
+    missed_syncs = models.PositiveSmallIntegerField(default=0)
 
     seen_at = models.DateTimeField(null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)

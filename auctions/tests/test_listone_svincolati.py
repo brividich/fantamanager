@@ -78,10 +78,11 @@ class OutOfListoneTests(TestCase):
         self.assertEqual([p.name for p in resp.context["free_agents"]], ["Kean"])
 
         self.client.force_login(User.objects.create_superuser("root", "root@x.local", "pw"))
-        for name in ("admin_players", "app_regia_players"):
-            url = reverse(name) + f"?league={self.league.id}"
+        for name in ("admin_footballers", "app_footballers"):
+            url = reverse(name) + f"?league={self.league.id}&vista=listone"
             resp = self.client.get(url + "&status=free")
-            self.assertEqual([p.name for p in resp.context["players"]], ["Kean"], name)
+            self.assertEqual([p.name for p in resp.context["lst_rows"]], ["Kean"], name)
+            self.assertEqual((resp.context["lst_free"], resp.context["lst_out"]), (1, 1), name)
             resp = self.client.get(url + "&status=out")
-            self.assertEqual([p.name for p in resp.context["players"]], ["Vlahovic"], name)
-            self.assertContains(resp, "Fuori listone")
+            self.assertEqual([p.name for p in resp.context["lst_rows"]], ["Vlahovic"], name)
+            self.assertContains(resp, "fuori listone")

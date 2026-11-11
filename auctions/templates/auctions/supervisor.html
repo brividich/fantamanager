@@ -2137,7 +2137,7 @@ function togglePasswordVisibility(inputId, btn) {
             <div>
                 <label style="font-size:12px;font-weight:700;display:block;margin-bottom:5px">Giornata Bersaglio</label>
                 <select name="target_giornata" style="width:100%;padding:8px 12px;background:#1e2430;border:1px solid rgba(255,255,255,0.15);color:#fff;border-radius:6px;font-size:13px">
-                    <option value="" selected>Rileva Automaticamente (Prima attiva)</option>
+                    <option value="" selected>Per ogni lega la giornata in corso (consigliato)</option>
                     {% for n in "x"|rjust:"38" %}
                     <option value="{{ forloop.counter }}">Giornata {{ forloop.counter }}</option>
                     {% endfor %}
@@ -2193,7 +2193,7 @@ function togglePasswordVisibility(inputId, btn) {
                 <div style="flex:1">
                     <label style="font-size:11px;font-weight:700;display:block;margin-bottom:4px">Giornata</label>
                     <select name="target_giornata" style="width:100%;padding:7px 10px;background:#1e2430;border:1px solid rgba(255,255,255,0.12);color:#fff;border-radius:6px;font-size:12px">
-                        <option value="" selected>Auto</option>
+                        <option value="" selected>Per ogni lega la sua</option>
                         {% for n in "x"|rjust:"38" %}
                         <option value="{{ forloop.counter }}">G{{ forloop.counter }}</option>
                         {% endfor %}
