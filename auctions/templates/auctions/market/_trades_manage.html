@@ -26,7 +26,7 @@ trades_recent, trade_windows, window_now, window_next,
             {% else %}
             <li>Senza ratifica, uno scambio accettato da entrambe le squadre diventa subito effettivo.</li>
             {% endif %}
-            <li>In <b>Ultimi scambi</b> vedi com'è finito ogni scambio.</li>
+            <li>In <b>Ultimi scambi</b> vedi com'è finito ogni scambio; <b>Report scambi</b> li mette tutti in un PDF o CSV, con gli orari di proposta, risposta e ratifica.</li>
         </ol>
         <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Ogni scambio eseguito compare anche nei Movimenti del Mercato.</div>
     </div>
@@ -106,6 +106,8 @@ trades_recent, trade_windows, window_now, window_next,
 
         <div class="fm-card">
             <h3 class="mk-card-t"><svg class="ic"><use href="#i-clock"/></svg> Ultimi scambi <span class="cnt">{{ trades_recent|length }}</span></h3>
+            <p style="margin:-6px 0 10px"><a class="fm-btn fm-btn-secondary fm-btn-sm" href="{% url 'admin_report_trades' %}?league={{ current_league.id }}" target="_blank" rel="noopener" title="Tutti gli scambi con gli orari, da stampare o scaricare">
+                <svg class="ic"><use href="#i-print"/></svg> Report scambi</a></p>
             {% if trades_recent %}
             <ul class="mk-hist">
                 {% for t in trades_recent %}

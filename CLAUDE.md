@@ -78,6 +78,11 @@ stessi testi**.
     la sua query, con `back_to_page`.
   - Se la pagina mostra già i messaggi: `page_frame(..., own_messages=True)`,
     così l'app non li ripete.
+- I report di mercato da stampare (verbale di spoglio `print_market_buste.html`;
+  registro dell'asta, scambi e stagione su `_print_base.html`, dati da
+  `services/reports.py`, view in `views/reports.py`) hanno un indirizzo nella
+  console (`dashboard/market/report/…`) e uno nell'app (`app/mercato/report/…`)
+  con lo stesso template e lo stesso CSV.
 - I test di parità confrontano web e app: `MarketWizardParityTests` e
   `MarketManageParityTests` in `auctions/tests/test_market.py`,
   `CompetitionWizardParityTests` in `auctions/tests/test_competitions.py`,

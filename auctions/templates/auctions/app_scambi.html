@@ -114,7 +114,8 @@
 
 {% if history %}
 <div class="a-card" data-asec="storico">
-    <div class="a-label"><svg class="ic"><use href="#i-list"/></svg> Storico trattative</div>
+    <div class="a-label" style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span><svg class="ic"><use href="#i-list"/></svg> Storico trattative</span>
+        <a href="{% url 'app_report_trades' %}" target="_blank" rel="noopener" class="role-chip" style="text-decoration:none;font-size:11px;padding:4px 10px;white-space:nowrap" title="Tutti gli scambi della lega con gli orari, da stampare o scaricare"><svg class="ic" style="width:12px;height:12px"><use href="#i-print"/></svg> Report</a></div>
     {% for r in history %}{% include "auctions/_trade_row.html" with r=r %}{% endfor %}
 </div>
 {% endif %}

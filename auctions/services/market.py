@@ -685,7 +685,7 @@ class _Plan:
                     # is the earliest: the others lose the tie outright.
                     self._decide(
                         b, MarketBid.Status.LOST,
-                        f"Pari merito: vince l'offerta inserita prima ({w.participant.display_name})",
+                        f"{_FIRST_WINS_NOTE} ({w.participant.display_name})",
                     )
                     beaten_on_time = b.amount
                     seen.add(b.participant_id)
@@ -828,6 +828,67 @@ def plan_market_resolution(session_id):
         return {"won": [], "tied": [], "lost": [], "total_acquisitions": 0, "total_ties": 0, "open_ties": 0, "preview": True}
     plan = _Plan(session).run()
     return _summary(plan, preview=True)
+
+
+_FIRST_WINS_NOTE = "Pari merito: vince l'offerta inserita prima"
+
+
+def tie_forecast(session):
+    """I pareggi che lo spoglio troverebbe adesso, e cosa farà la regola.
+
+    Per l'admin a consegna chiusa, prima dello spoglio: simula lo spoglio
+    (niente scritture) e per ogni giocatore con la stessa offerta migliore da
+    più squadre dice chi vince e perché. Con «vince chi ha offerto prima»
+    riporta gli orari e il distacco; con la scelta dell'admin o il secondo
+    sfoglio dice chi va allo spareggio. Vuoto se non è il momento."""
+    if session.status != MarketSession.Status.CLOSED or session.session_type not in (
+        MarketSession.SessionType.SEALED_BIDS, MarketSession.SessionType.REPAIR,
+    ):
+        return []
+    plan = _Plan(session).run()
+    by_id = {b.id: b for b in plan.bids}
+    won_by_player = {w["player_id"]: by_id.get(w["bid_id"]) for w in plan.won}
+    rule = session.tie_break
+    out = []
+
+    def row(b, first_at):
+        return {"name": b.participant.display_name, "at": _bid_time(b.created_at),
+                "gap_label": _gap_label((b.created_at - first_at).total_seconds())}
+
+    # Scelta dell'admin o secondo sfoglio: restano in parità.
+    tied_bids = defaultdict(list)
+    for b in plan.bids:
+        if plan.outcome.get(b.id, (None,))[0] == MarketBid.Status.TIED:
+            tied_bids[b.player_id].append(b)
+    for t in plan.tied:
+        group = sorted(tied_bids.get(t["player_id"], []), key=lambda b: (b.created_at, b.id))
+        first_at = group[0].created_at if group else None
+        out.append({
+            "player_name": t["player_name"], "player_role": t["player_role"], "player_team": t["player_team"],
+            "amount": t["amount"], "rule": rule, "winner": "",
+            "teams": [row(b, first_at) for b in group] if group else [{"name": n, "at": None, "gap_label": ""}
+                                                                    for n in t["contenders"]],
+        })
+
+    # «Vince chi ha offerto prima»: decide l'orario.
+    beaten = defaultdict(list)
+    for b in plan.bids:
+        status, note = plan.outcome.get(b.id, (None, ""))
+        if status == MarketBid.Status.LOST and note.startswith(_FIRST_WINS_NOTE):
+            beaten[b.player_id].append(b)
+    for player_id, losers in beaten.items():
+        w = won_by_player.get(player_id)
+        if w is None:
+            continue
+        group = sorted([w] + losers, key=lambda b: (b.created_at, b.id))
+        first_at = group[0].created_at
+        out.append({
+            "player_name": w.player.name, "player_role": w.player.role, "player_team": w.player.team or "",
+            "amount": int(w.amount), "rule": MarketSession.TieBreak.FIRST, "winner": w.participant.display_name,
+            "teams": [row(b, first_at) for b in group],
+        })
+    out.sort(key=lambda t: (-t["amount"], t["player_name"].lower()))
+    return out
 
 
 def _summary(plan, preview=False):
