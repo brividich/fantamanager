@@ -1,0 +1,45 @@
+{% comment %}
+La lista «Chi lasceresti andare» di una squadra (buste dove chi esce si
+sceglie dopo lo spoglio). UNICA per l'app del manager (app_mercato.html) e
+per l'admin che la compila per una squadra (market/_session_manage.html,
+console e app).
+
+Parametri:
+  rl          release_list_view(...) della squadra
+  rl_action   dove si salva
+  rl_session  la sessione
+  rl_team     la squadra (Participant) se la compila l'admin, None per il manager
+  rl_next     (admin) la pagina a cui tornare, rl_next_q la sua query
+  rl_btn      classe del tasto «Salva la lista»
+{% endcomment %}
+<form method="post" action="{{ rl_action }}" class="rl-form">
+    {% csrf_token %}
+    <input type="hidden" name="session_id" value="{{ rl_session.id }}">
+    {% if rl_team %}<input type="hidden" name="participant_id" value="{{ rl_team.id }}">
+    <input type="hidden" name="next" value="{{ rl_next }}{{ rl_next_q }}">{% endif %}
+    <div style="font-size:13px;font-weight:800;margin-bottom:6px">Chi lasceresti andare{% if rl_team %} · {{ rl_team.display_name }}{% endif %}</div>
+    <div style="font-size:12px;opacity:.75;line-height:1.45;margin-bottom:10px">
+        {% if rl_team %}Ogni giocatore vinto entra al posto di un pari ruolo della rosa. Spunta chi la squadra lascerebbe andare:
+        per ogni ruolo almeno uno per ogni giocatore su cui offre (le buste restano segrete: se la lista è corta lo dice il messaggio).
+        Dopo lo spoglio si conferma chi esce, anche cambiandolo; se vince meno buste, gli altri restano in rosa.
+        {% else %}Ogni giocatore vinto entra al posto di un tuo pari ruolo. Spunta chi lasceresti andare: per ogni ruolo
+        almeno uno per ogni giocatore su cui offri. Dopo lo spoglio confermi chi esce, anche cambiandolo;
+        se vinci meno buste, gli altri restano in rosa.{% endif %}
+    </div>
+    {% for r in rl.roles %}{% if r.players %}
+    <div style="margin-bottom:8px">
+        <div style="font-size:11.5px;font-weight:800;margin-bottom:4px;{% if r.short and not rl_team %}color:#eab308{% else %}opacity:.75{% endif %}">
+            <span class="role-badge role-{{ r.role }}">{{ r.role }}</span>
+            in lista {{ r.have }}{% if not rl_team and r.need %} · servono {{ r.need }}{% if r.short %} · ne manca{{ r.missing|pluralize:"no" }} {{ r.missing }}{% endif %}{% endif %}
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+            {% for pl in r.players %}
+            <label style="display:flex;align-items:center;gap:5px;padding:5px 9px;border-radius:8px;border:1px solid rgba(127,127,127,.35);font-size:12.5px;cursor:pointer">
+                <input type="checkbox" name="player_id" value="{{ pl.id }}"{% if pl.id in rl.listed %} checked{% endif %}> {{ pl.name }}
+            </label>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}{% endfor %}
+    <button type="submit" class="{{ rl_btn }}" style="width:100%;padding:10px 12px;margin-top:4px">Salva la lista</button>
+</form>

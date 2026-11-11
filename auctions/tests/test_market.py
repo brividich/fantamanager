@@ -9,7 +9,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from ..models import Auction, League, MarketBid, MarketSession, Participant, Player, RosterLog
+from ..models import Auction, League, MarketBid, MarketReleaseIntent, MarketSession, Participant, Player, RosterLog
 from ..services.market import (
     delete_market_bid,
     get_participant_market_bids,
@@ -1725,19 +1725,144 @@ class ReleaseAfterCountTests(TestCase):
         from ..services.market import release_list
         self.assertEqual(release_list(self.session, self.a.id), [c1, c0])
 
+    def _age_pending(self, hours):
+        from datetime import timedelta
+        from django.utils import timezone
+        self.session.refresh_from_db()
+        summary = self.session.results_summary
+        for w in summary["won"]:
+            if w.get("release_pending"):
+                w["pending_since"] = (timezone.now() - timedelta(hours=hours)).isoformat()
+        MarketSession.objects.filter(pk=self.session.pk).update(results_summary=summary)
+
+    def test_deadline_applies_the_list_proposal(self):
+        from ..services.market import apply_overdue_releases, release_deadline, set_release_list
+        self.league.contracts_enabled = True
+        self.league.save()
+        self.session.release_confirm_hours = 24
+        self.session.save()
+        c0, c1, c2 = self.mid[self.a.id]
+        set_release_list(self.session.id, self.a.id, [c2.id, c0.id, c1.id])
+        place_market_bid(self.session.id, self.a.id, self.boban.id, 20)
+        self._resolve()
+        entry = self._won(self.boban)
+        self.assertIsNotNone(entry["pending_since"])
+        self.assertIsNotNone(release_deadline(self.session, entry))
+        self.assertEqual(apply_overdue_releases(), 0)                       # non ancora scaduto
+        self._age_pending(25)
+        sync_market_schedule(self.league)                                    # alla prima visita (o dallo scheduler)
+        self.assertIsNone(Player.objects.get(pk=c2.pk).owner)               # il primo della lista
+        self.session.refresh_from_db()
+        won = self._won(self.boban)
+        self.assertFalse(won["release_pending"])
+        self.assertTrue(won["auto_confirmed"])
+        self.assertIsNone(Player.objects.get(pk=self.boban.pk).contract_years)   # dadi da tirare
+        self.assertTrue(RosterLog.objects.filter(player_name="Team A C2", note__contains="tempo per confermare").exists())
+
+    def test_deadline_without_a_valid_proposal_waits_for_the_admin(self):
+        from ..services.market import apply_overdue_releases, set_release_list, team_release_deadlines
+        self.session.release_confirm_hours = 1
+        self.session.save()
+        c0 = self.mid[self.a.id][0]
+        set_release_list(self.session.id, self.a.id, [c0.id])
+        place_market_bid(self.session.id, self.a.id, self.boban.id, 20)
+        Player.objects.filter(pk=c0.pk).update(owner=self.b)                 # ceduto dopo la busta
+        self._resolve()
+        self._age_pending(2)
+        self.assertEqual(apply_overdue_releases(), 0)
+        self.session.refresh_from_db()
+        self.assertTrue(self._won(self.boban)["release_pending"])
+        self.assertTrue(team_release_deadlines(self.session)[self.a.id][1])
+        self.client.force_login(self.owner)
+        page = self.client.get(reverse("admin_market_session", args=[self.session.id]))
+        self.assertContains(page, "tempo scaduto: la lista non ha una proposta valida, decidi tu")
+
+    def test_no_deadline_by_default(self):
+        from ..services.market import apply_overdue_releases
+        place_market_bid(self.session.id, self.a.id, self.boban.id, 20)
+        self._resolve()
+        self._age_pending(1000)
+        self.assertEqual(apply_overdue_releases(), 0)
+        self.session.refresh_from_db()
+        self.assertTrue(self._won(self.boban)["release_pending"])
+
+    def test_admin_fills_the_list_for_a_team_without_seeing_bids(self):
+        from ..services.market import release_list
+        MarketReleaseIntent.objects.filter(participant=self.b).delete()
+        place_market_bid(self.session.id, self.a.id, self.boban.id, 37)
+        self.client.force_login(self.owner)
+        url = reverse("admin_market_session", args=[self.session.id])
+        page = self.client.get(url)
+        self.assertContains(page, "Chi lasceresti andare")
+        self.assertContains(page, "Senza lista: <b>Team B</b>")
+        self.assertNotContains(page, "37 FM")                               # le buste restano segrete
+        page = self.client.get(url + f"?list_team={self.b.id}")
+        self.assertContains(page, "Chi lasceresti andare · Team B")
+        b0 = self.mid[self.b.id][0]
+        resp = self.client.post(reverse("admin_market_release_list", args=[self.session.id]),
+                                {"participant_id": self.b.id, "player_id": [b0.id], "next": url + f"?list_team={self.b.id}"})
+        self.assertRedirects(resp, url + f"?list_team={self.b.id}", fetch_redirect_response=False)
+        self.assertEqual(release_list(self.session, self.b.id), [b0])
+        # Lista più corta delle buste: il messaggio non dice quante buste ha la squadra.
+        res_page = self.client.post(reverse("admin_market_release_list", args=[self.session.id]),
+                                    {"participant_id": self.a.id, "player_id": [], "next": url}, follow=True)
+        self.assertContains(res_page, "più corta delle buste già consegnate")
+        self.assertNotContains(res_page, "Hai buste su")
+        # Stessa pagina nell'app della regia.
+        self.assertContains(self.client.get(reverse("app_regia_market_session", args=[self.session.id])
+                                            + f"?list_team={self.b.id}"), "Chi lasceresti andare · Team B")
+
+    def test_reminders_for_missing_lists_and_deadlines(self):
+        from ..views.app_admin import league_admin_digest
+        MarketReleaseIntent.objects.filter(participant=self.b).delete()
+        titles = [t["title"] for t in league_admin_digest(self.league)]
+        self.assertIn("Buste: 1 squadra senza «Chi lasceresti andare»", titles)
+        # La home del manager senza lista lo dice.
+        sess = self.client.session
+        sess["participant_id"] = self.b.id
+        sess.save()
+        self.assertContains(self.client.get(reverse("app_home")), "prima compila «Chi lasceresti andare»")
+        self.session.release_confirm_hours = 12
+        self.session.save()
+        place_market_bid(self.session.id, self.a.id, self.boban.id, 20)
+        self._resolve()
+        todo = next(t for t in league_admin_digest(self.league) if "da confermare" in t["title"])
+        self.assertIn("poi vale la loro lista", todo["text"])
+
+    def test_share_text_of_the_spoglio(self):
+        from ..services.market import spoglio_share_text
+        place_market_bid(self.session.id, self.a.id, self.boban.id, 20)
+        place_market_bid(self.session.id, self.b.id, self.iniesta.id, 15)
+        self._resolve()
+        text = spoglio_share_text(self.session)
+        self.assertIn("Team A", text)
+        self.assertIn("+ Boban (C) 20 FM · chi esce: da confermare", text)
+        self.assertIn("Chi esce si conferma dall'app", text)
+        from ..services.market import confirm_market_releases
+        confirm_market_releases(self.session.id, self.a.id, {self._won(self.boban)["bid_id"]: self.mid[self.a.id][0].id})
+        self.session.refresh_from_db()
+        self.assertIn("+ Boban (C) 20 FM · esce Team A C0", spoglio_share_text(self.session))
+        self.client.force_login(self.owner)
+        for url in (reverse("admin_market_session", args=[self.session.id]),
+                    reverse("app_regia_market_session", args=[self.session.id])):
+            self.assertContains(self.client.get(url), "Riepilogo da condividere")
+
     def test_wizard_and_rules_set_the_timing(self):
         self.client.force_login(self.owner)
         self.client.post(reverse("admin_market_create"), {
             "league_id": self.league.id, "market_kind": "buste", "title": "Dopo", "open_timing": "now",
-            "require_same_role_release": "1", "release_timing": "after"})
+            "require_same_role_release": "1", "release_timing": "after", "release_confirm_hours": "36"})
         self.assertTrue(MarketSession.objects.get(title="Dopo").release_after_count)
+        self.assertEqual(MarketSession.objects.get(title="Dopo").release_confirm_hours, 36)
         self.client.post(reverse("admin_market_create"), {
             "league_id": self.league.id, "market_kind": "free_agency", "title": "FA", "open_timing": "now",
             "require_same_role_release": "1", "release_timing": "after"})
         self.assertFalse(MarketSession.objects.get(title="FA").release_after)
-        self.client.post(reverse("admin_market_rules", args=[self.session.id]), {"release_timing": "bid"})
+        self.client.post(reverse("admin_market_rules", args=[self.session.id]),
+                         {"release_timing": "bid", "release_confirm_hours": "6"})
         self.session.refresh_from_db()
         self.assertFalse(self.session.release_after)
+        self.assertEqual(self.session.release_confirm_hours, 6)
 
 
 class SealedUntilClosedTests(TestCase):

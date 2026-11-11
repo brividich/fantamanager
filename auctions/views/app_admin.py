@@ -15,6 +15,7 @@ from django.contrib import messages
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from .. import remote, services
@@ -92,10 +93,17 @@ def league_admin_digest(league):
         waiting = services.pending_releases(done)
         if waiting:
             teams = sorted({w["winner_name"] for w in waiting})
+            deadlines = services.team_release_deadlines(done)
+            when = ""
+            if deadlines:
+                first = min(d for d, _late in deadlines.values())
+                late = [w["winner_name"] for w in waiting if deadlines.get(w["winner_id"], (None, False))[1]]
+                when = (f" Tempo scaduto senza una proposta valida dalla lista: decidi tu ({', '.join(sorted(set(late)))})."
+                        if late else f" Entro il {timezone.localtime(first):%d/%m %H:%M}, poi vale la loro lista.")
             items.append(_todo(
                 "warn", "mail", f"Buste: {len(waiting)} sostituzion{'e' if len(waiting) == 1 else 'i'} da confermare",
                 f"Chi esce dalla rosa al posto dei giocatori vinti in {done.title}: lo confermano "
-                f"le squadre dall'app, o tu dalla sessione ({', '.join(teams)}).",
+                f"le squadre dall'app, o tu dalla sessione ({', '.join(teams)}).{when}",
                 reverse("app_regia_market_session", args=[done.id]), "Apri la sessione"))
             break
     opened = sessions.filter(status=MarketSession.Status.OPEN).first()
@@ -109,6 +117,14 @@ def league_admin_digest(league):
             "info", "mail", f"{'Buste aperte' if is_buste else 'Mercato aperto'}: {opened.title}",
             f"{delivered}/{teams_n} squadre {'hanno consegnato' if is_buste else 'hanno già agito'}{when}.",
             reverse("app_regia_market_session", args=[opened.id]), "Segui"))
+        if opened.release_after_count and opened.is_open:
+            missing = services.release_list_board(opened)["missing"]
+            if missing:
+                items.append(_todo(
+                    "warn", "mail", f"Buste: {len(missing)} squadr{'a' if len(missing) == 1 else 'e'} senza «Chi lasceresti andare»",
+                    f"Senza la lista le loro buste non partono: {', '.join(missing)}. "
+                    "La compilano dall'app (Mercato → Le mie Buste); per chi non la usa compilala tu dalla sessione.",
+                    reverse("app_regia_market_session", args=[opened.id]), "Apri la sessione"))
     draft = sessions.filter(status=MarketSession.Status.DRAFT).first()
     if draft is not None:
         items.append(_todo(

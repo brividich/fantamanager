@@ -321,6 +321,9 @@ Apertura dalla pagina: openMarketWizard() / closeMarketWizard().
                         <small>Con le buste ogni squadra dichiara chi lascerebbe andare (un pari ruolo per ogni giocatore su cui offre); dopo lo spoglio conferma chi esce, anche cambiandolo, e tira i dadi del contratto subito o dopo. L'admin può confermare per lei.</small></label>
                     <label class="mwz-opt"><input type="radio" name="release_timing" value="bid"> Con la busta
                         <small>Il taglio si indica insieme all'offerta ed esce da solo se la busta vince.</small></label>
+                    <label class="mwz-lbl" for="mwz-confirm-hours" style="margin-top:6px">Ore per confermare dopo lo spoglio</label>
+                    <input type="number" name="release_confirm_hours" id="mwz-confirm-hours" min="0" value="24" class="mwz-input" style="max-width:120px">
+                    <span class="mwz-hint">Scadute, chi esce è quello proposto dalla lista della squadra (i dadi restano da tirare). 0 = nessun termine: conferma la squadra o l'admin.</span>
                 </div>
                 <label class="mwz-lbl" for="mwz-refund" style="margin-top:6px">Rimborso del giocatore tagliato</label>
                 <select name="refund_mode" id="mwz-refund" class="mwz-input">

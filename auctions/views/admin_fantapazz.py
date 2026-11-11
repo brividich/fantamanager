@@ -98,5 +98,6 @@ def admin_fantapazz_import_rose(request):
     league, denied = _import_league_or_403(request)
     if denied:
         return denied
-    result = importers.import_rose_data(teams, replace=replace, league=league)
+    result = importers.import_rose_data(teams, replace=replace, league=league,
+                                        default_budget=league.budget if league is not None else None)
     return JsonResponse({"ok": True, **result, "warning": warning})

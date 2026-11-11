@@ -287,7 +287,8 @@ def _import_rose_into_league(request, league, *, source):
     teams = importers.parse_rose_xls(raw)
     if not teams:
         return None
-    return importers.import_rose_data(teams, league=league)
+    # Un file senza i crediti rimasti: ogni squadra ha il budget del wizard.
+    return importers.import_rose_data(teams, league=league, default_budget=league.budget)
 
 
 def _import_leghe_rose_into_league(request, league):
@@ -300,7 +301,7 @@ def _import_leghe_rose_into_league(request, league):
         return None
     if not teams:
         return None
-    result = importers.import_rose_data(teams, league=league)
+    result = importers.import_rose_data(teams, league=league, default_budget=league.budget)
     if meta.get("unmatched"):
         result = dict(result)
         result["unmatched"] = len(meta["unmatched"])

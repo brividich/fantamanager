@@ -24,6 +24,11 @@ from ..services.market import (
     confirm_market_releases,
     proposed_releases,
     pending_releases,
+    release_list_board,
+    release_list_view,
+    set_release_list,
+    spoglio_share_text,
+    team_release_deadlines,
     release_options,
     get_buste_report_context,
     plan_market_resolution,
@@ -510,9 +515,27 @@ def session_manage_context(request, session):
             .order_by("player__role", "player__name", "-amount", "priority")
         )
 
+    # Lista «Chi lasceresti andare»: chi l'ha già salvata e, se l'admin la
+    # apre, quella di una squadra (per chi non usa l'app).
+    release_board, list_team, list_view = None, None, None
+    if session.release_after_count and session.status == MarketSession.Status.OPEN:
+        release_board = release_list_board(session)
+        raw = request.GET.get("list_team")
+        if str(raw or "").isdigit():
+            list_team = Participant.objects.filter(pk=raw, league=league).first()
+            if list_team is not None:
+                list_view = release_list_view(session, list_team.id)
+                # mk_back arriva dopo (console o app): la pagina lo aggiunge.
+                list_view["team_q"] = f"?list_team={list_team.id}"
+
     results, is_preview = None, False
     pending = []
+    deadlines = {}
+    share_text = ""
     if session.status == MarketSession.Status.RESOLVED:
+        if session.session_type in (_ST.SEALED_BIDS, _ST.REPAIR):
+            share_text = spoglio_share_text(session)
+        deadlines = team_release_deadlines(session)
         results = copy.deepcopy(session.results_summary) or None
         # Taglio dopo lo spoglio: chi può uscire per ogni giocatore vinto.
         proposals = {}
@@ -547,8 +570,14 @@ def session_manage_context(request, session):
         "sealed": sealed,
         "pending_releases": pending,
         "pending_teams": [{"id": wid, "name": next(w["winner_name"] for w in pending if w["winner_id"] == wid),
-                           "count": sum(1 for w in pending if w["winner_id"] == wid)}
+                           "count": sum(1 for w in pending if w["winner_id"] == wid),
+                           "deadline": deadlines.get(wid, (None, False))[0],
+                           "overdue": deadlines.get(wid, (None, False))[1]}
                           for wid in dict.fromkeys(w["winner_id"] for w in pending)],
+        "release_board": release_board,
+        "list_team": list_team,
+        "list_view": list_view,
+        "share_text": share_text,
         "free_total": repair["free_total"],
         "free_by_role": repair["free_by_role"],
         "reachable": len(mail.league_recipients(league)),
@@ -701,6 +730,7 @@ def _session_rules(post):
         "release_after": (post.get("release_timing") == "after"
                           and session_type in (MarketSession.SessionType.SEALED_BIDS, MarketSession.SessionType.REPAIR)),
         "release_refund_mode": refund_mode,
+        "release_confirm_hours": _parse_int(post.get("release_confirm_hours")),
         "max_bids": _parse_int(post.get("max_bids")),
         "budget_rule": budget_rule,
         "tie_break": tie_break,
@@ -970,6 +1000,24 @@ def admin_market_release(request, session_id):
     res = confirm_market_releases(session.id, int(winner) if str(winner).isdigit() else 0,
                                   release_choices(request.POST), roll_dice=request.POST.get("roll") == "1")
     (messages.success if res["ok"] else messages.error)(request, res["message"])
+    return redirect(_back(request, _dashboard_url(request, session)))
+
+
+@staff_member_required
+@require_POST
+def admin_market_release_list(request, session_id):
+    """A buste aperte: l'admin compila la lista «Chi lasceresti andare» per
+    una squadra (chi non usa l'app)."""
+    session, denied = _managed_session_or_403(request, session_id)
+    if denied:
+        return denied
+    team = request.POST.get("participant_id")
+    team = Participant.objects.filter(pk=team, league=session.league).first() if str(team or "").isdigit() else None
+    if team is None:
+        messages.error(request, "Squadra non trovata: sceglila di nuovo dall'elenco.")
+    else:
+        res = set_release_list(session.id, team.id, request.POST.getlist("player_id"), by_admin=True)
+        (messages.success if res["ok"] else messages.error)(request, res["message"])
     return redirect(_back(request, _dashboard_url(request, session)))
 
 

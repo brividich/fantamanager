@@ -121,6 +121,8 @@ urlpatterns = [
     path("dashboard/market/<int:session_id>/tie/", views.admin_market_settle_tie, name="admin_market_settle_tie"),
     path("dashboard/market/<int:session_id>/undo/", views.admin_market_undo, name="admin_market_undo"),
     path("dashboard/market/<int:session_id>/release/", views.admin_market_release, name="admin_market_release"),
+    path("dashboard/market/<int:session_id>/release-list/", views.admin_market_release_list,
+         name="admin_market_release_list"),
     path("dashboard/market/<int:session_id>/rules/", views.admin_market_rules, name="admin_market_rules"),
     path("dashboard/market/<int:session_id>/verbale/", views.admin_print_buste_report, name="admin_print_buste_report"),
     path("dashboard/market/<int:session_id>/verbale/csv/", views.admin_export_buste_csv, name="admin_export_buste_csv"),
