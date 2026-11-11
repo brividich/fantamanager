@@ -1860,7 +1860,12 @@ function togglePasswordVisibility(inputId, btn) {
                     <span>💾</span> Backup Database Istantaneo
                 </b>
                 <div style="font-size:12px;color:var(--muted);margin-top:6px">
+                    {% if is_postgres %}
+                    «Crea Snapshot» chiede un dump al servizio backup del compose: entro un minuto compare qui sotto,
+                    in «Snapshot di Backup su Disco». «Scarica Ora» scarica l'ultimo dump già pronto.
+                    {% else %}
                     Esegue uno snapshot consistente a caldo salvando una copia timestamped nella cartella backups o scaricabile direttamente.
+                    {% endif %}
                 </div>
             </div>
             <div style="display:flex;gap:8px;margin-top:6px">
@@ -1961,6 +1966,23 @@ function togglePasswordVisibility(inputId, btn) {
         </div>
     </div>
 
+    {% if pg_status.problem %}
+    <div class="fm-backup-status" style="margin:0 0 12px;padding:10px 12px;border-radius:8px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);color:#fca5a5;font-size:13px;line-height:1.5">
+        ⚠️ {{ pg_status.problem }}
+    </div>
+    {% elif pg_status.running %}
+    <div class="fm-backup-status" data-pending="1" style="margin:0 0 12px;padding:10px 12px;border-radius:8px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.4);color:#93c5fd;font-size:13px;line-height:1.5">
+        ⏳ Backup in corso dalle {{ pg_status.running|date:"H:i" }}: il servizio backup sta scrivendo il dump,
+        che compare qui in elenco appena finito. La pagina si aggiorna da sola.
+    </div>
+    <script>setTimeout(function () { location.reload(); }, 20000);</script>
+    {% elif pg_status.pending %}
+    <div class="fm-backup-status" data-pending="1" style="margin:0 0 12px;padding:10px 12px;border-radius:8px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.4);color:#93c5fd;font-size:13px;line-height:1.5">
+        ⏳ Backup richiesto alle {{ pg_status.pending|date:"H:i" }}: il servizio backup lo esegue entro un minuto e
+        compare qui in elenco. La pagina si aggiorna da sola.
+    </div>
+    <script>setTimeout(function () { location.reload(); }, 20000);</script>
+    {% endif %}
     {% if recent_backups %}
     <table class="super-table" style="margin-top:8px">
         <thead>
@@ -2018,7 +2040,7 @@ function togglePasswordVisibility(inputId, btn) {
     {% endif %}
     {% else %}
     <div style="padding:24px;text-align:center;color:var(--muted);background:rgba(255,255,255,0.02);border-radius:8px">
-        Nessun backup presente in questa directory. Clicca su "Nuovo Backup Istantaneo" per generare il primo snapshot.
+        Nessun backup presente in questa directory. Premi «+ Nuovo Snapshot» per generare il primo.
     </div>
     {% endif %}
 </div>

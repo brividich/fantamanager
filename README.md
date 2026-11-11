@@ -156,6 +156,11 @@ stessa versione del server, all'avvio, ogni `BACKUP_EVERY_HOURS` ore (6) e
 entro un minuto dall'avvio e dalla fine di ogni asta. Finiscono in `./backups` come
 `pg-AAAAMMGG-HHMMSS.sql.gz` (ora UTC); restano i `BACKUP_KEEP` più recenti
 (30). L'ultimo backup si vede in **Supervisor → Info Server & Health**.
+**Supervisor → Snapshot di Backup su Disco → «+ Nuovo Snapshot»** chiede un
+dump subito (file `.richiesta` in `./backups`): compare in elenco entro un
+minuto. Se non arriva, la pagina dice perché: servizio `backup` assente o
+fermo (`docker compose up -d backup`) oppure `pg_dump` che non riesce (il
+messaggio d'errore è in `./backups/.errore` e in `docker compose logs backup`).
 Copia ogni tanto `./backups` fuori dal NAS: un backup sullo stesso disco non
 protegge dal disco che si rompe.
 

@@ -781,6 +781,24 @@ def supervisor_dashboard(request):
                     messages.error(request, f"«{test_to}» non è un indirizzo email valido.")
             return redirect(f"{reverse('supervisor_dashboard')}?tab=mail")
 
+        elif action == "manual_backup" and backup._is_postgres():
+            # On PostgreSQL the app has no pg_dump of the server's version: it
+            # leaves a request for the compose backup service, which writes
+            # the dump within a minute. Nothing is "done" yet, and a request
+            # nobody picks up is said, not hidden behind a success.
+            before = backup.pg_backup_status()
+            if backup.request_pg_dump("Richiesta manuale da Supervisor") is None:
+                messages.error(request, "Non riesco a chiedere il backup: la cartella dei backup "
+                                        f"({backup._backup_dir()}) non è scrivibile dall'app. "
+                                        "Controlla i permessi della cartella ./backups sul server.")
+            elif before["problem"]:
+                messages.error(request, f"Richiesta di backup registrata, ma: {before['problem']}")
+            else:
+                messages.info(request, "Richiesta inviata al servizio backup: entro un minuto il nuovo "
+                                       "dump pg-….sql.gz compare nell'elenco «Snapshot di Backup su Disco» "
+                                       "(la pagina si aggiorna da sola).")
+            return redirect(f"{reverse('supervisor_dashboard')}?tab=reports")
+
         elif action == "manual_backup":
             try:
                 dst = backup.backup_database(reason="Richiesta manuale da Supervisor")
@@ -951,6 +969,7 @@ def supervisor_dashboard(request):
             "is_sqlite": backup._db_path() is not None,
             "is_postgres": backup._is_postgres(),
             "pg_restore_pending": (request.session.get(PG_RESTORE_KEY) or {}).get("file", ""),
+            "pg_status": backup.pg_backup_status() if backup._is_postgres() else None,
             "backups_folder": backups_folder,
             "system_settings": system_settings,
         },
