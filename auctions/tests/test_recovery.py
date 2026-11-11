@@ -147,7 +147,23 @@ COPY public.fm_restore_probe (id, note) FROM stdin;
 """
 
 
+def _write_gz(path, text, *, cut=None):
+    import gzip
+    data = gzip.compress(text.encode("utf-8"))
+    path.write_bytes(data if cut is None else data[:cut])
+
+
 class PgDumpReaderTests(TestCase):
+    def test_complete_and_truncated_dumps(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            whole, cut, no_end = Path(tmp) / "a.sql.gz", Path(tmp) / "b.sql.gz", Path(tmp) / "c.sql.gz"
+            _write_gz(whole, PG_DUMP)
+            _write_gz(cut, PG_DUMP, cut=60)                       # gzip ancora in scrittura
+            _write_gz(no_end, PG_DUMP.split("-- PostgreSQL database dump complete")[0])
+            self.assertTrue(backup.pg_dump_complete(whole))
+            self.assertFalse(backup.pg_dump_complete(cut))
+            self.assertFalse(backup.pg_dump_complete(no_end))
+
     def test_statements_and_copy_blocks(self):
         items = list(backup.iter_pg_dump(PG_DUMP.splitlines(keepends=True)))
         kinds = [i[0] for i in items]
@@ -177,9 +193,7 @@ class SupervisorPgRestoreTests(TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.folder = Path(self.tmp.name)
-        import gzip
-        with gzip.open(self.folder / "pg-20261111-090000.sql.gz", "wt") as fh:
-            fh.write(PG_DUMP)
+        _write_gz(self.folder / "pg-20261111-090000.sql.gz", PG_DUMP)
         patches = [mock.patch("auctions.backup._is_postgres", return_value=True),
                    mock.patch("auctions.backup._db_path", return_value=None),
                    mock.patch("auctions.backup._backup_dir", return_value=self.folder)]
@@ -204,9 +218,15 @@ class SupervisorPgRestoreTests(TestCase):
             r = self._post()
             restore.assert_not_called()
             self.assertContains(r, "non è ancora pronta")
-            # Arriva la copia (il servizio backup scrive il suo pg-*.sql.gz).
+            # La copia è ancora in scrittura (gzip troncato): non vale.
             safety = self.folder / "pg-20261111-093000.sql.gz"
-            safety.write_bytes(b"x")
+            _write_gz(safety, PG_DUMP, cut=60)
+            os.utime(safety, (time.time() + 5, time.time() + 5))
+            r = self._post()
+            restore.assert_not_called()
+            self.assertContains(r, "non è ancora pronta")
+            # Il servizio backup finisce il suo pg-*.sql.gz.
+            _write_gz(safety, PG_DUMP)
             os.utime(safety, (time.time() + 5, time.time() + 5))
             r = self._post()
         restore.assert_called_once_with("pg-20261111-090000.sql.gz")
@@ -219,7 +239,7 @@ class SupervisorPgRestoreTests(TestCase):
         from django.contrib.sessions.models import Session
         self._post()
         safety = self.folder / "pg-20261111-093000.sql.gz"
-        safety.write_bytes(b"x")
+        _write_gz(safety, PG_DUMP)
         os.utime(safety, (time.time() + 5, time.time() + 5))
         # La copia è di prima del login: la sessione di chi ripristina sparisce.
         with mock.patch("auctions.backup.restore_postgres", side_effect=lambda name: Session.objects.all().delete()):
@@ -253,9 +273,7 @@ class PgRestoreDatabaseTests(django.test.TransactionTestCase):
             cur.execute("DROP TABLE IF EXISTS public.fm_restore_probe")
 
     def _dump(self, name, text):
-        import gzip
-        with gzip.open(self.folder / name, "wt") as fh:
-            fh.write(text)
+        _write_gz(self.folder / name, text)
 
     def _rows(self):
         with django.db.connection.cursor() as cur:
@@ -269,6 +287,34 @@ class PgRestoreDatabaseTests(django.test.TransactionTestCase):
         self._dump("pg-20261111-090000.sql.gz", PG_DUMP)
         backup.restore_postgres("pg-20261111-090000.sql.gz")
         self.assertEqual(self._rows(), [(1, "Boban; il 10"), (2, "con -- trattini e 'apici'")])
+
+    def test_a_table_added_after_the_backup_does_not_block_it(self):
+        # Un aggiornamento dopo il backup ha aggiunto una tabella con una chiave
+        # verso una tabella del dump: il DROP del dump da solo fallirebbe.
+        with django.db.connection.cursor() as cur:
+            cur.execute("CREATE TABLE public.fm_restore_probe (id integer PRIMARY KEY, note text)")
+            cur.execute("CREATE TABLE public.fm_restore_newer (id integer, probe_id integer "
+                        "REFERENCES public.fm_restore_probe(id))")
+        self.addCleanup(self._drop_newer)
+        self._dump("pg-20261111-090000.sql.gz", PG_DUMP)
+        backup.restore_postgres("pg-20261111-090000.sql.gz")
+        self.assertEqual([r[0] for r in self._rows()], [1, 2])
+        with django.db.connection.cursor() as cur:
+            cur.execute("SELECT to_regclass('public.fm_restore_newer')")
+            self.assertIsNone(cur.fetchone()[0])
+        # Le migrazioni hanno rimesso lo schema dell'app.
+        self.assertEqual(Participant.objects.count(), 0)
+
+    def _drop_newer(self):
+        with django.db.connection.cursor() as cur:
+            cur.execute("DROP TABLE IF EXISTS public.fm_restore_newer")
+
+    def test_an_incomplete_dump_is_refused(self):
+        _write_gz(self.folder / "pg-20261111-090000.sql.gz",
+                  PG_DUMP.split("-- PostgreSQL database dump complete")[0])
+        with self.assertRaises(backup.RestoreError) as err:
+            backup.restore_postgres("pg-20261111-090000.sql.gz")
+        self.assertIn("incompleto", str(err.exception))
 
     def test_a_failing_dump_changes_nothing(self):
         with django.db.connection.cursor() as cur:

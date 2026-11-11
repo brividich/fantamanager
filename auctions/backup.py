@@ -478,22 +478,60 @@ def iter_pg_dump(lines):
         raise RestoreError("Il file finisce a metà di un'istruzione: è incompleto.")
 
 
+PG_DUMP_END = "PostgreSQL database dump complete"
+
+
+def pg_dump_complete(path):
+    """Il dump è finito e leggibile? Il servizio backup scrive il ``.sql.gz``
+    mentre comprime: finché non ha finito il gzip è troncato, e un dump
+    tagliato fra due istruzioni sembrerebbe valido. Si legge fino in fondo e
+    si cerca la riga con cui pg_dump chiude."""
+    import gzip
+    tail = ""
+    try:
+        with gzip.open(path, "rt", encoding="utf-8") as fh:
+            while chunk := fh.read(1 << 20):
+                tail = (tail + chunk)[-400:]
+    except (OSError, EOFError, UnicodeDecodeError):
+        return False
+    return PG_DUMP_END in tail
+
+
 def pg_dump_since(timestamp, *, exclude=""):
-    """Il dump più recente fatto dopo ``timestamp`` (secondi), o None."""
+    """Il dump completo più recente fatto dopo ``timestamp`` (secondi), o None."""
     folder = _backup_dir()
     try:
         dumps = [p for p in folder.glob("pg-*.sql.gz") if p.name != exclude and p.stat().st_mtime > timestamp]
     except OSError:
         return None
-    return max(dumps, key=lambda p: p.stat().st_mtime) if dumps else None
+    for dump in sorted(dumps, key=lambda p: p.stat().st_mtime, reverse=True):
+        if pg_dump_complete(dump):
+            return dump
+    return None
+
+
+def _clean_public_schema(cur):
+    """Toglie tutte le tabelle e sequenze dello schema public, dentro la
+    transazione del ripristino. Il dump cancella solo le tabelle che contiene:
+    una tabella aggiunta da un aggiornamento dopo il backup, con le sue chiavi
+    verso le tabelle vecchie, ne bloccherebbe la cancellazione. Le migrazioni
+    dopo il ripristino la ricreano."""
+    from psycopg import sql
+    cur.execute("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
+    for (table,) in cur.fetchall():
+        cur.execute(sql.SQL("DROP TABLE IF EXISTS public.{} CASCADE").format(sql.Identifier(table)))
+    cur.execute("SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = 'public'")
+    for (seq,) in cur.fetchall():
+        cur.execute(sql.SQL("DROP SEQUENCE IF EXISTS public.{} CASCADE").format(sql.Identifier(seq)))
 
 
 def restore_postgres(name):
     """Rimette il database PostgreSQL com'era nel dump ``name`` (``pg-*.sql.gz``).
 
     Tutto in una transazione: se un'istruzione fallisce non cambia niente.
-    Le migrazioni girano dopo, perché il dump può essere di una versione
-    precedente del codice. La copia dello stato attuale la chiede chi chiama
+    Si parte da uno schema pulito (vedi _clean_public_schema) e solo da un
+    dump completo. Le migrazioni girano dopo, perché il dump può essere di
+    una versione precedente del codice. La copia dello stato attuale la chiede chi chiama
     (vedi la pagina Supervisor), prima. Solleva RestoreError col messaggio
     per l'admin.
     """
@@ -516,6 +554,9 @@ def restore_postgres(name):
         head = ""
     if "PostgreSQL database dump" not in head:
         raise RestoreError(f"{dump.name} non è un backup del database leggibile.")
+    if not pg_dump_complete(dump):
+        raise RestoreError(f"{dump.name} è incompleto (backup interrotto o ancora in corso): "
+                           "scegli un'altra copia. Il database non è cambiato.")
 
     db = settings.DATABASES["default"]
     params = {k: v for k, v in {
@@ -526,6 +567,7 @@ def restore_postgres(name):
     try:
         with psycopg.connect(**params) as conn, gzip.open(dump, "rt", encoding="utf-8") as fh:
             with conn.transaction(), conn.cursor() as cur:
+                _clean_public_schema(cur)
                 for item in iter_pg_dump(fh):
                     if item[0] == "copy":
                         with cur.copy(item[1]) as copy:
