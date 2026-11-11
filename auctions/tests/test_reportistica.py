@@ -109,6 +109,54 @@ class ReportisticaTests(TestCase):
         self.assertIn("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", resp["Content-Type"])
         self.assertIn("Rinnovi_", resp["Content-Disposition"])
 
+    def test_verbale_lists_every_bid_with_time_only_after_spoglio(self):
+        """Il verbale mostra ogni offerta con l'orario; prima dello spoglio nessuna."""
+        from datetime import timedelta
+        from django.utils import timezone
+        self.session.tie_break = MarketSession.TieBreak.FIRST
+        self.session.save()
+        place_market_bid(self.session.id, self.team_a.id, self.free_pl.id, 170)
+        place_market_bid(self.session.id, self.team_b.id, self.free_pl.id, 170)
+        t0 = timezone.now() - timedelta(minutes=5)
+        MarketBid.objects.filter(participant=self.team_a).update(created_at=t0)
+        MarketBid.objects.filter(participant=self.team_b).update(created_at=t0 + timedelta(seconds=2, milliseconds=250))
+
+        # Buste ancora chiuse: il verbale non rivela nulla, nemmeno a un manager.
+        self._login_app(self.team_b)
+        resp = self.client.get(reverse("app_print_buste_report", args=[self.session.id]))
+        self.assertNotIn("Dettaglio delle offerte", resp.content.decode())
+        csv_text = self.client.get(reverse("app_export_buste_csv", args=[self.session.id])).content.decode("utf-8-sig")
+        self.assertNotIn("DETTAGLIO DI TUTTE LE OFFERTE", csv_text)
+        self.assertNotIn("Slavia Viafonda", csv_text)
+
+        self.session.status = MarketSession.Status.CLOSED
+        self.session.save()
+        resolve_market_session(self.session.id)
+
+        local = timezone.localtime(t0)
+        content = self.client.get(reverse("app_print_buste_report", args=[self.session.id])).content.decode()
+        self.assertIn("Dettaglio delle offerte", content)
+        self.assertIn("vince chi ha offerto prima", content)
+        self.assertIn(local.strftime("%H:%M:%S"), content)
+        self.assertIn("+2,250 s", content)
+        self.assertIn("Slavia Viafonda", content)
+        self.assertIn('class="same"', content)
+
+        csv_text = self.client.get(reverse("app_export_buste_csv", args=[self.session.id])).content.decode("utf-8-sig")
+        self.assertIn("DETTAGLIO DI TUTTE LE OFFERTE", csv_text)
+        rows = [r for r in csv_text.splitlines() if r.startswith("Modric;C;Milan;")]
+        self.assertEqual(len(rows), 2)
+        self.assertIn(";Real Seravezza;170;", rows[0])
+        self.assertIn("Aggiudicato", rows[0])
+        self.assertIn(";Slavia Viafonda;170;", rows[1])
+        self.assertIn(";2,250;SI;", rows[1])
+
+        # La console vede lo stesso dettaglio.
+        self.client.force_login(self.root)
+        admin = self.client.get(reverse("admin_print_buste_report", args=[self.session.id])).content.decode()
+        self.assertIn("Dettaglio delle offerte", admin)
+        self.assertIn("+2,250 s", admin)
+
     def test_official_buste_verbale_print_and_csv(self):
         """Verify the official Verbale di Spoglio Buste report in A4 print and CSV."""
         place_market_bid(self.session.id, self.team_a.id, self.free_pl.id, 180)

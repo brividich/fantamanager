@@ -63,7 +63,7 @@ mk_labels, is_buste, is_renewals, renewals,
             <li>Per avvisare la lega copia il <b>Riepilogo da condividere</b> e incollalo nel gruppo.</li>
             {% endif %}
             {% if s.status == "resolved" %}
-            <li>{% if is_renewals %}Stampa o salva il resoconto con <b>Report Rinnovi (PDF)</b>.{% else %}Scarica il verbale con <b>Verbale (PDF)</b> o <b>CSV</b>{% if is_buste or s.session_type == "waiver_wire" %}.
+            <li>{% if is_renewals %}Stampa o salva il resoconto con <b>Report Rinnovi (PDF)</b>.{% else %}Scarica il verbale con <b>Verbale (PDF)</b> o <b>CSV</b>: in fondo c'è ogni singola offerta, con l'orario di consegna al secondo{% if is_buste or s.session_type == "waiver_wire" %}.
                 Se qualcosa non va, <b>Annulla {% if is_buste %}spoglio{% else %}draft{% endif %}</b> storna acquisti e tagli e rimette {% if is_buste %}le buste{% else %}i reclami{% endif %} in attesa{% endif %}.{% endif %}</li>
             {% endif %}
         </ol>

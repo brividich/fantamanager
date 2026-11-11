@@ -36,6 +36,13 @@ Prima versione numerata (prima l'etichetta era 1.2.0, senza rilasci).
 - Lo scheduler lascia i lotti al ticker della sala quando è vivo (battito
   `Auction.ticker_seen_at`); senza ticker chiude con un margine di 3 s.
 
+### Mercato
+- Verbale di spoglio (PDF e CSV, console e app): nuovo «Allegato A» con ogni
+  singola offerta, giocatore per giocatore, con l'orario di consegna al
+  millesimo di secondo e il distacco dalla prima offerta; evidenziate le
+  offerte a pari importo, dove l'orario può decidere. Visibile solo dopo lo
+  spoglio. Corretta la data di spoglio, che restava «In corso».
+
 ### Backup e ripristino
 - Su PostgreSQL (NAS, Docker) il Supervisor ripristina un backup dal browser:
   prima salva lo stato attuale, poi ripristina tutto in una transazione.
