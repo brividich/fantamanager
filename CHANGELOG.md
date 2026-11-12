@@ -36,6 +36,20 @@ Prima versione numerata (prima l'etichetta era 1.2.0, senza rilasci).
 - Lo scheduler lascia i lotti al ticker della sala quando è vivo (battito
   `Auction.ticker_seen_at`); senza ticker chiude con un margine di 3 s.
 
+### Lega
+- Nuova pagina **Impostazioni lega**, in console (barra in alto) e nell'app
+  (Regia, menu e Altro): tutte le regole di una lega in un posto, crediti,
+  sistema di gioco, rosa, scambi, contratti e tetto si cambiano lì; mercati,
+  periodi degli scambi, punteggi e voto base, competizioni, squadre e listone
+  sono riassunti com'è adesso, col link alla loro pagina; co-admin.
+- Le **rose** della lega anche nell'app: la scheda Rose della Regia è lo
+  stesso pannello della Dashboard della console (una squadra o tutte,
+  reparti, posti liberi, Assegna, Svincola, Crediti), e dopo un'azione si
+  torna sulla stessa squadra.
+- La versione dice anche la build: commit e data dell'immagine Docker in
+  app → Altro e accanto alla versione nella console, così si vede se il
+  server si è aggiornato.
+
 ### Mercato
 - Verbale di spoglio (PDF e CSV, console e app): nuovo «Allegato A» con ogni
   singola offerta, giocatore per giocatore, con l'orario di consegna al

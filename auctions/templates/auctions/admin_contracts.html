@@ -1278,7 +1278,7 @@
                     <span class="ct-card-label"><span class="ct-label-icon">🧤</span> Max Squadre Serie A Portieri</span>
                     <span class="ct-badge-info">Portieri</span>
                 </div>
-                <div class="ct-card-desc">{% if current_league.gk_max_clubs %}Al massimo {{ current_league.gk_max_clubs }} squadre{% else %}Nessun limite{% endif %}. Si imposta nelle <a href="{% purl 'admin_config' %}?league={{ current_league.id }}">impostazioni della lega</a> (Rosa).</div>
+                <div class="ct-card-desc">{% if current_league.gk_max_clubs %}Al massimo {{ current_league.gk_max_clubs }} squadre{% else %}Nessun limite{% endif %}. Si imposta nelle <a href="{% purl 'admin_league_settings' %}?league={{ current_league.id }}#set-rosa-{{ current_league.id }}">impostazioni della lega</a> (Rosa).</div>
             </div>
         </div>
 

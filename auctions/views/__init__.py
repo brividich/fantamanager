@@ -7,6 +7,7 @@ from .admin_config import (
     _after_resume,
     admin_config,
     admin_config_action,
+    admin_league_settings,
     admin_resume_latest,
     admin_resume_session,
     admin_save_session,
@@ -385,6 +386,7 @@ __all__ = [
     "_import_listone_into_league",
     # admin_config
     "admin_config",
+    "admin_league_settings",
     "admin_config_action",
     "admin_sessions",
     "admin_save_session",

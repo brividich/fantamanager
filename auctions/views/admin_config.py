@@ -17,6 +17,7 @@ from .admin_onboarding import coadmin_context
 from .common import (
     current_auction,
     manageable_leagues,
+    app_page_url,
     back_to_page,
     page_frame,
     managed_or_403,
@@ -94,6 +95,74 @@ def admin_config(request):
         # con l'indirizzo del sito da scrivere sul PC.
         "sala_new_key": request.session.pop(SALA_KEY_SESSION, None),
         "sala_site_url": request.build_absolute_uri("/").rstrip("/"),
+    })
+
+
+@staff_member_required
+def admin_league_settings(request):
+    """Impostazioni della lega in una pagina sola: le regole che si scrivono qui
+    (nome, crediti, sistema di gioco, rosa, scambi, contratti, tetto: lo stesso
+    form dell'editor di Configurazione, ``_league_settings_fields.html``) e il
+    riassunto di quelle che hanno una pagina loro (mercati, periodi degli
+    scambi, punteggi, competizioni, squadre, co-admin), ognuna col suo link.
+
+    Stessa view e stesso template per la console (dashboard/lega/impostazioni/)
+    e per l'app (app/regia/lega/impostazioni/)."""
+    from ..models import MarketSession, Participant, Season, TradeWindow
+    from .. import scoring
+    from ..services import voto_algo
+    from django.utils import timezone
+
+    leagues = list(_config_leagues(request.user))
+    league = target_league(request)
+    if league is None or league.id not in {lg.id for lg in leagues}:
+        league = leagues[0] if len(leagues) == 1 else None
+    if league is None:
+        if leagues:
+            # Più leghe e nessuna scelta: si sceglie da Configurazione.
+            return redirect(app_page_url(request, "admin_config"))
+        messages.info(request, "Non gestisci ancora nessuna lega: creane una e poi torna qui per le regole.")
+        return redirect(app_page_url(request, "admin_setup"))
+
+    row = next((r for r in services.league_overview(League.objects.filter(pk=league.pk))), {})
+    season = Season.objects.filter(league=league, is_current=True).first()
+    rules = scoring.effective_rules(season.rules if season else None)
+    vote_source = voto_algo.vote_source_for(season)
+    now = timezone.now()
+    sessions = MarketSession.objects.filter(league=league)
+    windows = list(TradeWindow.objects.filter(league=league))
+    competitions = list(season.competitions.all()) if season else []
+    off = set((season.rules or {}).get("off") or []) if season else set()
+
+    return render(request, "auctions/admin_league_settings.html", {
+        **page_frame(request, league, own_messages=True),
+        "current_league": league,
+        "leagues": leagues,
+        "row": row,
+        "has_pool": bool(row.get("pool")),
+        "game_modes": League.GameMode.choices,
+        "summary": {
+            "sessions": sessions.count(),
+            "sessions_open": sessions.filter(status=MarketSession.Status.OPEN).count(),
+            "windows": len(windows),
+            "window_now": next((w for w in windows if w.opens_at <= now <= w.closes_at), None),
+            "window_next": next((w for w in windows if w.opens_at > now), None),
+            "vote_source": dict((v, label) for v, label, _ in voto_algo.VOTE_SOURCES).get(vote_source, vote_source),
+            "captain": bool(rules.get("captain_enabled")),
+            "modif": bool(rules.get("modificatore_difesa")),
+            "goal": rules.get("goal"), "assist": rules.get("assist"),
+            "conv_base": rules.get("conv_base"), "conv_step": rules.get("conv_step"),
+            "max_subs": rules.get("max_subs"),
+            "off": len(off),
+            "competitions": len(competitions),
+            "competitions_active": sum(1 for c in competitions if c.is_active),
+            "teams": Participant.objects.filter(league=league).count(),
+            "locked_out": row.get("locked_out") or 0,
+        },
+        "coadmin": coadmin_context(request, league),
+        "console_section": "Impostazioni lega",
+        "console_active": "league_settings",
+        "selected": current_auction(request, league),
     })
 
 

@@ -28,3 +28,22 @@ class ReleaseTests(SimpleTestCase):
         self.assertIn("/healthz/", src)
         self.assertIn("check --deploy", src)
         self.assertIn("workflow_call:", (ROOT / ".github/workflows/tests.yml").read_text(encoding="utf-8"))
+
+    def test_the_image_knows_its_build(self):
+        """Commit e data della build arrivano nell'immagine e si vedono nell'app:
+        così «è aggiornata?» si risponde confrontandoli con l'ultimo commit."""
+        import os
+        from unittest import mock
+        from django.test import RequestFactory
+        from auctions.context_processors import app_version
+
+        self.assertIn("ARG FM_BUILD", (ROOT / "Dockerfile").read_text(encoding="utf-8"))
+        src = (ROOT / ".github/workflows/docker-publish.yml").read_text(encoding="utf-8")
+        self.assertIn("FM_BUILD=${{ github.sha }}", src)
+        env = {"FM_BUILD": "0123456789abcdef", "FM_BUILD_DATE": "2026-11-11T23:41:15+01:00"}
+        with mock.patch.dict(os.environ, env):
+            ctx = app_version(RequestFactory().get("/"))
+        self.assertEqual((ctx["app_build"], ctx["app_build_date"]), ("0123456", "11/11/2026"))
+        with mock.patch.dict(os.environ, {"FM_BUILD": "", "FM_BUILD_DATE": "non è una data"}):
+            ctx = app_version(RequestFactory().get("/"))
+        self.assertEqual((ctx["app_build"], ctx["app_build_date"]), ("", ""))

@@ -146,6 +146,16 @@
         </div>
         <span style="color:var(--paused);font-size:20px;font-weight:900">›</span>
     </a>
+    <a class="action-tile" href="{% url 'app_regia_league_settings' %}">
+        <div class="at-left">
+            <span class="at-icon"><svg class="ic"><use href="#i-gear"/></svg></span>
+            <div>
+                <span style="display:block;line-height:1.2">Impostazioni lega</span>
+                <small class="muted" style="font-size:11.5px;font-weight:600">Crediti, rosa, mercati, scambi, punteggi</small>
+            </div>
+        </div>
+        <span class="muted" style="font-size:18px">›</span>
+    </a>
     {% if manages_app_league %}
     <a class="action-tile hide-mobile" href="{% url 'dashboard_league' app_league.id %}">
         <div class="at-left">
@@ -250,6 +260,9 @@
     </a>
     {% endif %}
 
+    <p class="muted" style="font-size:12px;text-align:center;margin:6px 0 0" id="app-build">
+        FantaManager {{ app_version }}{% if app_build %} · build <b>{{ app_build }}</b>{% if app_build_date %} del {{ app_build_date }}{% endif %}{% endif %}
+    </p>
 </div>
 </div>
 {% endblock %}

@@ -132,7 +132,7 @@ cambia la cornice (views/privacy.py:_account_frame).
             <div class="fm-onerow">
                 {% for lg in blockers %}
                 <a class="fm-btn fm-btn-secondary fm-btn-sm" href="{% purl 'admin_participants' %}?league={{ lg.id }}">Squadre di {{ lg.name }}</a>
-                <a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% purl 'admin_config' %}?league={{ lg.id }}">Impostazioni di {{ lg.name }}</a>
+                <a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% purl 'admin_league_settings' %}?league={{ lg.id }}">Impostazioni di {{ lg.name }}</a>
                 {% endfor %}
             </div>
             {% else %}<span>Nessuna lega da passare.</span>{% endif %}

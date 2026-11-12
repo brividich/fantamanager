@@ -154,41 +154,13 @@
         }
     }
 
-    function selectTeamRosa(participantId) {
-        document.querySelectorAll('.fm-team-chip').forEach(chip => chip.classList.remove('is-selected'));
-        document.querySelectorAll('.team-roster-view-container').forEach(c => c.style.display = 'none');
-
-        const activeChip = document.getElementById('team-chip-' + participantId);
-        const activePane = document.getElementById('team-roster-pane-' + participantId);
-        if (activeChip) activeChip.classList.add('is-selected');
-        if (activePane) activePane.style.display = 'block';
-    }
-
+    // Scheda Rose: il pannello è _rose_manage.html (lo stesso dell'app).
     function openTeamRosterTab(participantId) {
         switchLeagueTab('rose');
-        toggleRoseViewMode('single');
-        selectTeamRosa(participantId);
-        const chip = document.getElementById('team-chip-' + participantId);
-        if (chip) chip.scrollIntoView({ behavior: 'smooth', inline: 'center' });
-    }
-
-    function toggleRoseViewMode(mode) {
-        const btnSingle = document.getElementById('btn-view-single');
-        const btnAll = document.getElementById('btn-view-all');
-        const viewSingle = document.getElementById('view-mode-single');
-        const viewAll = document.getElementById('view-mode-all');
-
-        if (mode === 'single') {
-            if (btnSingle) { btnSingle.className = 'fm-btn fm-btn-secondary fm-btn-sm'; }
-            if (btnAll) { btnAll.className = 'fm-btn fm-btn-ghost fm-btn-sm'; }
-            if (viewSingle) viewSingle.style.display = 'block';
-            if (viewAll) viewAll.style.display = 'none';
-        } else {
-            if (btnSingle) { btnSingle.className = 'fm-btn fm-btn-ghost fm-btn-sm'; }
-            if (btnAll) { btnAll.className = 'fm-btn fm-btn-secondary fm-btn-sm'; }
-            if (viewSingle) viewSingle.style.display = 'none';
-            if (viewAll) viewAll.style.display = 'block';
-        }
+        const view = document.querySelector('#rose-manage [data-rm-view="one"]');
+        if (view) view.click();
+        const chip = document.querySelector(`#rose-manage [data-rm-team="${participantId}"]`);
+        if (chip) chip.click();
     }
 
     function closeModal(modalId) {

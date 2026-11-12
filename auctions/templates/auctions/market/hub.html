@@ -185,7 +185,7 @@ of a market's content is on this page: every item opens its own screen.
     <a class="mk-link" href="{% purl 'admin_contracts' %}?league={{ current_league.id }}"><svg class="ic"><use href="#i-doc"/></svg> Contratti</a>
     <a class="mk-link" href="{% purl 'admin_season' %}?league={{ current_league.id }}"><svg class="ic"><use href="#i-trophy"/></svg> Stagione</a>
     <a class="mk-link" href="{% purl 'admin_export' %}?league={{ current_league.id }}"><svg class="ic"><use href="#i-export"/></svg> Export rose</a>
-    <a class="mk-link" href="{% purl 'admin_config' %}#lg-{{ current_league.id }}"><svg class="ic"><use href="#i-gear"/></svg> Regole della lega</a>
+    <a class="mk-link" href="{% purl 'admin_league_settings' %}?league={{ current_league.id }}"><svg class="ic"><use href="#i-gear"/></svg> Regole della lega</a>
 </nav>
 {% endblock %}
 

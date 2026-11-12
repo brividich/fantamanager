@@ -584,6 +584,7 @@ window.showToast = function(msg, type) {
 
         {% if is_app_admin %}
         <a href="{% url 'app_regia' %}" class="fm-drawer-link" style="color:var(--paused);"><span class="dr-icon" style="color:var(--paused); background:rgba(255,181,38,0.12);"><svg class="ic"><use href="#i-gavel"/></svg></span> <span>Regia Admin</span></a>
+        <a href="{% url 'app_regia_league_settings' %}" class="fm-drawer-link"><span class="dr-icon"><svg class="ic"><use href="#i-gear"/></svg></span> <span>Impostazioni lega</span></a>
         {% endif %}
         <a href="{% url 'app_altro' %}" class="fm-drawer-link"><span class="dr-icon"><svg class="ic"><use href="#i-gear"/></svg></span> <span>Impostazioni & PIN</span></a>
         <a href="#" onclick="toggleFmTheme(event)" class="fm-drawer-link"><span class="dr-icon"><svg class="ic"><use href="#i-pulse"/></svg></span> <span>Cambia Tema (Chiaro / Scuro)</span></a>
@@ -708,6 +709,9 @@ window.toggleFmTheme = function(e) {
         var start = seg.dataset.asecDefault, saved = null;
         try { saved = sessionStorage.getItem(key); } catch (e) {}
         if (saved && seg.querySelector('[data-asec-go="' + saved + '"]')) start = saved;
+        // Un link (o il ritorno da un'azione) che porta a #sezione la apre.
+        var hash = location.hash.slice(1);
+        if (/^[\w-]+$/.test(hash) && seg.querySelector('[data-asec-go="' + hash + '"]')) start = hash;
         show(start);
         seg.addEventListener("click", function (e) {
             var b = e.target.closest("[data-asec-go]");

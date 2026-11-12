@@ -161,5 +161,9 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # Il commit e la sua data, mostrati accanto alla versione (app → Altro).
+          build-args: |
+            FM_BUILD=${{ github.sha }}
+            FM_BUILD_DATE=${{ github.event.head_commit.timestamp }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
