@@ -567,6 +567,7 @@ APP_PAGES = {
     "admin_fantapazz": "app_regia_import",
     "admin_export": "app_regia_export",
     "admin_config": "app_regia_config",
+    "admin_league_settings": "app_regia_league_settings",
     "admin_competitions": "app_regia_competitions",
     "admin_market_dashboard": "app_regia_market",
     "admin_market_buste": "app_regia_buste",
@@ -666,9 +667,13 @@ def version_status_api(request):
     """Public API endpoint returning the running build version and active engine details."""
     from liveauction import __version__
     from django.db import connection
+    from ..context_processors import build_info
+    sha, date = build_info()
     return JsonResponse({
         "app": "FantaManager",
         "version": __version__,
+        "build": sha,
+        "build_date": date,
         "database_engine": connection.vendor,
         "features": [
             "hybrid_league_cockpit",

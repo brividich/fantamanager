@@ -47,7 +47,7 @@ i successivi spiegati. Ogni form manda next = questa pagina (console o app).
                 {% elif s.key == "listone" %}
                     <a class="fm-btn {% if s.now %}fm-btn-primary{% else %}fm-btn-secondary{% endif %} fm-btn-sm" href="{% purl 'admin_footballers' %}?league={{ lg.id }}"><svg class="ic"><use href="#i-import"/></svg> Carica il listone</a>
                 {% elif s.key == "rules" %}
-                    <a class="fm-btn fm-btn-secondary fm-btn-sm" href="{% purl 'admin_config' %}?league={{ lg.id }}#lg-{{ lg.id }}"><svg class="ic"><use href="#i-gear"/></svg> Apri le regole</a>
+                    <a class="fm-btn fm-btn-secondary fm-btn-sm" href="{% purl 'admin_league_settings' %}?league={{ lg.id }}"><svg class="ic"><use href="#i-gear"/></svg> Apri le regole</a>
                     <form method="post" action="{% url 'admin_setup_card' lg.id %}">{% csrf_token %}
                         <input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="action" value="rules_checked">
                         <button type="submit" class="fm-btn {% if s.now %}fm-btn-primary{% else %}fm-btn-ghost{% endif %} fm-btn-sm">✓ Le ho controllate</button>
@@ -56,7 +56,7 @@ i successivi spiegati. Ogni form manda next = questa pagina (console o app).
                     <a class="fm-btn {% if s.now %}fm-btn-primary{% else %}fm-btn-secondary{% endif %} fm-btn-sm" href="{% purl 'admin_auction_wizard' %}?league={{ lg.id }}"><svg class="ic"><use href="#i-gavel"/></svg> Crea l'asta</a>
                     <a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% purl 'admin_market_dashboard' %}?league={{ lg.id }}"><svg class="ic"><use href="#i-swap"/></svg> Mercato</a>
                 {% elif s.key == "coadmin" %}
-                    <a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% purl 'admin_config' %}?league={{ lg.id }}#coadmin-{{ lg.id }}"><svg class="ic"><use href="#i-users"/></svg> Invita un co-admin</a>
+                    <a class="fm-btn fm-btn-ghost fm-btn-sm" href="{% purl 'admin_league_settings' %}?league={{ lg.id }}#coadmin-{{ lg.id }}"><svg class="ic"><use href="#i-users"/></svg> Invita un co-admin</a>
                 {% endif %}
                 </div>
                 {% endif %}

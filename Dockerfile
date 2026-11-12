@@ -27,6 +27,14 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy application source code
 COPY . /app/
 
+# Which build this is (commit and its date), written by the publish workflow:
+# shown next to the version in the app (Altro) and in the console, so
+# "is it updated?" is answered by comparing it with the latest commit on main.
+ARG FM_BUILD=""
+ARG FM_BUILD_DATE=""
+ENV FM_BUILD=$FM_BUILD \
+    FM_BUILD_DATE=$FM_BUILD_DATE
+
 # Create persistent storage directories and the unprivileged user the server
 # runs as. The entrypoint starts as root only to hand the data folders (bind
 # mounts from the host) to that user, then drops to it.

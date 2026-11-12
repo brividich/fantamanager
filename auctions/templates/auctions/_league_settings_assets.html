@@ -1,0 +1,108 @@
+{% comment %}
+Stile e script dei campi di _league_settings_fields.html: una volta per
+pagina (admin_league_settings.html, admin_config.html). Ogni <form
+class="lg-edit"> della pagina: posti secondo sistema e limiti, totale della
+rosa, interruttori degli scambi che dipendono dal primo, «Modifiche non
+salvate». window.fmLeagueEditor.dirty: i form con modifiche da salvare.
+{% endcomment %}
+<style>
+    /* Editor */
+    .lg-edit { margin-top: 12px; border-top: 1px solid var(--fm-border); padding-top: 14px; }
+    .lg-edit[hidden] { display: none; }
+    .ed-sec { margin-bottom: 16px; }
+    .ed-sec > .t { font-size: 10.5px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--fm-text-secondary); margin: 0 0 8px; }
+    .ed-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .ed-grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    @media (max-width: 560px) { .ed-grid2 { grid-template-columns: 1fr; } .ed-grid4 { grid-template-columns: repeat(2, 1fr); } }
+    .ed-sec label:not(.sw-row) { margin: 0 0 4px; }
+    .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+    .chip { height: 28px; padding: 0 11px; font-size: 12px; border-radius: 999px; background: rgba(255,255,255,.04); border: 1px solid var(--fm-border); color: var(--fm-text-secondary); }
+    .chip:hover { color: #fff; filter: none; }
+    .seg { display: inline-flex; flex-wrap: wrap; gap: 3px; padding: 3px; border-radius: 9px; background: rgba(255,255,255,.04); border: 1px solid var(--fm-border); }
+    .seg label { position: relative; cursor: pointer; }
+    .seg input { position: absolute; opacity: 0; pointer-events: none; }
+    .seg span { display: inline-flex; align-items: center; height: 30px; padding: 0 12px; border-radius: 6px; font-size: 12.5px; font-weight: 700; color: var(--fm-text-secondary); }
+    .seg input:checked + span { background: rgba(8,124,240,.16); color: var(--fm-primary-light); box-shadow: inset 0 0 0 1px var(--fm-border-active); }
+    .seg input:focus-visible + span { outline: 2px solid var(--fm-primary-light); outline-offset: 1px; }
+    .hint { font-size: 12px; color: var(--fm-text-secondary); margin-top: 6px; line-height: 1.45; }
+    .hint.warn { color: var(--fm-warning); }
+
+    .sw-row { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; border-bottom: 1px solid rgba(85,160,230,.08); cursor: pointer;
+              text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 500; color: var(--fm-text); margin: 0; }
+    .sw-row:last-of-type { border-bottom: 0; }
+    .sw-row .txt { flex: 1; min-width: 0; }
+    .sw-row .txt b { display: block; font-size: 13.5px; }
+    .sw-row .txt span { font-size: 12px; color: var(--fm-text-secondary); }
+    .sw-row .txt a { font-size: 12px; font-weight: 700; }
+    .sw-row.off { opacity: .5; }
+    /* Switch */
+    .sw { position: relative; width: 40px; height: 22px; flex-shrink: 0; margin-top: 2px; }
+    .sw input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; z-index: 1; }
+    .sw i { position: absolute; inset: 0; border-radius: 999px; background: rgba(255,255,255,.12); transition: background .15s; }
+    .sw i::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .15s; }
+    .sw input:checked + i { background: var(--fm-primary); }
+    .sw input:checked + i::after { transform: translateX(18px); }
+    .sw input:focus-visible + i { outline: 2px solid var(--fm-primary-light); outline-offset: 2px; }
+    .sw input:disabled + i { opacity: .5; }
+
+    .ed-foot { position: sticky; bottom: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+               margin: 4px -16px -16px; padding: 12px 16px; border-radius: 0 0 var(--fm-radius-md) var(--fm-radius-md);
+               background: rgba(4,20,41,.96); border-top: 1px solid var(--fm-border); }
+    .ed-foot .dirty { flex: 1; font-size: 12px; color: var(--fm-warning); visibility: hidden; }
+    .ed-foot .dirty.on { visibility: visible; }
+
+</style>
+<script>
+(function () {
+    function slotsUi(form) {
+        const mantra = (form.querySelector('input[name="game_mode"]:checked') || {}).value === "MANTRA";
+        const limits = (form.querySelector('input[name="slot_limits"]:checked') || {}).value !== "0";
+        form.querySelector(".slots").style.display = limits ? "" : "none";
+        form.querySelector(".slots-classic").style.display = mantra ? "none" : "";
+        form.querySelector(".slots-mantra").style.display = mantra ? "" : "none";
+        const names = mantra ? ["slots_gk", "slots_out"] : ["slots_p", "slots_d", "slots_c", "slots_a"];
+        const tot = names.reduce((t, n) => t + (Math.max(0, parseInt(form.elements[n].value, 10)) || 0), 0);
+        const budget = parseFloat(String(form.elements.budget.value).replace(",", "."));
+        form.querySelector(".slots-total").textContent = limits && tot
+            ? `= ${tot} giocatori a squadra${budget ? ` · ≈ ${Math.round(budget / tot)} FM a giocatore` : ""}` : "";
+        const master = form.querySelector('[data-master="trades"]');
+        form.querySelectorAll('[data-dep="trades"]').forEach(row => {
+            row.classList.toggle("off", !master.checked);
+            row.querySelector("input").disabled = !master.checked;
+        });
+        const gmWarn = form.querySelector(".gm-warn");
+        if (gmWarn) gmWarn.style.display = form.dataset.gm0 && form.dataset.gm0 !== (mantra ? "MANTRA" : "CLASSIC") ? "" : "none";
+    }
+    const snapshot = form => JSON.stringify([...new FormData(form)].filter(([k]) => k !== "csrfmiddlewaretoken"));
+    const dirty = new Set();
+    window.fmLeagueEditor = { dirty };
+    function init() {
+        document.querySelectorAll("form.lg-edit").forEach(form => {
+            if (form.dataset.ready) return;
+            form.dataset.ready = "1";
+            form.dataset.gm0 = (form.querySelector('input[name="game_mode"]:checked') || {}).value || "";
+            slotsUi(form);  // before the snapshot: it disables the dependent switches
+            form.dataset.snap = snapshot(form);
+            const mark = () => {
+                slotsUi(form);
+                const changed = snapshot(form) !== form.dataset.snap;
+                const flag = form.querySelector(".dirty");
+                if (flag) flag.classList.toggle("on", changed);
+                changed ? dirty.add(form) : dirty.delete(form);
+            };
+            form.addEventListener("input", mark);
+            form.addEventListener("change", mark);
+            form.querySelectorAll(".chip[data-set]").forEach(c => c.addEventListener("click", () => {
+                document.getElementById(c.dataset.set).value = c.dataset.v; mark();
+            }));
+            form.addEventListener("submit", () => {
+                dirty.delete(form);
+                // Disabled boxes are not posted: re-enable so their state is kept.
+                form.querySelectorAll("input:disabled").forEach(i => { i.disabled = false; });
+            });
+        });
+    }
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
+    window.addEventListener("beforeunload", ev => { if (dirty.size) { ev.preventDefault(); ev.returnValue = ""; } });
+})();
+</script>

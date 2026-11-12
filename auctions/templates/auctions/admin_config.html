@@ -10,6 +10,7 @@ its name to be typed: it takes teams, listone, auctions and sessions with it.
 {% block title %}Impostazioni — FantaManager{% endblock %}
 
 {% block page %}
+{% include "auctions/_league_settings_assets.html" %}
 <style>
     .cf { max-width: 1280px; margin: 0 auto; }
     .cf-head { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin: 8px 0 14px; }
@@ -74,51 +75,6 @@ its name to be typed: it takes teams, listone, auctions and sessions with it.
     .lg-actions .fm-btn { height: 34px; font-size: 12.5px; }
     .lg-actions .push { margin-left: auto; }
 
-    /* Editor */
-    .lg-edit { margin-top: 12px; border-top: 1px solid var(--fm-border); padding-top: 14px; }
-    .lg-edit[hidden] { display: none; }
-    .ed-sec { margin-bottom: 16px; }
-    .ed-sec > .t { font-size: 10.5px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--fm-text-secondary); margin: 0 0 8px; }
-    .ed-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .ed-grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-    @media (max-width: 560px) { .ed-grid2 { grid-template-columns: 1fr; } .ed-grid4 { grid-template-columns: repeat(2, 1fr); } }
-    .ed-sec label:not(.sw-row) { margin: 0 0 4px; }
-    .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
-    .chip { height: 28px; padding: 0 11px; font-size: 12px; border-radius: 999px; background: rgba(255,255,255,.04); border: 1px solid var(--fm-border); color: var(--fm-text-secondary); }
-    .chip:hover { color: #fff; filter: none; }
-    .seg { display: inline-flex; flex-wrap: wrap; gap: 3px; padding: 3px; border-radius: 9px; background: rgba(255,255,255,.04); border: 1px solid var(--fm-border); }
-    .seg label { position: relative; cursor: pointer; }
-    .seg input { position: absolute; opacity: 0; pointer-events: none; }
-    .seg span { display: inline-flex; align-items: center; height: 30px; padding: 0 12px; border-radius: 6px; font-size: 12.5px; font-weight: 700; color: var(--fm-text-secondary); }
-    .seg input:checked + span { background: rgba(8,124,240,.16); color: var(--fm-primary-light); box-shadow: inset 0 0 0 1px var(--fm-border-active); }
-    .seg input:focus-visible + span { outline: 2px solid var(--fm-primary-light); outline-offset: 1px; }
-    .hint { font-size: 12px; color: var(--fm-text-secondary); margin-top: 6px; line-height: 1.45; }
-    .hint.warn { color: var(--fm-warning); }
-
-    .sw-row { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; border-bottom: 1px solid rgba(85,160,230,.08); cursor: pointer;
-              text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 500; color: var(--fm-text); margin: 0; }
-    .sw-row:last-of-type { border-bottom: 0; }
-    .sw-row .txt { flex: 1; min-width: 0; }
-    .sw-row .txt b { display: block; font-size: 13.5px; }
-    .sw-row .txt span { font-size: 12px; color: var(--fm-text-secondary); }
-    .sw-row .txt a { font-size: 12px; font-weight: 700; }
-    .sw-row.off { opacity: .5; }
-    /* Switch */
-    .sw { position: relative; width: 40px; height: 22px; flex-shrink: 0; margin-top: 2px; }
-    .sw input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; z-index: 1; }
-    .sw i { position: absolute; inset: 0; border-radius: 999px; background: rgba(255,255,255,.12); transition: background .15s; }
-    .sw i::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .15s; }
-    .sw input:checked + i { background: var(--fm-primary); }
-    .sw input:checked + i::after { transform: translateX(18px); }
-    .sw input:focus-visible + i { outline: 2px solid var(--fm-primary-light); outline-offset: 2px; }
-    .sw input:disabled + i { opacity: .5; }
-
-    .ed-foot { position: sticky; bottom: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-               margin: 4px -16px -16px; padding: 12px 16px; border-radius: 0 0 var(--fm-radius-md) var(--fm-radius-md);
-               background: rgba(4,20,41,.96); border-top: 1px solid var(--fm-border); }
-    .ed-foot .dirty { flex: 1; font-size: 12px; color: var(--fm-warning); visibility: hidden; }
-    .ed-foot .dirty.on { visibility: visible; }
-
     /* Lists (aste, sessioni) */
     .cf-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
     .cf-toolbar select { width: auto; min-width: 200px; }
@@ -163,6 +119,7 @@ its name to be typed: it takes teams, listone, auctions and sessions with it.
         <input type="search" id="lg-search" placeholder="Cerca una lega…" aria-label="Cerca una lega">
     </div>
     {% endif %}
+    {% if current_league %}<a class="fm-btn fm-btn-secondary" href="{% purl 'admin_league_settings' %}?league={{ current_league.id }}"><svg class="ic"><use href="#i-gear"/></svg> Impostazioni di {{ current_league.name|truncatechars:22 }}</a>{% endif %}
     <a class="fm-btn fm-btn-primary" href="{% purl 'admin_setup' %}"><svg class="ic"><use href="#i-plus"/></svg> Nuova lega</a>
 </div>
 
@@ -273,82 +230,7 @@ its name to be typed: it takes teams, listone, auctions and sessions with it.
             <input type="hidden" name="league_id" value="{{ lg.id }}">
             <input type="hidden" name="rules_present" value="1">
 
-            <div class="ed-sec">
-                <div class="t">Generale</div>
-                <div class="ed-grid2">
-                    <div><label for="n-{{ lg.id }}">Nome della lega</label>
-                        <input id="n-{{ lg.id }}" name="name" value="{{ lg.name }}" maxlength="120" required></div>
-                    <div><label for="b-{{ lg.id }}">Crediti per squadra (FM)</label>
-                        <input id="b-{{ lg.id }}" name="budget" value="{{ lg.budget|floatformat:0 }}" inputmode="numeric">
-                        <div class="chips">
-                            <button type="button" class="chip" data-set="b-{{ lg.id }}" data-v="250">250</button>
-                            <button type="button" class="chip" data-set="b-{{ lg.id }}" data-v="500">500</button>
-                            <button type="button" class="chip" data-set="b-{{ lg.id }}" data-v="1000">1000</button>
-                        </div>
-                        <div class="hint">Vale per le squadre nuove: i crediti di quelle esistenti si regolano dalla console.</div></div>
-                </div>
-            </div>
-
-            <div class="ed-sec">
-                <div class="t">Sistema di gioco</div>
-                <div class="seg" role="radiogroup" aria-label="Sistema di gioco">
-                    {% for value, label in game_modes %}
-                    <label><input type="radio" name="game_mode" value="{{ value }}" {% if lg.game_mode == value %}checked{% endif %}><span>{{ label }}</span></label>
-                    {% endfor %}
-                </div>
-                {% if r.pool %}<div class="hint warn gm-warn" style="display:none">Cambiare sistema a lega avviata cambia ruoli e quotazioni che contano: fallo prima dell'asta.</div>{% endif %}
-            </div>
-
-            <div class="ed-sec">
-                <div class="t">Rosa</div>
-                <div class="seg" role="radiogroup" aria-label="Limiti della rosa">
-                    <label><input type="radio" name="slot_limits" value="1" {% if lg.slot_limits %}checked{% endif %}><span>Posti per ruolo</span></label>
-                    <label><input type="radio" name="slot_limits" value="0" {% if not lg.slot_limits %}checked{% endif %}><span>Nessun limite</span></label>
-                </div>
-                <div class="slots" style="margin-top:10px">
-                    <div class="ed-grid4 slots-classic">
-                        <div><label for="sp-{{ lg.id }}">Portieri</label><input id="sp-{{ lg.id }}" name="slots_p" value="{{ lg.slots_p }}" inputmode="numeric"></div>
-                        <div><label for="sd-{{ lg.id }}">Difensori</label><input id="sd-{{ lg.id }}" name="slots_d" value="{{ lg.slots_d }}" inputmode="numeric"></div>
-                        <div><label for="sc-{{ lg.id }}">Centrocamp.</label><input id="sc-{{ lg.id }}" name="slots_c" value="{{ lg.slots_c }}" inputmode="numeric"></div>
-                        <div><label for="sa-{{ lg.id }}">Attaccanti</label><input id="sa-{{ lg.id }}" name="slots_a" value="{{ lg.slots_a }}" inputmode="numeric"></div>
-                    </div>
-                    <div class="ed-grid2 slots-mantra">
-                        <div><label for="sg-{{ lg.id }}">Portieri</label><input id="sg-{{ lg.id }}" name="slots_gk" value="{{ lg.slots_gk }}" inputmode="numeric"></div>
-                        <div><label for="so-{{ lg.id }}">Movimento</label><input id="so-{{ lg.id }}" name="slots_out" value="{{ lg.slots_out }}" inputmode="numeric"></div>
-                    </div>
-                    <div class="hint slots-total"></div>
-                </div>
-                <div style="margin-top:10px">
-                    <label for="gk-{{ lg.id }}">Portieri: squadre di Serie A al massimo</label>
-                    <input id="gk-{{ lg.id }}" name="gk_max_clubs" value="{{ lg.gk_max_clubs }}" inputmode="numeric">
-                    <div class="hint">0 = nessun limite. Con 2, chi ha già portieri di due squadre di Serie A può prendere solo portieri di quelle squadre (regolamento 2.02). Vale in asta e in ogni mercato.</div>
-                </div>
-            </div>
-
-            <div class="ed-sec">
-                <div class="t">Regole</div>
-                <label class="sw-row">
-                    <span class="sw"><input type="checkbox" name="trades_enabled" value="1" data-master="trades" {% if lg.trades_enabled %}checked{% endif %}><i></i></span>
-                    <span class="txt"><b>Scambi tra squadre</b><span>Le squadre si propongono giocatori e crediti dall'app.</span></span>
-                </label>
-                <label class="sw-row" data-dep="trades">
-                    <span class="sw"><input type="checkbox" name="trades_need_approval" value="1" {% if lg.trades_need_approval %}checked{% endif %}><i></i></span>
-                    <span class="txt"><b>Gli scambi li ratifico io</b><span>Uno scambio accettato aspetta il tuo sì prima di spostare i giocatori.</span></span>
-                </label>
-                <label class="sw-row" data-dep="trades">
-                    <span class="sw"><input type="checkbox" name="trades_same_roles" value="1" {% if lg.trades_same_roles %}checked{% endif %}><i></i></span>
-                    <span class="txt"><b>Stessi ruoli da una parte e dall'altra</b><span>Ogni scambio sposta lo stesso numero di giocatori per ruolo (reg. 5.3).</span></span>
-                </label>
-                <label class="sw-row">
-                    <span class="sw"><input type="checkbox" name="contracts_enabled" value="1" {% if lg.contracts_enabled %}checked{% endif %}><i></i></span>
-                    <span class="txt"><b>Contratti di permanenza</b><span>Dadi dei contratti e rinnovi a fine stagione. <a href="{% purl 'admin_contracts' %}?league={{ lg.id }}">Dadi e soglie ›</a></span></span>
-                </label>
-                <label class="sw-row">
-                    <span class="sw"><input type="checkbox" name="salary_cap_enabled" value="1" {% if lg.salary_cap_enabled %}checked{% endif %}><i></i></span>
-                    <span class="txt"><b>Tetto salariale e Decreto</b><span>Limite di spesa per stagione. <a href="{% purl 'admin_season' %}?league={{ lg.id }}">Tabelle ›</a></span></span>
-                </label>
-                <p class="hint">Regole delle buste e finestre degli scambi: <a href="{% purl 'admin_market_dashboard' %}?league={{ lg.id }}">Mercato ›</a></p>
-            </div>
+            {% include "auctions/_league_settings_fields.html" with lg=lg has_pool=r.pool %}
 
             <div class="ed-foot">
                 <span class="dirty" aria-live="polite">Modifiche non salvate</span>
@@ -515,49 +397,7 @@ its name to be typed: it takes teams, listone, auctions and sessions with it.
         showTab(hash || "leghe");
     }
 
-    // ---- League editor ----
-    function slotsUi(form) {
-        const mantra = (form.querySelector('input[name="game_mode"]:checked') || {}).value === "MANTRA";
-        const limits = (form.querySelector('input[name="slot_limits"]:checked') || {}).value !== "0";
-        form.querySelector(".slots").style.display = limits ? "" : "none";
-        form.querySelector(".slots-classic").style.display = mantra ? "none" : "";
-        form.querySelector(".slots-mantra").style.display = mantra ? "" : "none";
-        const names = mantra ? ["slots_gk", "slots_out"] : ["slots_p", "slots_d", "slots_c", "slots_a"];
-        const tot = names.reduce((t, n) => t + (Math.max(0, parseInt(form.elements[n].value, 10)) || 0), 0);
-        const budget = parseFloat(String(form.elements.budget.value).replace(",", "."));
-        form.querySelector(".slots-total").textContent = limits && tot
-            ? `= ${tot} giocatori a squadra${budget ? ` · ≈ ${Math.round(budget / tot)} FM a giocatore` : ""}` : "";
-        const master = form.querySelector('[data-master="trades"]');
-        form.querySelectorAll('[data-dep="trades"]').forEach(row => {
-            row.classList.toggle("off", !master.checked);
-            row.querySelector("input").disabled = !master.checked;
-        });
-        const gmWarn = form.querySelector(".gm-warn");
-        if (gmWarn) gmWarn.style.display = form.dataset.gm0 && form.dataset.gm0 !== (mantra ? "MANTRA" : "CLASSIC") ? "" : "none";
-    }
-    const snapshot = form => JSON.stringify([...new FormData(form)].filter(([k]) => k !== "csrfmiddlewaretoken"));
-    const dirty = new Set();
-    $$(".lg-edit").forEach(form => {
-        form.dataset.gm0 = (form.querySelector('input[name="game_mode"]:checked') || {}).value || "";
-        slotsUi(form);  // before the snapshot: it disables the dependent switches
-        form.dataset.snap = snapshot(form);
-        const mark = () => {
-            slotsUi(form);
-            const changed = snapshot(form) !== form.dataset.snap;
-            form.querySelector(".dirty").classList.toggle("on", changed);
-            changed ? dirty.add(form) : dirty.delete(form);
-        };
-        form.addEventListener("input", mark);
-        form.addEventListener("change", mark);
-        form.querySelectorAll(".chip[data-set]").forEach(c => c.addEventListener("click", () => {
-            document.getElementById(c.dataset.set).value = c.dataset.v; mark();
-        }));
-        form.addEventListener("submit", () => {
-            dirty.delete(form);
-            // Disabled boxes are not posted: re-enable so their state is kept.
-            form.querySelectorAll("input:disabled").forEach(i => { i.disabled = false; });
-        });
-    });
+    // ---- League editor: fields, totals and «non salvate» in _league_settings_assets.html ----
     function toggleEditor(id, open) {
         const form = document.getElementById("ed-" + id);
         const btn = $(`[data-edit="${id}"]`);
@@ -573,7 +413,6 @@ its name to be typed: it takes teams, listone, auctions and sessions with it.
         form.dispatchEvent(new Event("change"));
         toggleEditor(b.dataset.cancel, false);
     }));
-    window.addEventListener("beforeunload", ev => { if (dirty.size) { ev.preventDefault(); ev.returnValue = ""; } });
     // Coming back from a save of this league: reopen nothing, but land on it.
     // A single league: open its editor straight away, there's nothing to pick.
     const editors = $$(".lg-edit");

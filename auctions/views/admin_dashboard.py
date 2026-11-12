@@ -353,7 +353,14 @@ def admin_dashboard(request, league_id=None, hub=False, auction_id=None):
         # The tunnel status carries the regia PIN: superadmin only.
         "remote_data": remote.status() if user.is_superuser else None,
         "lan_url": remote.lan_url(request),
+        # Scheda Rose: lo stesso pannello della Regia dell'app (_rose_manage.html).
+        **(_rose_ctx(request, current_league) if current_league is not None else {}),
     })
+
+
+def _rose_ctx(request, league):
+    from .rose import rose_manage_context
+    return rose_manage_context(request, league)
 
 
 @staff_member_required

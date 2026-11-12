@@ -20,7 +20,7 @@ button) and everything else opens as a full-screen menu: ``.fm-chrome`` is
             <div class="bottom">MANAGER</div>
         </div>
         <span class="fm-brand-badge">PRO</span>
-        <span class="fm-brand-badge" style="background:rgba(56,189,248,0.12);color:#38bdf8;border:1px solid rgba(56,189,248,0.28);font-size:10.5px">v{{ app_version }}</span>
+        <span class="fm-brand-badge" style="background:rgba(56,189,248,0.12);color:#38bdf8;border:1px solid rgba(56,189,248,0.28);font-size:10.5px" title="Versione {{ app_version }}{% if app_build %} · build {{ app_build }}{% if app_build_date %} del {{ app_build_date }}{% endif %}{% endif %}">v{{ app_version }}{% if app_build %} · {{ app_build }}{% endif %}</span>
     </div>
     <div class="fm-topbar-title">
         <div class="t">{% if selected %}Regia d'asta{% else %}Gestionale Sportivo{% endif %}</div>
@@ -110,6 +110,8 @@ button) and everything else opens as a full-screen menu: ``.fm-chrome`` is
     {% endif %}
     <a class="fm-nav-link {% if not selected and console_active == 'dashboard' %}is-active{% endif %}" href="{% if current_league %}{% url 'dashboard_league' current_league.id %}{% else %}{% url 'dashboard' %}{% endif %}">
         <svg class="ic"><use href="#i-table"/></svg> Dashboard</a>
+    <a class="fm-nav-link {% if console_active == 'league_settings' %}is-active{% endif %}" href="{% url 'admin_league_settings' %}{% if current_league %}?league={{ current_league.id }}{% endif %}" title="Le regole della lega: crediti, rosa, mercati, scambi, punteggi">
+        <svg class="ic"><use href="#i-gear"/></svg> Impostazioni</a>
     <a class="fm-nav-link {% if selected and console_active == 'live' %}is-active{% endif %}" href="{% if selected %}{% url 'admin_dashboard' %}?auction={{ selected.id }}{% elif active_auction %}{% url 'admin_dashboard' %}?auction={{ active_auction.id }}{% else %}{% url 'admin_auction_wizard' %}{% endif %}">
         <svg class="ic"><use href="#i-gavel"/></svg> Asta Live</a>
     <a class="fm-nav-link {% if console_active == 'footballers' %}is-active{% endif %}" href="{% url 'admin_footballers' %}{% if current_league %}?league={{ current_league.id }}{% endif %}" title="Il listone della lega (import, assegna, svincola) e l'anagrafica di Serie A">
@@ -156,7 +158,7 @@ button) and everything else opens as a full-screen menu: ``.fm-chrome`` is
             {% if request.user.is_superuser %}
             <a class="fm-nav-link {% if console_active == 'remote' %}is-active{% endif %}" href="{% url 'admin_remote_page' %}"><svg class="ic"><use href="#i-globe"/></svg> Accesso remoto</a>
             {% endif %}
-            <a class="fm-nav-link {% if console_active == 'config' %}is-active{% endif %}" href="{% url 'admin_config' %}"><svg class="ic"><use href="#i-gear"/></svg> Configurazione</a>
+            <a class="fm-nav-link {% if console_active == 'config' %}is-active{% endif %}" href="{% url 'admin_config' %}" title="Tutte le tue leghe, aste e salvataggi, asta in sala, pulizia"><svg class="ic"><use href="#i-gear"/></svg> Configurazione</a>
             {% if request.user.is_superuser %}<a class="fm-nav-link {% if console_active == 'mail' %}is-active{% endif %}" href="{% url 'admin_mail_settings' %}"><svg class="ic"><use href="#i-mail"/></svg> Posta (email)</a>{% endif %}
             {% if request.user.is_superuser %}<a class="fm-nav-link {% if console_active == 'algo' %}is-active{% endif %}" href="{% url 'supervisor_algo' %}"><svg class="ic"><use href="#i-filter"/></svg> Voto algoritmico</a>{% endif %}
             {% if selected %}

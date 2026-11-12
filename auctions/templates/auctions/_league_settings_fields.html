@@ -1,0 +1,88 @@
+{% load fm_pages %}
+{% comment %}
+I campi delle regole di una lega (nome, crediti, sistema di gioco, rosa,
+scambi, contratti, tetto), per ``lg``; ``has_pool``: la lega ha già il
+listone (avviso sul cambio di sistema). Stanno dentro un
+<form class="lg-edit"> che manda ``action=update_league`` a
+admin_config_action. Lo usano la pagina Impostazioni lega
+(admin_league_settings.html) e l'editor di ogni lega in Configurazione
+(admin_config.html), in console e app. Stile e script:
+_league_settings_assets.html, incluso una volta per pagina.
+{% endcomment %}
+<div class="ed-sec" id="set-lega-{{ lg.id }}" data-sec="lega">
+    <div class="t">Generale</div>
+    <div class="ed-grid2">
+        <div><label for="n-{{ lg.id }}">Nome della lega</label>
+            <input id="n-{{ lg.id }}" name="name" value="{{ lg.name }}" maxlength="120" required></div>
+        <div><label for="b-{{ lg.id }}">Crediti per squadra (FM)</label>
+            <input id="b-{{ lg.id }}" name="budget" value="{{ lg.budget|floatformat:0 }}" inputmode="numeric">
+            <div class="chips">
+                <button type="button" class="chip" data-set="b-{{ lg.id }}" data-v="250">250</button>
+                <button type="button" class="chip" data-set="b-{{ lg.id }}" data-v="500">500</button>
+                <button type="button" class="chip" data-set="b-{{ lg.id }}" data-v="1000">1000</button>
+            </div>
+            <div class="hint">Vale per le squadre nuove: i crediti di quelle che ci sono già si regolano da Rose → Crediti.</div></div>
+    </div>
+</div>
+
+<div class="ed-sec" id="set-gioco-{{ lg.id }}" data-sec="gioco">
+    <div class="t">Sistema di gioco</div>
+    <div class="seg" role="radiogroup" aria-label="Sistema di gioco">
+        {% for value, label in game_modes %}
+        <label><input type="radio" name="game_mode" value="{{ value }}" {% if lg.game_mode == value %}checked{% endif %}><span>{{ label }}</span></label>
+        {% endfor %}
+    </div>
+    {% if has_pool %}<div class="hint warn gm-warn" style="display:none">Cambiare sistema a lega avviata cambia ruoli e quotazioni che contano: fallo prima dell'asta.</div>{% endif %}
+</div>
+
+<div class="ed-sec" id="set-rosa-{{ lg.id }}" data-sec="rosa">
+    <div class="t">Rosa</div>
+    <div class="seg" role="radiogroup" aria-label="Limiti della rosa">
+        <label><input type="radio" name="slot_limits" value="1" {% if lg.slot_limits %}checked{% endif %}><span>Posti per ruolo</span></label>
+        <label><input type="radio" name="slot_limits" value="0" {% if not lg.slot_limits %}checked{% endif %}><span>Nessun limite</span></label>
+    </div>
+    <div class="slots" style="margin-top:10px">
+        <div class="ed-grid4 slots-classic">
+            <div><label for="sp-{{ lg.id }}">Portieri</label><input id="sp-{{ lg.id }}" name="slots_p" value="{{ lg.slots_p }}" inputmode="numeric"></div>
+            <div><label for="sd-{{ lg.id }}">Difensori</label><input id="sd-{{ lg.id }}" name="slots_d" value="{{ lg.slots_d }}" inputmode="numeric"></div>
+            <div><label for="sc-{{ lg.id }}">Centrocamp.</label><input id="sc-{{ lg.id }}" name="slots_c" value="{{ lg.slots_c }}" inputmode="numeric"></div>
+            <div><label for="sa-{{ lg.id }}">Attaccanti</label><input id="sa-{{ lg.id }}" name="slots_a" value="{{ lg.slots_a }}" inputmode="numeric"></div>
+        </div>
+        <div class="ed-grid2 slots-mantra">
+            <div><label for="sg-{{ lg.id }}">Portieri</label><input id="sg-{{ lg.id }}" name="slots_gk" value="{{ lg.slots_gk }}" inputmode="numeric"></div>
+            <div><label for="so-{{ lg.id }}">Movimento</label><input id="so-{{ lg.id }}" name="slots_out" value="{{ lg.slots_out }}" inputmode="numeric"></div>
+        </div>
+        <div class="hint slots-total"></div>
+    </div>
+    <div style="margin-top:10px">
+        <label for="gk-{{ lg.id }}">Portieri: squadre di Serie A al massimo</label>
+        <input id="gk-{{ lg.id }}" name="gk_max_clubs" value="{{ lg.gk_max_clubs }}" inputmode="numeric">
+        <div class="hint">0 = nessun limite. Con 2, chi ha già portieri di due squadre di Serie A può prendere solo portieri di quelle squadre (regolamento 2.02). Vale in asta e in ogni mercato.</div>
+    </div>
+</div>
+
+<div class="ed-sec" id="set-regole-{{ lg.id }}" data-sec="regole">
+    <div class="t">Regole</div>
+    <label class="sw-row">
+        <span class="sw"><input type="checkbox" name="trades_enabled" value="1" data-master="trades" {% if lg.trades_enabled %}checked{% endif %}><i></i></span>
+        <span class="txt"><b>Scambi tra squadre</b><span>Le squadre si propongono giocatori e crediti dall'app.</span></span>
+    </label>
+    <label class="sw-row" data-dep="trades">
+        <span class="sw"><input type="checkbox" name="trades_need_approval" value="1" {% if lg.trades_need_approval %}checked{% endif %}><i></i></span>
+        <span class="txt"><b>Gli scambi li ratifico io</b><span>Uno scambio accettato aspetta il tuo sì prima di spostare i giocatori.</span></span>
+    </label>
+    <label class="sw-row" data-dep="trades">
+        <span class="sw"><input type="checkbox" name="trades_same_roles" value="1" {% if lg.trades_same_roles %}checked{% endif %}><i></i></span>
+        <span class="txt"><b>Stessi ruoli da una parte e dall'altra</b><span>Ogni scambio sposta lo stesso numero di giocatori per ruolo (reg. 5.3).</span></span>
+    </label>
+    <label class="sw-row">
+        <span class="sw"><input type="checkbox" name="contracts_enabled" value="1" {% if lg.contracts_enabled %}checked{% endif %}><i></i></span>
+        <span class="txt"><b>Contratti di permanenza</b><span>Dadi dei contratti e rinnovi a fine stagione. <a href="{% purl 'admin_contracts' %}?league={{ lg.id }}">Dadi e soglie ›</a></span></span>
+    </label>
+    <label class="sw-row">
+        <span class="sw"><input type="checkbox" name="salary_cap_enabled" value="1" {% if lg.salary_cap_enabled %}checked{% endif %}><i></i></span>
+        <span class="txt"><b>Tetto salariale e Decreto</b><span>Limite di spesa per stagione. <a href="{% purl 'admin_season' %}?league={{ lg.id }}">Tabelle ›</a></span></span>
+    </label>
+    <p class="hint">Regole delle buste e finestre degli scambi: <a href="{% purl 'admin_market_dashboard' %}?league={{ lg.id }}">Mercato ›</a></p>
+</div>
+

@@ -57,6 +57,19 @@ stessi testi**.
   leghe). Il listone non dipende da API-Football. La vecchia pagina
   «Giocatori» (`/dashboard/players/`, `/app/regia/giocatori/`) è un rinvio qui:
   i link al listone usano `{% purl 'admin_footballers' %}`.
+- Le rose della lega (squadra per squadra, reparti, Assegna, Svincola,
+  Crediti): `_rose_manage.html`, nella scheda Rose della Dashboard della
+  console (`dashboard/_home_sport.html`) e nella scheda Rose della Regia
+  dell'app (`app_regia.html`); dati da `rose_manage_context` (`views/rose.py`).
+- Le regole della lega (nome, crediti, sistema di gioco, rosa, scambi,
+  contratti, tetto): `_league_settings_fields.html` (+ stile e script in
+  `_league_settings_assets.html`), nella pagina **Impostazioni lega**
+  (`admin_league_settings.html`, `dashboard/lega/impostazioni/` e
+  `app/regia/lega/impostazioni/`, che riassume anche le regole con una
+  pagina loro: mercati, periodi degli scambi, punteggi, competizioni, squadre)
+  e nell'editor di ogni lega in Configurazione (`admin_config.html`). Una
+  nuova regola della lega va in quel partial e, se ha una pagina sua, nel
+  riassunto di Impostazioni lega.
 - Lo storico della lega (albo d'oro e classifica di sempre), che vedono anche i
   manager: `_season_history.html`, in `admin_storico.html` (console) e
   `app_storico.html` (app, dalla pagina Lega); dati da `league_history`
@@ -97,7 +110,9 @@ stessi testi**.
   `TeamsPageTests` in `auctions/tests/test_participant_accounts.py`,
   `AppPagesParityTests` in `auctions/tests/test_app_pages.py`,
   `GiornatePageTests` e `AdminFormationEditorTests` in `auctions/tests/test_voti.py`,
-  `HistoryPageTests` in `auctions/tests/test_competitions.py`.
+  `HistoryPageTests` in `auctions/tests/test_competitions.py`,
+  `RosePanelParityTests` e `LeagueSettingsPageTests` in
+  `auctions/tests/test_rose_settings.py`.
 
 ## Asta live: una sola connessione
 

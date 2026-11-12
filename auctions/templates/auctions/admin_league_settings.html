@@ -1,0 +1,172 @@
+{% extends page_frame|default:"auctions/_frame_console.html" %}{% load fm_pages %}
+{% comment %}
+Impostazioni lega — una lega, tutte le sue regole in una pagina, uguale in
+console (dashboard/lega/impostazioni/) e app (app/regia/lega/impostazioni/).
+In alto le regole che si scrivono qui (lo stesso form dell'editor di
+Configurazione: _league_settings_fields.html), sotto il riassunto delle
+regole che hanno una pagina loro, ognuna col suo link, e i co-admin.
+View: admin_league_settings (views/admin_config.py).
+{% endcomment %}
+{% block title %}Impostazioni lega — {{ current_league.name }}{% endblock %}
+
+{% block page %}
+{% include "auctions/_league_settings_assets.html" %}
+<style>
+    .ls { max-width: 1100px; margin: 0 auto; container-type: inline-size; container-name: ls; }
+    .ls-head { display: flex; align-items: flex-end; gap: 10px; margin: 8px 0 12px; min-width: 0; }
+    .ls-head .t { flex: 1; min-width: 0; }
+    .ls-head h1 { margin: 0; font-size: 26px; }
+    .ls-head .sub { font-size: 13px; color: var(--fm-text-secondary); margin-top: 4px; }
+    .ls-head select { width: auto; max-width: 220px; }
+    .ls-nav { display: flex; gap: 6px; margin: 0 0 12px; position: sticky; top: 0; z-index: 5; padding: 6px 0;
+              background: var(--fm-bg, #020f22); }
+    .ls-nav a { display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 999px; font-size: 12.5px; font-weight: 700;
+                border: 1px solid var(--fm-border); color: var(--fm-text-secondary); text-decoration: none; background: rgba(255,255,255,.03); }
+    .ls-nav a:hover { color: #fff; border-color: var(--fm-border-active); }
+    .msg { padding: 11px 14px; border-radius: var(--fm-radius-sm); font-size: 13px; margin-bottom: 10px; }
+    .msg.success { background: rgba(22,217,104,.10); border: 1px solid rgba(22,217,104,.35); color: #8df0b6; }
+    .msg.error   { background: rgba(255,61,80,.10); border: 1px solid rgba(255,61,80,.40); color: #ffb3bb; }
+    .msg.info    { background: rgba(8,124,240,.10); border: 1px solid var(--fm-border-active); color: var(--fm-text); }
+    .ls-card { padding: 16px; margin-bottom: 14px; }
+    .ls-card > h2 { margin: 0 0 4px; font-size: 18px; }
+    .ls-card > .hint { margin: 0 0 12px; }
+    .ls form.lg-edit { margin: 0; border: 0; padding: 0; }
+    .ls .ed-sec { scroll-margin-top: 60px; }
+    .ls-links { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+    @container ls (min-width: 620px) { .ls-links { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @container ls (min-width: 960px) { .ls-links { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+    .ls-link { display: flex; flex-direction: column; gap: 4px; padding: 12px; border-radius: 10px; text-decoration: none; color: var(--fm-text);
+               border: 1px solid var(--fm-border); background: rgba(255,255,255,.025); scroll-margin-top: 60px; min-width: 0; }
+    .ls-link:hover { border-color: var(--fm-border-active); }
+    .ls-link .h { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 14px; color: #fff; }
+    .ls-link .h .ic { width: 16px; height: 16px; color: var(--fm-primary-light); }
+    .ls-link .h .go { margin-left: auto; color: var(--fm-text-muted); }
+    .ls-link .v { font-size: 12.5px; color: var(--fm-text-secondary); line-height: 1.45; }
+    .ls-link .v b { color: var(--fm-text); }
+    .ls-link .v .on { color: var(--fm-success); font-weight: 700; }
+    .ls-link .v .off { color: var(--fm-text-muted); font-weight: 700; }
+    .ls-link .v .warn { color: var(--fm-warning); font-weight: 700; }
+    .ls .lg-sala { margin-top: 0; }
+    .ls .lg-sala > summary { cursor: pointer; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+    .ls .tag { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 5px; font-size: 10.5px; font-weight: 800;
+               border: 1px solid var(--fm-border); color: var(--fm-text-secondary); }
+    .ls .tag.ok { color: var(--fm-success); border-color: rgba(22,217,104,.32); }
+    .ls .tag.live { color: var(--fm-danger); border-color: rgba(255,61,80,.40); }
+    .ls .ed-foot { margin: 4px -16px -16px; }
+</style>
+
+<div class="ls">
+<div class="ls-head">
+    <div class="t">
+        <h1>Impostazioni lega</h1>
+        <div class="sub">Le regole di <b>{{ current_league.name }}</b>: crediti, rosa, sistema di gioco, scambi, contratti, e dove si cambia tutto il resto (mercati, punteggi, competizioni, squadre).</div>
+    </div>
+    {% if leagues|length > 1 %}
+    <form method="get" action="">
+        <select name="league" aria-label="Lega" onchange="this.form.submit()">
+            {% for lg in leagues %}<option value="{{ lg.id }}" {% if lg.id == current_league.id %}selected{% endif %}>{{ lg.name }}</option>{% endfor %}
+        </select>
+    </form>
+    {% endif %}
+</div>
+
+<details class="howto noprint">
+    <summary><svg class="ic"><use href="#i-gear"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        <ol>
+            <li><b>Regole della lega</b>: cambia quello che serve (nome, crediti, sistema di gioco, posti in rosa, scambi, contratti, tetto) e premi <b>Salva</b>. Finché non salvi in basso compare «Modifiche non salvate».</li>
+            <li><b>Le altre regole</b>: ogni riquadro dice com'è adesso e ti porta alla sua pagina (mercati e buste, periodi degli scambi, punteggi e voto base, competizioni, squadre e accessi).</li>
+            <li><b>Co-admin</b>: invita chi ti aiuta a gestire la lega.</li>
+        </ol>
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Il sistema di gioco (Classic/Mantra) si cambia solo prima dell'asta. Le altre leghe, aste salvate, l'asta in sala e la pulizia sono in <a href="{% purl 'admin_config' %}?league={{ current_league.id }}">Configurazione</a>.</div>
+    </div>
+</details>
+
+{% for m in messages %}
+<div class="msg {% if m.tags %}{{ m.tags }}{% endif %}" role="status">{{ m }}</div>
+{% endfor %}
+
+<nav class="ls-nav fm-onerow" aria-label="Sezioni">
+    <a href="#set-lega-{{ current_league.id }}">Lega</a>
+    <a href="#set-gioco-{{ current_league.id }}">Sistema</a>
+    <a href="#set-rosa-{{ current_league.id }}">Rosa</a>
+    <a href="#set-regole-{{ current_league.id }}">Scambi e contratti</a>
+    <a href="#ls-mercati">Mercati</a>
+    <a href="#ls-punteggi">Punteggi</a>
+    <a href="#ls-competizioni">Competizioni</a>
+    <a href="#ls-squadre">Squadre</a>
+    <a href="#coadmin-{{ current_league.id }}">Co-admin</a>
+</nav>
+
+<section class="fm-card ls-card" aria-labelledby="ls-rules-h">
+    <h2 id="ls-rules-h">Regole della lega</h2>
+    <p class="hint">Valgono per tutta la lega. I crediti nuovi valgono per le squadre che si iscrivono dopo: quelli di chi c'è già si regolano da Rose → Crediti.</p>
+    <form class="lg-edit" method="post" action="{% url 'admin_config_action' %}" data-league="{{ current_league.id }}">
+        {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <input type="hidden" name="action" value="update_league">
+        <input type="hidden" name="league_id" value="{{ current_league.id }}">
+        <input type="hidden" name="rules_present" value="1">
+        {% include "auctions/_league_settings_fields.html" with lg=current_league has_pool=has_pool %}
+        <div class="ed-foot">
+            <span class="dirty" aria-live="polite">Modifiche non salvate</span>
+            <button type="reset" class="fm-btn fm-btn-ghost">Annulla</button>
+            <button type="submit" class="fm-btn fm-btn-primary"><svg class="ic"><use href="#i-save"/></svg> Salva</button>
+        </div>
+    </form>
+</section>
+
+<section class="fm-card ls-card" aria-labelledby="ls-more-h">
+    <h2 id="ls-more-h">Le altre regole</h2>
+    <p class="hint">Com'è adesso, e dove si cambia.</p>
+    <div class="ls-links">
+        <a class="ls-link" id="ls-mercati" href="{% purl 'admin_market_dashboard' %}?league={{ current_league.id }}">
+            <span class="h"><svg class="ic"><use href="#i-mail"/></svg> Mercati e buste <span class="go">›</span></span>
+            <span class="v">{% if summary.sessions %}<b>{{ summary.sessions }}</b> mercat{{ summary.sessions|pluralize:"o,i" }}{% if summary.sessions_open %} · <span class="on">{{ summary.sessions_open }} apert{{ summary.sessions_open|pluralize:"o,i" }}</span>{% endif %}.{% else %}Nessun mercato.{% endif %}
+                Tipo, scadenze, regole delle buste e dei rimborsi si scelgono in ogni mercato (<b>Nuovo Mercato</b>).</span>
+        </a>
+        <a class="ls-link" href="{% purl 'admin_market_trades' %}?league={{ current_league.id }}">
+            <span class="h"><svg class="ic"><use href="#i-swap"/></svg> Periodi degli scambi <span class="go">›</span></span>
+            <span class="v">{% if not current_league.trades_enabled %}<span class="off">Scambi spenti</span>{% elif not summary.windows %}<span class="on">Aperti tutta la stagione</span> (nessun periodo){% elif summary.window_now %}<span class="on">Aperti</span> fino al {{ summary.window_now.closes_at|date:"d/m H:i" }}{% elif summary.window_next %}<span class="warn">Chiusi</span>: riaprono il {{ summary.window_next.opens_at|date:"d/m H:i" }}{% else %}<span class="warn">Chiusi</span>: nessun periodo in arrivo{% endif %}
+                · {% if current_league.trades_need_approval %}con la tua ratifica{% else %}senza ratifica{% endif %}.</span>
+        </a>
+        <a class="ls-link" id="ls-punteggi" href="{% purl 'admin_giornate' %}?league={{ current_league.id }}#gv-regole">
+            <span class="h"><svg class="ic"><use href="#i-pulse"/></svg> Punteggi e voto base <span class="go">›</span></span>
+            <span class="v">Voto: <b>{{ summary.vote_source }}</b>. Gol +{{ summary.goal }}, assist +{{ summary.assist }}, 1º gol a {{ summary.conv_base }} (+{{ summary.conv_step }}), {{ summary.max_subs }} cambi.
+                Capitano {% if summary.captain %}<span class="on">sì</span>{% else %}<span class="off">no</span>{% endif %} · modificatore difesa {% if summary.modif %}<span class="on">sì</span>{% else %}<span class="off">no</span>{% endif %}{% if summary.off %} · {{ summary.off }} voc{{ summary.off|pluralize:"e,i" }} spent{{ summary.off|pluralize:"a,e" }}{% endif %}.</span>
+        </a>
+        <a class="ls-link" href="{% purl 'admin_contracts' %}?league={{ current_league.id }}">
+            <span class="h"><svg class="ic"><use href="#i-doc"/></svg> Contratti <span class="go">›</span></span>
+            <span class="v">{% if current_league.contracts_enabled %}<span class="on">Attivi</span>: dadi, soglie delle clausole e rinnovi.{% else %}<span class="off">Spenti</span>: si accendono qui sopra, in Regole della lega.{% endif %}</span>
+        </a>
+        <a class="ls-link" href="{% purl 'admin_season' %}?league={{ current_league.id }}">
+            <span class="h"><svg class="ic"><use href="#i-table"/></svg> Stagione e tetto salariale <span class="go">›</span></span>
+            <span class="v">Stagione n. <b>{{ current_league.season_number }}</b> · tetto {% if current_league.salary_cap_enabled %}<span class="on">attivo</span> ({{ current_league.get_salary_cap_spend_display|lower }}){% else %}<span class="off">spento</span>{% endif %}. Passaggio di stagione ed economia.</span>
+        </a>
+        <a class="ls-link" id="ls-competizioni" href="{% purl 'admin_competitions' %}?league={{ current_league.id }}">
+            <span class="h"><svg class="ic"><use href="#i-trophy"/></svg> Competizioni <span class="go">›</span></span>
+            <span class="v">{% if summary.competitions %}<b>{{ summary.competitions_active }}</b> attiv{{ summary.competitions_active|pluralize:"a,e" }} su {{ summary.competitions }}: formato, calendario, coppe.{% else %}Nessuna competizione: creane una (campionato, coppa, Gran Premio).{% endif %}</span>
+        </a>
+        <a class="ls-link" id="ls-squadre" href="{% purl 'admin_participants' %}?league={{ current_league.id }}">
+            <span class="h"><svg class="ic"><use href="#i-shield"/></svg> Squadre e accessi <span class="go">›</span></span>
+            <span class="v">{% if summary.teams %}<b>{{ summary.teams }}</b> squadr{{ summary.teams|pluralize:"a,e" }}{% if summary.locked_out %} · <span class="warn">{{ summary.locked_out }} senza accesso</span>{% else %} · accessi a posto{% endif %}{% else %}<span class="warn">Nessuna squadra</span>{% endif %}. Inviti, PIN, account, loghi.</span>
+        </a>
+        <a class="ls-link" href="{% purl 'admin_footballers' %}?league={{ current_league.id }}">
+            <span class="h"><svg class="ic"><use href="#i-ball"/></svg> Listone <span class="go">›</span></span>
+            <span class="v">{% if has_pool %}<b>{{ row.pool }}</b> giocatori · <b>{{ row.free }}</b> svincolati.{% else %}<span class="warn">Manca il listone</span>: caricalo da Calciatori.{% endif %}</span>
+        </a>
+    </div>
+</section>
+
+<section class="fm-card ls-card" aria-label="Co-admin">
+    {% include "auctions/_coadmin_manage.html" with lg=current_league ca=coadmin %}
+</section>
+</div>
+
+<script>
+(function () {
+    // «Annulla» rimette i valori salvati: il form deve ricalcolare totali e avvisi.
+    const form = document.querySelector(".ls form.lg-edit");
+    if (form) form.addEventListener("reset", () => setTimeout(() => form.dispatchEvent(new Event("change")), 0));
+})();
+</script>
+{% endblock %}

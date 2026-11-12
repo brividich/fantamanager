@@ -22,6 +22,7 @@ from .. import remote, services
 from ..services import mail, onboarding, privacy
 from ..models import Auction, MarketBid, MarketSession, Participant, Player, Trade
 from .admin_dashboard import _classifica_standings
+from .rose import rose_manage_context
 from .admin_market import rule_choices, session_labels, session_manage_context, trades_manage_context
 from .admin_participants import teams_manage_context
 from .app import _redirect_login
@@ -258,6 +259,8 @@ def app_regia(request):
         "mail_ready": mail.is_ready(),
         "open_wizard": request.GET.get("open_wizard") == "1",
         **rule_choices(),
+        # Scheda Rose: lo stesso pannello della console (_rose_manage.html).
+        **rose_manage_context(request, league),
     })
     return render(request, "auctions/app_regia.html", ctx)
 

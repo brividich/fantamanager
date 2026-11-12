@@ -1,0 +1,379 @@
+{% load fm_pages %}
+{% comment %}
+Rose della lega — lo stesso pannello nella console (Dashboard → scheda Rose,
+dashboard/_home_sport.html) e nell'app (Regia → Rose, app_regia.html).
+Dati da rose_manage_context (views/rose.py).
+
+Una squadra alla volta (scelta dalla striscia in alto) con i quattro reparti,
+oppure tutte le rose affiancate. Assegna, Regola crediti e Svincola si fanno
+qui; nome, PIN, account e logo della squadra stanno in Squadre.
+Colonne e schede seguono la larghezza del riquadro (container query): la
+colonna dell'app è più stretta della pagina della console.
+{% endcomment %}
+<div class="rm" id="rose-manage" data-league="{{ rose_league.id }}"
+     data-release-url="{% url 'admin_release_player' 0 %}" data-search-url="{% url 'admin_player_search' %}">
+<style>
+    .rm { container-type: inline-size; container-name: rm; }
+    .rm-head { display: flex; align-items: flex-end; gap: 10px; margin-bottom: 10px; min-width: 0; }
+    .rm-head .t { flex: 1; min-width: 0; }
+    .rm-head h2 { margin: 0; font-family: var(--fm-display); font-size: 20px; font-weight: 800; color: #fff; }
+    .rm-head .sub { font-size: 12.5px; color: var(--fm-text-secondary); margin-top: 2px; }
+    .rm-bar { display: flex; gap: 6px; align-items: center; margin: 0 0 10px; }
+    .rm-seg { display: inline-flex; gap: 3px; padding: 3px; border-radius: 9px; background: rgba(255,255,255,.04); border: 1px solid var(--fm-border); }
+    .rm-seg button { height: 30px; padding: 0 12px; border-radius: 6px; border: 0; background: transparent; color: var(--fm-text-secondary); font-size: 12.5px; font-weight: 700; }
+    .rm-seg button[aria-pressed="true"] { background: rgba(8,124,240,.16); color: var(--fm-primary-light); box-shadow: inset 0 0 0 1px var(--fm-border-active); }
+
+    .rm-strip { display: flex; gap: 8px; padding-bottom: 4px; margin-bottom: 12px; }
+    .rm-chip { display: flex; flex-direction: column; gap: 4px; height: auto; min-width: 150px; max-width: 200px; padding: 9px 11px; text-align: left;
+               border-radius: 10px; border: 1px solid var(--fm-border); background: rgba(255,255,255,.03); color: var(--fm-text); cursor: pointer; }
+    .rm-chip[aria-pressed="true"] { border-color: var(--fm-border-active); background: rgba(8,124,240,.12); box-shadow: inset 0 0 0 1px var(--fm-border-active); }
+    .rm-chip b { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rm-chip small { font-size: 11px; color: var(--fm-text-secondary); white-space: nowrap; }
+    .rm-chip .warn { color: var(--fm-warning); } .rm-chip .bad { color: var(--fm-danger); }
+
+    .rm-team[hidden], .rm-all[hidden], .rm-one[hidden] { display: none; }
+    .rm-cockpit { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-radius: 12px; margin-bottom: 12px;
+                  background: rgba(255,255,255,.03); border: 1px solid var(--fm-border); min-width: 0; }
+    .rm-who { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .rm-av { width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; overflow: hidden;
+             font-family: var(--fm-display); font-weight: 800; color: #fff; background: var(--fm-gradient); }
+    .rm-av img { width: 100%; height: 100%; object-fit: cover; }
+    .rm-who h3 { margin: 0; font-size: 17px; color: #fff; overflow-wrap: anywhere; }
+    .rm-who .coach { font-size: 12px; color: var(--fm-text-secondary); }
+    .rm-figs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+    .rm-figs div { padding: 7px 6px; border-radius: 8px; background: rgba(255,255,255,.03); text-align: center; }
+    .rm-figs b { display: block; font-family: var(--fm-display); font-size: 18px; color: #fff; line-height: 1.1; }
+    .rm-figs b.ok { color: var(--fm-success); }
+    .rm-figs span { font-size: 9.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--fm-text-muted); }
+    .rm-acts { display: flex; gap: 6px; min-width: 0; }
+    .rm-acts form { display: contents; }
+    .rm-acts .fm-btn { height: 34px; font-size: 12.5px; }
+
+    .rm-depts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+    @container rm (min-width: 640px) { .rm-depts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @container rm (min-width: 1100px) { .rm-depts { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+    .rm-dept { border-radius: 12px; border: 1px solid var(--fm-border); background: rgba(255,255,255,.02); padding: 10px; min-width: 0; }
+    .rm-dept-h { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .rm-dept-h .badge { width: 22px; height: 22px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center;
+                        font-size: 11px; font-weight: 900; border: 1px solid currentColor; }
+    .rm-r-P { color: #ffb526; } .rm-r-D { color: #16d968; } .rm-r-C { color: #18d5ff; } .rm-r-A { color: #ff6b7f; }
+    .rm-dept-h .nm { flex: 1; font-weight: 800; font-size: 13px; color: #fff; }
+    .rm-dept-h .cnt { font-size: 11.5px; font-weight: 800; padding: 1px 8px; border-radius: 999px; background: rgba(255,255,255,.06); color: var(--fm-text-secondary); }
+    .rm-dept-h .cnt.full { background: rgba(22,217,104,.14); color: var(--fm-success); }
+    .rm-dept-h .sp { font-size: 11.5px; color: var(--fm-text-secondary); }
+    .rm-pl { display: flex; align-items: center; gap: 8px; padding: 7px 4px; border-bottom: 1px solid rgba(85,160,230,.08); min-width: 0; }
+    .rm-pl:last-child { border-bottom: 0; }
+    .rm-pl .n { flex: 1; min-width: 0; }
+    .rm-pl .n b { display: block; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rm-pl .n small { font-size: 11px; color: var(--fm-text-muted); }
+    .rm-pl .c { font-family: var(--fm-display); font-weight: 800; font-size: 15px; color: #fff; white-space: nowrap; }
+    .rm-pl .c small { font-family: var(--fm-sans); font-size: 9.5px; color: var(--fm-text-muted); margin-left: 1px; }
+    .rm-pl .rel { height: 26px; padding: 0 8px; font-size: 11px; border-radius: 6px; border: 1px solid rgba(255,61,80,.35);
+                  background: transparent; color: #ffb3bb; cursor: pointer; flex-shrink: 0; }
+    .rm-pl .rel:hover { background: rgba(255,61,80,.12); }
+    .rm-none { font-size: 12px; color: var(--fm-text-muted); font-style: italic; padding: 6px 4px; }
+    .rm-slot { display: flex; justify-content: space-between; width: 100%; height: auto; margin-top: 6px; padding: 7px 9px; border-radius: 8px; cursor: pointer;
+               border: 1px dashed rgba(85,160,230,.30); background: transparent; color: var(--fm-text-secondary); font-size: 12px; }
+    .rm-slot:hover { border-color: var(--fm-border-active); color: #fff; }
+
+    .rm-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+    @container rm (min-width: 620px) { .rm-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @container rm (min-width: 1000px) { .rm-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+    .rm-card { border-radius: 12px; border: 1px solid var(--fm-border); background: rgba(255,255,255,.02); padding: 10px 12px; min-width: 0; }
+    .rm-card-h { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+    .rm-card-h b { font-size: 14px; color: #fff; overflow-wrap: anywhere; }
+    .rm-card-h span { font-size: 12px; color: var(--fm-text-secondary); white-space: nowrap; }
+    .rm-card .row { font-size: 12px; line-height: 1.5; padding: 3px 0; color: var(--fm-text-secondary); }
+    .rm-card .row b { color: var(--fm-text); font-weight: 700; }
+    .rm-card .open { margin-top: 6px; height: 28px; font-size: 12px; }
+    .rm-empty { text-align: center; padding: 26px 12px; color: var(--fm-text-secondary); }
+
+    dialog.rm-dlg { width: min(440px, calc(100vw - 32px)); padding: 0; border-radius: var(--fm-radius-lg); border: 1px solid var(--fm-border-active);
+                    background: var(--fm-surface, #061a33); color: var(--fm-text); }
+    dialog.rm-dlg::backdrop { background: rgba(1,7,18,.72); }
+    .rm-dlg form { padding: 18px; display: flex; flex-direction: column; gap: 10px; margin: 0; }
+    .rm-dlg h3 { margin: 0; font-size: 18px; color: #fff; }
+    .rm-dlg .hint { font-size: 12px; color: var(--fm-text-secondary); margin: 0; line-height: 1.45; }
+    .rm-dlg select[size] { height: 150px; }
+    .rm-dlg .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
+</style>
+
+<div class="rm-head">
+    <div class="t">
+        <h2>Rose</h2>
+        <div class="sub">Ogni squadra per reparto: crediti, posti liberi, contratti. Assegni, svincoli e regoli i crediti da qui.</div>
+    </div>
+</div>
+
+<details class="howto noprint">
+    <summary><svg class="ic"><use href="#i-shirt"/></svg> Cosa fare in questa parte <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        <ol>
+            <li>Scegli la squadra dalla striscia (o <b>Tutte</b> per vederle affiancate).</li>
+            <li>Un posto libero (<b>+ Posto libero</b>) o <b>Assegna</b>: scegli uno svincolato e il prezzo, poi <b>Assegna</b>.</li>
+            <li><b>Svincola</b> accanto a un giocatore lo libera e rimborsa i crediti come da regole della lega.</li>
+            <li><b>Crediti</b> aggiunge un bonus, toglie una penalità o fissa il budget.</li>
+            <li>Nome, PIN, account e logo della squadra: <b>Squadra</b> ti porta in Squadre.</li>
+        </ol>
+    </div>
+</details>
+
+{% if rose_teams %}
+<div class="rm-bar">
+    <div class="rm-seg" role="group" aria-label="Vista">
+        <button type="button" data-rm-view="one" aria-pressed="true">Una squadra</button>
+        <button type="button" data-rm-view="all" aria-pressed="false">Tutte</button>
+    </div>
+    <span style="flex:1"></span>
+    <a class="fm-btn fm-btn-secondary fm-btn-sm" href="{% purl 'admin_participants' %}?league={{ rose_league.id }}"><svg class="ic"><use href="#i-plus"/></svg> Squadra</a>
+</div>
+
+<div class="rm-one" data-rm-pane="one">
+    <div class="rm-strip fm-onerow" role="group" aria-label="Squadra">
+        {% for r in rose_teams %}{% with p=r.team %}
+        <button type="button" class="rm-chip" data-rm-team="{{ p.id }}" aria-pressed="{% if p.id == rose_selected %}true{% else %}false{% endif %}">
+            <b>{{ p.display_name }}</b>
+            <small><span class="{% if p.remaining_credits < 20 %}bad{% elif p.remaining_credits < 60 %}warn{% endif %}">{{ p.remaining_credits|floatformat:0 }} FM</span>
+                · {{ p.roster_n }}{% if p.slots_total %}/{{ p.slots_total }}{% endif %} gioc.</small>
+        </button>
+        {% endwith %}{% endfor %}
+    </div>
+
+    {% for r in rose_teams %}{% with p=r.team %}
+    <section class="rm-team" id="rm-team-{{ p.id }}" {% if p.id != rose_selected %}hidden{% endif %} aria-label="Rosa di {{ p.display_name }}">
+        <div class="rm-cockpit">
+            <div class="rm-who">
+                <span class="rm-av">{% if p.logo %}<img src="{{ p.logo.url }}" alt="">{% else %}{{ p.display_name|slice:":2"|upper }}{% endif %}</span>
+                <div style="min-width:0">
+                    <h3>{{ p.display_name }}</h3>
+                    <div class="coach">{% if p.user %}{{ p.user.username }}{% elif p.access_code %}accesso con PIN{% else %}senza accesso{% endif %}</div>
+                </div>
+            </div>
+            <div class="rm-figs">
+                <div><b class="ok">{{ p.remaining_credits|floatformat:0 }}</b><span>Residui</span></div>
+                <div><b>{{ p.spent_credits|floatformat:0 }}</b><span>Spesi</span></div>
+                <div><b>{{ p.credits|floatformat:0 }}</b><span>Budget</span></div>
+                <div><b>{{ p.roster_n }}{% if p.slots_total %}<small style="font-size:12px">/{{ p.slots_total }}</small>{% endif %}</b><span>{% if rose_out_cap %}Mov. {{ r.out_n }}/{{ rose_out_cap }}{% else %}Giocatori{% endif %}</span></div>
+            </div>
+            <div class="rm-acts fm-onerow">
+                <button type="button" class="fm-btn fm-btn-primary" data-rm-assign="{{ p.id }}" data-name="{{ p.display_name }}"><svg class="ic"><use href="#i-plus"/></svg> Assegna</button>
+                <button type="button" class="fm-btn fm-btn-secondary" data-rm-credits="{{ p.id }}" data-name="{{ p.display_name }}"
+                        data-total="{{ p.credits|floatformat:0 }}" data-left="{{ p.remaining_credits|floatformat:0 }}">Crediti</button>
+                <a class="fm-btn fm-btn-secondary" href="{% purl 'admin_participants' %}?league={{ rose_league.id }}#team-{{ p.id }}"><svg class="ic"><use href="#i-gear"/></svg> Squadra</a>
+                <form method="post" action="{% url 'app_view_as' p.id %}">{% csrf_token %}
+                    <button type="submit" class="fm-btn fm-btn-ghost" title="Apri l'app come questa squadra"><svg class="ic"><use href="#i-eye"/></svg> Vedi in app</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="rm-depts">
+            {% for g in r.groups %}
+            <div class="rm-dept">
+                <div class="rm-dept-h">
+                    <span class="badge rm-r-{{ g.code }}">{{ g.code }}</span>
+                    <span class="nm">{{ g.label }}</span>
+                    <span class="cnt {% if g.full %}full{% endif %}">{{ g.list|length }}{% if g.cap %}/{{ g.cap }}{% endif %}</span>
+                    <span class="sp"><b>{{ g.spent|floatformat:0 }}</b> FM</span>
+                </div>
+                {% for pl in g.list %}
+                <div class="rm-pl">
+                    <div class="n"><b title="{{ pl.name }}">{{ pl.name }}</b>
+                        <small>{{ pl.team|default:"—" }} · quot. {{ pl.initial_price|floatformat:0 }}</small></div>
+                    {% if rose_league.contracts_enabled %}{% include "auctions/_contract_badge.html" %}{% endif %}
+                    <span class="c">{{ pl.cost|floatformat:0 }}<small>FM</small></span>
+                    <button type="button" class="rel" data-rm-release="{{ pl.id }}" data-name="{{ pl.name }}">Svincola</button>
+                </div>
+                {% empty %}
+                <div class="rm-none">Nessun {{ g.one }} in rosa.</div>
+                {% endfor %}
+                {% for _ in g.free %}
+                <button type="button" class="rm-slot" data-rm-assign="{{ p.id }}" data-name="{{ p.display_name }}" data-role="{{ g.code }}">
+                    <span>+ Posto libero</span><span>Assegna →</span></button>
+                {% endfor %}
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endwith %}{% endfor %}
+</div>
+
+<div class="rm-all" data-rm-pane="all" hidden>
+    <div class="rm-grid">
+        {% for r in rose_teams %}{% with p=r.team %}
+        <div class="rm-card">
+            <div class="rm-card-h"><b>{{ p.display_name }}</b>
+                <span>{{ p.remaining_credits|floatformat:0 }} FM · {{ p.roster_n }}{% if p.slots_total %}/{{ p.slots_total }}{% endif %}</span></div>
+            {% for g in r.groups %}
+            <div class="row"><span class="rm-r-{{ g.code }}">●</span> {{ g.label }} ({{ g.list|length }}{% if g.cap %}/{{ g.cap }}{% endif %}):
+                {% for pl in g.list %}<b>{{ pl.name }}</b> {{ pl.cost|floatformat:0 }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}</div>
+            {% endfor %}
+            <button type="button" class="fm-btn fm-btn-ghost open" data-rm-open="{{ p.id }}">Apri la rosa →</button>
+        </div>
+        {% endwith %}{% endfor %}
+    </div>
+</div>
+
+<dialog class="rm-dlg" id="rm-assign-dlg" aria-labelledby="rm-assign-h">
+    <form method="post" action="{% url 'admin_quick_assign_player' %}">
+        {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <input type="hidden" name="participant_id">
+        <h3 id="rm-assign-h">Assegna un giocatore</h3>
+        <p class="hint">Cerca uno svincolato del listone (almeno 2 lettere), sceglilo e scrivi il prezzo: i crediti si scalano subito.</p>
+        <label>Cerca<input type="search" name="q" autocomplete="off" placeholder="Nome o squadra di Serie A"></label>
+        <label>Giocatore<select name="player_id" size="6" required></select></label>
+        <label>Prezzo (FM)<input type="number" name="price" min="1" step="1" value="1" required inputmode="numeric"></label>
+        <div class="row">
+            <button type="button" class="fm-btn fm-btn-ghost" data-rm-close>Annulla</button>
+            <button type="submit" class="fm-btn fm-btn-primary">Assegna</button>
+        </div>
+    </form>
+</dialog>
+
+<dialog class="rm-dlg" id="rm-credits-dlg" aria-labelledby="rm-credits-h">
+    <form method="post" action="">
+        {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <h3 id="rm-credits-h">Crediti</h3>
+        <p class="hint" data-rm-credits-sum></p>
+        <label>Operazione
+            <select name="mode">
+                <option value="add">Aggiungi (bonus, premio)</option>
+                <option value="sub">Togli (penalità)</option>
+                <option value="set">Imposta il budget totale</option>
+            </select></label>
+        <label>Importo (FM)<input type="number" name="amount" min="0" step="1" required inputmode="numeric" placeholder="es. 10"></label>
+        <div class="row">
+            <button type="button" class="fm-btn fm-btn-ghost" data-rm-close>Annulla</button>
+            <button type="submit" class="fm-btn fm-btn-primary">Applica</button>
+        </div>
+    </form>
+</dialog>
+{% else %}
+<div class="rm-empty fm-card">
+    Nessuna squadra in questa lega.
+    <div style="margin-top:10px"><a class="fm-btn fm-btn-primary fm-btn-sm" href="{% purl 'admin_participants' %}?league={{ rose_league.id }}"><svg class="ic"><use href="#i-plus"/></svg> Aggiungi le squadre</a></div>
+</div>
+{% endif %}
+
+<script>
+(function () {
+    const root = document.getElementById("rose-manage");
+    if (!root || !root.querySelector(".rm-team")) return;
+    const leagueId = root.dataset.league;
+    const $$ = (s, el) => Array.from((el || root).querySelectorAll(s));
+    const csrf = () => { const m = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/); return m ? decodeURIComponent(m[1]) : ""; };
+    const toast = (msg, kind) => { if (typeof showToast === "function") showToast(msg, kind); else alert(msg); };
+    const ROLE_ONE = {P: "portiere", D: "difensore", C: "centrocampista", A: "attaccante"};
+    let current = ($$('.rm-chip[aria-pressed="true"]')[0] || {}).dataset?.rmTeam || "";
+
+    // Dopo un'azione si torna sulla stessa squadra: ?team=<id> nella pagina di partenza.
+    function backUrl() {
+        const u = new URL(location.href);
+        if (current) u.searchParams.set("team", current);
+        u.hash = "rose";
+        return u.pathname + u.search + u.hash;
+    }
+    function goBack() {
+        const url = backUrl();
+        if (url.split("#")[0] === location.pathname + location.search) location.reload();
+        else location.assign(url);
+    }
+    function showTeam(id) {
+        current = String(id);
+        $$(".rm-chip").forEach(c => c.setAttribute("aria-pressed", c.dataset.rmTeam === current ? "true" : "false"));
+        $$(".rm-team").forEach(s => { s.hidden = s.id !== "rm-team-" + current; });
+        const chip = root.querySelector(`.rm-chip[data-rm-team="${current}"]`);
+        const bar = chip && chip.parentElement;
+        if (bar && bar.scrollWidth > bar.clientWidth) {
+            bar.scrollTo({ left: bar.scrollLeft + chip.getBoundingClientRect().left - bar.getBoundingClientRect().left - 8, behavior: "smooth" });
+        }
+    }
+    function showView(v) {
+        $$("[data-rm-view]").forEach(b => b.setAttribute("aria-pressed", b.dataset.rmView === v ? "true" : "false"));
+        $$("[data-rm-pane]").forEach(p => { p.hidden = p.dataset.rmPane !== v; });
+    }
+    function openDlg(dlg) { if (dlg.showModal) dlg.showModal(); else dlg.setAttribute("open", ""); }
+
+    // ---- Assegna ----
+    const aDlg = document.getElementById("rm-assign-dlg");
+    const aForm = aDlg.querySelector("form"), aSel = aForm.player_id, aQ = aForm.q, aPrice = aForm.price;
+    let role = "", timer = null;
+    function fillOptions(rows) {
+        aSel.textContent = "";
+        const list = role ? rows.filter(r => r.role === role) : rows;
+        if (!list.length) {
+            const o = document.createElement("option");
+            o.disabled = true; o.textContent = "Nessuno svincolato trovato: prova con un altro nome.";
+            aSel.appendChild(o); return;
+        }
+        list.forEach(r => {
+            const o = document.createElement("option");
+            o.value = r.id; o.dataset.price = Math.max(1, Math.round(r.price || 1));
+            o.textContent = `[${r.role}] ${r.name}${r.team ? " (" + r.team + ")" : ""} · quot. ${o.dataset.price}`;
+            aSel.appendChild(o);
+        });
+        aSel.selectedIndex = 0; aPrice.value = aSel.options[0].dataset.price || 1;
+    }
+    async function search() {
+        const q = aQ.value.trim();
+        if (q.length < 2) { fillOptions([]); return; }
+        try {
+            const res = await (await fetch(`${root.dataset.searchUrl}?league=${encodeURIComponent(leagueId)}&q=${encodeURIComponent(q)}`,
+                                           { credentials: "same-origin" })).json();
+            fillOptions(res.results || []);
+        } catch (e) { toast("✗ Ricerca non riuscita: controlla la connessione e riprova.", "bad"); }
+    }
+    aQ.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(search, 250); });
+    aSel.addEventListener("change", () => { const o = aSel.options[aSel.selectedIndex]; if (o && o.dataset.price) aPrice.value = o.dataset.price; });
+
+    // ---- Crediti ----
+    const cDlg = document.getElementById("rm-credits-dlg"), cForm = cDlg.querySelector("form");
+    const creditsUrl = (id) => "{% url 'admin_adjust_team_credits' 0 %}".replace(/\/0\/credits\/$/, `/${id}/credits/`);
+
+    root.addEventListener("click", async (e) => {
+        const t = e.target.closest("button, a");
+        if (!t || !root.contains(t)) return;
+        if (t.dataset.rmTeam) { showTeam(t.dataset.rmTeam); return; }
+        if (t.dataset.rmView) { showView(t.dataset.rmView); return; }
+        if (t.dataset.rmOpen) { showView("one"); showTeam(t.dataset.rmOpen); return; }
+        if (t.hasAttribute("data-rm-close")) { t.closest("dialog").close(); return; }
+        if (t.dataset.rmAssign) {
+            showTeam(t.dataset.rmAssign);
+            role = t.dataset.role || "";
+            aForm.participant_id.value = t.dataset.rmAssign;
+            aForm.next.value = backUrl();
+            aDlg.querySelector("h3").textContent = `Assegna a «${t.dataset.name}»` + (role ? ` · ${ROLE_ONE[role]}` : "");
+            aQ.value = ""; fillOptions([]); aPrice.value = 1;
+            openDlg(aDlg); aQ.focus();
+            return;
+        }
+        if (t.dataset.rmCredits) {
+            cForm.action = creditsUrl(t.dataset.rmCredits);
+            cForm.next.value = backUrl();
+            cDlg.querySelector("h3").textContent = `Crediti · ${t.dataset.name}`;
+            cDlg.querySelector("[data-rm-credits-sum]").textContent = `Budget ${t.dataset.total} FM · residui ${t.dataset.left} FM.`;
+            cForm.amount.value = "";
+            openDlg(cDlg); cForm.amount.focus();
+            return;
+        }
+        if (t.dataset.rmRelease) {
+            if (!confirm(`Svincolare ${t.dataset.name}? I crediti tornano alla squadra come dicono le regole della lega.`)) return;
+            t.disabled = true;
+            try {
+                const r = await fetch(root.dataset.releaseUrl.replace(/\/0\/release\/$/, `/${t.dataset.rmRelease}/release/`), {
+                    method: "POST", credentials: "same-origin",
+                    headers: { "X-CSRFToken": csrf(), "X-Requested-With": "XMLHttpRequest" },
+                });
+                const data = await r.json().catch(() => ({}));
+                if (data.ok) {
+                    toast(`✓ ${t.dataset.name} svincolato` + (data.refund != null ? ` (+${data.refund} FM)` : ""), "ok");
+                    setTimeout(goBack, 500);
+                } else {
+                    toast("✗ " + (data.error || data.message || "Svincolo non riuscito: ricarica la pagina e riprova."), "bad");
+                    t.disabled = false;
+                }
+            } catch (err) { toast("✗ Connessione assente: riprova fra poco.", "bad"); t.disabled = false; }
+        }
+    });
+})();
+</script>
+</div>
