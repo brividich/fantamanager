@@ -27,18 +27,18 @@
         text-transform: uppercase; letter-spacing: .04em;
     }
     .status-open {
-        background: rgba(0, 229, 153, 0.15); color: #00e599; border: 1px solid rgba(0, 229, 153, 0.35);
+        background: rgba(0, 229, 153, 0.15); color: var(--fm-mint); border: 1px solid rgba(0, 229, 153, 0.35);
     }
     .status-open::before {
         content: ""; width: 7px; height: 7px; border-radius: 50%;
-        background: #00e599; box-shadow: 0 0 8px #00e599;
+        background: var(--fm-mint); box-shadow: 0 0 8px var(--fm-mint);
         animation: pulse-dot 1.8s infinite;
     }
     .status-closed {
-        background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.35);
+        background: rgba(245, 158, 11, 0.15); color: var(--fm-amber-500); border: 1px solid rgba(245, 158, 11, 0.35);
     }
     .status-closed::before {
-        content: ""; width: 7px; height: 7px; border-radius: 50%; background: #f59e0b;
+        content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--fm-amber-500);
     }
     .status-resolved {
         background: rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.35);
@@ -50,7 +50,7 @@
 
     /* ---- Hub Section Styles ---- */
     .mc-report-links { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
-    .mc-report-links a { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; color: var(--accent, #60a5fa); text-decoration: none; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mc-report-links a { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; color: var(--accent, var(--fm-blue-400)); text-decoration: none; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .mc-report-links .ic { width: 14px; height: 14px; flex-shrink: 0; }
     .hub-section-title {
         display: flex; align-items: center; justify-content: space-between;
@@ -75,7 +75,7 @@
         position: relative; overflow: hidden;
     }
     .hub-card:hover {
-        border-color: rgba(255,255,255,.2);
+        border-color: rgba(var(--fm-tint-rgb),.2);
         box-shadow: 0 8px 24px -6px rgba(0,0,0,.45);
         transform: translateY(-2px);
     }
@@ -102,31 +102,31 @@
     }
     .hc-chip {
         padding: 4px 8px; border-radius: 8px; font-size: 11px; font-weight: 700;
-        background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08); color: var(--ink);
+        background: rgba(var(--fm-tint-rgb),.05); border: 1px solid rgba(var(--fm-tint-rgb),.08); color: var(--ink);
     }
     .hc-chip.active-bids {
-        background: rgba(0, 229, 153, 0.15); color: #00e599; border-color: rgba(0, 229, 153, 0.3);
+        background: rgba(0, 229, 153, 0.15); color: var(--fm-mint); border-color: rgba(0, 229, 153, 0.3);
     }
     .mc-btn-primary {
         width: 100%; padding: 11px 14px; border-radius: 10px; font-weight: 800; font-size: 13.5px;
         border: none; cursor: pointer; text-align: center; text-decoration: none;
         display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-        background: var(--accent); color: #0a1108; transition: opacity .15s ease;
+        background: var(--accent); color: var(--fm-on-accent); transition: opacity .15s ease;
         touch-action: manipulation; box-shadow: 0 4px 14px -2px var(--accent-glow, rgba(0,229,153,.3));
     }
-    .mc-btn-primary:hover { opacity: .92; color: #0a1108; }
+    .mc-btn-primary:hover { opacity: .92; color: var(--fm-on-accent); }
     .mc-btn-secondary {
         width: 100%; padding: 10px 14px; border-radius: 10px; font-weight: 800; font-size: 13px;
         border: 1px solid var(--line); cursor: pointer; text-align: center; text-decoration: none;
         display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-        background: rgba(255,255,255,.06); color: var(--ink); transition: all .15s ease;
+        background: rgba(var(--fm-tint-rgb),.06); color: var(--ink); transition: all .15s ease;
         touch-action: manipulation;
     }
-    .mc-btn-secondary:hover { background: rgba(255,255,255,.12); color: var(--ink); }
+    .mc-btn-secondary:hover { background: rgba(var(--fm-tint-rgb),.12); color: var(--ink); }
 
     .mc-btn-wizard {
         display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 9px;
-        background: var(--accent); color: #0a1108; font-size: 12px; font-weight: 800; border: none;
+        background: var(--accent); color: var(--fm-on-accent); font-size: 12px; font-weight: 800; border: none;
         cursor: pointer; transition: transform .12s, filter .15s; touch-action: manipulation;
         box-shadow: 0 2px 8px -2px var(--accent-glow, rgba(0,229,153,.4));
     }
@@ -142,10 +142,10 @@
     .ws-back-btn {
         display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px;
         border-radius: 9px; font-size: 12.5px; font-weight: 800;
-        background: rgba(255,255,255,.08); color: var(--ink); border: 1px solid var(--line);
+        background: rgba(var(--fm-tint-rgb),.08); color: var(--ink); border: 1px solid var(--line);
         text-decoration: none; cursor: pointer; transition: background .12s ease;
     }
-    .ws-back-btn:hover { background: rgba(255,255,255,.15); }
+    .ws-back-btn:hover { background: rgba(var(--fm-tint-rgb),.15); }
     .ws-back-btn { flex-shrink: 0; white-space: nowrap; }
     /* Title next to the back button while it fits (wraps under it when it
        doesn't); the switch between sessions always on its own row. */
@@ -175,7 +175,7 @@
         display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
     }
     .shc-stat {
-        text-align: center; background: rgba(0,0,0,0.25); border: 1px solid var(--line);
+        text-align: center; background: var(--fm-well); border: 1px solid var(--line);
         padding: 8px 6px; border-radius: 10px; min-width: 0;
     }
     html.light-theme .shc-stat { background: rgba(255,255,255,.72); }
@@ -206,11 +206,11 @@
         text-decoration: none; text-transform: uppercase; white-space: nowrap; flex-shrink: 0;
         transition: all .12s; touch-action: manipulation;
     }
-    .role-chip.on { background: var(--accent); color: #0a1108; border-color: var(--accent); }
-    .role-chip.r-P.on { background: #f59e0b; border-color: #f59e0b; color: #000; }
-    .role-chip.r-D.on { background: #10b981; border-color: #10b981; color: #000; }
+    .role-chip.on { background: var(--accent); color: var(--fm-on-accent); border-color: var(--accent); }
+    .role-chip.r-P.on { background: var(--fm-amber-500); border-color: var(--fm-amber-500); color: #000; }
+    .role-chip.r-D.on { background: var(--fm-emerald-500); border-color: var(--fm-emerald-500); color: #000; }
     .role-chip.r-C.on { background: #3b82f6; border-color: #3b82f6; color: #fff; }
-    .role-chip.r-A.on { background: #ef4444; border-color: #ef4444; color: #fff; }
+    .role-chip.r-A.on { background: var(--fm-red-500); border-color: var(--fm-red-500); color: #fff; }
 
     /* Free agents list */
     .fa-card { margin-bottom: 14px; }
@@ -220,7 +220,7 @@
         transition: background .12s ease;
     }
     .free-agent-row:last-child { border-bottom: none; }
-    .free-agent-row:hover { background: rgba(255,255,255,.02); }
+    .free-agent-row:hover { background: rgba(var(--fm-tint-rgb),.02); }
     .fa-main { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; cursor: pointer; }
     .fa-meta { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
     .fa-name { font-weight: 800; font-size: 14px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -229,7 +229,7 @@
     .fa-quota small { font-size: 11px; color: var(--muted); font-weight: 600; }
     .fa-offer-btn {
         padding: 8px 14px; font-size: 12px; font-weight: 800; border-radius: 8px;
-        border: none; cursor: pointer; flex-shrink: 0; background: var(--accent); color: #0a1108;
+        border: none; cursor: pointer; flex-shrink: 0; background: var(--accent); color: var(--fm-on-accent);
         transition: opacity .12s ease; touch-action: manipulation;
     }
     .fa-offer-btn:hover { opacity: .9; }
@@ -243,18 +243,18 @@
     }
     .bid-row:last-child { border-bottom: none; }
     .bid-prio {
-        width: 24px; height: 24px; border-radius: 6px; background: rgba(255,255,255,.08);
+        width: 24px; height: 24px; border-radius: 6px; background: rgba(var(--fm-tint-rgb),.08);
         display: flex; align-items: center; justify-content: center; font-size: 11.5px; font-weight: 900; flex-shrink: 0;
     }
     .bid-del-btn {
-        background: none; border: 1px solid rgba(239,68,68,.3); color: #ef4444; border-radius: 6px;
+        background: none; border: 1px solid rgba(239,68,68,.3); color: var(--fm-red-500); border-radius: 6px;
         padding: 6px 10px; font-size: 11.5px; font-weight: 700; cursor: pointer; touch-action: manipulation;
     }
     .bid-del-btn:hover { background: rgba(239,68,68,.15); }
 
     /* Modal Sheet Generic */
     .modal-overlay {
-        position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.75);
+        position: fixed; inset: 0; z-index: 100; background: var(--fm-scrim);
         display: flex; align-items: flex-end; justify-content: center;
         opacity: 0; pointer-events: none; transition: opacity .2s;
     }
@@ -277,7 +277,7 @@
     .modal-btns button {
         flex: 1; padding: 12px; border-radius: 10px; font-weight: 800; font-size: 14px; cursor: pointer; border: none;
     }
-    .btn-submit { background: var(--accent); color: #0a1108; }
+    .btn-submit { background: var(--accent); color: var(--fm-on-accent); }
     .btn-cancel { background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); }
 
     @media (min-width: 640px) {
@@ -389,13 +389,13 @@
     <div class="hub-card is-open" style="border-color:rgba(239,68,68,.5);margin-bottom:14px">
         <div class="hc-top">
             <div>
-                <div class="hc-badge-tag"><svg class="ic" style="width:13px;height:13px;color:#ef4444"><use href="#i-gavel"/></svg> Asta Live in Sala</div>
+                <div class="hc-badge-tag"><svg class="ic" style="width:13px;height:13px;color:var(--fm-red-500)"><use href="#i-gavel"/></svg> Asta Live in Sala</div>
                 <div class="hc-title">{{ active_auction.title }}</div>
                 <div class="hc-desc">La sala d'asta live è attiva ora per la tua lega. Partecipa con rilanci istantanei.</div>
             </div>
-            <span class="status-pill status-open" style="background:rgba(239,68,68,.15);color:#ef4444;border-color:rgba(239,68,68,.35)">Live Ora</span>
+            <span class="status-pill status-open" style="background:rgba(239,68,68,.15);color:var(--fm-red-500);border-color:rgba(239,68,68,.35)">Live Ora</span>
         </div>
-        <a class="mc-btn-primary" href="{% url 'bid' active_auction.id %}" style="background:#ef4444;color:#fff">
+        <a class="mc-btn-primary" href="{% url 'bid' active_auction.id %}" style="background:var(--fm-red-500);color:#fff">
             <span>Entra nella Sala Asta</span>
             <span>→</span>
         </a>
@@ -560,7 +560,7 @@
                         <div class="hc-title">Scambi tra Squadre</div>
                     </div>
                     {% if incoming_trades > 0 %}
-                    <span class="status-pill status-open" style="background:rgba(245,158,11,0.2);color:#f59e0b;border-color:rgba(245,158,11,0.4)">
+                    <span class="status-pill status-open" style="background:rgba(245,158,11,0.2);color:var(--fm-amber-500);border-color:rgba(245,158,11,0.4)">
                         🔔 {{ incoming_trades }} da valutare
                     </span>
                     {% endif %}
@@ -749,7 +749,7 @@
             {% elif is_waiver_wire %}
             {% if market_session.status == "resolved" and buste_results %}
             <div class="shc-stat">
-                <div class="v" style="color:#22c55e">{{ buste_results.my_won|length }}/{{ waiver_claims|length }}</div>
+                <div class="v" style="color:var(--fm-green-500)">{{ buste_results.my_won|length }}/{{ waiver_claims|length }}</div>
                 <div class="k">Reclami Assegnati</div>
             </div>
             {% else %}
@@ -764,7 +764,7 @@
             </div>
             {% elif is_renewals %}
             <div class="shc-stat">
-                <div class="v" style="color:#eab308">{{ my_expiring|length }}</div>
+                <div class="v" style="color:var(--fm-yellow-500)">{{ my_expiring|length }}</div>
                 <div class="k">Contratti Scaduti</div>
             </div>
             <div class="shc-stat">
@@ -773,7 +773,7 @@
             </div>
             {% elif is_buste and market_session.status == "resolved" and buste_results %}
             <div class="shc-stat">
-                <div class="v" style="color:#22c55e">{{ buste_results.my_won|length }}</div>
+                <div class="v" style="color:var(--fm-green-500)">{{ buste_results.my_won|length }}</div>
                 <div class="k">Buste Vinte</div>
             </div>
             <div class="shc-stat">
@@ -820,7 +820,7 @@
         </button>
         {% elif is_renewals %}
         <button type="button" data-asec-go="rinnovi" class="on">
-            📜 I Miei Rinnovi & Dadi {% if my_expiring %}<span class="n" style="background:#eab308;color:#0a1108">{{ my_expiring|length }}</span>{% endif %}
+            📜 I Miei Rinnovi & Dadi {% if my_expiring %}<span class="n" style="background:var(--fm-yellow-500);color:var(--fm-on-accent)">{{ my_expiring|length }}</span>{% endif %}
         </button>
         <button type="button" data-asec-go="quadro_rinnovi">
             👥 Quadro Lega (Rinnovi)
@@ -873,7 +873,7 @@
                 <input type="search" name="q" value="{{ q }}" placeholder="Cerca calciatore o squadra..." class="search-input" aria-label="Cerca calciatore o squadra">
                 <button type="submit" class="role-chip on" style="cursor:pointer;border:none;padding:0 18px;font-size:13px">Cerca</button>
                 {% if q %}
-                <a href="?{% if market_session %}session_id={{ market_session.id }}{% elif is_listone_view %}view=listone{% endif %}" class="role-chip" style="cursor:pointer;text-decoration:none;padding:0 12px;font-size:12px;background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.3);display:inline-flex;align-items:center;line-height:1;" title="Azzera ricerca">✕ Resetta</a>
+                <a href="?{% if market_session %}session_id={{ market_session.id }}{% elif is_listone_view %}view=listone{% endif %}" class="role-chip" style="cursor:pointer;text-decoration:none;padding:0 12px;font-size:12px;background:rgba(239,68,68,0.15);color:var(--fm-red-400);border:1px solid rgba(239,68,68,0.3);display:inline-flex;align-items:center;line-height:1;" title="Azzera ricerca">✕ Resetta</a>
                 {% endif %}
             </div>
             <div class="role-chips fm-onerow" role="radiogroup" aria-label="Ruolo">
@@ -937,7 +937,7 @@
                         📋 Reclama
                     </button>
                     {% elif is_buyout_clause %}
-                    <button type="button" class="fa-offer-btn" style="background:rgba(255,255,255,.08);color:var(--ink);border:1px solid var(--line)"
+                    <button type="button" class="fa-offer-btn" style="background:rgba(var(--fm-tint-rgb),.08);color:var(--ink);border:1px solid var(--line)"
                             onclick="openPlayerModal('{{ pl.name|escapejs }}', '{{ pl.role }}', '{{ pl.team|escapejs }}', '{{ pl.fanta_avg|floatformat:2|default:'' }}', '{{ pl.goals|default:0 }}', '{{ pl.assists|default:0 }}', '{{ pl.quota|floatformat:0 }}')">
                         Dettagli
                     </button>
@@ -1014,7 +1014,7 @@
                         🛡️ Protetto ({{ pl.protected_days_left }}g)
                     </span>
                     {% elif market_open %}
-                    <button type="button" class="fa-offer-btn" style="background:#f59e0b;color:#000"
+                    <button type="button" class="fa-offer-btn" style="background:var(--fm-amber-500);color:#000"
                             {% if participant.remaining_credits < pl.buyout_price %}disabled title="Budget insufficiente per pagare la clausola"{% endif %}
                             onclick="openBuyoutModal({{ pl.id }}, '{{ pl.name|escapejs }}', '{{ pl.role }}', '{{ pl.team|escapejs }}', '{{ pl.owner.display_name|escapejs }}', {{ pl.buyout_price }})">
                         💰 Paga Clausola
@@ -1061,7 +1061,7 @@
                         <div style="font-size:11.5px;color:var(--muted)">
                             {{ c.player_team }}
                             {% if c.release_player_name %}
-                            · <span style="color:#ef4444">Taglio: {{ c.release_player_name }} (+{{ c.refund }} FM)</span>
+                            · <span style="color:var(--fm-red-500)">Taglio: {{ c.release_player_name }} (+{{ c.refund }} FM)</span>
                             {% endif %}
                         </div>
                     </div>
@@ -1110,7 +1110,7 @@
                 {% for team_name in waiver_order_preview %}
                 <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--panel-2);border-radius:10px;border:1px solid var(--line)">
                     <div style="display:flex;align-items:center;gap:10px">
-                        <span style="font-weight:900;font-size:13px;width:24px;height:24px;border-radius:6px;background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;color:var(--accent)">
+                        <span style="font-weight:900;font-size:13px;width:24px;height:24px;border-radius:6px;background:rgba(var(--fm-tint-rgb),.08);display:flex;align-items:center;justify-content:center;color:var(--accent)">
                             {{ forloop.counter }}
                         </span>
                         <b style="font-size:13.5px;color:var(--ink)">{{ team_name }}</b>
@@ -1149,7 +1149,7 @@
 
             {% if market_open and my_bids %}
             <div style="padding:10px 14px 6px;font-size:12.5px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--line)">
-                Offerte totali: <b style="color:{% if my_bids_total > participant.remaining_credits %}#eab308{% else %}var(--ink){% endif %}">{{ my_bids_total }} FM</b>
+                Offerte totali: <b style="color:{% if my_bids_total > participant.remaining_credits %}var(--fm-yellow-500){% else %}var(--ink){% endif %}">{{ my_bids_total }} FM</b>
                 su {{ participant.remaining_credits|floatformat:0 }} FM disponibili{% if my_bids_total > participant.remaining_credits %}{% if market_session.budget_rule == "total" %} — oltre il budget: allo spoglio verranno annullate le offerte più alte finché il totale non rientra{% else %} — allo spoglio vale l'ordine di priorità{% endif %}{% endif %}
             </div>
             {% endif %}
@@ -1167,11 +1167,11 @@
                         <div style="font-size:11.5px;color:var(--muted)">
                             {{ b.player_team }}
                             {% if b.release_player_name %}
-                            · <span style="color:#ef4444">Taglio: {{ b.release_player_name }} (+{{ b.refund }} FM)</span>
+                            · <span style="color:var(--fm-red-500)">Taglio: {{ b.release_player_name }} (+{{ b.refund }} FM)</span>
                             {% endif %}
                         </div>
                         {% if b.status != "pending" %}
-                        <div style="font-size:11.5px;font-weight:800;margin-top:2px;color:{% if b.status == 'won' %}#22c55e{% elif b.status == 'tied' %}#eab308{% else %}#ef4444{% endif %}">
+                        <div style="font-size:11.5px;font-weight:800;margin-top:2px;color:{% if b.status == 'won' %}var(--fm-green-500){% elif b.status == 'tied' %}var(--fm-yellow-500){% else %}var(--fm-red-500){% endif %}">
                             {{ b.status_label }}{% if b.note %} · <span style="font-weight:600;color:var(--muted)">{{ b.note }}</span>{% endif %}
                         </div>
                         {% endif %}
@@ -1206,7 +1206,7 @@
         <!-- Risultato Personale -->
         <div class="a-card" style="padding:16px;margin-bottom:14px;border:1px solid rgba(34,197,94,.3);background:rgba(34,197,94,.03)">
             <div class="a-label" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-                <span style="color:#22c55e"><svg class="ic"><use href="#i-trophy"/></svg> {% if is_waiver_wire %}Il Tuo Resoconto del Draft{% else %}Il Tuo Resoconto di Spoglio{% endif %}</span>
+                <span style="color:var(--fm-green-500)"><svg class="ic"><use href="#i-trophy"/></svg> {% if is_waiver_wire %}Il Tuo Resoconto del Draft{% else %}Il Tuo Resoconto di Spoglio{% endif %}</span>
                 <span style="font-size:12px;font-weight:700;color:var(--muted)">{{ participant.display_name }}</span>
             </div>
             
@@ -1220,7 +1220,7 @@
             {% endif %}
             {% if buste_results.my_won %}
             <div style="margin-bottom:12px">
-                <div style="font-size:12px;font-weight:800;color:#22c55e;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">🏆 Calciatori Aggiudicati ({{ buste_results.my_won|length }})</div>
+                <div style="font-size:12px;font-weight:800;color:var(--fm-green-500);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">🏆 Calciatori Aggiudicati ({{ buste_results.my_won|length }})</div>
                 <div style="display:flex;flex-direction:column;gap:6px">
                     {% for w in buste_results.my_won %}
                     <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-radius:10px;background:var(--panel-2);border:1px solid rgba(34,197,94,.2)">
@@ -1231,7 +1231,7 @@
                             <small style="color:var(--muted);font-size:11px">(al posto di {{ w.released_player }}{% if w.refund %} +{{ w.refund }} FM{% endif %}{% if w.auto_confirmed %} · dalla lista, tempo scaduto{% endif %})</small>
                             {% endif %}
                         </div>
-                        <span style="font-family:var(--display);font-weight:900;font-size:15px;color:#22c55e">{{ w.amount }} FM</span>
+                        <span style="font-family:var(--display);font-weight:900;font-size:15px;color:var(--fm-green-500)">{{ w.amount }} FM</span>
                     </div>
                     {% if w.expired %}
                     <div style="margin:-2px 0 4px;padding:8px 12px;border-radius:10px;border:1px dashed rgba(234,179,8,.5);font-size:12px;color:var(--muted)">
@@ -1269,7 +1269,7 @@
 
             {% if buste_results.my_lost %}
             <div>
-                <div style="font-size:12px;font-weight:800;color:#ef4444;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">❌ {{ mk_labels.lost }} ({{ buste_results.my_lost|length }})</div>
+                <div style="font-size:12px;font-weight:800;color:var(--fm-red-500);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">❌ {{ mk_labels.lost }} ({{ buste_results.my_lost|length }})</div>
                 <div style="display:flex;flex-direction:column;gap:6px">
                     {% for l in buste_results.my_lost %}
                     <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-radius:10px;background:var(--panel-2);border:1px solid var(--line)">
@@ -1322,7 +1322,7 @@
                     </thead>
                     <tbody>
                         {% for w in buste_results.won %}
-                        <tr style="border-bottom:1px solid rgba(255,255,255,.04)">
+                        <tr style="border-bottom:1px solid rgba(var(--fm-tint-rgb),.04)">
                             <td style="padding:10px 6px"><span class="role-badge role-{{ w.player_role }}">{{ w.player_role }}</span></td>
                             <td style="padding:10px 6px"><b style="color:var(--ink)">{{ w.player_name }}</b></td>
                             <td style="padding:10px 6px">
@@ -1335,8 +1335,8 @@
                             </td>
                             <td style="padding:10px 6px;font-size:11.5px;color:var(--muted)">
                                 {% if w.released_player %}
-                                <span style="color:#ef4444">Taglio: {{ w.released_player }}</span>
-                                {% if w.refund %}<span style="color:#22c55e">(+{{ w.refund }} FM)</span>{% endif %}
+                                <span style="color:var(--fm-red-500)">Taglio: {{ w.released_player }}</span>
+                                {% if w.refund %}<span style="color:var(--fm-green-500)">(+{{ w.refund }} FM)</span>{% endif %}
                                 {% else %}
                                 —
                                 {% endif %}
@@ -1361,7 +1361,7 @@
         <div class="a-card" style="padding:16px;margin-bottom:14px">
             <div class="a-label" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
                 <span><svg class="ic"><use href="#i-refresh"/></svg> Contratti Scaduti (0 Anni)</span>
-                <span class="status-pill" style="color:#eab308">{{ my_expiring|length }} in scadenza</span>
+                <span class="status-pill" style="color:var(--fm-yellow-500)">{{ my_expiring|length }} in scadenza</span>
             </div>
 
             {% if not my_expiring %}
@@ -1373,10 +1373,10 @@
             {% elif has_undecided_renewals %}
             <!-- FASE 1: DICHIARAZIONE RINNOVI -->
             <div style="background:rgba(234,179,8,.06);border:1px solid rgba(234,179,8,.3);border-radius:12px;padding:14px;margin-bottom:16px">
-                <div style="font-weight:800;font-size:14px;color:#eab308;margin-bottom:4px">⚠️ Fase 1: Dichiarazione Rinnovi (Comma 4.1)</div>
+                <div style="font-weight:800;font-size:14px;color:var(--fm-yellow-500);margin-bottom:4px">⚠️ Fase 1: Dichiarazione Rinnovi (Comma 4.1)</div>
                 <div style="font-size:12px;color:var(--ink);line-height:1.4">
                     Spunta i calciatori che intendi sottoporre al tiro del dado rinnovo.
-                    <br><b style="color:#ef4444">I calciatori non spuntati verranno svincolati immediatamente</b> a costo zero e non potrai più rinnovarli.
+                    <br><b style="color:var(--fm-red-500)">I calciatori non spuntati verranno svincolati immediatamente</b> a costo zero e non potrai più rinnovarli.
                 </div>
             </div>
 
@@ -1409,7 +1409,7 @@
             {% else %}
             <!-- FASE 2: TIRO DADO RINNOVO -->
             <div style="background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.3);border-radius:12px;padding:14px;margin-bottom:16px">
-                <div style="font-weight:800;font-size:14px;color:#22c55e;margin-bottom:4px">🎲 Fase 2: Lancio Dado Rinnovo (3 Verdi / 3 Rosse)</div>
+                <div style="font-weight:800;font-size:14px;color:var(--fm-green-500);margin-bottom:4px">🎲 Fase 2: Lancio Dado Rinnovo (3 Verdi / 3 Rosse)</div>
                 <div style="font-size:12px;color:var(--ink);line-height:1.4">
                     Hai confermato i rinnovi. Per ciascun calciatore dichiarato, tira il dado:
                     <br>🟢 <b>VERDE</b>: Rinnovo riuscito! Riceve subito un nuovo contratto (1-3 anni).
@@ -1460,7 +1460,7 @@
                             <div style="font-size:11px;color:var(--muted)">
                                 {{ p.team }} · Pagato {{ p.cost|floatformat:0 }} FM
                                 {% if p.min_years > 1 %}
-                                · <span style="color:#eab308;font-weight:700">🛡️ Clausola 4.03: min. {{ p.min_years }} anni</span>
+                                · <span style="color:var(--fm-yellow-500);font-weight:700">🛡️ Clausola 4.03: min. {{ p.min_years }} anni</span>
                                 {% endif %}
                             </div>
                         </div>
@@ -1510,7 +1510,7 @@
                             <span style="color:var(--ink);font-weight:700">{{ pl.name }}</span>
                             <small style="color:var(--muted)">({{ pl.cost|floatformat:0 }} FM)</small>
                             {% if pl.renewal_declared %}
-                            <span style="color:#22c55e;font-size:10px">✓</span>
+                            <span style="color:var(--fm-green-500);font-size:10px">✓</span>
                             {% endif %}
                         </span>
                         {% endfor %}
@@ -1737,7 +1737,7 @@
             </div>
             {% endif %}
 
-            <div style="background:rgba(255,255,255,.04);padding:14px;border-radius:12px;margin-bottom:14px;font-size:12px">
+            <div style="background:rgba(var(--fm-tint-rgb),.04);padding:14px;border-radius:12px;margin-bottom:14px;font-size:12px">
                 <div style="display:flex;justify-content:space-between;margin-bottom:6px">
                     <span style="color:var(--muted);font-weight:700">Crediti Rimanenti Stimati</span>
                     <b id="calc-max-spendable-txt" style="font-size:14px">{{ participant.remaining_credits|floatformat:0 }} FM</b>
@@ -1798,7 +1798,7 @@
             </div>
             {% endif %}
 
-            <div style="background:rgba(255,255,255,.04);padding:14px;border-radius:12px;margin-bottom:14px;font-size:12px">
+            <div style="background:rgba(var(--fm-tint-rgb),.04);padding:14px;border-radius:12px;margin-bottom:14px;font-size:12px">
                 <div style="display:flex;justify-content:space-between;margin-bottom:6px">
                     <span style="color:var(--muted);font-weight:700">Budget Residuo Previsto</span>
                     <b id="fa-calc-remaining" style="font-size:14px">{{ participant.remaining_credits|floatformat:0 }} FM</b>
@@ -1836,7 +1836,7 @@
             </div>
             <div style="margin-left:auto;text-align:right">
                 <div style="font-size:11px;color:var(--muted)">Valore Clausola</div>
-                <div style="font-weight:900;font-size:16px;color:#f59e0b" id="bo-modal-cost"></div>
+                <div style="font-weight:900;font-size:16px;color:var(--fm-amber-500)" id="bo-modal-cost"></div>
             </div>
         </div>
 
@@ -1858,7 +1858,7 @@
             </div>
             {% endif %}
 
-            <div style="background:rgba(255,255,255,.04);padding:14px;border-radius:12px;margin-bottom:14px;font-size:12px">
+            <div style="background:rgba(var(--fm-tint-rgb),.04);padding:14px;border-radius:12px;margin-bottom:14px;font-size:12px">
                 <div style="display:flex;justify-content:space-between;margin-bottom:6px">
                     <span style="color:var(--muted);font-weight:700">Budget Residuo Previsto</span>
                     <b id="bo-calc-remaining" style="font-size:14px">{{ participant.remaining_credits|floatformat:0 }} FM</b>
@@ -1871,7 +1871,7 @@
 
             <div class="modal-btns">
                 <button type="button" class="btn-cancel" onclick="closeBuyoutModal()">Annulla</button>
-                <button type="submit" class="btn-submit" id="bo-submit-btn" style="background:#f59e0b;color:#000">💰 Conferma e Scippa</button>
+                <button type="submit" class="btn-submit" id="bo-submit-btn" style="background:var(--fm-amber-500);color:#000">💰 Conferma e Scippa</button>
             </div>
         </form>
     </div>
@@ -2005,13 +2005,13 @@
             bar.style.width = pct + "%";
             if (remaining < 0) {
                 bar.style.width = "100%";
-                bar.style.background = "#ef4444";
-                txtEl.style.color = "#ef4444";
+                bar.style.background = "var(--fm-red-500)";
+                txtEl.style.color = "var(--fm-red-500)";
             } else if (pct < 25) {
-                bar.style.background = "#ef4444";
+                bar.style.background = "var(--fm-red-500)";
                 txtEl.style.color = "var(--ink)";
             } else if (pct < 50) {
-                bar.style.background = "#f59e0b";
+                bar.style.background = "var(--fm-amber-500)";
                 txtEl.style.color = "var(--ink)";
             } else {
                 bar.style.background = "var(--accent)";
@@ -2120,7 +2120,7 @@
         const btn = document.getElementById("fa-submit-btn");
         if (txtEl) {
             txtEl.textContent = remaining + " FM";
-            txtEl.style.color = (remaining < 0) ? "#ef4444" : "var(--ink)";
+            txtEl.style.color = (remaining < 0) ? "var(--fm-red-500)" : "var(--ink)";
         }
         if (btn) {
             btn.disabled = (remaining < 0);
@@ -2195,7 +2195,7 @@
         const btn = document.getElementById("bo-submit-btn");
         if (txtEl) {
             txtEl.textContent = remaining + " FM";
-            txtEl.style.color = (remaining < 0) ? "#ef4444" : "var(--ink)";
+            txtEl.style.color = (remaining < 0) ? "var(--fm-red-500)" : "var(--ink)";
         }
         if (btn) {
             btn.disabled = (remaining < 0);

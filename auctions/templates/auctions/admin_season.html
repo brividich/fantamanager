@@ -8,21 +8,21 @@
     .ss-step h3 { margin: 0 0 4px; font-size: 15px; display: flex; gap: 8px; align-items: center; }
     .ss-step p { margin: 0 0 10px; font-size: 12px; color: var(--muted); line-height: 1.45; }
     .ss-num { width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
-              background: var(--accent); color: #0a1108; font-size: 12px; font-weight: 900; }
+              background: var(--accent); color: var(--fm-on-accent); font-size: 12px; font-weight: 900; }
     .ss-btn { height: 32px; padding: 0 14px; border-radius: 8px; font-weight: 800; font-size: 12.5px; cursor: pointer;
-              border: 1px solid var(--accent); background: var(--accent); color: #0a1108; }
+              border: 1px solid var(--accent); background: var(--accent); color: var(--fm-on-accent); }
     .ss-btn.ghost { background: transparent; color: inherit; border-color: var(--line); }
     .ss-btn:disabled { opacity: .45; cursor: not-allowed; }
     .ss-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 14px; }
     .ss-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
     .ss-table th { text-align: left; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); padding: 6px; }
     .ss-table td { padding: 5px 6px; border-top: 1px solid var(--line); }
-    .ss-in { width: 54px; height: 28px; padding: 2px 6px; border-radius: 6px; border: 1px solid var(--line); background: rgba(0,0,0,0.2); color: inherit; box-sizing: border-box; }
+    .ss-in { width: 54px; height: 28px; padding: 2px 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--fm-well); color: inherit; box-sizing: border-box; }
     .ss-wide { width: 100%; height: 30px; }
     .ss-num-col { text-align: right; font-variant-numeric: tabular-nums; }
-    .ss-bar { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.08); overflow: hidden; margin-top: 3px; }
+    .ss-bar { height: 6px; border-radius: 3px; background: rgba(var(--fm-tint-rgb),0.08); overflow: hidden; margin-top: 3px; }
     .ss-bar i { display: block; height: 100%; background: var(--accent); }
-    .ss-bar i.hot { background: #eab308; }
+    .ss-bar i.hot { background: var(--fm-yellow-500); }
     .ss-set { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 8px 12px; align-items: center; font-size: 12.5px; }
     @media (max-width: 1100px) { .ss-steps, .ss-grid { grid-template-columns: minmax(0, 1fr); } }
 </style>
@@ -70,7 +70,7 @@
 {% if messages %}
 <div style="margin-bottom:14px">
     {% for msg in messages %}
-    <div class="saved-flash" style="{% if msg.tags == 'error' %}background:rgba(239,68,68,0.15);color:#ef4444;border-color:rgba(239,68,68,0.3){% elif msg.tags == 'warning' %}background:rgba(234,179,8,0.15);color:#eab308;border-color:rgba(234,179,8,0.3){% else %}background:var(--accent-soft);color:var(--accent-bright);border-color:var(--accent-line){% endif %}">{{ msg }}</div>
+    <div class="saved-flash" style="{% if msg.tags == 'error' %}background:rgba(239,68,68,0.15);color:var(--fm-red-500);border-color:rgba(239,68,68,0.3){% elif msg.tags == 'warning' %}background:rgba(234,179,8,0.15);color:var(--fm-yellow-500);border-color:rgba(234,179,8,0.3){% else %}background:var(--accent-soft);color:var(--accent-bright);border-color:var(--accent-line){% endif %}">{{ msg }}</div>
     {% endfor %}
 </div>
 {% endif %}

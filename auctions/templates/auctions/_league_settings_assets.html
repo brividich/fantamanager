@@ -16,9 +16,9 @@ salvate». window.fmLeagueEditor.dirty: i form con modifiche da salvare.
     @media (max-width: 560px) { .ed-grid2 { grid-template-columns: 1fr; } .ed-grid4 { grid-template-columns: repeat(2, 1fr); } }
     .ed-sec label:not(.sw-row) { margin: 0 0 4px; }
     .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
-    .chip { height: 28px; padding: 0 11px; font-size: 12px; border-radius: 999px; background: rgba(255,255,255,.04); border: 1px solid var(--fm-border); color: var(--fm-text-secondary); }
-    .chip:hover { color: #fff; filter: none; }
-    .seg { display: inline-flex; flex-wrap: wrap; gap: 3px; padding: 3px; border-radius: 9px; background: rgba(255,255,255,.04); border: 1px solid var(--fm-border); }
+    .chip { height: 28px; padding: 0 11px; font-size: 12px; border-radius: 999px; background: rgba(var(--fm-tint-rgb),.04); border: 1px solid var(--fm-border); color: var(--fm-text-secondary); }
+    .chip:hover { color: var(--fm-strong); filter: none; }
+    .seg { display: inline-flex; flex-wrap: wrap; gap: 3px; padding: 3px; border-radius: 9px; background: rgba(var(--fm-tint-rgb),.04); border: 1px solid var(--fm-border); }
     .seg label { position: relative; cursor: pointer; }
     .seg input { position: absolute; opacity: 0; pointer-events: none; }
     .seg span { display: inline-flex; align-items: center; height: 30px; padding: 0 12px; border-radius: 6px; font-size: 12.5px; font-weight: 700; color: var(--fm-text-secondary); }
@@ -38,7 +38,7 @@ salvate». window.fmLeagueEditor.dirty: i form con modifiche da salvare.
     /* Switch */
     .sw { position: relative; width: 40px; height: 22px; flex-shrink: 0; margin-top: 2px; }
     .sw input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; z-index: 1; }
-    .sw i { position: absolute; inset: 0; border-radius: 999px; background: rgba(255,255,255,.12); transition: background .15s; }
+    .sw i { position: absolute; inset: 0; border-radius: 999px; background: rgba(var(--fm-tint-rgb),.12); transition: background .15s; }
     .sw i::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .15s; }
     .sw input:checked + i { background: var(--fm-primary); }
     .sw input:checked + i::after { transform: translateX(18px); }
@@ -47,7 +47,7 @@ salvate». window.fmLeagueEditor.dirty: i form con modifiche da salvare.
 
     .ed-foot { position: sticky; bottom: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
                margin: 4px -16px -16px; padding: 12px 16px; border-radius: 0 0 var(--fm-radius-md) var(--fm-radius-md);
-               background: rgba(4,20,41,.96); border-top: 1px solid var(--fm-border); }
+               background: rgba(var(--fm-navy-rgb),.96); border-top: 1px solid var(--fm-border); }
     .ed-foot .dirty { flex: 1; font-size: 12px; color: var(--fm-warning); visibility: hidden; }
     .ed-foot .dirty.on { visibility: visible; }
 

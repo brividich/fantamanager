@@ -21,8 +21,8 @@ salvataggio finché non si preme «Salva»). Solo superuser.
     .va-head .sub { font-size:13px; color:var(--fm-text-secondary); margin-top:4px; max-width:78ch; line-height:1.5; }
     .va-msg { padding:10px 14px; border-radius:var(--fm-radius-sm); font-size:13px; margin-bottom:10px;
               border:1px solid var(--fm-border-active); background:rgba(8,124,240,.10); }
-    .va-msg.error { border-color:rgba(255,61,80,.45); background:rgba(255,61,80,.10); color:#ffb3bb; }
-    .va-msg.success { border-color:rgba(22,217,104,.35); background:rgba(22,217,104,.10); color:#8df0b6; }
+    .va-msg.error { border-color:rgba(255,61,80,.45); background:rgba(255,61,80,.10); color:var(--fm-rose-200); }
+    .va-msg.success { border-color:rgba(22,217,104,.35); background:rgba(22,217,104,.10); color:var(--fm-green-200); }
 
     .va-state { display:flex; align-items:center; gap:10px 16px; flex-wrap:wrap; padding:12px 14px; margin-bottom:14px;
                 border-radius:var(--fm-radius-md); border:1px solid var(--fm-border); background:var(--fm-card); font-size:13px; }
@@ -56,7 +56,7 @@ salvataggio finché non si preme «Salva»). Solo superuser.
     .va-field .meta { grid-column:2 / 3; font-size:11.5px; color:var(--fm-text-muted); text-align:right; white-space:nowrap; }
     .va-field.is-dirty .lbl::before { content:""; width:7px; height:7px; border-radius:50%; background:var(--fm-warning); flex:none; }
     .va-field.is-error input { border-color:var(--fm-danger); }
-    .va-field .err { grid-column:1 / -1; font-size:12px; color:#ff8a95; }
+    .va-field .err { grid-column:1 / -1; font-size:12px; color:var(--fm-rose-300); }
     .va-num { display:flex; align-items:center; gap:4px; }
     .va-num input { width:88px; text-align:right; font-variant-numeric:tabular-nums; padding:6px 8px; }
     .va-num button { width:30px; height:30px; padding:0; display:grid; place-items:center; flex:none; }
@@ -68,7 +68,7 @@ salvataggio finché non si preme «Salva»). Solo superuser.
     .va-table-wrap { overflow-x:auto; margin:0 -14px; padding:0 14px; }
     .va-table { border-collapse:collapse; font-size:12.5px; width:100%; }
     .va-table th, .va-table td { padding:6px 6px; border-top:1px solid var(--fm-border); text-align:right; white-space:nowrap; }
-    .va-table th:first-child, .va-table td:first-child { text-align:left; position:sticky; left:0; background:#061a33; }
+    .va-table th:first-child, .va-table td:first-child { text-align:left; position:sticky; left:0; background:var(--fm-surface); }
     .va-table thead th { font-weight:600; color:var(--fm-text-secondary); font-size:11.5px; border-top:0; vertical-align:bottom; }
     .va-table input { width:64px; text-align:right; padding:4px 6px; font-size:12.5px; font-variant-numeric:tabular-nums; }
     .va-table td.unused input { opacity:.45; }
@@ -77,7 +77,7 @@ salvataggio finché non si preme «Salva»). Solo superuser.
 
     .va-actions { position:sticky; bottom:0; z-index:5; display:flex; gap:8px; align-items:center; padding:10px 12px;
                   border:1px solid var(--fm-border-active); border-radius:var(--fm-radius-md);
-                  background:linear-gradient(145deg, rgba(7,29,56,.98), rgba(4,20,41,.99)); box-shadow:var(--fm-shadow); }
+                  background:linear-gradient(145deg, rgba(var(--fm-navy-rgb),.98), rgba(var(--fm-navy-rgb),.99)); box-shadow:var(--fm-shadow); }
     .va-actions input[name=note] { flex:1 1 160px; min-width:120px; }
     .va-actions .dirty-n { font-size:12px; color:var(--fm-warning); white-space:nowrap; }
 
@@ -122,11 +122,11 @@ salvataggio finché non si preme «Salva»). Solo superuser.
     .va-mv td:first-child, .va-mv th:first-child { text-align:left; }
     .va-mv thead th { border-top:0; color:var(--fm-text-muted); font-weight:600; font-size:11.5px; }
     .va-mv tr.va-mvrow { cursor:pointer; }
-    .va-mv tr.va-mvrow:hover td { background:rgba(255,255,255,.03); }
+    .va-mv tr.va-mvrow:hover td { background:rgba(var(--fm-tint-rgb),.03); }
     .va-mv .who small { color:var(--fm-text-muted); }
     .va-mv tr.va-mvdet td { padding:0 4px 8px; border-top:0; }
     .va-bd { display:grid; grid-template-columns:auto repeat(3, auto); gap:2px 14px; justify-content:start;
-             font-size:11.5px; color:var(--fm-text-secondary); padding:6px 8px; background:rgba(255,255,255,.03); border-radius:6px; }
+             font-size:11.5px; color:var(--fm-text-secondary); padding:6px 8px; background:rgba(var(--fm-tint-rgb),.03); border-radius:6px; }
     .va-bd b { color:var(--fm-text); font-weight:600; }
 
     .va-empty { font-size:12.5px; color:var(--fm-text-muted); padding:4px 0; }
@@ -136,7 +136,7 @@ salvataggio finché non si preme «Salva»). Solo superuser.
     .va-ver { width:100%; border-collapse:collapse; font-size:12.5px; }
     .va-ver td, .va-ver th { padding:7px 4px; border-top:1px solid var(--fm-border); text-align:left; vertical-align:middle; }
     .va-ver thead th { border-top:0; color:var(--fm-text-muted); font-weight:600; font-size:11.5px; }
-    .va-ver .badge { font-size:11px; padding:2px 8px; border-radius:99px; background:rgba(22,217,104,.14); color:#8df0b6; }
+    .va-ver .badge { font-size:11px; padding:2px 8px; border-radius:99px; background:rgba(22,217,104,.14); color:var(--fm-green-200); }
     .va-ver form { margin:0; }
     .va-ver button { padding:4px 10px; font-size:12px; }
     /* Voti di riferimento e taratura */
@@ -151,7 +151,7 @@ salvataggio finché non si preme «Salva»). Solo superuser.
     .va-refitem details summary { cursor:pointer; color:var(--fm-primary-light); font-size:12px; }
     .va-refitem ul { margin:6px 0 0; padding-left:18px; columns:2 220px; font-size:12px; color:var(--fm-text-secondary); }
     .va-pill { font-size:11.5px; padding:2px 8px; border-radius:99px; border:1px solid var(--fm-border); white-space:nowrap; }
-    .va-pill.ok { color:#8df0b6; border-color:rgba(22,217,104,.35); }
+    .va-pill.ok { color:var(--fm-green-200); border-color:rgba(22,217,104,.35); }
     .va-pill.warn { color:var(--fm-warning); border-color:rgba(255,181,38,.35); }
     .va-upload { display:grid; grid-template-columns:minmax(0,1fr); gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid var(--fm-border); }
     @media (min-width:700px) { .va-upload { grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) auto; align-items:end; } }
@@ -166,13 +166,13 @@ salvataggio finché non si preme «Salva»). Solo superuser.
     .va-prud input[type=range] { flex:1 1 140px; min-width:0; }
     .va-prud .fm-onerow { display:flex; gap:6px; }
     .va-fitres { margin-top:12px; display:flex; flex-direction:column; gap:10px; }
-    .va-warn { padding:8px 12px; border-radius:var(--fm-radius-sm); font-size:12.5px; border:1px solid rgba(255,181,38,.4); background:rgba(255,181,38,.10); color:#ffd27a; }
-    .va-flag { font-size:10.5px; padding:1px 6px; border-radius:99px; background:rgba(255,181,38,.15); color:#ffd27a; margin-left:4px; white-space:nowrap; }
+    .va-warn { padding:8px 12px; border-radius:var(--fm-radius-sm); font-size:12.5px; border:1px solid rgba(255,181,38,.4); background:rgba(255,181,38,.10); color:var(--fm-amber-200); }
+    .va-flag { font-size:10.5px; padding:1px 6px; border-radius:99px; background:rgba(255,181,38,.15); color:var(--fm-amber-200); margin-left:4px; white-space:nowrap; }
     .va-heat { border-collapse:collapse; font-size:10.5px; font-variant-numeric:tabular-nums; margin:0 auto; }
     .va-heat td, .va-heat th { width:28px; height:24px; padding:0; text-align:center; }
     .va-heat th { color:var(--fm-text-muted); font-weight:500; }
-    .va-heat td { border:1px solid rgba(255,255,255,.05); color:var(--fm-text); }
-    .va-heat td.diag { outline:1.5px solid rgba(255,255,255,.55); outline-offset:-2px; }
+    .va-heat td { border:1px solid rgba(var(--fm-tint-rgb),.05); color:var(--fm-text); }
+    .va-heat td.diag { outline:1.5px solid rgba(var(--fm-tint-rgb),.55); outline-offset:-2px; }
     .va-heat caption { caption-side:bottom; font-size:11px; color:var(--fm-text-muted); padding-top:6px; }
     .va-rt.va-fittab td:first-child { white-space:normal; min-width:140px; }
     .va-2x2 { border-collapse:collapse; font-size:12.5px; font-variant-numeric:tabular-nums; }

@@ -15,7 +15,7 @@ cambia la cornice (views/privacy.py:_account_frame).
     .acc-kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
     .acc-tag { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 800; }
     .acc-tag.ok { background: rgba(22,217,104,.15); color: var(--fm-success); }
-    .acc-tag.warn { background: rgba(250,204,21,.15); color: #facc15; }
+    .acc-tag.warn { background: rgba(250,204,21,.15); color: var(--fm-yellow-400); }
     .acc-form { display: grid; gap: 8px; margin-top: 8px; }
     .acc-form label { margin: 4px 0 0; }
     .acc-list { margin: 6px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.6; }
@@ -24,8 +24,8 @@ cambia la cornice (views/privacy.py:_account_frame).
     .acc-table td { padding: 6px; border-top: 1px solid var(--fm-border); vertical-align: top; }
     .acc-danger { border-color: rgba(239,68,68,.35); }
     .acc-msg { padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; margin-bottom: 8px; }
-    .acc-msg.error { background: rgba(239,68,68,.15); color: #f87171; border: 1px solid rgba(239,68,68,.3); }
-    .acc-msg.ok { background: rgba(34,197,94,.12); color: #4ade80; border: 1px solid rgba(34,197,94,.3); }
+    .acc-msg.error { background: rgba(239,68,68,.15); color: var(--fm-red-400); border: 1px solid rgba(239,68,68,.3); }
+    .acc-msg.ok { background: rgba(34,197,94,.12); color: var(--fm-green-400); border: 1px solid rgba(34,197,94,.3); }
     .acc-msg.info { background: rgba(8,124,240,.10); border: 1px solid var(--fm-border); }
 </style>
 
@@ -46,6 +46,7 @@ cambia la cornice (views/privacy.py:_account_frame).
             {% if email_unverified %}<li>Prima conferma la tua email: apri il link che ti abbiamo mandato, oppure premi <b>Rimanda il link</b>.</li>{% endif %}
             <li>Vuoi una copia di tutto quello che il sito tiene su di te? Premi <b>Scarica i miei dati</b>: arriva un file JSON.</li>
             <li>Email cambiata? Scrivi la nuova in <b>Cambia email</b> e premi <b>Cambia</b>{% if mail_ready %}: vale dopo che apri il link di conferma{% endif %}.</li>
+            <li>Preferisci lo sfondo chiaro? In <b>Tema</b> scegli <b>Scuro</b>, <b>Chiaro</b> o <b>Automatico</b> (come il dispositivo).</li>
             <li>Vuoi andare via? In fondo, <b>Elimina il mio account</b>: segui i passi. Le tue squadre restano alla lega, senza di te.</li>
         </ol>
         <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Come usiamo i dati è scritto nell'<a href="{% url 'privacy' %}">informativa privacy</a>.</div>
@@ -99,6 +100,12 @@ cambia la cornice (views/privacy.py:_account_frame).
         {% else %}<p>Non hai ancora confermato informativa e termini.</p>{% endif %}
         {% if acceptance_state != "ok" %}<a class="fm-btn fm-btn-secondary fm-btn-sm" href="{% url 'legal_reaccept' %}">Leggi e accetta</a>{% endif %}
         <p><a href="{% url 'privacy' %}">Informativa privacy</a> (v. {{ privacy_version }}) · <a href="{% url 'terms' %}">Termini d'uso</a> (v. {{ terms_version }})</p>
+    </section>
+
+    <section class="fm-card acc-card">
+        <h2>Tema</h2>
+        <p>Come vuoi vedere FantaManager: scuro, chiaro o come il tuo dispositivo.</p>
+        {% include "auctions/_theme_switch.html" %}
     </section>
 
     <section class="fm-card acc-card">

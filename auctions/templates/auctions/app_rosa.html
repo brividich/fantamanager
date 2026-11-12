@@ -19,7 +19,7 @@
     .rosa-kpi b { font-family: var(--display); font-size: 19px; color: var(--ink); line-height: 1.1; }
     .rosa-kpi b small { font-size: 11px; color: var(--muted); font-weight: 700; }
     .rosa-kpi span { font-size: 9.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-top: 2px; }
-    .rosa-kpi.cta { background: var(--accent); border-color: var(--accent); color: #0a1108; text-decoration: none;
+    .rosa-kpi.cta { background: var(--accent); border-color: var(--accent); color: var(--fm-on-accent); text-decoration: none;
                     font-weight: 800; font-size: 13px; letter-spacing: .04em; text-transform: uppercase;
                     flex-direction: row; gap: 6px; box-shadow: 0 4px 12px var(--accent-glow); transition: transform .12s; }
     .rosa-kpi.cta:active { transform: scale(0.96); }
@@ -40,13 +40,13 @@
                      letter-spacing: .08em; text-transform: uppercase; color: var(--muted); background: var(--panel-2); }
     .rosa-col-head .cnt { margin-left: auto; letter-spacing: .02em; color: var(--ink); font-size: 12.5px; }
     .rosa-col-head .cnt small { color: var(--muted); font-weight: 600; }
-    .rosa-col-head .cnt.full { color: #eab308; }
+    .rosa-col-head .cnt.full { color: var(--fm-yellow-500); }
 
     .pl-row { display: flex; align-items: center; justify-content: space-between;
               gap: 8px; padding: 10px 12px; margin: 6px 8px; border-radius: 12px;
-              background: rgba(255,255,255,.02); border: 1px solid var(--line);
+              background: rgba(var(--fm-tint-rgb),.02); border: 1px solid var(--line);
               transition: background .12s, border-color .12s; }
-    .pl-row:hover { background: rgba(255,255,255,.05); border-color: var(--accent-line); }
+    .pl-row:hover { background: rgba(var(--fm-tint-rgb),.05); border-color: var(--accent-line); }
     .pl-id { min-width: 0; flex: 1; display: flex; align-items: center; gap: 8px; cursor: pointer; }
     .pl-ava { width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0; overflow: hidden;
               background: var(--panel-2); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; }
@@ -68,14 +68,14 @@
               display: flex; align-items: center; justify-content: center;
               background: var(--panel-2); color: var(--muted); border: 1px solid var(--line);
               font-size: 13px; font-weight: 800; line-height: 1; transition: all .12s; }
-    .pl-rel:hover, .pl-rel:active { color: #f87171; border-color: rgba(239,68,68,.45); background: rgba(239,68,68,.15); }
+    .pl-rel:hover, .pl-rel:active { color: var(--fm-red-400); border-color: rgba(239,68,68,.45); background: rgba(239,68,68,.15); }
     .rosa-empty { padding: 24px 12px; font-size: 13px; color: var(--muted); text-align: center; }
     .pl-ct { font-size: 11px; font-weight: 800; padding: 3px 7px; border-radius: 6px; white-space: nowrap;
-             background: rgba(255,255,255,.05); color: var(--muted); text-align: center; border: 1px solid var(--line); }
-    .pl-ct.last { background: rgba(234,179,8,.15); color: #eab308; border-color: rgba(234,179,8,.3); }
-    .pl-ct.exp { background: rgba(239,68,68,.15); color: #f87171; border-color: rgba(239,68,68,.3); }
+             background: rgba(var(--fm-tint-rgb),.05); color: var(--muted); text-align: center; border: 1px solid var(--line); }
+    .pl-ct.last { background: rgba(234,179,8,.15); color: var(--fm-yellow-500); border-color: rgba(234,179,8,.3); }
+    .pl-ct.exp { background: rgba(239,68,68,.15); color: var(--fm-red-400); border-color: rgba(239,68,68,.3); }
     .pl-dice { font-size: 12px; font-weight: 800; padding: 4px 8px; border-radius: 7px; cursor: pointer; white-space: nowrap;
-                background: var(--accent); color: #0a1108; border: none; line-height: 1.2; height: auto; min-height: 0; }
+                background: var(--accent); color: var(--fm-on-accent); border: none; line-height: 1.2; height: auto; min-height: 0; }
     .renew-row { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-bottom: 1px solid var(--line);
                   font-size: 13px; text-transform: none; letter-spacing: normal; color: var(--ink); margin: 0; }
     .renew-row:last-child { border-bottom: none; }
@@ -209,7 +209,7 @@
                     {% endif %}
                     <span class="pl-txt">
                         <span class="pl-name">{{ pl.name }}</span>
-                        <span class="pl-sub">{{ pl.team }}{% if is_mantra and pl.roles_display %} · <span class="mr">{{ pl.roles_display }}</span>{% endif %}{% if pl.loan_from_id %} · <span style="color:#eab308">in prestito</span>{% endif %}{% if pl.goals %} · ⚽{{ pl.goals }}{% endif %}{% if pl.assists %} · A{{ pl.assists }}{% endif %}</span>
+                        <span class="pl-sub">{{ pl.team }}{% if is_mantra and pl.roles_display %} · <span class="mr">{{ pl.roles_display }}</span>{% endif %}{% if pl.loan_from_id %} · <span style="color:var(--fm-yellow-500)">in prestito</span>{% endif %}{% if pl.goals %} · ⚽{{ pl.goals }}{% endif %}{% if pl.assists %} · A{{ pl.assists }}{% endif %}</span>
                     </span>
                 </div>
                 <div class="pl-right">

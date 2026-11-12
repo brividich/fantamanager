@@ -287,7 +287,7 @@
             result.style.display = "block";
             document.getElementById("sealed-result-rows").innerHTML = rows.map((r, i) =>
                 `<div style="display:flex;justify-content:space-between;gap:16px;` +
-                `font-weight:${i === 0 ? 800 : 600}${i === 0 ? ";color:#ffb526" : ""}">` +
+                `font-weight:${i === 0 ? 800 : 600}${i === 0 ? ";color:var(--fm-warning)" : ""}">` +
                 `<span>${fmEsc(r.team)}</span><span>${fmEsc(money(r.amount))} FM</span></div>`).join("");
         } else {
             result.style.display = "none";
@@ -549,7 +549,7 @@
         }
         tbody.innerHTML = items.map((it, idx) => {
             const rec = it.is_recovery
-                ? '<span class="role-badge" style="background:#f59e0b;color:#fff;margin-left:4px;font-size:10px" title="Giro di recupero">REC</span>'
+                ? '<span class="role-badge" style="background:var(--fm-amber-500);color:#fff;margin-left:4px;font-size:10px" title="Giro di recupero">REC</span>'
                 : '';
             const pid = Number(it.player_id);
             return `<tr data-player-id="${pid}">

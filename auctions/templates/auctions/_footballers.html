@@ -22,7 +22,7 @@ relativi alla pagina che include il partial, la lega in ?league= compresa.
     .fb-stat .n { font-family:var(--fm-display); font-weight:800; font-size:15px; }
     .fb-stat .k { font-size:12px; color:var(--fm-text-muted); }
     .fb-sync { display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:9px 12px; margin-bottom:10px;
-        border-radius:var(--fm-radius-md); border:1px solid var(--fm-border); background:rgba(255,255,255,.03);
+        border-radius:var(--fm-radius-md); border:1px solid var(--fm-border); background:rgba(var(--fm-tint-rgb),.03);
         font-size:12.5px; color:var(--fm-text-secondary); }
     .fb-sync .grow { flex:1 1 240px; }
     .fb-sync.is-error { border-color:rgba(255,61,80,.40); }
@@ -34,7 +34,7 @@ relativi alla pagina che include il partial, la lega in ?league= compresa.
     .fb-filters .fb-check input { width:auto; }
     .fb-list { display:flex; flex-direction:column; gap:6px; }
     .fb-row { display:grid; grid-template-columns:40px minmax(0,1fr) auto; gap:4px 12px; align-items:center;
-        padding:9px 12px; border-radius:var(--fm-radius-sm); background:rgba(255,255,255,.03); border:1px solid var(--fm-border); }
+        padding:9px 12px; border-radius:var(--fm-radius-sm); background:rgba(var(--fm-tint-rgb),.03); border:1px solid var(--fm-border); }
     .fb-mroles { font-size:11px; font-weight:800; color:var(--fm-primary-light); }
     .fb-edited { font-size:11px; color:var(--fm-text-muted); }
     .fb-edit { font-size:12px; margin-top:2px; }
@@ -47,7 +47,7 @@ relativi alla pagina che include il partial, la lega in ?league= compresa.
         border-radius:var(--fm-radius-md); border:1px solid var(--fm-border); font-size:12.5px; color:var(--fm-text-secondary); }
     .fb-source .grow { flex:1 1 240px; }
     .fb-photo { width:40px; height:40px; border-radius:50%; object-fit:cover; flex:0 0 40px;
-        background:rgba(255,255,255,.06); }
+        background:rgba(var(--fm-tint-rgb),.06); }
     .fb-main { min-width:0; }
     .fb-name { font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .fb-sub { font-size:12px; color:var(--fm-text-muted); display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
@@ -61,7 +61,7 @@ relativi alla pagina che include il partial, la lega in ?league= compresa.
     .fb-pager { display:flex; align-items:center; gap:8px; margin-top:12px; font-size:12.5px; color:var(--fm-text-muted); }
     .fb-pager .grow { flex:1 1 auto; }
     .fb-empty { padding:26px 10px; text-align:center; color:var(--fm-text-muted); font-size:13px; }
-    .fb-tabs { gap:4px; margin:0 0 14px; padding:4px; border-radius:12px; background:rgba(255,255,255,.03);
+    .fb-tabs { gap:4px; margin:0 0 14px; padding:4px; border-radius:12px; background:rgba(var(--fm-tint-rgb),.03);
         border:1px solid var(--fm-border); width:max-content; max-width:100%; }
     .fb-tabs a { padding:8px 14px; border-radius:9px; font-weight:800; font-size:13px; color:var(--fm-text-muted);
         text-decoration:none; display:inline-flex; gap:6px; align-items:center; }

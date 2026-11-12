@@ -28,7 +28,7 @@ Parametri:
     </div>
     {% for r in rl.roles %}{% if r.players %}
     <div style="margin-bottom:8px">
-        <div style="font-size:11.5px;font-weight:800;margin-bottom:4px;{% if r.short and not rl_team %}color:#eab308{% else %}opacity:.75{% endif %}">
+        <div style="font-size:11.5px;font-weight:800;margin-bottom:4px;{% if r.short and not rl_team %}color:var(--fm-yellow-500){% else %}opacity:.75{% endif %}">
             <span class="role-badge role-{{ r.role }}">{{ r.role }}</span>
             in lista {{ r.have }}{% if not rl_team and r.need %} · servono {{ r.need }}{% if r.short %} · ne manca{{ r.missing|pluralize:"no" }} {{ r.missing }}{% endif %}{% endif %}
         </div>

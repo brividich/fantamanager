@@ -33,7 +33,7 @@ mostra la cornice.
         flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:11px;
         color:var(--fm-text-secondary); padding:5px 8px; border-radius:6px;
-        background:rgba(255,255,255,.03); border:1px solid var(--fm-border);
+        background:rgba(var(--fm-tint-rgb),.03); border:1px solid var(--fm-border);
     }
     .link-row .fm-btn { flex:0 0 auto; height:28px; width:30px; padding:0; }
     .pt-table td { vertical-align:top; }
@@ -173,7 +173,7 @@ mostra la cornice.
     .mail-row { display: flex; gap: 4px; align-items: center; margin: 6px 0 0; max-width: 260px; }
     .mail-row input { height: 30px; font-size: 12px; padding: 0 8px; min-width: 0; flex: 1; }
     .mail-row .fm-btn { height: 30px; width: 30px; padding: 0; flex: 0 0 auto; }
-    .opt-out-note { margin: 6px 0 0; max-width: 260px; font-size: 11.5px; line-height: 1.45; color: #facc15; }
+    .opt-out-note { margin: 6px 0 0; max-width: 260px; font-size: 11.5px; line-height: 1.45; color: var(--fm-yellow-400); }
 </style>
 
 <div class="pg-head noprint">

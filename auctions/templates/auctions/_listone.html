@@ -29,12 +29,12 @@ Dati da views/footballers.py:listone_context (lst_*).
     .lst-chip.is-out b { color:var(--fm-text-muted); }
     .fb-league .out { color:var(--fm-text-muted); }
     .lst-alert { margin-bottom:14px; padding:14px 16px; border-radius:12px; border:1px solid rgba(248,113,113,.45);
-        background:rgba(248,113,113,.10); color:#fca5a5; font-size:13.5px; line-height:1.5; }
-    .lst-alert b { color:#fff; }
+        background:rgba(248,113,113,.10); color:var(--fm-red-300); font-size:13.5px; line-height:1.5; }
+    .lst-alert b { color:var(--fm-strong); }
     .lst-steps { list-style:none; padding:0; margin:8px 0 0; display:flex; flex-direction:column; gap:6px; }
     .lst-steps li { display:flex; gap:10px; align-items:flex-start; }
     .lst-steps .dot { flex:0 0 22px; height:22px; border-radius:50%; display:inline-flex; align-items:center;
-        justify-content:center; font-size:11px; font-weight:800; background:rgba(255,255,255,.06); color:var(--fm-text-muted); }
+        justify-content:center; font-size:11px; font-weight:800; background:rgba(var(--fm-tint-rgb),.06); color:var(--fm-text-muted); }
     .lst-steps li.ok .dot { background:rgba(22,217,104,.18); color:var(--fm-success); }
     .lst-steps li.now .dot { background:rgba(8,124,240,.25); color:var(--fm-primary-light); }
     .lst-steps li.now > span:last-child { color:var(--fm-text); }
@@ -59,7 +59,7 @@ Dati da views/footballers.py:listone_context (lst_*).
     .lst-opt input { width:auto; }
     .lst-msg { margin:14px 0 0; font-size:13px; font-weight:700; display:none; }
     .lst-cover { display:flex; gap:14px; align-items:center; flex-wrap:wrap; padding:14px 16px; border-radius:12px;
-        background:rgba(255,255,255,.04); margin-bottom:18px; }
+        background:rgba(var(--fm-tint-rgb),.04); margin-bottom:18px; }
     .lst-cover > div { flex:1 1 200px; font-size:13px; line-height:1.5; }
     /* Filtri: la ricerca su una riga, ruolo/squadra/stato/ordine su un'altra (scorre se non ci sta). */
     .lst-filters { display:flex; flex-direction:column; gap:8px; margin-bottom:10px; min-width:0; }
@@ -76,7 +76,7 @@ Dati da views/footballers.py:listone_context (lst_*).
     .lst-actions { display:inline-flex; gap:6px; justify-content:flex-end; margin-top:4px; }
     .lst-actions button { height:26px; padding:0 9px; font-size:11.5px; }
     @media (max-width:600px) { .lst-actions { justify-content:flex-start; } }
-    #assign-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:100;
+    #assign-overlay { display:none; position:fixed; inset:0; background:var(--fm-scrim); z-index:100;
         align-items:center; justify-content:center; }
     #assign-overlay .box { background:var(--fm-card,#15171c); border:1px solid var(--fm-border); border-radius:14px;
         padding:24px; width:min(420px,92vw); }
@@ -540,7 +540,7 @@ Dati da views/footballers.py:listone_context (lst_*).
         const d = await lstPost(LST_URLS.importStats, form);
         if (!d.ok) { lstMsg("stats-msg", "✗ " + d.error, "var(--closed)"); return; }
         lstMsg("stats-msg", `✓ Statistiche aggiornate su ${d.matched} giocatori` +
-            (d.missing ? ` · ${d.missing} non abbinati` : "") + (d.source ? ` · ${d.source}` : ""), "var(--ok,#22c55e)");
+            (d.missing ? ` · ${d.missing} non abbinati` : "") + (d.source ? ` · ${d.source}` : ""), "var(--ok,var(--fm-green-500))");
         setTimeout(() => location.reload(), 1600);
     }
 

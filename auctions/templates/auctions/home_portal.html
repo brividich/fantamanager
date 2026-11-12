@@ -63,7 +63,7 @@
         font-size: 21px;
         font-weight: 900;
         letter-spacing: .08em;
-        color: #fff;
+        color: var(--fm-strong);
     }
     .hp-pro-tag {
         font-size: 10px;
@@ -90,7 +90,7 @@
         font-weight: 600;
         padding: 6px 14px;
         border-radius: 999px;
-        background: rgba(3,15,32,.7);
+        background: rgba(var(--fm-deep-rgb),.7);
         border: 1px solid var(--fm-border);
         color: var(--fm-text-secondary);
     }
@@ -154,7 +154,7 @@
     .hp-live-details strong {
         display: block;
         font-size: 17px;
-        color: #fff;
+        color: var(--fm-strong);
         font-family: var(--fm-display);
         letter-spacing: .02em;
     }
@@ -197,7 +197,7 @@
         letter-spacing: .02em;
         line-height: 1.15;
         margin: 0 0 12px;
-        color: #fff;
+        color: var(--fm-strong);
     }
     .hp-hero-desc {
         font-size: 15px;
@@ -230,7 +230,7 @@
         position: absolute;
         inset: 0;
         pointer-events: none;
-        background: radial-gradient(circle at top right, rgba(255,255,255,.05), transparent 60%);
+        background: radial-gradient(circle at top right, rgba(var(--fm-tint-rgb),.05), transparent 60%);
         border-radius: inherit;
     }
     .hp-door-card:hover {
@@ -238,7 +238,7 @@
     }
     .hp-door-free {
         border-color: rgba(22,217,104,.35);
-        background: linear-gradient(155deg, rgba(22,217,104,.10) 0%, rgba(7,29,56,.97) 50%, rgba(4,20,41,.99) 100%);
+        background: linear-gradient(155deg, rgba(22,217,104,.10) 0%, rgba(var(--fm-navy-rgb),.97) 50%, rgba(var(--fm-navy-rgb),.99) 100%);
     }
     .hp-door-free:hover {
         border-color: rgba(22,217,104,.7);
@@ -246,7 +246,7 @@
     }
     .hp-door-admin {
         border-color: rgba(30,165,255,.35);
-        background: linear-gradient(155deg, rgba(8,124,240,.12) 0%, rgba(7,29,56,.97) 50%, rgba(4,20,41,.99) 100%);
+        background: linear-gradient(155deg, rgba(8,124,240,.12) 0%, rgba(var(--fm-navy-rgb),.97) 50%, rgba(var(--fm-navy-rgb),.99) 100%);
     }
     .hp-door-admin:hover {
         border-color: rgba(30,165,255,.7);
@@ -302,7 +302,7 @@
         font-family: var(--fm-display);
         font-weight: 800;
         font-size: 26px;
-        color: #fff;
+        color: var(--fm-strong);
         margin: 0 0 6px;
         line-height: 1.2;
     }
@@ -328,7 +328,7 @@
         align-items: flex-start;
         gap: 10px;
     }
-    .hp-door-features li b { color: #fff; }
+    .hp-door-features li b { color: var(--fm-strong); }
     .hp-bullet-check {
         width: 18px;
         height: 18px;
@@ -356,7 +356,7 @@
         flex-direction: column;
         gap: 10px;
         padding-top: 18px;
-        border-top: 1px solid rgba(255,255,255,.07);
+        border-top: 1px solid rgba(var(--fm-tint-rgb),.07);
     }
     .hp-btn-large {
         padding: 15px 22px;
@@ -378,7 +378,7 @@
         transform: translateY(0);
     }
     .hp-btn-emerald {
-        background: linear-gradient(135deg, #16d968, #0ea84d);
+        background: linear-gradient(135deg, var(--fm-success), #0ea84d);
         color: #031226;
         box-shadow: 0 4px 18px rgba(22,217,104,.4);
         border: none;
@@ -389,7 +389,7 @@
         box-shadow: 0 6px 24px rgba(22,217,104,.55);
     }
     .hp-btn-cyan {
-        background: linear-gradient(135deg, #087cf0, #13b5ff);
+        background: linear-gradient(135deg, #087cf0, var(--fm-sky));
         color: #fff;
         box-shadow: 0 4px 20px rgba(8,124,240,.45);
         border: none;
@@ -402,7 +402,7 @@
 
     /* Managerial Login Box */
     .hp-login-box {
-        background: rgba(3,15,32,.75);
+        background: rgba(var(--fm-deep-rgb),.75);
         border: 1px solid var(--fm-border);
         border-radius: var(--fm-radius-md);
         padding: 18px 16px;
@@ -423,7 +423,7 @@
     }
     .hp-pin-input {
         flex: 1;
-        background: rgba(0,0,0,.35);
+        background: var(--fm-well);
         border: 1px solid var(--fm-border);
         border-radius: var(--fm-radius-sm);
         padding: 12px 14px;
@@ -432,7 +432,7 @@
         font-weight: 800;
         letter-spacing: .2em;
         text-align: center;
-        color: #fff;
+        color: var(--fm-strong);
         outline: none;
         transition: border-color .15s;
     }
@@ -508,7 +508,7 @@
                 <div class="bottom">MANAGER</div>
             </div>
             <span class="hp-pro-tag">PRO</span>
-            <span class="hp-pro-tag" style="background:rgba(56,189,248,0.12);color:#38bdf8;border:1px solid rgba(56,189,248,0.3);letter-spacing:0.04em">v{{ app_version }}</span>
+            <span class="hp-pro-tag" style="background:rgba(56,189,248,0.12);color:var(--fm-sky-400);border:1px solid rgba(56,189,248,0.3);letter-spacing:0.04em">v{{ app_version }}</span>
         </div>
 
         <div class="hp-meta fm-onerow">

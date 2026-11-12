@@ -8,7 +8,7 @@
     .exp-actions { display:flex; gap:10px; flex-wrap:wrap; }
     .exp-actions a, .exp-actions button {
         text-decoration:none; font-weight:700; font-size:14px; padding:9px 14px;
-        border-radius:9px; border:1px solid var(--accent-line); color:var(--text);
+        border-radius:9px; border:1px solid var(--accent-line); color:var(--fm-text);
         background:var(--panel,#15171c); cursor:pointer;
     }
     .exp-actions a.primary { background:var(--accent); color:#ffffff; border-color:var(--accent); }
@@ -27,8 +27,8 @@
     .team-block h3 { margin:0 0 8px; display:flex; justify-content:space-between; align-items:baseline; gap:12px; }
     .team-block .meta { font-size:13px; color:var(--muted); font-weight:500; }
     .role-badge { display:inline-block; width:22px; text-align:center; border-radius:5px; font-weight:800; font-size:12px; }
-    .role-P{background:#f59e0b22;color:#f59e0b}.role-D{background:#38bdf822;color:#38bdf8}
-    .role-C{background:#13b5ff22;color:#13b5ff}.role-A{background:#ff6b7f22;color:#ff6b7f}
+    .role-P{background:#f59e0b22;color:var(--fm-amber-500)}.role-D{background:#38bdf822;color:var(--fm-sky-400)}
+    .role-C{background:#13b5ff22;color:var(--fm-sky)}.role-A{background:#ff6b7f22;color:var(--fm-rose-400)}
 
     @media print {
         .exp-actions, .exp-header select, nav, .role-edge, .team-sheet-link, .howto { display:none !important; }

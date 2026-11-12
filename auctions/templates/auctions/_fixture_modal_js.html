@@ -49,7 +49,7 @@ diventa una classe CSS solo se è P/D/C/A.
                 }
             })
             .catch(err => {
-                loading.innerHTML = '<p style="color:#ef4444;padding:20px;">Errore nel caricamento del tabellino.</p>';
+                loading.innerHTML = '<p style="color:var(--fm-red-500);padding:20px;">Errore nel caricamento del tabellino.</p>';
             });
     }
 
@@ -166,9 +166,9 @@ diventa una classe CSS solo se è P/D/C/A.
 
             let subHtml = '';
             if (p.is_subbed) {
-                subHtml = '<div style="font-size:10px;font-weight:700;color:#93c5fd;margin-top:2px;">🔄 Subentrato per ' + fmEsc(p.starter_name || 'titolare') + ' (s.v.)</div>';
+                subHtml = '<div style="font-size:10px;font-weight:700;color:var(--fm-blue-300);margin-top:2px;">🔄 Subentrato per ' + fmEsc(p.starter_name || 'titolare') + ' (s.v.)</div>';
             } else if (p.subbed_in) {
-                subHtml = '<span style="font-size:9.5px;font-weight:800;background:rgba(34,197,94,0.2);color:#4ade80;padding:1px 5px;border-radius:4px;margin-left:4px;">IN CAMPO</span>';
+                subHtml = '<span style="font-size:9.5px;font-weight:800;background:rgba(34,197,94,0.2);color:var(--fm-green-400);padding:1px 5px;border-radius:4px;margin-left:4px;">IN CAMPO</span>';
             }
 
             const bonuses = [];
@@ -184,7 +184,7 @@ diventa una classe CSS solo se è P/D/C/A.
                 whyAttr = ' data-why-pid="' + fmEsc(p.id) + '" data-why-name="' + fmEsc(p.name) + '" role="button" tabindex="0" title="Perché questo voto"';
             }
 
-            return '<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:var(--panel-2);border:1px solid var(--line-soft, rgba(255,255,255,0.04));border-radius:8px;">' +
+            return '<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:var(--panel-2);border:1px solid var(--line-soft, rgba(var(--fm-tint-rgb),0.04));border-radius:8px;">' +
                 '<div style="display:flex;align-items:center;gap:8px;min-width:0;flex:1;">' +
                     '<span class="' + roleCls + '" style="font-size:10px;padding:2px 6px;">' + fmEsc(p.role) + '</span>' +
                     '<div style="min-width:0;overflow:hidden;text-overflow:ellipsis;">' +

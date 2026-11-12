@@ -18,10 +18,10 @@
         text-decoration: none; transition: all .15s ease;
     }
     .comp-pill:hover { background: var(--panel); color: var(--ink); border-color: var(--line-strong); }
-    .comp-pill.active { background: var(--accent); border-color: var(--accent); color: #0a1108; box-shadow: 0 0 14px -2px var(--accent-glow); }
+    .comp-pill.active { background: var(--accent); border-color: var(--accent); color: var(--fm-on-accent); box-shadow: 0 0 14px -2px var(--accent-glow); }
     .comp-pill .kind-tag {
         font-size: 10px; padding: 2px 6px; border-radius: 4px;
-        background: rgba(0,0,0,0.25); text-transform: uppercase; letter-spacing: .04em;
+        background: var(--fm-well); text-transform: uppercase; letter-spacing: .04em;
     }
 
     .comp-grid {
@@ -63,7 +63,7 @@
         border-bottom: 1px solid var(--line);
     }
     .tbl-clean td {
-        padding: 9px 10px; border-bottom: 1px solid var(--line-soft, rgba(255,255,255,0.05));
+        padding: 9px 10px; border-bottom: 1px solid var(--line-soft, rgba(var(--fm-tint-rgb),0.05));
     }
     .tbl-clean tr:last-child td { border-bottom: none; }
 
@@ -82,7 +82,7 @@
     }
     .fix-row {
         display: flex; align-items: center; justify-content: space-between;
-        padding: 6px 0; border-top: 1px solid var(--line-soft, rgba(255,255,255,0.04));
+        padding: 6px 0; border-top: 1px solid var(--line-soft, rgba(var(--fm-tint-rgb),0.04));
         font-size: 13px;
     }
     .fix-teams { display: flex; align-items: center; gap: 6px; }
@@ -133,7 +133,7 @@
 {% if messages %}
 <div style="margin-bottom:16px">
     {% for msg in messages %}
-    <div class="saved-flash" style="{% if msg.tags == 'error' %}background:rgba(239,68,68,0.15);color:#ef4444;border-color:rgba(239,68,68,0.3){% elif msg.tags == 'warning' %}background:rgba(234,179,8,0.15);color:#eab308;border-color:rgba(234,179,8,0.3){% else %}background:var(--accent-soft);color:var(--accent-bright);border-color:var(--accent-line){% endif %}">
+    <div class="saved-flash" style="{% if msg.tags == 'error' %}background:rgba(239,68,68,0.15);color:var(--fm-red-500);border-color:rgba(239,68,68,0.3){% elif msg.tags == 'warning' %}background:rgba(234,179,8,0.15);color:var(--fm-yellow-500);border-color:rgba(234,179,8,0.3){% else %}background:var(--accent-soft);color:var(--accent-bright);border-color:var(--accent-line){% endif %}">
         {{ msg }}
     </div>
     {% endfor %}
@@ -176,7 +176,7 @@
             {% endif %}
             <form method="post" action="{% url 'admin_competition_delete' selected_competition.id %}" onsubmit="return confirm('Sei sicuro di voler eliminare la competizione «{{ selected_competition.name }}»?');" style="margin:0">
                 {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
-                <button type="submit" class="fm-btn fm-btn-ghost fm-btn-sm" style="color:#ef4444;" title="Elimina competizione">
+                <button type="submit" class="fm-btn fm-btn-ghost fm-btn-sm" style="color:var(--fm-red-500);" title="Elimina competizione">
                     <svg class="ic"><use href="#i-trash"/></svg> Elimina
                 </button>
             </form>
@@ -216,7 +216,7 @@
                         <td style="text-align:center">{{ row.played }}</td>
                         <td style="text-align:center;color:var(--fm-success)">{{ row.won }}</td>
                         <td style="text-align:center;color:var(--muted)">{{ row.drawn }}</td>
-                        <td style="text-align:center;color:#ef4444">{{ row.lost }}</td>
+                        <td style="text-align:center;color:var(--fm-red-500)">{{ row.lost }}</td>
                         <td style="text-align:center;font-size:12px;color:var(--muted)">{{ row.goals_for }}:{{ row.goals_against }}</td>
                         <td style="text-align:right;font-size:16px;font-weight:900;color:var(--accent)">{{ row.points }}</td>
                     </tr>
@@ -331,7 +331,7 @@
                 </div>
                 {% if m.kind == "fixtures" %}
                 {% for f in m.fixtures %}
-                <div class="fix-row" style="padding:10px 12px;border-bottom:1px solid var(--line-soft, rgba(255,255,255,0.06));display:flex;flex-direction:column;gap:6px;">
+                <div class="fix-row" style="padding:10px 12px;border-bottom:1px solid var(--line-soft, rgba(var(--fm-tint-rgb),0.06));display:flex;flex-direction:column;gap:6px;">
                     <div style="display:flex;justify-content:space-between;align-items:center;">
                         <div class="fix-teams" style="flex:1;">
                             <div style="display:flex;align-items:center;gap:6px;">
@@ -370,7 +370,7 @@
                 {% endfor %}
                 {% elif m.kind == "points" %}
                 {% for sc in m.scores %}
-                <div class="fix-row" style="padding:8px 12px;border-bottom:1px solid var(--line-soft, rgba(255,255,255,0.06));">
+                <div class="fix-row" style="padding:8px 12px;border-bottom:1px solid var(--line-soft, rgba(var(--fm-tint-rgb),0.06));">
                     <div class="fix-teams">
                         <span style="font-weight:800;color:var(--muted);width:20px;">#{{ sc.rank }}</span>
                         <b>{{ sc.participant.display_name }}</b>
@@ -388,7 +388,7 @@
                 {% endfor %}
                 {% elif m.kind == "battle_royale" %}
                 {% for r in m.results %}
-                <div class="fix-row" style="padding:8px 12px;border-bottom:1px solid var(--line-soft, rgba(255,255,255,0.06));">
+                <div class="fix-row" style="padding:8px 12px;border-bottom:1px solid var(--line-soft, rgba(var(--fm-tint-rgb),0.06));">
                     <div class="fix-teams">
                         <b>{{ r.team_name }}</b>
                         <small class="muted" style="font-size:10px;margin-left:4px;">({{ r.record }})</small>
@@ -421,7 +421,7 @@
 {% endif %}
 
 <!-- MATCH DETAILS MODAL (Pop-up tabellino formazioni e pagelle) -->
-<div id="fm-fixture-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);backdrop-filter:blur(6px);z-index:9999;align-items:center;justify-content:center;padding:16px;opacity:0;transition:opacity 0.22s ease;">
+<div id="fm-fixture-modal" style="display:none;position:fixed;inset:0;background:var(--fm-scrim);backdrop-filter:blur(6px);z-index:9999;align-items:center;justify-content:center;padding:16px;opacity:0;transition:opacity 0.22s ease;">
     <div id="fm-fix-modal-content" style="width:100%;max-width:760px;max-height:90vh;background:var(--panel);border:1px solid var(--line);border-radius:20px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,0.8);transform:translateY(20px);transition:transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);">
         <!-- Header -->
         <div style="padding:14px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;background:var(--panel-2);">
@@ -429,7 +429,7 @@
                 <span id="fix-modal-stage" style="font-size:11px;font-weight:800;text-transform:uppercase;color:var(--muted);letter-spacing:0.05em;">Giornata</span>
                 <h3 id="fix-modal-title" style="margin:2px 0 0;font-size:16px;font-weight:900;">Dettagli Partita</h3>
             </div>
-            <button type="button" onclick="closeFixtureDetailModal()" style="border:none;background:rgba(255,255,255,0.08);width:32px;height:32px;border-radius:50%;color:var(--ink);cursor:pointer;font-size:16px;font-weight:900;display:flex;align-items:center;justify-content:center;">✕</button>
+            <button type="button" onclick="closeFixtureDetailModal()" style="border:none;background:rgba(var(--fm-tint-rgb),0.08);width:32px;height:32px;border-radius:50%;color:var(--ink);cursor:pointer;font-size:16px;font-weight:900;display:flex;align-items:center;justify-content:center;">✕</button>
         </div>
 
         <!-- Body (Scrollable) -->
@@ -443,25 +443,25 @@
             <!-- Content Area -->
             <div id="fix-modal-data" style="display:none;">
                 <!-- Matchboard Head-to-Head Banner -->
-                <div style="background:linear-gradient(135deg, rgba(10,36,69,0.9), rgba(6,22,43,0.95));border:1px solid rgba(19,181,255,0.3);border-radius:14px;padding:16px;margin-bottom:14px;">
+                <div style="background:linear-gradient(135deg, rgba(var(--fm-navy-rgb),0.9), rgba(var(--fm-navy-rgb),0.95));border:1px solid rgba(19,181,255,0.3);border-radius:14px;padding:16px;margin-bottom:14px;">
                     <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;text-align:center;gap:10px;">
                         <div>
-                            <div id="fix-home-name" style="font-size:15px;font-weight:900;color:#fff;">Casa</div>
+                            <div id="fix-home-name" style="font-size:15px;font-weight:900;color:var(--fm-strong);">Casa</div>
                             <div id="fix-home-score" style="font-size:11.5px;color:var(--muted);font-weight:700;margin-top:2px;">— FM</div>
                         </div>
                         <div>
-                            <div id="fix-score-goals" style="font-family:var(--display);font-size:32px;font-weight:900;color:#fff;line-height:1;">— - —</div>
+                            <div id="fix-score-goals" style="font-family:var(--display);font-size:32px;font-weight:900;color:var(--fm-strong);line-height:1;">— - —</div>
                             <span id="fix-status-badge" class="status-pill s-OPEN" style="font-size:10px;margin-top:4px;display:inline-block;">Conclusa</span>
                         </div>
                         <div>
-                            <div id="fix-away-name" style="font-size:15px;font-weight:900;color:#fff;">Trasferta</div>
+                            <div id="fix-away-name" style="font-size:15px;font-weight:900;color:var(--fm-strong);">Trasferta</div>
                             <div id="fix-away-score" style="font-size:11.5px;color:var(--muted);font-weight:700;margin-top:2px;">— FM</div>
                         </div>
                     </div>
 
                     <!-- Events Recap (Scorers) -->
-                    <div id="fix-events-box" style="margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08);display:flex;flex-direction:column;gap:4px;font-size:11.5px;text-align:center;">
-                        <div id="fix-scorers-line" style="color:#facc15;font-weight:700;"></div>
+                    <div id="fix-events-box" style="margin-top:12px;padding-top:10px;border-top:1px solid rgba(var(--fm-tint-rgb),0.08);display:flex;flex-direction:column;gap:4px;font-size:11.5px;text-align:center;">
+                        <div id="fix-scorers-line" style="color:var(--fm-yellow-400);font-weight:700;"></div>
                     </div>
                 </div>
 
@@ -478,7 +478,7 @@
                 </div>
 
                 <!-- Team Switcher (Tabs) -->
-                <div class="fix-team-tabs" style="display:flex;gap:6px;background:rgba(0,0,0,0.3);padding:4px;border-radius:10px;margin-bottom:12px;">
+                <div class="fix-team-tabs" style="display:flex;gap:6px;background:var(--fm-well);padding:4px;border-radius:10px;margin-bottom:12px;">
                     <button type="button" id="btn-fix-tab-home" class="fm-btn fm-btn-primary" onclick="switchFixModalTab('home')" style="flex:1;font-size:12px;font-weight:800;padding:8px;border-radius:6px;">
                         🛡️ <span id="fix-tab-home-label">Casa</span>
                     </button>

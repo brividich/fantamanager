@@ -3,29 +3,29 @@
 {% block mainclass %}fit{% endblock %}
 {% block app %}
 <style>
-    .tr-row { padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: rgba(255,255,255,.02); display: flex; flex-direction: column; gap: 12px; margin-bottom: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); }
+    .tr-row { padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: rgba(var(--fm-tint-rgb),.02); display: flex; flex-direction: column; gap: 12px; margin-bottom: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); }
     .tr-row:last-child { margin-bottom: 0; }
     .tr-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; }
     .tr-head b { color: var(--ink); }
     .tr-sides { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 12.5px; }
-    .tr-side { background: rgba(0,0,0,.3); border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-width: 0; }
+    .tr-side { background: var(--fm-well); border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-width: 0; }
     .tr-side h4 { margin: 0 0 8px; font-size: 10px; letter-spacing: .15em; text-transform: uppercase; color: var(--muted); }
     .tr-pl { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
     .tr-cr { font-weight: 800; color: var(--accent); font-size: 14px; }
     .tr-actions { display: flex; gap: 12px; justify-content: flex-end; flex-wrap: wrap; margin-top: 4px; }
     .tr-btn { flex: 1; min-width: 100px; padding: 12px; border-radius: 12px; font-size: 14px; font-weight: 900; cursor: pointer; border: none; text-align: center; color: #fff; transition: transform 0.1s, filter 0.2s; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
     .tr-btn:active { transform: scale(0.97); }
-    .tr-btn.ok { background: linear-gradient(135deg, #22c55e, #16a34a); }
-    .tr-btn.no { background: linear-gradient(135deg, #ef4444, #dc2626); }
+    .tr-btn.ok { background: linear-gradient(135deg, var(--fm-green-500), #16a34a); }
+    .tr-btn.no { background: linear-gradient(135deg, var(--fm-red-500), #dc2626); }
     .tr-btn:hover { filter: brightness(1.1); }
     .tr-status { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 4px 8px; border-radius: 6px; background: var(--panel-2); }
-    .tr-status.completed { color: #22c55e; background: rgba(34,197,94,0.15); }
-    .tr-status.rejected, .tr-status.vetoed, .tr-status.failed { color: #ef4444; background: rgba(239,68,68,0.15); }
-    .pick-list { max-height: 240px; overflow-y: auto; border: 1px solid var(--line); border-radius: 12px; background: rgba(0,0,0,0.15); }
+    .tr-status.completed { color: var(--fm-green-500); background: rgba(34,197,94,0.15); }
+    .tr-status.rejected, .tr-status.vetoed, .tr-status.failed { color: var(--fm-red-500); background: rgba(239,68,68,0.15); }
+    .pick-list { max-height: 240px; overflow-y: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--fm-well); }
     .tr-form .pick { display: flex; align-items: center; gap: 8px; padding: 10px 12px; margin: 0; border-bottom: 1px solid var(--line);
              font-size: 13.5px; font-weight: 600; color: var(--ink); text-transform: none; letter-spacing: normal; cursor: pointer; transition: background .12s; }
     .tr-form .pick:last-child { border-bottom: none; }
-    .tr-form .pick:active { background: rgba(255,255,255,0.06); }
+    .tr-form .pick:active { background: rgba(var(--fm-tint-rgb),0.06); }
     .pick input { width: 18px; height: 18px; margin: 0; flex-shrink: 0; accent-color: var(--accent); }
     .pick .cost { margin-left: auto; color: var(--accent); font-weight: 800; font-size: 12px; white-space: nowrap; }
     .tr-form { display: flex; flex-direction: column; gap: 12px; padding: 12px 14px; }
@@ -82,7 +82,7 @@
 {% else %}
 <div class="a-seg" data-asec-default="{% if partner %}nuovo{% elif incoming or outgoing or awaiting %}trattative{% else %}nuovo{% endif %}" style="margin-bottom:14px;">
     <button type="button" data-asec-go="trattative">
-        Trattative {% if incoming %}<span class="n" style="background:#ef4444;color:#fff;">{{ incoming|length }}</span>{% elif outgoing or awaiting %}<span class="n">{{ outgoing|length|add:awaiting|length }}</span>{% endif %}
+        Trattative {% if incoming %}<span class="n" style="background:var(--fm-red-500);color:#fff;">{{ incoming|length }}</span>{% elif outgoing or awaiting %}<span class="n">{{ outgoing|length|add:awaiting|length }}</span>{% endif %}
     </button>
     <button type="button" data-asec-go="nuovo">Nuovo Scambio</button>
 </div>
@@ -125,7 +125,7 @@
 <div class="a-card">
     <div class="a-label"><svg class="ic"><use href="#i-plus"/></svg> Proponi scambio</div>
     {% if not trade_window_open %}
-    <div class="sc-empty" style="color:#eab308">
+    <div class="sc-empty" style="color:var(--fm-yellow-500)">
         Periodo scambi chiuso.{% if trade_window %} Il prossimo, <b>{{ trade_window.name }}</b>, apre il {{ trade_window.opens_at|date:"d/m/Y \a\l\l\e H:i" }}.{% endif %}
     </div>
     {% else %}

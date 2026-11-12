@@ -16,16 +16,16 @@ colonna dell'app è più stretta della pagina della console.
     .rm { container-type: inline-size; container-name: rm; }
     .rm-head { display: flex; align-items: flex-end; gap: 10px; margin-bottom: 10px; min-width: 0; }
     .rm-head .t { flex: 1; min-width: 0; }
-    .rm-head h2 { margin: 0; font-family: var(--fm-display); font-size: 20px; font-weight: 800; color: #fff; }
+    .rm-head h2 { margin: 0; font-family: var(--fm-display); font-size: 20px; font-weight: 800; color: var(--fm-strong); }
     .rm-head .sub { font-size: 12.5px; color: var(--fm-text-secondary); margin-top: 2px; }
     .rm-bar { display: flex; gap: 6px; align-items: center; margin: 0 0 10px; }
-    .rm-seg { display: inline-flex; gap: 3px; padding: 3px; border-radius: 9px; background: rgba(255,255,255,.04); border: 1px solid var(--fm-border); }
+    .rm-seg { display: inline-flex; gap: 3px; padding: 3px; border-radius: 9px; background: rgba(var(--fm-tint-rgb),.04); border: 1px solid var(--fm-border); }
     .rm-seg button { height: 30px; padding: 0 12px; border-radius: 6px; border: 0; background: transparent; color: var(--fm-text-secondary); font-size: 12.5px; font-weight: 700; }
     .rm-seg button[aria-pressed="true"] { background: rgba(8,124,240,.16); color: var(--fm-primary-light); box-shadow: inset 0 0 0 1px var(--fm-border-active); }
 
     .rm-strip { display: flex; gap: 8px; padding-bottom: 4px; margin-bottom: 12px; }
     .rm-chip { display: flex; flex-direction: column; gap: 4px; height: auto; min-width: 150px; max-width: 200px; padding: 9px 11px; text-align: left;
-               border-radius: 10px; border: 1px solid var(--fm-border); background: rgba(255,255,255,.03); color: var(--fm-text); cursor: pointer; }
+               border-radius: 10px; border: 1px solid var(--fm-border); background: rgba(var(--fm-tint-rgb),.03); color: var(--fm-text); cursor: pointer; }
     .rm-chip[aria-pressed="true"] { border-color: var(--fm-border-active); background: rgba(8,124,240,.12); box-shadow: inset 0 0 0 1px var(--fm-border-active); }
     .rm-chip b { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .rm-chip small { font-size: 11px; color: var(--fm-text-secondary); white-space: nowrap; }
@@ -33,16 +33,16 @@ colonna dell'app è più stretta della pagina della console.
 
     .rm-team[hidden], .rm-all[hidden], .rm-one[hidden] { display: none; }
     .rm-cockpit { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-radius: 12px; margin-bottom: 12px;
-                  background: rgba(255,255,255,.03); border: 1px solid var(--fm-border); min-width: 0; }
+                  background: rgba(var(--fm-tint-rgb),.03); border: 1px solid var(--fm-border); min-width: 0; }
     .rm-who { display: flex; align-items: center; gap: 10px; min-width: 0; }
     .rm-av { width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; overflow: hidden;
              font-family: var(--fm-display); font-weight: 800; color: #fff; background: var(--fm-gradient); }
     .rm-av img { width: 100%; height: 100%; object-fit: cover; }
-    .rm-who h3 { margin: 0; font-size: 17px; color: #fff; overflow-wrap: anywhere; }
+    .rm-who h3 { margin: 0; font-size: 17px; color: var(--fm-strong); overflow-wrap: anywhere; }
     .rm-who .coach { font-size: 12px; color: var(--fm-text-secondary); }
     .rm-figs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
-    .rm-figs div { padding: 7px 6px; border-radius: 8px; background: rgba(255,255,255,.03); text-align: center; }
-    .rm-figs b { display: block; font-family: var(--fm-display); font-size: 18px; color: #fff; line-height: 1.1; }
+    .rm-figs div { padding: 7px 6px; border-radius: 8px; background: rgba(var(--fm-tint-rgb),.03); text-align: center; }
+    .rm-figs b { display: block; font-family: var(--fm-display); font-size: 18px; color: var(--fm-strong); line-height: 1.1; }
     .rm-figs b.ok { color: var(--fm-success); }
     .rm-figs span { font-size: 9.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--fm-text-muted); }
     .rm-acts { display: flex; gap: 6px; min-width: 0; }
@@ -52,13 +52,13 @@ colonna dell'app è più stretta della pagina della console.
     .rm-depts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
     @container rm (min-width: 640px) { .rm-depts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @container rm (min-width: 1100px) { .rm-depts { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
-    .rm-dept { border-radius: 12px; border: 1px solid var(--fm-border); background: rgba(255,255,255,.02); padding: 10px; min-width: 0; }
+    .rm-dept { border-radius: 12px; border: 1px solid var(--fm-border); background: rgba(var(--fm-tint-rgb),.02); padding: 10px; min-width: 0; }
     .rm-dept-h { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
     .rm-dept-h .badge { width: 22px; height: 22px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center;
                         font-size: 11px; font-weight: 900; border: 1px solid currentColor; }
-    .rm-r-P { color: #ffb526; } .rm-r-D { color: #16d968; } .rm-r-C { color: #18d5ff; } .rm-r-A { color: #ff6b7f; }
-    .rm-dept-h .nm { flex: 1; font-weight: 800; font-size: 13px; color: #fff; }
-    .rm-dept-h .cnt { font-size: 11.5px; font-weight: 800; padding: 1px 8px; border-radius: 999px; background: rgba(255,255,255,.06); color: var(--fm-text-secondary); }
+    .rm-r-P { color: var(--fm-warning); } .rm-r-D { color: var(--fm-success); } .rm-r-C { color: var(--fm-cyan); } .rm-r-A { color: var(--fm-rose-400); }
+    .rm-dept-h .nm { flex: 1; font-weight: 800; font-size: 13px; color: var(--fm-strong); }
+    .rm-dept-h .cnt { font-size: 11.5px; font-weight: 800; padding: 1px 8px; border-radius: 999px; background: rgba(var(--fm-tint-rgb),.06); color: var(--fm-text-secondary); }
     .rm-dept-h .cnt.full { background: rgba(22,217,104,.14); color: var(--fm-success); }
     .rm-dept-h .sp { font-size: 11.5px; color: var(--fm-text-secondary); }
     .rm-pl { display: flex; align-items: center; gap: 8px; padding: 7px 4px; border-bottom: 1px solid rgba(85,160,230,.08); min-width: 0; }
@@ -66,22 +66,22 @@ colonna dell'app è più stretta della pagina della console.
     .rm-pl .n { flex: 1; min-width: 0; }
     .rm-pl .n b { display: block; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .rm-pl .n small { font-size: 11px; color: var(--fm-text-muted); }
-    .rm-pl .c { font-family: var(--fm-display); font-weight: 800; font-size: 15px; color: #fff; white-space: nowrap; }
+    .rm-pl .c { font-family: var(--fm-display); font-weight: 800; font-size: 15px; color: var(--fm-strong); white-space: nowrap; }
     .rm-pl .c small { font-family: var(--fm-sans); font-size: 9.5px; color: var(--fm-text-muted); margin-left: 1px; }
     .rm-pl .rel { height: 26px; padding: 0 8px; font-size: 11px; border-radius: 6px; border: 1px solid rgba(255,61,80,.35);
-                  background: transparent; color: #ffb3bb; cursor: pointer; flex-shrink: 0; }
+                  background: transparent; color: var(--fm-rose-200); cursor: pointer; flex-shrink: 0; }
     .rm-pl .rel:hover { background: rgba(255,61,80,.12); }
     .rm-none { font-size: 12px; color: var(--fm-text-muted); font-style: italic; padding: 6px 4px; }
     .rm-slot { display: flex; justify-content: space-between; width: 100%; height: auto; margin-top: 6px; padding: 7px 9px; border-radius: 8px; cursor: pointer;
                border: 1px dashed rgba(85,160,230,.30); background: transparent; color: var(--fm-text-secondary); font-size: 12px; }
-    .rm-slot:hover { border-color: var(--fm-border-active); color: #fff; }
+    .rm-slot:hover { border-color: var(--fm-border-active); color: var(--fm-strong); }
 
     .rm-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
     @container rm (min-width: 620px) { .rm-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @container rm (min-width: 1000px) { .rm-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-    .rm-card { border-radius: 12px; border: 1px solid var(--fm-border); background: rgba(255,255,255,.02); padding: 10px 12px; min-width: 0; }
+    .rm-card { border-radius: 12px; border: 1px solid var(--fm-border); background: rgba(var(--fm-tint-rgb),.02); padding: 10px 12px; min-width: 0; }
     .rm-card-h { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
-    .rm-card-h b { font-size: 14px; color: #fff; overflow-wrap: anywhere; }
+    .rm-card-h b { font-size: 14px; color: var(--fm-strong); overflow-wrap: anywhere; }
     .rm-card-h span { font-size: 12px; color: var(--fm-text-secondary); white-space: nowrap; }
     .rm-card .row { font-size: 12px; line-height: 1.5; padding: 3px 0; color: var(--fm-text-secondary); }
     .rm-card .row b { color: var(--fm-text); font-weight: 700; }
@@ -90,9 +90,9 @@ colonna dell'app è più stretta della pagina della console.
 
     dialog.rm-dlg { width: min(440px, calc(100vw - 32px)); padding: 0; border-radius: var(--fm-radius-lg); border: 1px solid var(--fm-border-active);
                     background: var(--fm-surface, #061a33); color: var(--fm-text); }
-    dialog.rm-dlg::backdrop { background: rgba(1,7,18,.72); }
+    dialog.rm-dlg::backdrop { background: rgba(var(--fm-deep-rgb),.72); }
     .rm-dlg form { padding: 18px; display: flex; flex-direction: column; gap: 10px; margin: 0; }
-    .rm-dlg h3 { margin: 0; font-size: 18px; color: #fff; }
+    .rm-dlg h3 { margin: 0; font-size: 18px; color: var(--fm-strong); }
     .rm-dlg .hint { font-size: 12px; color: var(--fm-text-secondary); margin: 0; line-height: 1.45; }
     .rm-dlg select[size] { height: 150px; }
     .rm-dlg .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }

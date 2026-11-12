@@ -2,7 +2,7 @@
 
 <!-- System logs modal (available both on home and live auction) -->
 <div id="system-logs-modal" style="display:none; position:fixed; inset:0; z-index:170;
-     background:rgba(0,0,0,.85); align-items:center; justify-content:center; padding:20px">
+     background:var(--fm-scrim); align-items:center; justify-content:center; padding:20px">
     <div class="panel"
         style="max-width:850px; width:100%; margin:0; max-height:85vh; display:flex; flex-direction:column; background:var(--fm-card, #111a2e); border:1px solid var(--fm-border, #1f2f4e); border-radius:12px; box-shadow:0 20px 50px rgba(0,0,0,.6)">
         <div
@@ -25,7 +25,7 @@
                     Chiudi</button>
             </div>
         </div>
-        <div style="padding:14px 20px;flex:1 1 auto;overflow-y:auto;background:rgba(0,0,0,.45);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;line-height:1.6;color:#c0caf5;border-bottom-left-radius:12px;border-bottom-right-radius:12px;"
+        <div style="padding:14px 20px;flex:1 1 auto;overflow-y:auto;background:#0d1424;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;line-height:1.6;color:#c0caf5;border-bottom-left-radius:12px;border-bottom-right-radius:12px;"
             id="system-logs-content">
             <div class="muted">Caricamento log in corso...</div>
         </div>
@@ -34,7 +34,7 @@
 
 <!-- Edit auction modal -->
 <div id="edit-auction-modal" style="display:none; position:fixed; inset:0; z-index:150;
-     background:rgba(0,0,0,.80); align-items:center; justify-content:center; padding:20px">
+     background:var(--fm-scrim); align-items:center; justify-content:center; padding:20px">
     <div class="panel" style="max-width:520px; width:100%; margin:0; max-height:90vh; overflow-y:auto">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
             <h2 style="margin:0">Impostazioni asta</h2>
@@ -269,7 +269,7 @@
 
 <!-- Edit / delete participant modal -->
 <div id="edit-participant-modal" style="display:none; position:fixed; inset:0; z-index:150;
-     background:rgba(0,0,0,0.75); align-items:center; justify-content:center; padding:20px">
+     background:var(--fm-scrim); align-items:center; justify-content:center; padding:20px">
     <div class="panel" style="max-width:480px; width:100%; margin:0">
         <h2 style="margin-bottom:16px">Modifica squadra</h2>
         <form id="edit-participant-form" method="post" enctype="multipart/form-data">
@@ -306,7 +306,7 @@
 
 <!-- Invite (QR) modal -->
 <div id="invite-modal" style="display:none; position:fixed; inset:0; z-index:160;
-     background:rgba(0,0,0,0.80); align-items:center; justify-content:center; padding:20px">
+     background:var(--fm-scrim); align-items:center; justify-content:center; padding:20px">
     <div class="panel" style="max-width:420px; width:100%; margin:0; text-align:center">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
             <h2 style="margin:0">Invita squadra</h2>
@@ -347,7 +347,7 @@
      Rendering every team's roster up front cost ~3.000 DOM nodes on a 10-team
      league; the rows now arrive from admin_participant_roster when opened. -->
 <div id="roster-modal" class="roster-modal" style="display:none; position:fixed; inset:0; z-index:160;
-     background:rgba(0,0,0,0.80); align-items:center; justify-content:center; padding:20px" role="dialog"
+     background:var(--fm-scrim); align-items:center; justify-content:center; padding:20px" role="dialog"
     aria-modal="true" aria-labelledby="roster-title">
     <div class="fm-card" style="max-width:560px; width:100%; margin:0; max-height:90vh; overflow-y:auto">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px">

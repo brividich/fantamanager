@@ -11,12 +11,12 @@
     .p-shell {
         max-width: 440px; margin: 0 auto;
         border-radius: 28px; overflow: hidden;
-        border: 1px solid rgba(255,255,255,.10);
+        border: 1px solid rgba(var(--fm-tint-rgb),.10);
         box-shadow: 0 32px 80px rgba(0,0,0,.65);
     }
     .p-header {
         position: relative;
-        background: linear-gradient(180deg, rgba(10,36,69,.92), rgba(4,20,41,.98));
+        background: linear-gradient(180deg, rgba(var(--fm-navy-rgb),.92), rgba(var(--fm-navy-rgb),.98));
         padding: 18px 20px;
         border-bottom: 1px solid rgba(255,255,255,.08);
     }
@@ -30,7 +30,7 @@
         position: relative;
         display: flex; align-items: center; justify-content: space-between; gap: 10px;
     }
-    .p-body { background: rgba(5,24,47,.97); padding: 16px; }
+    .p-body { background: rgba(var(--fm-navy-rgb),.97); padding: 16px; }
     .p-body > * + * { margin-top: 12px; }
 
     /* 2-col grid: timer + price */
@@ -43,22 +43,22 @@
     }
     .p-best-logo {
         width: 52px; height: 52px; border-radius: 10px; object-fit: cover;
-        border: 1px solid rgba(255,255,255,.15); flex-shrink: 0;
+        border: 1px solid rgba(var(--fm-tint-rgb),.15); flex-shrink: 0;
     }
     .p-best-placeholder {
         width: 52px; height: 52px; border-radius: 10px;
-        background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.10);
+        background: rgba(var(--fm-tint-rgb),.06); border: 1px solid rgba(var(--fm-tint-rgb),.10);
         display: flex; align-items: center; justify-content: center; font-size: 26px; flex-shrink: 0;
     }
     .bp-ava {
         width: 52px; height: 52px; border-radius: 50%; flex-shrink: 0; overflow: hidden;
         display: flex; align-items: center; justify-content: center;
-        font-family: var(--display); font-weight: 900; font-size: 22px; color: #fff;
-        background: #0a2445; border: 3px solid var(--accent, #13b5ff);
+        font-family: var(--display); font-weight: 900; font-size: 22px; color: var(--fm-strong);
+        background: #0a2445; border: 3px solid var(--accent, var(--fm-sky));
     }
     .bp-ava img { width: 100%; height: 100%; object-fit: cover; }
-    .bp-ava.role-P{border-color:#f59e0b}.bp-ava.role-D{border-color:#38bdf8}
-    .bp-ava.role-C{border-color:#13b5ff}.bp-ava.role-A{border-color:#ff6b7f}
+    .bp-ava.role-P{border-color:var(--fm-amber-500)}.bp-ava.role-D{border-color:var(--fm-sky-400)}
+    .bp-ava.role-C{border-color:var(--fm-sky)}.bp-ava.role-A{border-color:var(--fm-rose-400)}
     /* Season stats: a tile grid, not pills — on a phone the number has to be
        readable at arm's length while the timer runs. Fantamedia is the figure
        a bid hangs on, so it takes a double-width tile at the head of the grid. */
@@ -68,23 +68,23 @@
     .bp-stats .stat {
         display:flex; flex-direction:column; align-items:center; justify-content:center;
         gap:3px; padding:9px 6px 8px; border-radius:11px;
-        background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.10);
+        background:rgba(var(--fm-tint-rgb),.05); border:1px solid rgba(var(--fm-tint-rgb),.10);
     }
     .bp-stats .stat b { font-family:var(--display); font-weight:800; font-size:20px; line-height:1; }
     .bp-stats .stat span { color:var(--muted); font-size:9px; font-weight:700;
         text-transform:uppercase; letter-spacing:.07em; text-align:center; }
     .bp-stats .stat.key { grid-column:span 2;
         background:rgba(19,181,255,.12); border-color:rgba(19,181,255,.32); }
-    .bp-stats .stat.key b { color:var(--accent, #13b5ff); font-size:27px; }
-    .bp-stats .stat.key span { color:var(--accent, #13b5ff); opacity:.85; }
+    .bp-stats .stat.key b { color:var(--accent, var(--fm-sky)); font-size:27px; }
+    .bp-stats .stat.key span { color:var(--accent, var(--fm-sky)); opacity:.85; }
     /* Live reactions */
     .react-bar { display:flex; justify-content:center; gap:8px; flex-wrap:wrap; margin:2px 0 2px; }
     .react-bar button {
         font-size:22px; line-height:1; padding:8px 12px; border-radius:14px; cursor:pointer;
-        background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.10);
+        background:rgba(var(--fm-tint-rgb),.05); border:1px solid rgba(var(--fm-tint-rgb),.10);
         transition:transform .08s ease, background .15s ease;
     }
-    .react-bar button:hover { background:rgba(255,255,255,.10); }
+    .react-bar button:hover { background:rgba(var(--fm-tint-rgb),.10); }
     .react-bar button:active { transform:scale(.86); }
     .react-layer { position:fixed; inset:0; pointer-events:none; overflow:hidden; z-index:60; }
     .react-float { position:absolute; bottom:96px; font-size:34px; will-change:transform,opacity;
@@ -98,55 +98,55 @@
         position:fixed; top:0; left:0; right:0; z-index:70; display:none;
         padding: max(14px, env(safe-area-inset-top)) 18px 14px;
         text-align:center; font-family:var(--display); font-weight:800;
-        font-size:16px; color:#ffffff; background:var(--accent, #13b5ff);
+        font-size:16px; color:#ffffff; background:var(--accent, var(--fm-sky));
         box-shadow:0 6px 24px rgba(0,0,0,.4); animation:annDrop .3s ease-out;
     }
-    .announce-banner.call { background:#f43f5e; color:#fff; }
+    .announce-banner.call { background:var(--fm-rose-500); color:#fff; }
     @keyframes annDrop { from { transform:translateY(-100%); } to { transform:translateY(0); } }
     /* Budget/slot planner */
     .planner { display:flex; gap:6px; align-items:stretch; margin:-4px 0 12px; }
     .pl-role { flex:1; display:flex; flex-direction:column; align-items:center; gap:1px; padding:7px 4px;
-        border-radius:10px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); }
+        border-radius:10px; background:rgba(var(--fm-tint-rgb),.04); border:1px solid rgba(var(--fm-tint-rgb),.08); }
     .pl-role.full { opacity:.45; }
     .pl-role .pl-r { font-family:var(--display); font-weight:900; font-size:13px; }
-    .pl-role.role-P .pl-r{color:#f59e0b}.pl-role.role-D .pl-r{color:#38bdf8}
-    .pl-role.role-C .pl-r{color:#13b5ff}.pl-role.role-A .pl-r{color:#ff6b7f}
+    .pl-role.role-P .pl-r{color:var(--fm-amber-500)}.pl-role.role-D .pl-r{color:var(--fm-sky-400)}
+    .pl-role.role-C .pl-r{color:var(--fm-sky)}.pl-role.role-A .pl-r{color:var(--fm-rose-400)}
     /* Mantra: un solo tetto per tutti i giocatori di movimento. Verde, per non
        somigliare a nessuno dei tre reparti classici che sostituisce. */
-    .pl-role.role-X .pl-r{color:#4ade80}
+    .pl-role.role-X .pl-r{color:var(--fm-green-400)}
     /* Ruoli Mantra del giocatore all'asta: chip accanto al nome, cosi' sai
        subito se copre lo slot che ti manca davvero. */
     .bp-mroles { display:flex; gap:4px; flex-wrap:wrap; margin-top:4px; }
     .bp-mrole { font-size:10px; font-weight:900; letter-spacing:.06em; text-transform:uppercase;
                 padding:2px 6px; border-radius:5px; background:rgba(19,181,255,.16);
-                color:#8ed8ff; border:1px solid rgba(19,181,255,.3); }
+                color:var(--fm-sky-200); border:1px solid rgba(19,181,255,.3); }
     .pl-role .pl-n { font-size:12px; font-weight:700; color:var(--muted); }
     .pl-max { flex:1.4; display:flex; flex-direction:column; align-items:center; justify-content:center;
         border-radius:10px; background:rgba(8,124,240,.10); border:1px solid rgba(8,124,240,.25); }
     .pl-max .pl-lbl { font-size:9px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); font-weight:800; }
-    .pl-max .pl-v { font-family:var(--display); font-weight:900; font-size:18px; color:var(--accent,#13b5ff); }
+    .pl-max .pl-v { font-family:var(--display); font-weight:900; font-size:18px; color:var(--accent,var(--fm-sky)); }
     .pl-max .pl-v small { font-size:10px; color:var(--muted); }
     /* Watch star + objective highlight */
     .watch-star { position:absolute; top:8px; right:10px; background:none; border:none; cursor:pointer;
         font-size:24px; line-height:1; color:var(--muted); transition:transform .1s ease; }
-    .watch-star.on { color:#facc15; }
+    .watch-star.on { color:var(--fm-yellow-400); }
     .watch-star:active { transform:scale(.8); }
     #block-player-wrap.objective { border:1px solid rgba(250,204,21,.5); box-shadow:0 0 22px rgba(250,204,21,.25); }
     /* Watchlist items + search results */
     .watch-item, .wr-row { display:flex; align-items:center; gap:8px; padding:7px 2px;
-        border-bottom:1px solid rgba(255,255,255,.05); }
+        border-bottom:1px solid rgba(var(--fm-tint-rgb),.05); }
     .wi-name, .wr-name { flex:1; min-width:0; font-weight:600; font-size:14px; white-space:nowrap;
         overflow:hidden; text-overflow:ellipsis; }
     .wi-name small, .wr-name small { display:block; font-size:11px; color:var(--muted); }
     .wi-max { width:66px; padding:6px 8px; font-size:13px; text-align:right; border-radius:8px;
-        background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); color:var(--ink); }
+        background:rgba(var(--fm-tint-rgb),.05); border:1px solid rgba(var(--fm-tint-rgb),.12); color:var(--ink); }
     .wi-del { background:none; border:none; color:var(--muted); cursor:pointer; font-size:15px; padding:4px 6px; }
-    .wr-add { background:rgba(8,124,240,.14); border:1px solid rgba(8,124,240,.3); color:var(--accent,#13b5ff);
+    .wr-add { background:rgba(8,124,240,.14); border:1px solid rgba(8,124,240,.3); color:var(--accent,var(--fm-sky));
         border-radius:8px; padding:6px 10px; font-weight:800; cursor:pointer; font-size:13px; }
-    #watch-results:not(:empty) { margin-bottom:8px; padding-bottom:6px; border-bottom:1px dashed rgba(255,255,255,.12); }
+    #watch-results:not(:empty) { margin-bottom:8px; padding-bottom:6px; border-bottom:1px dashed rgba(var(--fm-tint-rgb),.12); }
     .p-best-info { text-align: left; }
     .p-best-label { font-size: 10px; letter-spacing: 0.28em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
-    .p-best-name { font-family: var(--display); font-size: 22px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.03em; color: #fff; margin-top: 2px; }
+    .p-best-name { font-family: var(--display); font-size: 22px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.03em; color: var(--fm-strong); margin-top: 2px; }
     .p-best-badge {
         display: inline-block; margin-top: 5px;
         background: rgba(8,124,240,.20); color: var(--gold); border-radius: 7px;
@@ -190,7 +190,7 @@
     .p-disclaimer {
         display: flex; align-items: center; justify-content: center; gap: 8px;
         padding: 10px 14px; border-radius: 12px;
-        background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+        background: rgba(var(--fm-tint-rgb),.04); border: 1px solid rgba(var(--fm-tint-rgb),.08);
         font-size: 11px; color: var(--muted); text-align: center;
     }
 
@@ -212,8 +212,8 @@
         text-transform: uppercase; padding: 4px 10px; border-radius: 8px;
         display: inline-flex; align-items: center; gap: 5px;
     }
-    .target-chip.ok   { background: rgba(74,222,128,.14); border: 1px solid rgba(74,222,128,.4); color: #4ade80; }
-    .target-chip.over { background: rgba(248,113,113,.14); border: 1px solid rgba(248,113,113,.4); color: #f87171; }
+    .target-chip.ok   { background: rgba(74,222,128,.14); border: 1px solid rgba(74,222,128,.4); color: var(--fm-green-400); }
+    .target-chip.over { background: rgba(248,113,113,.14); border: 1px solid rgba(248,113,113,.4); color: var(--fm-red-400); }
 
     /* ---- Desktop / tablet: two columns, bid buttons pinned and enlarged --
        On a phone this page is a single scrolling card (unchanged below).
@@ -280,7 +280,7 @@
             box-shadow: 0 10px 26px rgba(8,124,240,.18);
         }
         #bid-panel .bidbtn:not(:disabled):hover {
-            border-color: var(--accent, #13b5ff);
+            border-color: var(--accent, var(--fm-sky));
             box-shadow: 0 12px 30px rgba(8,124,240,.32);
             transform: translateY(-1px);
         }
@@ -309,7 +309,7 @@
         .p-tabs {
             position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
             gap: 4px; margin-top: 10px; padding: 4px; border-radius: 13px;
-            background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08);
+            background: rgba(var(--fm-tint-rgb),.05); border: 1px solid rgba(var(--fm-tint-rgb),.08);
         }
         .p-tabs button {
             height: 38px; border: 0; border-radius: 10px; background: transparent;
@@ -321,10 +321,10 @@
         .p-tabs button:active { transform: scale(0.96); }
         .p-tabs button .n {
             display: inline-block; min-width: 20px; margin-left: 4px; padding: 1px 6px;
-            border-radius: 999px; background: rgba(255,255,255,.08); font-size: 11.5px;
+            border-radius: 999px; background: rgba(var(--fm-tint-rgb),.08); font-size: 11.5px;
         }
-        .p-tabs button.is-on { background: var(--accent, #13b5ff); color: #03101f; }
-        .p-tabs button.is-on .n { background: rgba(3,16,31,.18); }
+        .p-tabs button.is-on { background: var(--accent, var(--fm-sky)); color: #03101f; }
+        .p-tabs button.is-on .n { background: rgba(var(--fm-deep-rgb),.18); }
 
         .p-body { display: flex; flex-direction: column; padding: 12px 12px 16px; }
         .p-body > * + * { margin-top: 10px; }
@@ -370,10 +370,10 @@
             position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; margin: 0 !important;
             display: flex; flex-direction: column; gap: 7px;
             padding: 8px 10px calc(10px + env(safe-area-inset-bottom));
-            background: rgba(3, 14, 30, .97);
+            background: rgba(var(--fm-deep-rgb),.97);
             -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
-            border-top: 1px solid rgba(255,255,255,.10);
-            box-shadow: 0 -14px 34px rgba(0,0,0,.5);
+            border-top: 1px solid rgba(var(--fm-tint-rgb),.10);
+            box-shadow: var(--fm-shadow-up);
         }
         #bid-panel .bidgrid {
             grid-template-columns: none; grid-auto-flow: column;
@@ -408,10 +408,10 @@
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
         .bid-mini .bm-price { font-size: 11px; color: var(--muted); font-weight: 800; }
-        .bid-mini .bm-price b { font-family: var(--display); font-size: 18px; color: #fff; }
+        .bid-mini .bm-price b { font-family: var(--display); font-size: 18px; color: var(--fm-strong); }
         .bid-mini .bm-timer {
             min-width: 50px; text-align: right; font-weight: 900; font-size: 16px;
-            font-variant-numeric: tabular-nums; color: var(--accent, #13b5ff);
+            font-variant-numeric: tabular-nums; color: var(--accent, var(--fm-sky));
         }
     }
 </style>
@@ -451,7 +451,7 @@
             <div style="display:flex; align-items:center; gap:10px">
                 {% if participant.logo %}
                 <img src="{{ participant.logo.url }}" alt="{{ participant.display_name }}"
-                     style="width:40px;height:40px;border-radius:8px;object-fit:cover;border:1px solid rgba(255,255,255,.2);flex-shrink:0">
+                     style="width:40px;height:40px;border-radius:8px;object-fit:cover;border:1px solid rgba(var(--fm-tint-rgb),.2);flex-shrink:0">
                 {% else %}
                 <div style="width:40px;height:40px;border-radius:8px;background:rgba(8,124,240,.15);
                             border:1px solid rgba(8,124,240,.3);display:flex;align-items:center;
@@ -662,7 +662,7 @@
             <summary style="cursor:pointer;list-style:none;padding:12px 16px;display:flex;
                             align-items:center;justify-content:space-between;gap:8px;
                             font-family:var(--display);font-weight:800;font-size:13px;
-                            text-transform:uppercase;letter-spacing:0.12em;color:var(--accent, #13b5ff)">
+                            text-transform:uppercase;letter-spacing:0.12em;color:var(--accent, var(--fm-sky))">
                 <span><svg class="ic"><use href="#i-target"/></svg> I miei obiettivi · <span id="watch-count">{{ watches|length }}</span></span>
                 <span style="font-size:12px;color:var(--muted)">▼</span>
             </summary>
@@ -673,21 +673,21 @@
                 <div style="display:flex;gap:6px;margin-bottom:8px">
                     <input id="watch-search" placeholder="Cerca un giocatore da seguire…" autocomplete="off"
                            oninput="watchSearch()" style="flex:1;min-width:0;padding:9px 11px;font-size:14px;border-radius:10px;
-                           background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:var(--ink)">
+                           background:rgba(var(--fm-tint-rgb),.04);border:1px solid rgba(var(--fm-tint-rgb),.12);color:var(--ink)">
                 </div>
                 <div id="watch-results"></div>
                 <div id="watch-list">
                     {% for w in watches %}
                     <div class="watch-item" data-wid="{{ w.id }}" data-pid="{{ w.player_id }}">
                         <span class="role-badge role-{{ w.player.role }}">{{ w.player.role }}</span>
-                        <span class="wi-name">{{ w.player.name }}<small>{{ w.player.team }}{% if w.player.owner_id %} · <b style="color:var(--closed,#f43f5e)">preso</b>{% elif not w.player.in_listone %} · <b style="color:var(--closed,#f43f5e)">fuori listone</b>{% endif %}</small></span>
+                        <span class="wi-name">{{ w.player.name }}<small>{{ w.player.team }}{% if w.player.owner_id %} · <b style="color:var(--closed,var(--fm-rose-500))">preso</b>{% elif not w.player.in_listone %} · <b style="color:var(--closed,var(--fm-rose-500))">fuori listone</b>{% endif %}</small></span>
                         <input class="wi-max" type="number" inputmode="numeric" placeholder="max"
                                value="{{ w.max_price|floatformat:0 }}" onchange="watchSetMax({{ w.id }}, this.value, {{ w.player_id }})">
                         <button type="button" class="wi-del" title="Rimuovi" onclick="watchToggle({{ w.player_id }})">✕</button>
                     </div>
                     {% empty %}
                     <p id="watch-empty" style="text-align:center;color:var(--muted);font-size:13px;padding:8px 0">
-                        Nessun obiettivo. Usa la <svg class="ic" style="color:#facc15"><use href="#i-star"/></svg> sul giocatore o cerca qui sopra.
+                        Nessun obiettivo. Usa la <svg class="ic" style="color:var(--fm-yellow-400)"><use href="#i-star"/></svg> sul giocatore o cerca qui sopra.
                     </p>
                     {% endfor %}
                 </div>
@@ -714,7 +714,7 @@
                             font-weight:800;margin:10px 2px 4px">{{ group.grouper }}</div>
                 {% for pl in group.list %}
                 <div style="display:flex;align-items:center;gap:8px;padding:7px 2px;
-                            border-bottom:1px solid rgba(255,255,255,.05)">
+                            border-bottom:1px solid rgba(var(--fm-tint-rgb),.05)">
                     <div style="flex:1;min-width:0">
                         <div style="font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ pl.name }}</div>
                         <div style="font-size:11px;color:var(--muted)">
@@ -767,7 +767,7 @@
     .sealed-mine { text-align:center; font-size:13px; font-weight:800; margin:10px 0 0 }
     .sealed-note { text-align:center; font-size:12px; color:var(--muted); margin:10px 0 0 }
     .sealed-row { display:flex; justify-content:space-between; gap:10px; padding:7px 2px;
-        border-bottom:1px solid rgba(255,255,255,0.07); font-size:14px }
+        border-bottom:1px solid rgba(var(--fm-tint-rgb),0.07); font-size:14px }
     .sealed-row:last-child { border-bottom:0 }
     .sealed-row.win { color:var(--gold); font-weight:800 }
 </style>
@@ -875,7 +875,7 @@
         const C = parseFloat($ringBar.getAttribute("data-circ"));
         const frac = total > 0 ? Math.max(0, Math.min(1, gap / total)) : 0;
         $ringBar.style.strokeDashoffset = C * (1 - frac);
-        $ringBar.style.stroke = "#ffb526";
+        $ringBar.style.stroke = "var(--fm-warning)";
         if ($ringWrap) $ringWrap.classList.remove("urgent");
     }
 
@@ -1023,7 +1023,7 @@
               `<span class="role-badge role-${fmRole(p.role)}">${fmEsc(p.role)}</span>` +
               `<span class="wr-name">${fmEsc(p.name)}<small>${fmEsc(p.team)} · quot. ${fmEsc(p.quota)} FM</small></span>` +
               (p.watching
-                ? `<span style="color:var(--accent,#13b5ff);font-size:13px;font-weight:800">seguito ✓</span>`
+                ? `<span style="color:var(--accent,var(--fm-sky));font-size:13px;font-weight:800">seguito ✓</span>`
                 : `<button type="button" class="wr-add" data-i="${i}">+ Segui</button>`) +
             `</div>`).join("") || `<p style="color:var(--muted);font-size:13px;padding:6px 2px">Nessun svincolato trovato.</p>`;
         // Nome e squadra restano dati: niente codice costruito con loro.

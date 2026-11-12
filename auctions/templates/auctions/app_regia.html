@@ -36,7 +36,7 @@ the same league.
     .rg-head .tab-head h1 .ic {
         width: 26px;
         height: 26px;
-        color: var(--paused, #ffb526);
+        color: var(--paused, var(--fm-warning));
         filter: drop-shadow(0 0 10px rgba(255, 181, 38, 0.45));
     }
     .rg-head .tab-head p {
@@ -108,7 +108,7 @@ the same league.
     }
     a.rg-item:hover {
         transform: translateY(-1px);
-        border-color: var(--line-strong, rgba(255,255,255,0.25));
+        border-color: var(--line-strong, rgba(var(--fm-tint-rgb),0.25));
         border-left-color: var(--lvl, var(--accent));
         background: var(--panel);
         color: inherit;
@@ -134,11 +134,11 @@ the same league.
         align-items: center;
         gap: 4px;
     }
-    .rg-item.l-live { --lvl: var(--closed, #ef4444); }
+    .rg-item.l-live { --lvl: var(--closed, var(--fm-red-500)); }
     .rg-item.l-live .ic { animation: fmPulse 2.2s ease-in-out infinite; }
-    .rg-item.l-warn { --lvl: var(--paused, #ffb526); }
-    .rg-item.l-info { --lvl: var(--accent, #16d968); }
-    .rg-item.l-ok   { --lvl: var(--live, #22c55e); }
+    .rg-item.l-warn { --lvl: var(--paused, var(--fm-warning)); }
+    .rg-item.l-info { --lvl: var(--accent, var(--fm-success)); }
+    .rg-item.l-ok   { --lvl: var(--live, var(--fm-green-500)); }
 
     /* KPI */
     .rg-kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
@@ -257,7 +257,7 @@ the same league.
         border: 1px solid var(--accent-line);
     }
     .rg-tag.warn {
-        color: var(--paused, #ffb526);
+        color: var(--paused, var(--fm-warning));
         background: rgba(255, 181, 38, 0.12);
         border-color: rgba(255, 181, 38, 0.35);
     }
@@ -298,19 +298,19 @@ the same league.
         align-items: center;
         gap: 5px;
     }
-    .role-P { color: #f59e0b; }
-    .role-D { color: #38bdf8; }
-    .role-C { color: #22c55e; }
-    .role-A { color: #ef4444; }
+    .role-P { color: var(--fm-amber-500); }
+    .role-D { color: var(--fm-sky-400); }
+    .role-C { color: var(--fm-green-500); }
+    .role-A { color: var(--fm-red-500); }
     .rg-role .pl { display: flex; justify-content: space-between; gap: 6px; font-size: 12.5px; padding: 2.5px 0; }
     .rg-role .pl > span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
     .rg-role .pl-r { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; }
     .rg-role .pl-c { color: var(--muted); font-variant-numeric: tabular-nums; font-weight: 700; }
     /* Durata contratto (auctions/_contract_badge.html, come in Rosa e nella console) */
     .pl-ct { font-size: 10px; font-weight: 800; padding: 1px 5px; border-radius: 5px; white-space: nowrap;
-             background: rgba(255,255,255,.05); color: var(--muted); border: 1px solid var(--line); }
-    .pl-ct.last { background: rgba(234,179,8,.15); color: #eab308; border-color: rgba(234,179,8,.3); }
-    .pl-ct.exp { background: rgba(239,68,68,.15); color: #f87171; border-color: rgba(239,68,68,.3); }
+             background: rgba(var(--fm-tint-rgb),.05); color: var(--muted); border: 1px solid var(--line); }
+    .pl-ct.last { background: rgba(234,179,8,.15); color: var(--fm-yellow-500); border-color: rgba(234,179,8,.3); }
+    .pl-ct.exp { background: rgba(239,68,68,.15); color: var(--fm-red-400); border-color: rgba(239,68,68,.3); }
     .rg-role .none { font-size: 12px; color: var(--muted); }
     .rg-team-actions { display: flex; gap: 8px; margin-top: 12px; align-items: center; }
     .rg-team-actions form { margin: 0; }
@@ -355,7 +355,7 @@ the same league.
     }
     .rg-tool:hover {
         transform: translateY(-2px);
-        border-color: var(--line-strong, rgba(255,255,255,0.25));
+        border-color: var(--line-strong, rgba(var(--fm-tint-rgb),0.25));
         box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
         color: var(--ink);
     }

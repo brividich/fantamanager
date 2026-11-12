@@ -13,7 +13,7 @@ onboarding_view), da telefono e da PC. Tre strade, una per riga:
 <style>
     .ob { max-width: 640px; margin: 20px auto 40px; }
     .ob-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 18px; font-size: 13px; color: var(--fm-text-secondary); }
-    .ob-top a { color: #f87171; font-weight: 700; text-decoration: none; }
+    .ob-top a { color: var(--fm-red-400); font-weight: 700; text-decoration: none; }
     .ob h1 { font-family: var(--fm-display); font-size: 32px; margin: 0 0 4px; }
     .ob .sub { color: var(--fm-text-secondary); margin: 0 0 18px; font-size: 14.5px; }
     .ob-choice { display: grid; gap: 12px; }
@@ -32,7 +32,7 @@ onboarding_view), da telefono e da PC. Tre strade, una per riga:
               background: var(--fm-gradient, #087cf0); color: #fff; }
     .ob-btn.green { background: linear-gradient(135deg, #059669, #047857); }
     .ob-err { padding: 12px 14px; border-radius: 10px; background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.35);
-              color: #f87171; font-weight: 700; font-size: 13.5px; margin-bottom: 14px; }
+              color: var(--fm-red-400); font-weight: 700; font-size: 13.5px; margin-bottom: 14px; }
     @media (max-width: 520px) { .ob-card .d, .ob-card form, .ob-card .go { margin-left: 0; } }
 </style>
 
@@ -56,7 +56,7 @@ onboarding_view), da telefono e da PC. Tre strade, una per riga:
         </div>
     </details>
 
-    {% for m in messages %}<div class="ob-err" style="{% if m.tags != 'error' %}background:rgba(22,217,104,.10);border-color:rgba(22,217,104,.35);color:#8df0b6{% endif %}" role="status">{{ m }}</div>{% endfor %}
+    {% for m in messages %}<div class="ob-err" style="{% if m.tags != 'error' %}background:rgba(22,217,104,.10);border-color:rgba(22,217,104,.35);color:var(--fm-green-200){% endif %}" role="status">{{ m }}</div>{% endfor %}
     {% if error %}<div class="ob-err" role="alert">{{ error }}</div>{% endif %}
 
     <div class="ob-choice">

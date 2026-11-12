@@ -21,11 +21,11 @@ View: admin_league_settings (views/admin_config.py).
     .ls-nav { display: flex; gap: 6px; margin: 0 0 12px; position: sticky; top: 0; z-index: 5; padding: 6px 0;
               background: var(--fm-bg, #020f22); }
     .ls-nav a { display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 999px; font-size: 12.5px; font-weight: 700;
-                border: 1px solid var(--fm-border); color: var(--fm-text-secondary); text-decoration: none; background: rgba(255,255,255,.03); }
-    .ls-nav a:hover { color: #fff; border-color: var(--fm-border-active); }
+                border: 1px solid var(--fm-border); color: var(--fm-text-secondary); text-decoration: none; background: rgba(var(--fm-tint-rgb),.03); }
+    .ls-nav a:hover { color: var(--fm-strong); border-color: var(--fm-border-active); }
     .msg { padding: 11px 14px; border-radius: var(--fm-radius-sm); font-size: 13px; margin-bottom: 10px; }
-    .msg.success { background: rgba(22,217,104,.10); border: 1px solid rgba(22,217,104,.35); color: #8df0b6; }
-    .msg.error   { background: rgba(255,61,80,.10); border: 1px solid rgba(255,61,80,.40); color: #ffb3bb; }
+    .msg.success { background: rgba(22,217,104,.10); border: 1px solid rgba(22,217,104,.35); color: var(--fm-green-200); }
+    .msg.error   { background: rgba(255,61,80,.10); border: 1px solid rgba(255,61,80,.40); color: var(--fm-rose-200); }
     .msg.info    { background: rgba(8,124,240,.10); border: 1px solid var(--fm-border-active); color: var(--fm-text); }
     .ls-card { padding: 16px; margin-bottom: 14px; }
     .ls-card > h2 { margin: 0 0 4px; font-size: 18px; }
@@ -36,9 +36,9 @@ View: admin_league_settings (views/admin_config.py).
     @container ls (min-width: 620px) { .ls-links { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @container ls (min-width: 960px) { .ls-links { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
     .ls-link { display: flex; flex-direction: column; gap: 4px; padding: 12px; border-radius: 10px; text-decoration: none; color: var(--fm-text);
-               border: 1px solid var(--fm-border); background: rgba(255,255,255,.025); scroll-margin-top: 60px; min-width: 0; }
+               border: 1px solid var(--fm-border); background: rgba(var(--fm-tint-rgb),.025); scroll-margin-top: 60px; min-width: 0; }
     .ls-link:hover { border-color: var(--fm-border-active); }
-    .ls-link .h { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 14px; color: #fff; }
+    .ls-link .h { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 14px; color: var(--fm-strong); }
     .ls-link .h .ic { width: 16px; height: 16px; color: var(--fm-primary-light); }
     .ls-link .h .go { margin-left: auto; color: var(--fm-text-muted); }
     .ls-link .v { font-size: 12.5px; color: var(--fm-text-secondary); line-height: 1.45; }
