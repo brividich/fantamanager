@@ -163,11 +163,11 @@ class AdminObjectRbacTests(TestCase):
 
     def test_delete_participant_allowed_to_owner_and_superuser(self):
         self._as(self.owner)
-        self.client.post(f"/admin-auction/participants/{self.rival.id}/delete/")
+        self.client.post(f"/admin-auction/participants/{self.rival.id}/delete/", {"confirm": "1"})
         self.assertFalse(Participant.objects.filter(pk=self.rival.id).exists())
 
         self._as(self.superadmin)
-        self.client.post(f"/admin-auction/participants/{self.foreign_team.id}/delete/")
+        self.client.post(f"/admin-auction/participants/{self.foreign_team.id}/delete/", {"confirm": "1"})
         self.assertFalse(Participant.objects.filter(pk=self.foreign_team.id).exists())
 
     def test_participant_roster_forbidden_to_intruders(self):

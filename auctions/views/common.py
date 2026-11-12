@@ -564,6 +564,8 @@ APP_PAGES = {
     "admin_market_trades": "app_regia_trades",
     "admin_contracts": "app_regia_contracts",
     "admin_season": "app_regia_season",
+    # Lo storico nell'app è la pagina della Lega che vedono anche i manager.
+    "admin_storico": "app_storico",
     "admin_fantapazz": "app_regia_import",
     "admin_export": "app_regia_export",
     "admin_config": "app_regia_config",

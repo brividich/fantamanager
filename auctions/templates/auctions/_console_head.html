@@ -104,51 +104,48 @@ button) and everything else opens as a full-screen menu: ``.fm-chrome`` is
 </header>
 
 <nav class="fm-nav">
+    {% comment %}Le voci prendono il nome della pagina a cui portano; quelle che si
+       somigliano sono una voce sola, con le schede nella pagina
+       (Stagione | Storico, Importa | Riepilogo ed export: _page_tabs.html).{% endcomment %}
     <a class="fm-btn fm-nav-cta" href="{% url 'admin_auction_wizard' %}">
         <svg class="ic"><use href="#i-plus"/></svg> Nuova asta</a>
 
     <a class="fm-nav-link {% if console_active == 'setup' %}is-active{% endif %}" href="{% url 'admin_setup' %}" title="Crea una lega: squadre, regole e inviti in quattro passi">
         <svg class="ic"><use href="#i-trophy"/></svg> Nuova lega</a>
-    <a class="fm-nav-link" href="{% url 'home' %}" title="Torna al Portale Iniziale (Home / Scelta & Login)">
-        <svg class="ic"><use href="#i-home"/></svg> Home</a>
     {% if request.user.is_superuser %}
-    <a class="fm-nav-link" href="{% url 'supervisor_dashboard' %}" style="color:var(--fm-red-400);font-weight:800" title="Apri Cockpit Superadmin Master">
+    <a class="fm-nav-link" href="{% url 'supervisor_dashboard' %}" style="color:var(--fm-red-400);font-weight:800" title="Il pannello della piattaforma: utenti, leghe, server">
         <svg class="ic"><use href="#i-shield"/></svg> Supervisor</a>
     {% endif %}
-    <a class="fm-nav-link {% if not selected and console_active == 'dashboard' %}is-active{% endif %}" href="{% if current_league %}{% url 'dashboard_league' current_league.id %}{% else %}{% url 'dashboard' %}{% endif %}">
-        <svg class="ic"><use href="#i-table"/></svg> Dashboard</a>
+    <a class="fm-nav-link {% if not selected and console_active == 'dashboard' %}is-active{% endif %}" href="{% if current_league %}{% url 'dashboard_league' current_league.id %}{% else %}{% url 'dashboard' %}{% endif %}" title="La pagina della lega: cosa preparare, rose, iscritti, classifica">
+        <svg class="ic"><use href="#i-table"/></svg> Lega</a>
     <a class="fm-nav-link {% if console_active == 'league_settings' %}is-active{% endif %}" href="{% url 'admin_league_settings' %}{% if current_league %}?league={{ current_league.id }}{% endif %}" title="Le regole della lega: crediti, rosa, mercati, scambi, punteggi">
-        <svg class="ic"><use href="#i-gear"/></svg> Impostazioni</a>
-    <a class="fm-nav-link {% if selected and console_active == 'live' %}is-active{% endif %}" href="{% if selected %}{% url 'admin_dashboard' %}?auction={{ selected.id }}{% elif active_auction %}{% url 'admin_dashboard' %}?auction={{ active_auction.id }}{% else %}{% url 'admin_auction_wizard' %}{% endif %}">
-        <svg class="ic"><use href="#i-gavel"/></svg> Asta Live</a>
+        <svg class="ic"><use href="#i-gear"/></svg> Impostazioni lega</a>
+    <a class="fm-nav-link {% if selected and console_active == 'live' %}is-active{% endif %}" href="{% if selected %}{% url 'admin_dashboard' %}?auction={{ selected.id }}{% elif active_auction %}{% url 'admin_dashboard' %}?auction={{ active_auction.id }}{% else %}{% url 'admin_auction_wizard' %}{% endif %}" title="La regia dell'asta: chiama i giocatori, timer, offerte">
+        <svg class="ic"><use href="#i-gavel"/></svg> Asta live</a>
+    <a class="fm-nav-link {% if console_active == 'market' %}is-active{% endif %}" href="{% url 'admin_market_dashboard' %}{% if current_league %}?league={{ current_league.id }}{% endif %}" title="Buste, scambi, aste di riparazione e movimenti">
+        <svg class="ic"><use href="#i-swap"/></svg> Mercato</a>
+    <a class="fm-nav-link {% if console_active == 'teams' %}is-active{% endif %}" href="{% url 'admin_participants' %}{% if current_league %}?league={{ current_league.id }}{% endif %}" title="Le squadre: inviti, account, schede, aggiungi o elimina">
+        <svg class="ic"><use href="#i-users"/></svg> Squadre</a>
     <a class="fm-nav-link {% if console_active == 'footballers' %}is-active{% endif %}" href="{% url 'admin_footballers' %}{% if current_league %}?league={{ current_league.id }}{% endif %}" title="Il listone della lega (import, assegna, svincola) e l'anagrafica di Serie A">
         <svg class="ic"><use href="#i-ball"/></svg> Calciatori</a>
-    <a class="fm-nav-link {% if console_active == 'teams' %}is-active{% endif %}" href="{% url 'admin_participants' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
-        <svg class="ic"><use href="#i-shield"/></svg> Squadre</a>
-    <a class="fm-nav-link {% if console_active == 'market' %}is-active{% endif %}" href="{% url 'admin_market_dashboard' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
-        <svg class="ic"><use href="#i-swap"/></svg> Mercato</a>
-    <a class="fm-nav-link {% if console_active == 'contracts' %}is-active{% endif %}" href="{% url 'admin_contracts' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
+    <a class="fm-nav-link {% if console_active == 'contracts' %}is-active{% endif %}" href="{% url 'admin_contracts' %}{% if current_league %}?league={{ current_league.id }}{% endif %}" title="Contratti di permanenza: dadi, clausole e rinnovi">
         <svg class="ic"><use href="#i-doc"/></svg> Contratti</a>
-    <a class="fm-nav-link {% if console_active == 'competitions' %}is-active{% endif %}" href="{% url 'admin_competitions' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
-        <svg class="ic"><use href="#i-trophy"/></svg> Competizioni</a>
-    <a class="fm-nav-link {% if console_active == 'giornate' %}is-active{% endif %}" href="{% url 'admin_giornate' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
-        <svg class="ic"><use href="#i-pulse"/></svg> Giornate & Voti</a>
-    <a class="fm-nav-link {% if console_active == 'season' %}is-active{% endif %}" href="{% url 'admin_season' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
-        <svg class="ic"><use href="#i-table"/></svg> Stagione</a>
-    <a class="fm-nav-link {% if console_active == 'storico' %}is-active{% endif %}" href="{% url 'admin_storico' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
-        <svg class="ic"><use href="#i-trophy"/></svg> Storico</a>
-    <a class="fm-nav-link {% if console_active == 'import' %}is-active{% endif %}" href="{% url 'admin_fantapazz' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
-        <svg class="ic"><use href="#i-import"/></svg> Importa</a>
-    <a class="fm-nav-link {% if console_active == 'export' %}is-active{% endif %}" href="{% url 'admin_export' %}{% if current_league %}?league={{ current_league.id }}{% endif %}">
-        <svg class="ic"><use href="#i-export"/></svg> Export rose</a>
+    <a class="fm-nav-link {% if console_active == 'giornate' %}is-active{% endif %}" href="{% url 'admin_giornate' %}{% if current_league %}?league={{ current_league.id }}{% endif %}" title="Formazioni, voti e punteggi di ogni giornata">
+        <svg class="ic"><use href="#i-calendar"/></svg> Giornate e voti</a>
+    <a class="fm-nav-link {% if console_active == 'competitions' %}is-active{% endif %}" href="{% url 'admin_competitions' %}{% if current_league %}?league={{ current_league.id }}{% endif %}" title="Campionato, coppe e calendari">
+        <svg class="ic"><use href="#i-award"/></svg> Competizioni</a>
+    <a class="fm-nav-link {% if console_active == 'season' or console_active == 'storico' %}is-active{% endif %}" href="{% url 'admin_season' %}{% if current_league %}?league={{ current_league.id }}{% endif %}" title="I passaggi della stagione e lo storico: albo d'oro e classifica di sempre">
+        <svg class="ic"><use href="#i-chart"/></svg> Stagione e storico</a>
+    <a class="fm-nav-link {% if console_active == 'import' or console_active == 'export' %}is-active{% endif %}" href="{% url 'admin_fantapazz' %}{% if current_league %}?league={{ current_league.id }}{% endif %}" title="Importa le rose da file; riepilogo delle rose ed export in Excel/CSV">
+        <svg class="ic"><use href="#i-import"/></svg> Importa ed esporta</a>
 
     <span class="fm-nav-spacer"></span>
 
     {% if request.user.is_authenticated %}
-    <a class="fm-nav-link {% if console_active == 'account' %}is-active{% endif %}" href="{% url 'account' %}" title="Email, i tuoi dati, privacy">
-        <svg class="ic"><use href="#i-shield"/></svg> Il mio account</a>
+    <a class="fm-nav-link {% if console_active == 'account' %}is-active{% endif %}" href="{% url 'account' %}" title="Email, i tuoi dati, privacy, tema">
+        <svg class="ic"><use href="#i-user"/></svg> Il mio account</a>
     <a class="fm-nav-link" data-nav-keep href="{% url 'logout' %}" style="color:var(--fm-red-500)" title="Disconnetti account">
-        Esci
+        <svg class="ic"><use href="#i-logout"/></svg> Esci
     </a>
     {% endif %}
 
@@ -157,24 +154,17 @@ button) and everything else opens as a full-screen menu: ``.fm-chrome`` is
             <svg class="ic" style="width:13px;height:13px"><use href="#i-chev-down"/></svg></summary>
         <div class="fm-nav-more-body">
             <div class="fm-nav-spill" hidden></div>
-            <form method="post" action="{% url 'admin_resume_latest' %}" style="display:contents">
-                {% csrf_token %}
-                <button type="submit" class="fm-nav-link"><svg class="ic"><use href="#i-play"/></svg> Riprendi sessione</button>
-            </form>
-            <a class="fm-nav-link" href="{% url 'admin_sessions' %}"><svg class="ic"><use href="#i-folder"/></svg> Carica sessione</a>
-            {% if request.user.is_superuser %}
-            <a class="fm-nav-link {% if console_active == 'remote' %}is-active{% endif %}" href="{% url 'admin_remote_page' %}"><svg class="ic"><use href="#i-globe"/></svg> Accesso remoto</a>
-            {% endif %}
-            <a class="fm-nav-link {% if console_active == 'config' %}is-active{% endif %}" href="{% url 'admin_config' %}" title="Tutte le tue leghe, aste e salvataggi, asta in sala, pulizia"><svg class="ic"><use href="#i-gear"/></svg> Configurazione</a>
-            {% if request.user.is_superuser %}<a class="fm-nav-link {% if console_active == 'mail' %}is-active{% endif %}" href="{% url 'admin_mail_settings' %}"><svg class="ic"><use href="#i-mail"/></svg> Posta (email)</a>{% endif %}
-            {% if request.user.is_superuser %}<a class="fm-nav-link {% if console_active == 'algo' %}is-active{% endif %}" href="{% url 'supervisor_algo' %}"><svg class="ic"><use href="#i-filter"/></svg> Voto algoritmico</a>{% endif %}
+            <a class="fm-nav-link {% if console_active == 'config' %}is-active{% endif %}" href="{% url 'admin_config' %}" title="Tutte le tue leghe, le aste, i salvataggi da riprendere, la pulizia"><svg class="ic"><use href="#i-folder"/></svg> Leghe e salvataggi</a>
             {% if selected %}
             <a class="fm-nav-link" href="{% url 'screen' selected.id %}?t={{ selected.public_token }}" target="_blank"><svg class="ic"><use href="#i-tv"/></svg> Apri maxischermo</a>
             {% elif active_auction %}
             <a class="fm-nav-link" href="{% url 'screen' active_auction.id %}?t={{ active_auction.public_token }}" target="_blank"><svg class="ic"><use href="#i-tv"/></svg> Apri maxischermo</a>
             {% endif %}
-            <a class="fm-nav-link" href="{% url 'app_regia' %}{% if current_league %}?league={{ current_league.id }}{% endif %}" style="color:var(--fm-success)"><svg class="ic"><use href="#i-shirt"/></svg> App (vista telefono)</a>
+            <a class="fm-nav-link" href="{% url 'home' %}" title="La pagina d'ingresso: asta, app, regia"><svg class="ic"><use href="#i-home"/></svg> Portale</a>
             {% if request.user.is_superuser %}
+            <a class="fm-nav-link {% if console_active == 'remote' %}is-active{% endif %}" href="{% url 'admin_remote_page' %}"><svg class="ic"><use href="#i-globe"/></svg> Accesso remoto</a>
+            <a class="fm-nav-link {% if console_active == 'mail' %}is-active{% endif %}" href="{% url 'admin_mail_settings' %}"><svg class="ic"><use href="#i-mail"/></svg> Posta (email)</a>
+            <a class="fm-nav-link {% if console_active == 'algo' %}is-active{% endif %}" href="{% url 'supervisor_algo' %}"><svg class="ic"><use href="#i-filter"/></svg> Voto algoritmico</a>
             <button type="button" class="fm-nav-link" onclick="if(typeof openSystemLogs==='function')openSystemLogs();else window.open('{% url 'admin_logs_tail' %}','_blank');"><svg class="ic"><use href="#i-info"/></svg> Log di sistema</button>
             {% endif %}
         </div>

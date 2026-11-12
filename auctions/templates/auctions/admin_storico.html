@@ -13,5 +13,6 @@ Storico della lega nella console. Il contenuto è lo stesso partial dell'app
     <h1 style="margin:0;font-size:26px">Storico</h1>
     <div style="font-size:12.5px;color:var(--fm-text-secondary)">Albo d'oro e classifica di sempre di {{ current_league.name }}</div>
 </div>
+{% include "auctions/_page_tabs.html" with tabs="season" active="storico" lg=current_league %}
 {% include "auctions/_season_history.html" %}
 {% endblock %}

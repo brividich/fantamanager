@@ -403,7 +403,7 @@ the same league.
             {% if trades_to_ratify %}
             <li><b>Adesso:</b> {{ trades_to_ratify|length }} scamb{{ trades_to_ratify|length|pluralize:"io,i" }} da ratificare: <b>Ratifica</b> o <b>Boccia</b> nel riquadro <b>Scambi da ratificare</b>.</li>
             {% endif %}
-            <li>Durante il campionato: <b>Nuova Competizione</b> per calendari e coppe, <b>Strumenti</b> → <b>Giornate &amp; Voti</b> per formazioni, voti e calcolo.</li>
+            <li>Durante il campionato: <b>Nuova Competizione</b> per calendari e coppe, <b>Strumenti</b> → <b>Giornate e voti</b> per formazioni, voti e calcolo.</li>
         </ol>
         <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> In <b>Status</b>, <b>Da fare</b> ti dice sempre il prossimo passo. Con <b>Vedi in app</b> (scheda <b>Rose</b>) usi l'app come quella squadra.</div>
     </div>
@@ -558,24 +558,24 @@ the same league.
         {% endfor %}
         <div class="fm-onerow" style="gap:8px;margin-top:10px">
             <a class="fm-btn fm-btn-primary fm-btn-sm" href="{% url 'app_lega' %}?open_comp_wizard=1&tab=competizioni"><svg class="ic"><use href="#i-plus"/></svg> Nuova Competizione</a>
-            <a class="fm-btn fm-btn-outline fm-btn-sm" href="{% url 'app_regia_competitions' %}{{ league_q }}"><svg class="ic"><use href="#i-table"/></svg> Tabelloni & Calendari</a>
+            <a class="fm-btn fm-btn-outline fm-btn-sm" href="{% url 'app_regia_competitions' %}{{ league_q }}"><svg class="ic"><use href="#i-award"/></svg> Competizioni</a>
         </div>
     </section>
 
     <section class="a-card" aria-labelledby="rg-tools-h" data-asec="tools">
         <div class="a-label" id="rg-tools-h"><svg class="ic"><use href="#i-gear"/></svg> Strumenti della lega</div>
         <div class="rg-tools">
-            <a class="rg-tool primary" href="{% url 'dashboard_league' app_league.id %}"><svg class="ic"><use href="#i-table"/></svg>Console<small>Dashboard e asta dal vivo</small></a>
+            {# Stessi nomi e stesso ordine della barra della console (_console_head.html). #}
+            <a class="rg-tool primary" href="{% url 'dashboard_league' app_league.id %}"><svg class="ic"><use href="#i-table"/></svg>Console<small>Lega e asta dal vivo</small></a>
             <a class="rg-tool" href="{% url 'app_regia_league_settings' %}{{ league_q }}"><svg class="ic"><use href="#i-gear"/></svg>Impostazioni lega<small>Crediti, rosa, mercati, scambi, punteggi</small></a>
+            <a class="rg-tool" href="{% url 'app_regia_teams' %}{{ league_q }}"><svg class="ic"><use href="#i-users"/></svg>Squadre<small>Inviti, account, schede, aggiungi o elimina</small></a>
             <a class="rg-tool" href="{% url 'app_footballers' %}{{ league_q }}"><svg class="ic"><use href="#i-ball"/></svg>Calciatori<small>Listone, svincolati e anagrafica</small></a>
-            <a class="rg-tool" href="{% url 'app_regia_competitions' %}{{ league_q }}"><svg class="ic"><use href="#i-trophy"/></svg>Competizioni<small>1vs1, coppe, calendari</small></a>
-            <a class="rg-tool" href="{% url 'app_giornate' %}{{ league_q }}"><svg class="ic"><use href="#i-pulse"/></svg>Giornate & Voti<small>Formazioni, voti e calcolo</small></a>
-            <a class="rg-tool" href="{% url 'app_regia_teams' %}{{ league_q }}"><svg class="ic"><use href="#i-shield"/></svg>Squadre<small>PIN, inviti, loghi</small></a>
-            <a class="rg-tool" href="{% url 'app_regia_contracts' %}{{ league_q }}"><svg class="ic"><use href="#i-doc"/></svg>Contratti<small>Dadi e rinnovi</small></a>
-            <a class="rg-tool" href="{% url 'app_regia_season' %}{{ league_q }}"><svg class="ic"><use href="#i-trophy"/></svg>Stagione<small>Economia e passaggi</small></a>
-            <a class="rg-tool" href="{% url 'app_regia_import' %}{{ league_q }}"><svg class="ic"><use href="#i-import"/></svg>Importa<small>Rose da file</small></a>
-            <a class="rg-tool" href="{% url 'app_regia_export' %}{{ league_q }}"><svg class="ic"><use href="#i-export"/></svg>Export<small>Rose in Excel/CSV</small></a>
-            <a class="rg-tool" href="{% url 'app_regia_config' %}{{ league_q }}"><svg class="ic"><use href="#i-folder"/></svg>Configurazione<small>Tutte le leghe, aste salvate, sala</small></a>
+            <a class="rg-tool" href="{% url 'app_regia_contracts' %}{{ league_q }}"><svg class="ic"><use href="#i-doc"/></svg>Contratti<small>Dadi, clausole e rinnovi</small></a>
+            <a class="rg-tool" href="{% url 'app_giornate' %}{{ league_q }}"><svg class="ic"><use href="#i-calendar"/></svg>Giornate e voti<small>Formazioni, voti e punteggi</small></a>
+            <a class="rg-tool" href="{% url 'app_regia_competitions' %}{{ league_q }}"><svg class="ic"><use href="#i-award"/></svg>Competizioni<small>Campionato, coppe e calendari</small></a>
+            <a class="rg-tool" href="{% url 'app_regia_season' %}{{ league_q }}"><svg class="ic"><use href="#i-chart"/></svg>Stagione e storico<small>Passaggi della stagione, albo d'oro</small></a>
+            <a class="rg-tool" href="{% url 'app_regia_import' %}{{ league_q }}"><svg class="ic"><use href="#i-import"/></svg>Importa ed esporta<small>Rose da file, riepilogo in Excel/CSV</small></a>
+            <a class="rg-tool" href="{% url 'app_regia_config' %}{{ league_q }}"><svg class="ic"><use href="#i-folder"/></svg>Leghe e salvataggi<small>Tutte le leghe, aste, salvataggi, pulizia</small></a>
         </div>
     </section>
 </div>

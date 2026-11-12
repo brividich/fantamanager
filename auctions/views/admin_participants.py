@@ -25,6 +25,7 @@ from ..models.participant import custom_code_error, generate_access_code
 from .. import remote, team_sheets
 from ..uploads import UploadRejected, clean_image
 from ..services import mail, onboarding, privacy
+from ..services import teams as teams_service
 from ..services.sala import ensure_unlocked as _sala_guard
 from .common import (
     FORBIDDEN_LEAGUE_MSG,
@@ -122,6 +123,7 @@ def teams_manage_context(request, current_league):
             "honours": team_sheets.honours_for(p, honour_labels),
             "images": [("logo", "Logo", p.logo), ("kit_home", "Prima maglia", p.kit_home),
                        ("kit_away", "Seconda maglia", p.kit_away)],
+            "removal": teams_service.team_removal(p),
         })
 
     # A password the server generated is shown once, on the page the action
@@ -407,12 +409,24 @@ def admin_delete_participant(request, participant_id):
     p, denied = managed_or_403(request, Participant, participant_id)
     if denied:
         return denied
-    _sala_guard(p.league_id)
     league_id = p.league_id
     team_name = p.display_name
-    p.delete()
-    messages.success(request, f"Squadra «{team_name}» eliminata.")
-    fallback = f"/dashboard/{league_id}/#rose" if league_id else "/dashboard/"
+    fallback = f"/dashboard/participants/?league={league_id}" if league_id else "/dashboard/"
+    if request.POST.get("confirm") != "1":
+        messages.error(request, f"«{team_name}» non è stata eliminata: spunta «Sì, elimina» e premi di nuovo Elimina squadra.")
+        return redirect(safe_next(request, fallback))
+    try:
+        info = teams_service.delete_team(p)
+    except teams_service.TeamNotRemovable as exc:
+        messages.error(request, str(exc))
+        return redirect(safe_next(request, fallback))
+    msg = f"Squadra «{team_name}» eliminata."
+    if info["roster"]:
+        msg += f" I suoi {info['roster']} giocatori sono tornati svincolati."
+    if info["fixtures"]:
+        msg += (f" Il calendario aveva {info['fixtures']} sue partite da giocare: rigeneralo in "
+                "Competizioni, così nessuno resta senza avversario.")
+    messages.success(request, msg)
     return redirect(safe_next(request, fallback))
 
 

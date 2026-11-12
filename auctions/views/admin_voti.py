@@ -173,7 +173,7 @@ def admin_giornate(request):
         "api_status": apifootball_status(),
         "gv_league_q": f"league={league.id}",
         "gv_back": f"{base}?league={league.id}&giornata={current_giornata.number if current_giornata else 1}",
-        "console_section": "Giornate & Voti",
+        "console_section": "Giornate e voti",
         "console_active": "giornate",
     })
     return render(request, "auctions/app_giornate.html" if in_app else "auctions/admin_giornate.html", ctx)
@@ -293,7 +293,7 @@ def admin_formation_edit(request, participant_id):
         "team_links": [(t, _formation_url(request, t.id, giornata)) for t in teams],
         "giornate_url": f"{_giornate_url(request)}?league={league.id}&giornata={giornata.number}",
         "fz_next": _formation_url(request, team.id, giornata),
-        "console_section": "Giornate & Voti",
+        "console_section": "Giornate e voti",
         "console_active": "giornate",
     })
     return render(request, "auctions/app_regia_formazione.html" if in_app else "auctions/admin_formazione.html", ctx)

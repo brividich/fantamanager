@@ -77,6 +77,17 @@ Prima versione numerata (prima l'etichetta era 1.2.0, senza rilasci).
   banco, «rimanda» lo toglie dalla coda e il «prossimo» annunciato lo salta.
   Le code fatte prima dell'aggiornamento vengono ripulite.
 
+### Barra e squadre
+- Le voci della barra della console hanno il nome della pagina a cui portano:
+  «Lega», «Impostazioni lega», «Giornate e voti», «Leghe e salvataggi»
+  (prima «Configurazione», con dentro i salvataggi: spariscono «Carica
+  sessione» e «Riprendi sessione»), «Portale». Unite «Stagione e storico» e
+  «Importa ed esporta», con le schede in pagina. Stessi nomi negli Strumenti
+  della Regia e nel menu dell'app.
+- Una squadra creata per sbaglio si elimina dalla sua Scheda (pagina
+  Squadre): i giocatori tornano svincolati; una squadra che ha già giocato,
+  offerto o scambiato resta.
+
 ### Tema chiaro e scuro
 - Il tema chiaro copre tutta la console e tutta l'app (prima solo la cornice
   dell'app: molte schede restavano scure o con testi bianchi sul bianco).

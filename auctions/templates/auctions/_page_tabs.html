@@ -1,0 +1,21 @@
+{% load fm_pages %}{% comment %}
+Due pagine vicine sotto una sola voce della barra (_console_head.html):
+le schede in cima a ciascuna portano all'altra, in console e nell'app (purl).
+  tabs="season": Stagione (admin_season) | Storico (admin_storico)
+  tabs="rose":   Importa rose (admin_fantapazz) | Riepilogo ed export (admin_export)
+Uso: {% include "auctions/_page_tabs.html" with tabs="season" active="season" lg=current_league %}
+{% endcomment %}{% with q=lg.id|stringformat:"s" %}
+<nav class="fm-subnav fm-onerow noprint" aria-label="Sezioni">
+    {% if tabs == "season" %}
+    <a href="{% purl 'admin_season' %}{% if lg %}?league={{ q }}{% endif %}" {% if active == "season" %}class="on" aria-current="page"{% endif %}>
+        <svg class="ic"><use href="#i-chart"/></svg> Stagione in corso</a>
+    <a href="{% purl 'admin_storico' %}{% if lg %}?league={{ q }}{% endif %}" {% if active == "storico" %}class="on" aria-current="page"{% endif %}>
+        <svg class="ic"><use href="#i-trophy"/></svg> Storico e albo d'oro</a>
+    {% elif tabs == "rose" %}
+    <a href="{% purl 'admin_fantapazz' %}{% if lg %}?league={{ q }}{% endif %}" {% if active == "import" %}class="on" aria-current="page"{% endif %}>
+        <svg class="ic"><use href="#i-import"/></svg> Importa rose</a>
+    <a href="{% purl 'admin_export' %}{% if lg %}?league={{ q }}{% endif %}" {% if active == "export" %}class="on" aria-current="page"{% endif %}>
+        <svg class="ic"><use href="#i-export"/></svg> Riepilogo ed export</a>
+    {% endif %}
+</nav>
+{% endwith %}
