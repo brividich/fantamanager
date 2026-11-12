@@ -75,6 +75,8 @@ def _sealed_rule_reject(auction, participant, value):
     """Le regole del rilancio che valgono anche alle buste, se la lega lo
     vuole (``sealed_enforce_rules``): senza, con una busta si vincerebbe un
     giocatore che a rilancio non si potrebbe comprare."""
+    if auction.player_id and not auction.player.in_listone:
+        return Reject.OUT_OF_LISTONE   # uscito dal listone: vale sempre
     if not auction.sealed_enforce_rules:
         return None
     from .bidding import gk_clubs_problem, rescinded_rebuy_blocked

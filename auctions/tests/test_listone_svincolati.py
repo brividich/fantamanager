@@ -142,3 +142,67 @@ class MigrationTests(TestCase):
         self.assertFalse(flagged.in_listone)
         release_player(flagged.id, by_admin=True)
         self.assertFalse(Player.objects.free_agents().filter(pk=flagged.pk).exists())
+
+
+class LiveAuctionOutOfListoneTests(TestCase):
+    """Asta live: chi esce dal listone non si compra e non torna sul banco."""
+
+    def setUp(self):
+        from .common import make_live_auction
+        self.league = League.objects.create(name="L", own_listone=True)
+        self.bob = Participant.objects.create(display_name="Bob", league=self.league, credits=Decimal("500"))
+        self.first = Player.objects.create(name="Aaa", role="D", league=self.league)
+        self.second = Player.objects.create(name="Bbb", role="A", league=self.league)
+        self.auction = make_live_auction(league=self.league, flow_mode=Auction.FlowMode.MANUAL,
+                                         call_order=Auction.CallOrder.ALPHA, status=Auction.Status.READY)
+        build_queue(self.auction)
+        from ..services import start_auction
+        start_auction(self.auction.id)
+        self.auction.refresh_from_db()
+
+    def _out(self, player):
+        Player.objects.filter(pk=player.pk).update(in_listone=False)
+
+    def test_no_bids_on_a_lot_that_left_the_listone(self):
+        from ..services import place_bid
+        from ..services.common import Reject
+        self.assertEqual(self.auction.player_id, self.first.id)
+        self._out(self.first)
+        res = place_bid(self.auction.id, self.bob.id, 10)
+        self.assertFalse(res.accepted)
+        self.assertEqual(res.reason, Reject.OUT_OF_LISTONE)
+
+    def test_prev_does_not_bring_back_who_left(self):
+        from ..services import manual_step
+        manual_step(self.auction.id, "next")            # Aaa invenduto, sul banco Bbb
+        self.auction.refresh_from_db()
+        self.assertEqual(self.auction.player_id, self.second.id)
+        self._out(self.first)
+        manual_step(self.auction.id, "prev")
+        self.auction.refresh_from_db()
+        self.assertEqual(self.auction.player_id, self.second.id)
+
+    def test_state_does_not_announce_who_left(self):
+        from ..services import serialize_state
+        self._out(self.second)                           # in coda, non ancora chiamato
+        state = serialize_state(self.auction)
+        self.assertIsNone(state["queue_next"])
+
+    def test_postponing_who_left_takes_him_out(self):
+        from ..services.queue import postpone_queue_item
+        self._out(self.first)                            # è sul banco senza offerte
+        postpone_queue_item(self.auction, self.first.id)
+        self.auction.refresh_from_db()
+        self.assertEqual(self.auction.player_id, self.second.id)
+        self.assertFalse(AuctionQueueItem.objects.filter(auction=self.auction, player=self.first,
+                                                         done=False).exists())
+
+    def test_migration_cleans_existing_queues(self):
+        import importlib
+        from django.apps import apps
+        mig = importlib.import_module("auctions.migrations.0078_drop_out_of_listone_from_queues")
+        self._out(self.second)
+        mig.drop_out_of_listone(apps, None)
+        self.assertFalse(AuctionQueueItem.objects.filter(auction=self.auction, player=self.second,
+                                                         done=False).exists())
+        self.assertEqual(self.auction.player_id, self.first.id)   # il banco non si tocca

@@ -58,6 +58,10 @@ Prima versione numerata (prima l'etichetta era 1.2.0, senza rilasci).
   cessione all'estero, anche dopo lo svincolo. Non si compra (buste, mercato
   libero, waiver, asta) e torna se ricompare in un listone. Nella scheda
   Listone di Calciatori lo stato «Fuori listone» li mostra all'admin.
+- Asta live: un lotto uscito dal listone mentre è sul banco non accetta più
+  rilanci né buste; «indietro» e «salta al ruolo» non lo riportano sul
+  banco, «rimanda» lo toglie dalla coda e il «prossimo» annunciato lo salta.
+  Le code fatte prima dell'aggiornamento vengono ripulite.
 
 ### Backup e ripristino
 - Su PostgreSQL (NAS, Docker) il Supervisor ripristina un backup dal browser:

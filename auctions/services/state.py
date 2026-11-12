@@ -119,7 +119,7 @@ def serialize_state(auction, now=None):
     pending = 0
     next_up = None
     if auction.flow_mode != Auction.FlowMode.CALL:
-        qs = auction.queue_items.filter(done=False).order_by("order", "id")
+        qs = auction.queue_items.filter(done=False, player__in_listone=True).order_by("order", "id")
         pending = qs.count()
         nxt = qs.first()
         # A random draw must stay a draw: the state reaches every screen and

@@ -213,13 +213,14 @@ def _role_jump_target(auction, *, forward):
         cur_rank = _role_rank_for_nav(auction, cur_role)
 
     if forward:
-        items = auction.queue_items.filter(done=False).order_by("order", "id")
+        items = auction.queue_items.filter(done=False, player__in_listone=True).order_by("order", "id")
         return next(
             (it for it in items
              if _role_rank_for_nav(auction, it.role or it.player.role) > cur_rank),
             None,
         )
-    items = auction.queue_items.filter(done=True).order_by("-order", "-id")
+    items = (auction.queue_items.filter(done=True)
+             .exclude(player__owner__isnull=True, player__in_listone=False).order_by("-order", "-id"))
     return next(
         (it for it in items
          if _role_rank_for_nav(auction, it.role or it.player.role) < cur_rank),
@@ -398,6 +399,9 @@ def postpone_queue_item(auction, player_id):
     player = Player.objects.filter(pk=player_id).first()
     if player is None:
         return None
+    if player.owner_id is None and not player.in_listone:
+        # Fuori listone: non si rimanda in coda, si toglie.
+        return exclude_queue_item(auction, player_id)
 
     existing = auction.queue_items.filter(player=player).first()
     if existing and existing.order >= _RECOVERY_BAND:

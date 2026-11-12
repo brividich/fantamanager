@@ -92,6 +92,9 @@ def place_bid(auction_id, participant_id, increment, *, user_agent="", ip_addres
     if rescinded_rebuy_blocked(auction, participant):
         return _reject(Reject.RESCINDED_REBUY)
 
+    if auction.player_id and not auction.player.in_listone:
+        return _reject(Reject.OUT_OF_LISTONE)
+
     if auction.player_id and gk_clubs_problem(participant, auction.player):
         return _reject(Reject.GK_CLUBS)
 
