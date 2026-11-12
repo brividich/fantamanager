@@ -37,6 +37,8 @@ class Reject:
     SERVER_BUSY           = "server_busy"
     # Il telefono ha già un'offerta in corso e una in attesa (consumers.BID_QUEUE).
     BID_PENDING           = "bid_pending"
+    # Il giocatore sul banco è uscito dal listone mentre era all'asta.
+    OUT_OF_LISTONE        = "out_of_listone"
 
 
 # Italian labels for every code the UI can receive — rejected bids plus the
@@ -66,6 +68,7 @@ ERROR_LABELS = {
     Reject.SEALED_NOT_CONTENDER:  "Allo spareggio partecipa solo chi ha pareggiato",
     Reject.SERVER_BUSY:           "Il server era occupato e l'offerta non è passata: rilancia di nuovo",
     Reject.BID_PENDING:           "La tua offerta di prima è ancora in corso: aspetta la risposta",
+    Reject.OUT_OF_LISTONE:        "Giocatore uscito dal listone: non si compra, la regia passa al prossimo",
     # View-level errors.
     "no_session":         "Sessione scaduta, rientra",
     "no_participant":     "Nessuna squadra selezionata",

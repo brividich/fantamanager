@@ -470,7 +470,8 @@ def _prev_target(auction, direction, cur):
     """The queue item a backward step would land on (``None`` when there is none)."""
     if direction == "prev_role":
         return _role_jump_target(auction, forward=False)
-    qs = auction.queue_items.filter(done=True)
+    # Chi è uscito dal listone (e non è in una rosa) non torna sul banco.
+    qs = auction.queue_items.filter(done=True).exclude(player__owner__isnull=True, player__in_listone=False)
     if cur is not None:
         qs = qs.filter(order__lt=cur.order)
     return qs.order_by("-order", "-id").first()
