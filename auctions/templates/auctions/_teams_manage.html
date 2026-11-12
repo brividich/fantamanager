@@ -93,6 +93,12 @@ mostra la cornice.
     .sheet-thumb span { font-size:11px; color:#888; }
     .opt-inline { display:flex; align-items:center; gap:6px; font-size:12px; text-transform:none; letter-spacing:0; }
     .opt-inline input { width:auto; margin:0; }
+    .tm-del { padding-top:0; }
+    .tm-del .acc-sec { border-bottom:0; }
+    .tm-del h4 { color:var(--fm-danger); }
+    .tm-del p { font-size:12.5px; color:var(--fm-text-secondary); line-height:1.5; margin:6px 0 8px; }
+    .tm-del-steps { margin:0; padding-left:20px; display:grid; gap:8px; font-size:13px; }
+    .tm-del-steps .opt-inline { font-size:13px; }
     @media (max-width: 520px) {
         .sheet-grid { grid-template-columns:1fr; }
         .sheet-imgs { grid-template-columns:1fr 1fr; }
@@ -238,6 +244,7 @@ mostra la cornice.
                 {% if target_auction %}direttamente nell'asta <b>{{ target_auction.title }}</b>{% else %}già riconosciuto{% endif %}
                 come la sua squadra, senza digitare codici.</li>
             <li><b>Stampa</b> la pagina per avere i QR su carta la sera dell'asta.</li>
+            <li>Una squadra in più, creata per sbaglio? Apri la sua <b>Scheda</b> e in fondo, in <b>Elimina la squadra</b>, spunta la conferma e premi <b>Elimina squadra</b>: i suoi giocatori tornano svincolati.</li>
             {% if accounts_ok %}
             <li>Dalla colonna <b>Account portale</b> dai a ogni allenatore un <b>nome utente e una password</b>
                 per entrare nell'app da qualunque dispositivo: crealo (se lasci vuota la password la genero io),
@@ -454,6 +461,30 @@ mostra la cornice.
                href="{% url 'admin_print_team_sheets' %}?league={{ current_league.id }}&team={{ r.p.id }}"><svg class="ic"><use href="#i-print"/></svg> Stampa scheda</a>
             <a class="fm-btn fm-btn-secondary fm-btn-sm"
                href="{% url 'admin_export_team_sheets' %}?league={{ current_league.id }}&team={{ r.p.id }}"><svg class="ic"><use href="#i-import"/></svg> Excel</a>
+            {% endif %}
+        </div>
+    </form>
+    {# Elimina: per la squadra creata per sbaglio (services/teams.py). #}
+    <form class="acc-dlg-body tm-del" method="post" action="{% url 'admin_delete_participant' r.p.id %}">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <div class="acc-sec">
+            <h4>Elimina la squadra</h4>
+            {% if r.removal.blocks %}
+            <p>Non si può eliminare: {{ r.removal.blocks|join:"; " }}. Quello che ha fatto resta nello
+                storico della lega. Se non gioca più, togli l'accesso dalla colonna <b>Account</b> e svincola i suoi
+                giocatori dalla scheda <b>Rose</b>.</p>
+            {% else %}
+            <p>Per una squadra creata per sbaglio o doppia: sparisce dalla lega e non si torna indietro.
+                {% if r.removal.roster %}I suoi {{ r.removal.roster }} giocatori tornano svincolati.{% endif %}
+                {% if r.removal.fixtures %}Ha {{ r.removal.fixtures }} partite del calendario ancora da giocare: spariscono,
+                poi rigenera il calendario in <b>Competizioni</b>.{% endif %}</p>
+            <ol class="tm-del-steps">
+                <li><label class="opt-inline"><input type="checkbox" name="confirm" value="1" required>
+                    Sì, elimina «{{ r.p.display_name }}»</label></li>
+                <li><button type="submit" class="fm-btn fm-btn-danger fm-btn-sm">
+                    <svg class="ic"><use href="#i-trash"/></svg> Elimina squadra</button></li>
+            </ol>
             {% endif %}
         </div>
     </form>

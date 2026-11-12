@@ -293,6 +293,12 @@ filtri a chip) va a capo su due righe, a nessuna larghezza.
   `min-width: 0`, altrimenti si allarga quanto la riga ed esce dallo schermo.
 - La barra principale della console (`_console_head.html`) non scorre: le
   voci che non ci stanno passano in «Altro» (mai la pagina attiva).
+- Ogni voce della barra ha il nome della pagina a cui porta (e lo stesso
+  nome e ordine negli Strumenti della Regia dell'app). Due pagine vicine sono
+  una voce sola, con le schede in cima a entrambe (`_page_tabs.html`):
+  «Stagione e storico» (Stagione | Storico), «Importa ed esporta» (Importa
+  rose | Riepilogo ed export). «Leghe e salvataggi» (`admin_config`) tiene
+  anche i salvataggi da riprendere.
 
 ## Tema chiaro e scuro
 
@@ -331,6 +337,9 @@ falso per chi è uscito dal listone o dalla Serie A; resta per lo storico).
 L'admin di una lega (proprietario o co-admin in `league.admins`) gestisce solo
 le sue leghe: usare `user_can_manage_league` / `manageable_leagues`
 (`views/common.py`), mai il solo `league.owner`.
+Una squadra creata per sbaglio si elimina dalla sua Scheda nella pagina
+Squadre (`services/teams.py`): i giocatori tornano svincolati. Se ha già una
+storia (punteggi, partite calcolate, offerte, buste, scambi) non si elimina.
 
 ## Stagioni
 

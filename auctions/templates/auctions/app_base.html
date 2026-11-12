@@ -568,27 +568,27 @@ window.showToast = function(msg, type) {
 
     <div style="flex:1; overflow-y:auto; padding:8px 10px; display:flex; flex-direction:column; gap:2px;">
         <a href="{% url 'app_home' %}" class="fm-drawer-link"><span class="dr-icon"><svg class="ic"><use href="#i-home"/></svg></span> <span>Home</span></a>
-        <a href="{% url 'app_rosa' %}" class="fm-drawer-link"><span class="dr-icon"><svg class="ic"><use href="#i-shirt"/></svg></span> <span>La tua Rosa</span></a>
+        <a href="{% url 'app_rosa' %}" class="fm-drawer-link"><span class="dr-icon"><svg class="ic"><use href="#i-shirt"/></svg></span> <span>La mia rosa</span></a>
         <a href="{% url 'app_formazione' %}" class="fm-drawer-link"><span class="dr-icon"><svg class="ic"><use href="#i-table"/></svg></span> <span>Formazione</span></a>
-        <a href="{% url 'app_live' %}" class="fm-drawer-link"><span class="dr-icon" style="color:var(--fm-sky)"><svg class="ic"><use href="#i-pulse"/></svg></span> <span>Live Risultati</span></a>
-        <a href="{% url 'app_mercato' %}" class="fm-drawer-link"><span class="dr-icon"><svg class="ic"><use href="#i-swap"/></svg></span> <span>Mercato & Buste</span></a>
+        <a href="{% url 'app_live' %}" class="fm-drawer-link"><span class="dr-icon" style="color:var(--fm-sky)"><svg class="ic"><use href="#i-pulse"/></svg></span> <span>Live risultati</span></a>
+        <a href="{% url 'app_mercato' %}" class="fm-drawer-link"><span class="dr-icon"><svg class="ic"><use href="#i-swap"/></svg></span> <span>Mercato</span></a>
         <a href="{% url 'app_scambi' %}" class="fm-drawer-link"><span class="dr-icon"><svg class="ic"><use href="#i-swap"/></svg></span> <span>Scambi</span></a>
         <a href="{% url 'app_footballers' %}" class="fm-drawer-link"><span class="dr-icon"><svg class="ic"><use href="#i-ball"/></svg></span> <span>Calciatori</span></a>
-        <a href="{% url 'app_lega' %}" class="fm-drawer-link"><span class="dr-icon" style="color:var(--fm-yellow-500)"><svg class="ic"><use href="#i-trophy"/></svg></span> <span>Classifiche e Lega</span></a>
+        <a href="{% url 'app_lega' %}" class="fm-drawer-link"><span class="dr-icon" style="color:var(--fm-yellow-500)"><svg class="ic"><use href="#i-trophy"/></svg></span> <span>Lega e classifiche</span></a>
         
         <div style="height:1px; background:var(--line); margin:8px 6px;"></div>
 
         {% if is_app_admin %}
-        <a href="{% url 'app_regia' %}" class="fm-drawer-link" style="color:var(--paused);"><span class="dr-icon" style="color:var(--paused); background:rgba(255,181,38,0.12);"><svg class="ic"><use href="#i-gavel"/></svg></span> <span>Regia Admin</span></a>
+        <a href="{% url 'app_regia' %}" class="fm-drawer-link" style="color:var(--paused);"><span class="dr-icon" style="color:var(--paused); background:rgba(255,181,38,0.12);"><svg class="ic"><use href="#i-gavel"/></svg></span> <span>Regia</span></a>
         <a href="{% url 'app_regia_league_settings' %}" class="fm-drawer-link"><span class="dr-icon"><svg class="ic"><use href="#i-gear"/></svg></span> <span>Impostazioni lega</span></a>
         {% endif %}
-        <a href="{% url 'app_altro' %}" class="fm-drawer-link"><span class="dr-icon"><svg class="ic"><use href="#i-gear"/></svg></span> <span>Impostazioni & PIN</span></a>
+        <a href="{% url 'app_altro' %}" class="fm-drawer-link"><span class="dr-icon"><svg class="ic"><use href="#i-gear"/></svg></span> <span>Altro: account, PIN, tema</span></a>
         <a href="#" data-fm-theme-toggle class="fm-drawer-link"><span class="dr-icon"><svg class="ic"><use href="#i-sun"/></svg></span> <span>Tema: <span data-fm-theme-now>Scuro</span> (tocca per cambiare)</span></a>
     </div>
 
     <div style="padding:10px 14px; border-top:1px solid var(--line); display:flex; flex-direction:column; gap:6px;">
         <a href="{% url 'home_portal' %}" style="display:flex; align-items:center; justify-content:center; gap:8px; padding:10px; border-radius:10px; text-decoration:none; font-size:12px; font-weight:800; color:var(--muted); background:var(--panel-2); border:1px solid var(--line);">
-            <svg class="ic" style="width:16px;height:16px;"><use href="#i-home"/></svg> Portale Principale
+            <svg class="ic" style="width:16px;height:16px;"><use href="#i-home"/></svg> Portale
         </a>
     </div>
 </aside>

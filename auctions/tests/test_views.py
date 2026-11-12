@@ -625,8 +625,8 @@ class SetupWizardTests(TestCase):
 
     def test_dashboard_start_screen_when_no_auction(self):
         resp = self.client.get("/admin-auction/")
-        self.assertContains(resp, "Riprendi sessione")
-        self.assertContains(resp, "Carica sessione")
+        # Salvataggi da riprendere: in «Leghe e salvataggi» (Altro).
+        self.assertContains(resp, "Leghe e salvataggi")
 
     def test_start_screen_hides_the_console_until_an_auction_is_picked(self):
         """With nothing on the table only the ways in are shown.
