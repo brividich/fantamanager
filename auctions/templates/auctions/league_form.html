@@ -19,12 +19,12 @@
     .rm-btn { background:transparent; border:1px solid rgba(248,113,113,.45); color:var(--closed); padding:13px 0; }
     .rm-btn:hover { background:rgba(248,113,113,.08); filter:none; }
     .attach-list { max-height:200px; overflow:auto; padding:4px 12px; margin-top:6px; }
-    .attach-item { display:flex; align-items:center; gap:10px; padding:9px 4px; border-bottom:1px solid rgba(255,255,255,.05); }
+    .attach-item { display:flex; align-items:center; gap:10px; padding:9px 4px; border-bottom:1px solid rgba(var(--fm-tint-rgb),.05); }
     .attach-item:last-child { border-bottom:0; }
     .attach-item input { width:auto; margin:0; }
     .hint { font-size:13px; color:var(--muted); margin-top:8px; }
     .opt-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:10px; }
-    .opt .opt-t { font-family:var(--display); font-weight:900; font-size:16px; text-transform:uppercase; letter-spacing:.02em; color:#fff; }
+    .opt .opt-t { font-family:var(--display); font-weight:900; font-size:16px; text-transform:uppercase; letter-spacing:.02em; color:var(--fm-strong); }
     input.bad { border-color:var(--closed) !important; }
 </style>
 

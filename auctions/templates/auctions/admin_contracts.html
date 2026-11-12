@@ -23,7 +23,7 @@
         flex-wrap: wrap;
         margin-bottom: 20px;
         padding-bottom: 14px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        border-bottom: 1px solid rgba(var(--fm-tint-rgb), 0.08);
     }
     .ct-head-info {
         flex: 1;
@@ -40,7 +40,7 @@
         height: 36px;
         border-radius: 10px;
         background: rgba(16, 185, 129, 0.12);
-        color: #10b981;
+        color: var(--fm-emerald-500);
         border: 1px solid rgba(16, 185, 129, 0.25);
         display: flex;
         align-items: center;
@@ -53,11 +53,11 @@
         font-weight: 900;
         letter-spacing: .01em;
         line-height: 1.2;
-        color: var(--ink-bright, #fff);
+        color: var(--fm-strong);
     }
     .ct-head-sub {
         font-size: 13px;
-        color: var(--muted, #94a3b8);
+        color: var(--muted, var(--fm-slate-400));
         margin-top: 5px;
         line-height: 1.45;
         max-width: 780px;
@@ -69,8 +69,8 @@
         gap: 8px;
         align-items: center;
         flex-wrap: wrap;
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 255, 255, 0.07);
+        background: rgba(var(--fm-tint-rgb), 0.03);
+        border: 1px solid rgba(var(--fm-tint-rgb), 0.07);
         border-radius: 10px;
         padding: 6px 10px;
     }
@@ -80,10 +80,10 @@
         gap: 6px;
         font-size: 12.5px;
         font-weight: 800;
-        color: var(--ink-bright, #fff);
+        color: var(--fm-strong);
         padding: 4px 10px;
-        background: rgba(255, 255, 255, 0.06);
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(var(--fm-tint-rgb), 0.06);
+        border: 1px solid rgba(var(--fm-tint-rgb), 0.1);
         border-radius: 7px;
     }
     .ct-bar form { margin: 0; }
@@ -94,7 +94,7 @@
         padding: 6px 10px;
         border-radius: 8px;
         border: 1px solid var(--line);
-        background: var(--panel-2, rgba(0, 0, 0, 0.35));
+        background: var(--panel-2, var(--fm-well));
         color: var(--ink, #f1f5f9);
         font-size: 13px;
         box-sizing: border-box;
@@ -103,7 +103,7 @@
         transition: border-color .15s ease, box-shadow .15s ease;
     }
     .ct-in:focus {
-        border-color: var(--accent, #10b981);
+        border-color: var(--accent, var(--fm-emerald-500));
         box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
     }
 
@@ -118,8 +118,8 @@
         font-weight: 800;
         border-radius: 8px;
         cursor: pointer;
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(var(--fm-tint-rgb), 0.12);
+        background: rgba(var(--fm-tint-rgb), 0.06);
         color: var(--ink, #f1f5f9);
         display: inline-flex;
         align-items: center;
@@ -132,15 +132,15 @@
         user-select: none;
     }
     .ct-btn:hover {
-        background: rgba(255, 255, 255, 0.12);
-        border-color: rgba(255, 255, 255, 0.25);
-        color: var(--ink-bright, #fff);
+        background: rgba(var(--fm-tint-rgb), 0.12);
+        border-color: rgba(var(--fm-tint-rgb), 0.25);
+        color: var(--fm-strong);
     }
     .ct-btn:active { transform: scale(0.97); }
     .ct-btn.go {
-        background: var(--accent, #10b981);
+        background: var(--accent, var(--fm-emerald-500));
         color: #062419;
-        border-color: var(--accent, #10b981);
+        border-color: var(--accent, var(--fm-emerald-500));
         box-shadow: 0 2px 8px -2px rgba(16, 185, 129, 0.4);
     }
     .ct-btn.go:hover {
@@ -159,18 +159,18 @@
         font-weight: 800;
         padding: 3px 8px;
         border-radius: 999px;
-        background: rgba(255, 255, 255, 0.06);
-        color: var(--muted, #94a3b8);
+        background: rgba(var(--fm-tint-rgb), 0.06);
+        color: var(--muted, var(--fm-slate-400));
         display: inline-flex;
         align-items: center;
         gap: 4px;
         white-space: nowrap;
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(var(--fm-tint-rgb), 0.08);
     }
-    .ct-pill.info { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border-color: rgba(59, 130, 246, 0.3); }
-    .ct-pill.warn { background: rgba(234, 179, 8, 0.15); color: #fbbf24; border-color: rgba(234, 179, 8, 0.3); }
-    .ct-pill.bad { background: rgba(239, 68, 68, 0.15); color: #f87171; border-color: rgba(239, 68, 68, 0.3); }
-    .ct-pill.good { background: rgba(16, 185, 129, 0.15); color: #34d399; border-color: rgba(16, 185, 129, 0.3); }
+    .ct-pill.info { background: rgba(59, 130, 246, 0.15); color: var(--fm-blue-400); border-color: rgba(59, 130, 246, 0.3); }
+    .ct-pill.warn { background: rgba(234, 179, 8, 0.15); color: var(--fm-amber-400); border-color: rgba(234, 179, 8, 0.3); }
+    .ct-pill.bad { background: rgba(239, 68, 68, 0.15); color: var(--fm-red-400); border-color: rgba(239, 68, 68, 0.3); }
+    .ct-pill.good { background: rgba(16, 185, 129, 0.15); color: var(--fm-emerald-400); border-color: rgba(16, 185, 129, 0.3); }
 
     .ct-comp-badge {
         font-size: 12.5px;
@@ -183,14 +183,14 @@
         border-radius: 8px;
         background: rgba(16, 185, 129, 0.16);
         border: 1px solid rgba(16, 185, 129, 0.35);
-        color: #34d399;
+        color: var(--fm-emerald-400);
         white-space: nowrap;
         box-sizing: border-box;
     }
     .ct-comp-badge.warn {
         background: rgba(234, 179, 8, 0.15);
         border-color: rgba(234, 179, 8, 0.35);
-        color: #fbbf24;
+        color: var(--fm-amber-400);
     }
 
     /* ==========================================================================
@@ -198,7 +198,7 @@
        ========================================================================== */
     .ct-settings-card {
         background: var(--fm-card, var(--panel-2, #111a2d));
-        border: 1px solid var(--fm-border, var(--line, rgba(255, 255, 255, 0.1)));
+        border: 1px solid var(--fm-border, var(--line, rgba(var(--fm-tint-rgb), 0.1)));
         border-radius: 14px;
         padding: 22px;
         margin-bottom: 22px;
@@ -211,7 +211,7 @@
         position: absolute;
         top: 0; left: 0; right: 0;
         height: 2px;
-        background: linear-gradient(90deg, #10b981 0%, #06b6d4 50%, #3b82f6 100%);
+        background: linear-gradient(90deg, var(--fm-emerald-500) 0%, var(--fm-cyan-500) 50%, #3b82f6 100%);
         opacity: 0.85;
     }
     .ct-settings-head {
@@ -222,7 +222,7 @@
         flex-wrap: wrap;
         margin-bottom: 20px;
         padding-bottom: 14px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+        border-bottom: 1px solid rgba(var(--fm-tint-rgb), 0.07);
     }
     .ct-settings-title-group {
         display: flex;
@@ -234,7 +234,7 @@
         height: 38px;
         border-radius: 10px;
         background: rgba(16, 185, 129, 0.12);
-        color: #10b981;
+        color: var(--fm-emerald-500);
         border: 1px solid rgba(16, 185, 129, 0.25);
         display: flex;
         align-items: center;
@@ -246,11 +246,11 @@
         font-size: 16px;
         font-weight: 800;
         letter-spacing: .01em;
-        color: var(--ink-bright, #fff);
+        color: var(--fm-strong);
     }
     .ct-settings-sub {
         font-size: 12.5px;
-        color: var(--muted, #94a3b8);
+        color: var(--muted, var(--fm-slate-400));
         margin-top: 2px;
     }
     .ct-status-chip {
@@ -261,15 +261,15 @@
         font-weight: 700;
         padding: 5px 12px;
         border-radius: 999px;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        background: rgba(255, 255, 255, 0.04);
-        color: var(--muted, #94a3b8);
+        border: 1px solid rgba(var(--fm-tint-rgb), 0.1);
+        background: rgba(var(--fm-tint-rgb), 0.04);
+        color: var(--muted, var(--fm-slate-400));
         transition: all .2s ease;
     }
     .ct-status-chip.active {
         background: rgba(16, 185, 129, 0.12);
         border-color: rgba(16, 185, 129, 0.3);
-        color: #34d399;
+        color: var(--fm-emerald-400);
     }
     .ct-status-dot {
         width: 7px;
@@ -278,7 +278,7 @@
         background: currentColor;
     }
     .ct-status-chip.active .ct-status-dot {
-        box-shadow: 0 0 8px #10b981;
+        box-shadow: 0 0 8px var(--fm-emerald-500);
     }
 
     /* Top Config Grid */
@@ -289,8 +289,8 @@
         margin-bottom: 20px;
     }
     .ct-config-card {
-        background: rgba(255, 255, 255, 0.025);
-        border: 1px solid rgba(255, 255, 255, 0.07);
+        background: rgba(var(--fm-tint-rgb), 0.025);
+        border: 1px solid rgba(var(--fm-tint-rgb), 0.07);
         border-radius: 12px;
         padding: 14px 16px;
         display: flex;
@@ -299,8 +299,8 @@
         transition: border-color .15s ease, background .15s ease;
     }
     .ct-config-card:hover {
-        border-color: rgba(255, 255, 255, 0.15);
-        background: rgba(255, 255, 255, 0.035);
+        border-color: rgba(var(--fm-tint-rgb), 0.15);
+        background: rgba(var(--fm-tint-rgb), 0.035);
     }
     .ct-toggle-card {
         cursor: pointer;
@@ -323,15 +323,15 @@
         width: 44px;
         height: 24px;
         border-radius: 999px;
-        background: rgba(255, 255, 255, 0.15);
+        background: rgba(var(--fm-tint-rgb), 0.15);
         position: relative;
         flex-shrink: 0;
         transition: background .2s ease, border-color .2s ease;
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(var(--fm-tint-rgb), 0.1);
     }
     .ct-switch-input:checked + .ct-switch-track {
-        background: #10b981;
-        border-color: #10b981;
+        background: var(--fm-emerald-500);
+        border-color: var(--fm-emerald-500);
     }
     .ct-switch-thumb {
         position: absolute;
@@ -356,22 +356,22 @@
     .ct-card-label {
         font-size: 13.5px;
         font-weight: 700;
-        color: var(--ink-bright, #fff);
+        color: var(--fm-strong);
         display: flex;
         align-items: center;
         gap: 6px;
     }
     .ct-card-desc {
         font-size: 11.5px;
-        color: var(--muted, #94a3b8);
+        color: var(--muted, var(--fm-slate-400));
         line-height: 1.35;
     }
     .ct-card-desc code {
         font-size: 11px;
-        background: rgba(255,255,255,0.06);
+        background: rgba(var(--fm-tint-rgb),0.06);
         padding: 1px 5px;
         border-radius: 4px;
-        color: #38bdf8;
+        color: var(--fm-sky-400);
     }
     .ct-config-card-header {
         display: flex;
@@ -386,14 +386,14 @@
         letter-spacing: .06em;
         padding: 2px 6px;
         border-radius: 5px;
-        background: rgba(255, 255, 255, 0.06);
-        color: var(--muted, #94a3b8);
+        background: rgba(var(--fm-tint-rgb), 0.06);
+        color: var(--muted, var(--fm-slate-400));
     }
 
     /* Thresholds Section */
     .ct-thresholds-wrapper {
-        background: rgba(255, 255, 255, 0.015);
-        border: 1px solid rgba(255, 255, 255, 0.06);
+        background: rgba(var(--fm-tint-rgb), 0.015);
+        border: 1px solid rgba(var(--fm-tint-rgb), 0.06);
         border-radius: 12px;
         padding: 18px;
         margin-bottom: 20px;
@@ -405,14 +405,14 @@
         margin: 0;
         font-size: 14.5px;
         font-weight: 800;
-        color: var(--ink-bright, #fff);
+        color: var(--fm-strong);
         display: flex;
         align-items: center;
         gap: 6px;
     }
     .ct-section-desc {
         font-size: 12px;
-        color: var(--muted, #94a3b8);
+        color: var(--muted, var(--fm-slate-400));
         margin: 4px 0 0;
         line-height: 1.45;
     }
@@ -434,9 +434,9 @@
         font-weight: 800;
         text-transform: uppercase;
         letter-spacing: .06em;
-        color: var(--muted, #94a3b8);
+        color: var(--muted, var(--fm-slate-400));
         padding: 10px 14px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        border-bottom: 1px solid rgba(var(--fm-tint-rgb), 0.08);
         white-space: nowrap;
     }
     .ct-thresholds-table th .th-hint {
@@ -445,19 +445,19 @@
         font-weight: 500;
         text-transform: none;
         letter-spacing: normal;
-        color: rgba(148, 163, 184, 0.7);
+        color: var(--fm-text-muted);
         margin-top: 2px;
     }
     .ct-thresholds-table td {
         padding: 11px 14px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        border-bottom: 1px solid rgba(var(--fm-tint-rgb), 0.04);
         vertical-align: middle;
     }
     .ct-thresholds-table tr:last-child td {
         border-bottom: none;
     }
     .ct-thresholds-table tr:hover td {
-        background: rgba(255, 255, 255, 0.02);
+        background: rgba(var(--fm-tint-rgb), 0.02);
     }
     .ct-thresholds-table .col-role {
         width: 220px;
@@ -476,7 +476,7 @@
     .ct-role-text {
         font-weight: 700;
         font-size: 13.5px;
-        color: var(--ink-bright, #fff);
+        color: var(--fm-strong);
     }
     .ct-field-with-suffix {
         display: inline-flex;
@@ -497,21 +497,21 @@
         right: 8px;
         font-size: 10.5px;
         font-weight: 800;
-        color: var(--muted, #94a3b8);
+        color: var(--muted, var(--fm-slate-400));
         pointer-events: none;
-        background: rgba(255,255,255,0.06);
+        background: rgba(var(--fm-tint-rgb),0.06);
         padding: 2px 5px;
         border-radius: 4px;
     }
     .ct-cell-helper {
         display: block;
         font-size: 11px;
-        color: var(--muted, #94a3b8);
+        color: var(--muted, var(--fm-slate-400));
         margin-top: 3px;
     }
     .ct-cell-helper code {
         font-size: 10.5px;
-        color: #38bdf8;
+        color: var(--fm-sky-400);
     }
 
     /* Settings Footer Actions */
@@ -532,7 +532,7 @@
     }
     .ct-footer-hint {
         font-size: 12px;
-        color: var(--muted, #94a3b8);
+        color: var(--muted, var(--fm-slate-400));
     }
 
     /* ==========================================================================
@@ -551,7 +551,7 @@
     .ct-teams-bar .ct-teams-label {
         font-weight: 800;
         font-size: 15px;
-        color: var(--ink-bright, #fff);
+        color: var(--fm-strong);
         margin-right: auto;
         display: inline-flex;
         align-items: center;
@@ -581,7 +581,7 @@
         transition: border-color .15s ease, box-shadow .15s ease;
     }
     .ct-team:hover {
-        border-color: rgba(255, 255, 255, 0.18);
+        border-color: rgba(var(--fm-tint-rgb), 0.18);
     }
     .ct-team > summary {
         cursor: pointer;
@@ -593,16 +593,16 @@
         align-items: center;
         justify-content: space-between;
         gap: 10px;
-        background: rgba(255, 255, 255, 0.02);
+        background: rgba(var(--fm-tint-rgb), 0.02);
         transition: background .15s ease;
     }
     .ct-team > summary:hover {
-        background: rgba(255, 255, 255, 0.04);
+        background: rgba(var(--fm-tint-rgb), 0.04);
     }
     .ct-team > summary::-webkit-details-marker { display: none; }
     .ct-team[open] > summary {
-        border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-        background: rgba(255, 255, 255, 0.03);
+        border-bottom: 1px solid rgba(var(--fm-tint-rgb), 0.07);
+        background: rgba(var(--fm-tint-rgb), 0.03);
     }
     .ct-team-summary-title {
         display: flex;
@@ -610,20 +610,20 @@
         gap: 8px;
         font-size: 14.5px;
         font-weight: 800;
-        color: var(--ink-bright, #fff);
+        color: var(--fm-strong);
         margin: 0;
         min-width: 0;
     }
     .ct-team-chevron {
         font-size: 11px;
-        color: var(--muted, #94a3b8);
+        color: var(--muted, var(--fm-slate-400));
         transition: transform .2s ease;
         display: inline-block;
         flex-shrink: 0;
     }
     .ct-team[open] .ct-team-chevron {
         transform: rotate(90deg);
-        color: var(--accent, #10b981);
+        color: var(--accent, var(--fm-emerald-500));
     }
     .ct-team-badges {
         display: flex;
@@ -639,7 +639,7 @@
     /* Player Row: Fluid on Desktop */
     .ct-row {
         box-sizing: border-box;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        border-bottom: 1px solid rgba(var(--fm-tint-rgb), 0.04);
         padding: 8px 8px;
         display: flex;
         align-items: center;
@@ -650,7 +650,7 @@
     }
     .ct-row:last-child { border-bottom: none; }
     .ct-row:hover {
-        background: rgba(255, 255, 255, 0.035);
+        background: rgba(var(--fm-tint-rgb), 0.035);
     }
     .ct-row-top {
         display: flex;
@@ -673,7 +673,7 @@
     .ct-name {
         font-weight: 700;
         font-size: 13.5px;
-        color: var(--ink-bright, #fff);
+        color: var(--fm-strong);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -683,8 +683,8 @@
     .ct-cost {
         font-size: 11.5px;
         font-weight: 800;
-        color: var(--muted, #94a3b8);
-        background: rgba(255, 255, 255, 0.05);
+        color: var(--muted, var(--fm-slate-400));
+        background: rgba(var(--fm-tint-rgb), 0.05);
         padding: 2px 7px;
         border-radius: 6px;
         white-space: nowrap;
@@ -695,14 +695,14 @@
         font-weight: 800;
         padding: 2.5px 8px;
         border-radius: 6px;
-        background: rgba(255, 255, 255, 0.06);
-        color: var(--muted, #94a3b8);
+        background: rgba(var(--fm-tint-rgb), 0.06);
+        color: var(--muted, var(--fm-slate-400));
         white-space: nowrap;
         flex-shrink: 0;
     }
-    .ct-years.pending { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.25); }
-    .ct-years.exp { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.25); }
-    .ct-years.last { background: rgba(234, 179, 8, 0.15); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.25); }
+    .ct-years.pending { background: rgba(59, 130, 246, 0.15); color: var(--fm-blue-400); border: 1px solid rgba(59, 130, 246, 0.25); }
+    .ct-years.exp { background: rgba(239, 68, 68, 0.15); color: var(--fm-red-400); border: 1px solid rgba(239, 68, 68, 0.25); }
+    .ct-years.last { background: rgba(234, 179, 8, 0.15); color: var(--fm-amber-400); border: 1px solid rgba(234, 179, 8, 0.25); }
 
     .ct-act {
         display: flex;
@@ -757,7 +757,7 @@
             align-items: stretch;
             gap: 8px;
             padding: 10px 10px;
-            background: rgba(255, 255, 255, 0.02);
+            background: rgba(var(--fm-tint-rgb), 0.02);
             border: 1px solid var(--line);
             border-radius: 10px;
             margin-bottom: 8px;
@@ -769,7 +769,7 @@
         .ct-act {
             width: 100%;
             padding-top: 6px;
-            border-top: 1px solid rgba(255, 255, 255, 0.06);
+            border-top: 1px solid rgba(var(--fm-tint-rgb), 0.06);
         }
         .ct-act form {
             width: 100%;
@@ -794,7 +794,7 @@
        ========================================================================== */
     .ct-departures-card {
         background: var(--fm-card, var(--panel-2, #111a2d));
-        border: 1px solid var(--fm-border, var(--line, rgba(255, 255, 255, 0.1)));
+        border: 1px solid var(--fm-border, var(--line, rgba(var(--fm-tint-rgb), 0.1)));
         border-radius: 14px;
         padding: 22px;
         margin-top: 22px;
@@ -807,7 +807,7 @@
         position: absolute;
         top: 0; left: 0; right: 0;
         height: 2px;
-        background: linear-gradient(90deg, #f59e0b 0%, #ef4444 100%);
+        background: linear-gradient(90deg, var(--fm-amber-500) 0%, var(--fm-red-500) 100%);
         opacity: 0.8;
     }
     .ct-departures-head {
@@ -827,7 +827,7 @@
         margin: 0;
         font-size: 16px;
         font-weight: 800;
-        color: var(--ink-bright, #fff);
+        color: var(--fm-strong);
     }
     .ct-departures-pills {
         display: flex;
@@ -844,8 +844,8 @@
         gap: 12px;
         flex-wrap: wrap;
         padding: 12px 14px;
-        background: rgba(255, 255, 255, 0.02);
-        border: 1px solid rgba(255, 255, 255, 0.06);
+        background: rgba(var(--fm-tint-rgb), 0.02);
+        border: 1px solid rgba(var(--fm-tint-rgb), 0.06);
         border-radius: 10px;
         margin-bottom: 16px;
     }
@@ -876,9 +876,9 @@
     /* Left Serie A item: fluid desktop card */
     .ct-left-item {
         padding: 12px 16px;
-        border: 1px solid rgba(255, 255, 255, 0.07);
+        border: 1px solid rgba(var(--fm-tint-rgb), 0.07);
         border-radius: 12px;
-        background: rgba(255, 255, 255, 0.025);
+        background: rgba(var(--fm-tint-rgb), 0.025);
         margin-bottom: 10px;
         display: flex;
         align-items: center;
@@ -888,8 +888,8 @@
         transition: border-color .15s ease, background .15s ease;
     }
     .ct-left-item:hover {
-        border-color: rgba(255, 255, 255, 0.16);
-        background: rgba(255, 255, 255, 0.04);
+        border-color: rgba(var(--fm-tint-rgb), 0.16);
+        background: rgba(var(--fm-tint-rgb), 0.04);
     }
     .ct-left-info {
         display: flex;
@@ -920,11 +920,11 @@
     .ct-left-meta-main .ct-name {
         font-size: 14.5px;
         font-weight: 800;
-        color: var(--ink-bright, #fff);
+        color: var(--fm-strong);
     }
     .ct-left-details {
         font-size: 12px;
-        color: var(--muted, #94a3b8);
+        color: var(--muted, var(--fm-slate-400));
         display: inline-flex;
         align-items: center;
         gap: 6px;
@@ -1026,8 +1026,8 @@
             box-sizing: border-box;
         }
         .ct-thresholds-table tr {
-            background: rgba(255, 255, 255, 0.025);
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(var(--fm-tint-rgb), 0.025);
+            border: 1px solid rgba(var(--fm-tint-rgb), 0.08);
             border-radius: 10px;
             padding: 12px;
             margin-bottom: 10px;
@@ -1039,7 +1039,7 @@
         .ct-thresholds-table .col-role {
             padding-bottom: 8px;
             margin-bottom: 6px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            border-bottom: 1px solid rgba(var(--fm-tint-rgb), 0.06);
         }
         .ct-field-with-suffix { width: 100%; }
         .ct-field-with-suffix input.ct-in { width: 100%; }
@@ -1056,7 +1056,7 @@
        ========================================================================== */
     .ct-log-card {
         background: var(--fm-card, var(--panel-2, #111a2d));
-        border: 1px solid var(--fm-border, var(--line, rgba(255, 255, 255, 0.1)));
+        border: 1px solid var(--fm-border, var(--line, rgba(var(--fm-tint-rgb), 0.1)));
         border-radius: 14px;
         padding: 20px 22px;
         margin-top: 22px;
@@ -1075,13 +1075,13 @@
         gap: 12px;
         padding: 8px 12px;
         border-radius: 8px;
-        background: rgba(255, 255, 255, 0.02);
-        border: 1px solid rgba(255, 255, 255, 0.04);
+        background: rgba(var(--fm-tint-rgb), 0.02);
+        border: 1px solid rgba(var(--fm-tint-rgb), 0.04);
         font-size: 12.5px;
         transition: background .12s ease;
     }
     .ct-log-item:hover {
-        background: rgba(255, 255, 255, 0.04);
+        background: rgba(var(--fm-tint-rgb), 0.04);
     }
     .ct-log-left {
         display: flex;
@@ -1093,15 +1093,15 @@
     }
     .ct-log-time {
         font-size: 11.5px;
-        color: var(--muted, #94a3b8);
+        color: var(--muted, var(--fm-slate-400));
         font-family: monospace;
-        background: rgba(255, 255, 255, 0.05);
+        background: rgba(var(--fm-tint-rgb), 0.05);
         padding: 2px 6px;
         border-radius: 4px;
     }
     .ct-log-kind {
         font-weight: 700;
-        color: var(--ink-bright, #fff);
+        color: var(--fm-strong);
     }
     .ct-log-target {
         color: var(--ink, #f1f5f9);
@@ -1143,7 +1143,7 @@
         </span>
         {% if current_league.renewals_open %}
         <span class="ct-pill warn">
-            <span class="ct-status-dot" style="background:#fbbf24"></span>
+            <span class="ct-status-dot" style="background:var(--fm-amber-400)"></span>
             <span>Rinnovi aperti</span>
         </span>
         {% endif %}
@@ -1211,7 +1211,7 @@
 {% if messages %}
 <div style="margin-bottom:16px">
     {% for msg in messages %}
-    <div class="saved-flash" style="{% if msg.tags == 'error' %}background:rgba(239,68,68,0.15);color:#ef4444;border-color:rgba(239,68,68,0.3){% else %}background:var(--accent-soft);color:var(--accent-bright);border-color:var(--accent-line){% endif %}">{{ msg }}</div>
+    <div class="saved-flash" style="{% if msg.tags == 'error' %}background:rgba(239,68,68,0.15);color:var(--fm-red-500);border-color:rgba(239,68,68,0.3){% else %}background:var(--accent-soft);color:var(--accent-bright);border-color:var(--accent-line){% endif %}">{{ msg }}</div>
     {% endfor %}
 </div>
 {% endif %}
@@ -1506,17 +1506,17 @@
         <div class="ct-departures-pills">
             {% if apifootball and api_status.outage %}
             <span class="ct-pill warn" title="{{ api_status.outage.reason }}">
-                <span class="ct-status-dot" style="background:#f59e0b"></span>
+                <span class="ct-status-dot" style="background:var(--fm-amber-500)"></span>
                 <span>API-Football ferma fino alle {{ api_status.outage.until|time:"H:i" }}</span>
             </span>
             {% elif apifootball %}
             <span class="ct-pill good">
-                <span class="ct-status-dot" style="background:#22c55e"></span>
+                <span class="ct-status-dot" style="background:var(--fm-green-500)"></span>
                 <span>API-Football attiva</span>
             </span>
             {% else %}
             <span class="ct-pill bad">
-                <span class="ct-status-dot" style="background:#ef4444"></span>
+                <span class="ct-status-dot" style="background:var(--fm-red-500)"></span>
                 <span>API-Football non configurata</span>
             </span>
             {% endif %}
@@ -1565,7 +1565,7 @@
         <div class="ct-toolbar-group">
             <form method="post" action="{% url 'admin_contracts_action' %}" class="ct-manual-flag-form">
                 {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="left_flag">
-                <span style="font-weight:700;font-size:12.5px;color:var(--ink-bright,#fff)">Segnala a mano:</span>
+                <span style="font-weight:700;font-size:12.5px;color:var(--fm-strong)">Segnala a mano:</span>
                 <select name="player_id">
                     {% for p in flaggable %}<option value="{{ p.id }}">{{ p.owner.display_name }} · {{ p.role }} {{ p.name }}</option>{% endfor %}
                 </select>
@@ -1575,7 +1575,7 @@
     </div>
 
     {% if roster_check %}
-    <div id="roster-check" data-status="{{ roster_check.status }}" style="font-size:12.5px;margin-bottom:14px;padding:10px 14px;border-radius:10px;border:1px solid var(--line);{% if roster_check.status == 'done' and roster_check.found %}background:rgba(234,179,8,0.12);border-color:rgba(234,179,8,0.3){% else %}background:rgba(255,255,255,0.03){% endif %}">
+    <div id="roster-check" data-status="{{ roster_check.status }}" style="font-size:12.5px;margin-bottom:14px;padding:10px 14px;border-radius:10px;border:1px solid var(--line);{% if roster_check.status == 'done' and roster_check.found %}background:rgba(234,179,8,0.12);border-color:rgba(234,179,8,0.3){% else %}background:rgba(var(--fm-tint-rgb),0.03){% endif %}">
         {% if roster_check.status == "running" %}
             <b>Controllo delle rose in corso</b>{% if roster_check.total %}: {{ roster_check.done }}/{{ roster_check.total }} club{% endif %} · avviato alle {{ roster_check.started_at|date:"H:i" }}. La pagina si aggiorna da sola.
         {% elif roster_check.status == "interrupted" %}
@@ -1597,7 +1597,7 @@
             <div class="ct-left-meta-main">
                 <span class="ct-name">{{ p.name }}</span>
                 <span class="ct-left-details">
-                    <b style="color:var(--ink-bright,#fff)">{{ p.owner.display_name }}</b>
+                    <b style="color:var(--fm-strong)">{{ p.owner.display_name }}</b>
                     <span>· fuori dal {{ p.left_serie_a_at|date:"d/m" }}</span>
                     {% if p.left_club %}<span>· → <b style="color:var(--accent)">{{ p.left_club }}</b></span>{% endif %}
                 </span>
@@ -1634,7 +1634,7 @@
 
     <!-- Listed Abroad Outflows -->
     {% if listed %}
-    <h4 style="margin:20px 0 10px;font-size:14.5px;font-weight:800;color:var(--ink-bright,#fff);display:flex;align-items:center;gap:8px">
+    <h4 style="margin:20px 0 10px;font-size:14.5px;font-weight:800;color:var(--fm-strong);display:flex;align-items:center;gap:8px">
         <span>Lista ceduti temporanei</span>
         <span class="ct-pill info">{{ listed|length }}</span>
     </h4>
@@ -1645,7 +1645,7 @@
             <div class="ct-left-meta-main">
                 <span class="ct-name">{{ p.name }}</span>
                 <span class="ct-left-details">
-                    <b style="color:var(--ink-bright,#fff)">{{ p.owner.display_name }}</b>
+                    <b style="color:var(--fm-strong)">{{ p.owner.display_name }}</b>
                     <span>· {{ p.left_club|default:"estero" }}</span>
                     <span>· {{ p.contract_years|default_if_none:"?" }} ann{{ p.contract_years|pluralize:"o,i" }}</span>
                 </span>
@@ -1664,8 +1664,8 @@
     {% endif %}
 
     <!-- UEFA Ranking Accordion -->
-    <details id="uefa-ranking" style="margin-top:16px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:12px 14px"{% if not uefa_count %} open{% endif %}>
-        <summary style="cursor:pointer;font-size:13.5px;font-weight:800;color:var(--ink-bright,#fff);user-select:none;display:flex;align-items:center;gap:8px">
+    <details id="uefa-ranking" style="margin-top:16px;background:rgba(var(--fm-tint-rgb),0.02);border:1px solid rgba(var(--fm-tint-rgb),0.06);border-radius:10px;padding:12px 14px"{% if not uefa_count %} open{% endif %}>
+        <summary style="cursor:pointer;font-size:13.5px;font-weight:800;color:var(--fm-strong);user-select:none;display:flex;align-items:center;gap:8px">
             <span style="color:var(--accent)">🌍</span>
             <span>Ranking UEFA club{% if uefa_count %} · <b>{{ uefa_count }} club</b> registrati{% endif %}</span>
         </summary>
@@ -1682,7 +1682,7 @@
             </form>
             <form method="post" action="{% url 'admin_contracts_action' %}" style="display:flex;gap:8px;align-items:flex-start;flex:1 1 280px;max-width:100%;flex-wrap:wrap">
                 {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="uefa_paste">
-                <textarea name="ranking" rows="3" aria-label="Ranking UEFA da incollare" placeholder="Incolla qui la tabella copiata da uefa.com&#10;oppure una riga per club:&#10;1;Real Madrid&#10;2;Bayern München" style="flex:1 1 240px;min-width:0;max-width:100%;font-size:12px;border-radius:8px;border:1px solid var(--line);background:rgba(0,0,0,0.3);color:inherit;padding:8px 10px;box-sizing:border-box"></textarea>
+                <textarea name="ranking" rows="3" aria-label="Ranking UEFA da incollare" placeholder="Incolla qui la tabella copiata da uefa.com&#10;oppure una riga per club:&#10;1;Real Madrid&#10;2;Bayern München" style="flex:1 1 240px;min-width:0;max-width:100%;font-size:12px;border-radius:8px;border:1px solid var(--line);background:var(--fm-well);color:inherit;padding:8px 10px;box-sizing:border-box"></textarea>
                 <button type="submit" class="ct-btn">Salva incollato</button>
             </form>
         </div>
@@ -1694,7 +1694,7 @@
      ========================================================================== -->
 <div class="panel ct-log-card">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
-        <h3 style="margin:0;font-size:15.5px;font-weight:800;color:var(--ink-bright,#fff);display:flex;align-items:center;gap:8px">
+        <h3 style="margin:0;font-size:15.5px;font-weight:800;color:var(--fm-strong);display:flex;align-items:center;gap:8px">
             <svg class="ic" style="width:16px;height:16px;color:var(--accent)"><use href="#i-clock"/></svg>
             <span>Registro Dadi e Contratti</span>
         </h3>

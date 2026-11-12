@@ -1,0 +1,15 @@
+{% comment %}
+«Tema»: scuro, chiaro o come il dispositivo. Lo stesso partial in «Il mio
+account» (console e app) e in Altro (app). La scelta vale per questo
+dispositivo (localStorage «fm-theme»), per console e app insieme; la applica
+fmTheme (base.html), che tiene aggiornati i tre tasti.
+{% endcomment %}
+<div class="fm-theme-switch fm-onerow" role="radiogroup" aria-label="Tema">
+    <button type="button" role="radio" aria-checked="false" data-fm-theme="dark">
+        <svg class="ic" aria-hidden="true"><use href="#i-moon"/></svg> Scuro</button>
+    <button type="button" role="radio" aria-checked="false" data-fm-theme="light">
+        <svg class="ic" aria-hidden="true"><use href="#i-sun"/></svg> Chiaro</button>
+    <button type="button" role="radio" aria-checked="false" data-fm-theme="auto">
+        <svg class="ic" aria-hidden="true"><use href="#i-phone"/></svg> Automatico</button>
+</div>
+<p class="fm-theme-note">Vale su questo dispositivo, per la console e per l'app. «Automatico» segue il tema chiaro o scuro del telefono o del computer.</p>

@@ -23,7 +23,7 @@
         </div>
     </details>
 
-    {% if error %}<div class="auth-error" role="alert" style="color:#f87171;font-weight:700;margin-bottom:14px">{{ error }}</div>{% endif %}
+    {% if error %}<div class="auth-error" role="alert" style="color:var(--fm-red-400);font-weight:700;margin-bottom:14px">{{ error }}</div>{% endif %}
 
     <form method="post">
         {% csrf_token %}

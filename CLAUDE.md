@@ -294,6 +294,30 @@ filtri a chip) va a capo su due righe, a nessuna larghezza.
 - La barra principale della console (`_console_head.html`) non scorre: le
   voci che non ci stanno passano in «Altro» (mai la pagina attiva).
 
+## Tema chiaro e scuro
+
+Ognuno sceglie **Scuro** (predefinito), **Chiaro** o **Automatico** (come il
+dispositivo) in «Tema»: `_theme_switch.html`, in «Il mio account» (console e
+app) e in Altro (app); scorciatoia ☀/☾ nella barra della console e nel menu
+dell'app. La scelta sta in `localStorage` (`fm-theme`), vale per console e app
+su quel dispositivo e la applica `fmTheme` (`base.html`) prima del primo
+disegno, insieme al colore della barra del telefono.
+
+- I colori stanno nei token di `static/css/console.css`: `:root` ha i valori
+  scuri, `html.light-theme` gli stessi token chiari. **Un token nuovo vuole
+  tutti e due i valori** (`ThemeTokensTests`, `test_theme.py`).
+- Nelle pagine niente bianco fisso su un fondo della pagina: titoli e cifre
+  forti `var(--fm-strong)`; veli e hover `rgba(var(--fm-tint-rgb), a)`; campi
+  `--fm-input-bg`; pozzetti `--fm-well` o `rgba(var(--fm-deep-rgb), a)`;
+  pannelli `rgba(var(--fm-navy-rgb), a)`; dialoghi `--fm-scrim`, `--fm-pop`.
+  Rossi, verdi, gialli e azzurri chiari: i token `--fm-red-400`,
+  `--fm-green-500`, `--fm-amber-500`… (sul chiaro diventano più scuri).
+  Il bianco resta bianco solo sopra un pieno colorato (tasto primario, badge
+  rosso); sul colore dell'accento il testo è `--fm-on-accent`.
+- L'app tiene il suo verde: `app_base.html` cambia solo accento e fondo menta.
+- Restano fuori dal tema le stampe (fondo bianco loro), le email, il
+  maxischermo (`data-theme-fixed="dark"`) e l'erba del campo della formazione.
+
 ## Ogni lega è separata
 
 Mercati, sessioni, scambi e regole valgono solo per la lega in cui sono creati.

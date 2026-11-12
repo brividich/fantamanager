@@ -9,7 +9,7 @@ partita, da ``fmVoteWhy.register(...)`` con il campo ``why`` del JSON
 {% endcomment %}
 <style>
     [data-why-pid] { cursor:pointer; text-decoration:underline dotted; text-underline-offset:3px; }
-    .fm-why-back { position:fixed; inset:0; z-index:10050; background:rgba(0,0,0,.45);
+    .fm-why-back { position:fixed; inset:0; z-index:10050; background:var(--fm-well);
                    display:flex; align-items:flex-end; justify-content:center; padding:16px; }
     .fm-why-back[hidden] { display:none; }
     .fm-why { width:min(360px, 100%); background:var(--panel, #111); color:var(--ink, #fff);
@@ -23,8 +23,8 @@ partita, da ``fmVoteWhy.register(...)`` con il campo ``why`` del JSON
     .fm-why table { width:100%; border-collapse:collapse; margin-top:10px; font-size:13px; }
     .fm-why td { padding:5px 0; border-bottom:1px solid var(--line, #333); }
     .fm-why td.v { text-align:right; font-variant-numeric:tabular-nums; font-weight:700; }
-    .fm-why td.v.neg { color:#ef4444; }
-    .fm-why td.v.pos { color:#22c55e; }
+    .fm-why td.v.neg { color:var(--fm-red-500); }
+    .fm-why td.v.pos { color:var(--fm-green-500); }
     .fm-why-foot { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:10px;
                    font-size:11px; color:var(--muted, #999); }
 </style>

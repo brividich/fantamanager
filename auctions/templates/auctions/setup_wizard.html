@@ -57,7 +57,7 @@ resta nel browser (localStorage, con try/catch); i file vanno ricaricati.
         flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%;
         display: inline-flex; align-items: center; justify-content: center;
         font-family: var(--display); font-size: 15px; font-weight: 800;
-        background: rgba(255,255,255,.08); color: var(--muted);
+        background: rgba(var(--fm-tint-rgb),.08); color: var(--muted);
     }
     .sw-steps .l { display: flex; flex-direction: column; line-height: 1.15; }
     .sw-steps .l b { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; }
@@ -107,12 +107,12 @@ resta nel browser (localStorage, con try/catch); i file vanno ricaricati.
     /* Option cards (radio-like) */
     .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
     .card-opt { position: relative; display: block; cursor: pointer; padding: 13px 14px; border-radius: 12px;
-                border: 1px solid var(--line); background: rgba(255,255,255,.025); transition: border-color .12s, background .12s; }
+                border: 1px solid var(--line); background: rgba(var(--fm-tint-rgb),.025); transition: border-color .12s, background .12s; }
     .card-opt:hover { border-color: var(--line-strong); }
     .card-opt input { position: absolute; opacity: 0; pointer-events: none; }
     .card-opt:has(input:checked), .card-opt.sel { border-color: var(--accent); background: var(--accent-soft); }
     .card-opt:has(input:focus-visible) { outline: 2px solid var(--fm-primary-light); outline-offset: 2px; }
-    .card-opt .t { display: flex; align-items: center; gap: 8px; font-family: var(--fm-display); font-weight: 800; font-size: 17px; color: #fff; }
+    .card-opt .t { display: flex; align-items: center; gap: 8px; font-family: var(--fm-display); font-weight: 800; font-size: 17px; color: var(--fm-strong); }
     .card-opt .t .ic { width: 17px; height: 17px; color: var(--accent); }
     .card-opt .d { font-size: 12.5px; color: var(--muted); margin-top: 4px; line-height: 1.35; }
     .card-opt .badge { position: absolute; top: 10px; right: 10px; font-size: 9.5px; font-weight: 800; letter-spacing: .08em;
@@ -121,12 +121,12 @@ resta nel browser (localStorage, con try/catch); i file vanno ricaricati.
     /* Chips (quick values) */
     .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
     .chip { height: 30px; padding: 0 12px; font-size: 12px; font-weight: 700; border-radius: 999px;
-            background: rgba(255,255,255,.04); border: 1px solid var(--line); color: var(--fm-text-secondary); }
-    .chip:hover { color: #fff; border-color: var(--line-strong); filter: none; }
+            background: rgba(var(--fm-tint-rgb),.04); border: 1px solid var(--line); color: var(--fm-text-secondary); }
+    .chip:hover { color: var(--fm-strong); border-color: var(--line-strong); filter: none; }
     .chip.on { color: var(--accent); border-color: var(--accent-line); background: var(--accent-soft); }
 
     /* Segmented control */
-    .seg { display: inline-flex; padding: 3px; gap: 3px; border-radius: 10px; background: rgba(255,255,255,.04); border: 1px solid var(--line); flex-wrap: wrap; }
+    .seg { display: inline-flex; padding: 3px; gap: 3px; border-radius: 10px; background: rgba(var(--fm-tint-rgb),.04); border: 1px solid var(--line); flex-wrap: wrap; }
     .seg label { position: relative; cursor: pointer; }
     .seg input { position: absolute; opacity: 0; pointer-events: none; }
     .seg span { display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 7px;
@@ -145,7 +145,7 @@ resta nel browser (localStorage, con try/catch); i file vanno ricaricati.
     .drop .ico { width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
                  background: rgba(8,124,240,.16); color: var(--fm-primary-light); }
     .drop .ico .ic { width: 22px; height: 22px; }
-    .drop .txt b { display: block; font-size: 15px; color: #fff; }
+    .drop .txt b { display: block; font-size: 15px; color: var(--fm-strong); }
     .drop .txt span { font-size: 12.5px; color: var(--muted); }
     .drop .txt u { color: var(--fm-primary-light); text-decoration: none; font-weight: 700; }
     .drop.ok { border-style: solid; border-color: rgba(22,217,104,.55); background: rgba(22,217,104,.06); }
@@ -184,7 +184,7 @@ resta nel browser (localStorage, con try/catch); i file vanno ricaricati.
     .paste-box.open { display: block; }
     .paste-box textarea { min-height: 110px; resize: vertical; }
     .attach-list { max-height: 210px; overflow: auto; padding: 4px 12px; margin-top: 6px; }
-    .attach-item { display: flex; align-items: center; gap: 10px; padding: 9px 4px; border-bottom: 1px solid rgba(255,255,255,.05); cursor: pointer; }
+    .attach-item { display: flex; align-items: center; gap: 10px; padding: 9px 4px; border-bottom: 1px solid rgba(var(--fm-tint-rgb),.05); cursor: pointer; }
     .attach-item:last-child { border-bottom: 0; }
     .attach-item input { width: auto; margin: 0; }
 
@@ -193,7 +193,7 @@ resta nel browser (localStorage, con try/catch); i file vanno ricaricati.
     .toggle-row b { display: block; font-size: 13.5px; }
     .toggle-row span { font-size: 12.5px; color: var(--muted); line-height: 1.4; }
 
-    details.adv { margin-top: 22px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.02); }
+    details.adv { margin-top: 22px; border: 1px solid var(--line); border-radius: 12px; background: rgba(var(--fm-tint-rgb),.02); }
     details.adv > summary { list-style: none; cursor: pointer; padding: 13px 16px; display: flex; align-items: center; gap: 8px;
                             font-weight: 700; font-size: 13.5px; }
     details.adv > summary::-webkit-details-marker { display: none; }
@@ -208,7 +208,7 @@ resta nel browser (localStorage, con try/catch); i file vanno ricaricati.
     .sum-row { display: flex; gap: 10px; padding: 7px 0; border-bottom: 1px solid rgba(85,160,230,.09); font-size: 12.5px; }
     .sum-row:last-child { border-bottom: 0; }
     .sum-row .k { width: 42%; flex-shrink: 0; color: var(--muted); text-transform: uppercase; font-size: 10.5px; letter-spacing: .08em; padding-top: 2px; }
-    .sum-row .v { flex: 1; min-width: 0; font-weight: 700; color: #fff; overflow-wrap: anywhere; }
+    .sum-row .v { flex: 1; min-width: 0; font-weight: 700; color: var(--fm-strong); overflow-wrap: anywhere; }
     .sum-row .v.warn { color: var(--paused); }
     .sum-row .v.bad { color: var(--closed); }
     .ready { margin-top: 12px; padding: 10px 12px; border-radius: 10px; font-size: 12.5px; font-weight: 700; }
@@ -217,24 +217,24 @@ resta nel browser (localStorage, con try/catch); i file vanno ricaricati.
 
     /* Sticky action bar */
     .sw-bar { position: sticky; bottom: 0; z-index: 60; margin-top: 18px;
-              background: rgba(3,18,38,.94); backdrop-filter: blur(8px); border: 1px solid var(--line); border-radius: 14px;
+              background: rgba(var(--fm-deep-rgb),.94); backdrop-filter: blur(8px); border: 1px solid var(--line); border-radius: 14px;
               padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px)); }
     @media (max-width: 879px) { body.app-mode .sw-bar { bottom: calc(66px + env(safe-area-inset-bottom, 0px)); } }
     .sw-bar-in { max-width: 1180px; margin: 0 auto; display: flex; align-items: center; gap: 10px; }
     .sw-bar .where { flex: 1; min-width: 0; font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .sw-bar .where b { color: #fff; }
+    .sw-bar .where b { color: var(--fm-strong); }
     .sw-bar button { min-width: 120px; }
     @media (max-width: 480px) { .sw-bar .where { display: none; } .sw-bar button { flex: 1; min-width: 0; } }
     body.role-admin .app-version-badge { display: none; }
     .sw-bar .btn-ok[disabled] { opacity: .7; }
-    .spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(255,255,255,.35); border-top-color: #fff;
+    .spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(var(--fm-tint-rgb),.35); border-top-color: #fff;
             animation: spin .8s linear infinite; display: none; }
     .busy .spin { display: inline-block; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
     .err-box { margin-bottom: 16px; padding: 14px 16px; border-radius: 12px; border: 1px solid rgba(248,113,113,.45);
-               background: rgba(248,113,113,.10); color: #fca5a5; font-size: 13.5px; line-height: 1.5; }
-    .err-box b { color: #fff; }
+               background: rgba(248,113,113,.10); color: var(--fm-red-300); font-size: 13.5px; line-height: 1.5; }
+    .err-box b { color: var(--fm-strong); }
     .draft-note { display: none; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; padding: 10px 14px;
                   border-radius: 10px; border: 1px solid var(--accent-line); background: var(--accent-soft); font-size: 13px; }
     .draft-note.show { display: flex; }

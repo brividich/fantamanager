@@ -5,7 +5,7 @@
    ritorna una Promise con la risposta, risolta quando la finestra si chiude.{% endcomment %}
 <style>
     .fmd-overlay { position: fixed; inset: 0; z-index: 10000; display: flex; align-items: center; justify-content: center;
-                   padding: 16px; background: rgba(3, 8, 18, .72); backdrop-filter: blur(4px); opacity: 0; transition: opacity .2s ease; }
+                   padding: 16px; background: rgba(var(--fm-deep-rgb),.72); backdrop-filter: blur(4px); opacity: 0; transition: opacity .2s ease; }
     .fmd-overlay.fmd-in { opacity: 1; }
     .fmd-card { width: min(420px, 100%); box-sizing: border-box; padding: 22px 20px 18px; border-radius: 18px; text-align: center;
                 background: linear-gradient(180deg, #13213a, #0b1527); border: 1px solid rgba(120, 170, 255, .22);
@@ -34,12 +34,12 @@
     .fmd-face:nth-child(6) { transform: rotateX(-90deg) translateZ(46px); }
     .fmd-pip { width: 15px; height: 15px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #3b4a63, #0b1220); }
     .fmd-num { grid-column: 1 / -1; grid-row: 1 / -1; font-size: 40px; font-weight: 900; color: #0b1220; }
-    .fmd-face.fmd-green { background: linear-gradient(145deg, #4ade80, #15803d); }
-    .fmd-face.fmd-red { background: linear-gradient(145deg, #f87171, #b91c1c); }
+    .fmd-face.fmd-green { background: linear-gradient(145deg, var(--fm-green-400), #15803d); }
+    .fmd-face.fmd-red { background: linear-gradient(145deg, var(--fm-red-400), #b91c1c); }
     .fmd-face.fmd-green .fmd-num, .fmd-face.fmd-red .fmd-num { color: #fff; text-shadow: 0 2px 6px rgba(0, 0, 0, .35); }
     .fmd-scene.fmd-shake .fmd-cube { animation: fmd-shake .38s ease-in-out infinite; }
     .fmd-scene.fmd-throw { animation: fmd-throw 1.7s cubic-bezier(.2, .7, .3, 1) both; }
-    .fmd-scene.fmd-landed .fmd-face.fmd-up { box-shadow: inset 0 0 14px rgba(0, 0, 0, .14), 0 0 0 3px #38bdf8, 0 0 26px rgba(56, 189, 248, .7); }
+    .fmd-scene.fmd-landed .fmd-face.fmd-up { box-shadow: inset 0 0 14px rgba(0, 0, 0, .14), 0 0 0 3px var(--fm-sky-400), 0 0 26px rgba(56, 189, 248, .7); }
     @keyframes fmd-shake {
         0%, 100% { transform: rotateX(-22deg) rotateY(28deg) translateY(0); }
         25% { transform: rotateX(-14deg) rotateY(40deg) translateY(-6px); }
@@ -56,14 +56,14 @@
     .fmd-result { min-height: 52px; margin-top: 18px; font-size: 15px; line-height: 1.45; opacity: 0; transition: opacity .3s ease; }
     .fmd-result.fmd-show { opacity: 1; }
     .fmd-result b { font-size: 22px; display: block; }
-    .fmd-result .fmd-good { color: #4ade80; }
-    .fmd-result .fmd-bad { color: #f87171; }
+    .fmd-result .fmd-good { color: var(--fm-green-400); }
+    .fmd-result .fmd-bad { color: var(--fm-red-400); }
     .fmd-result .fmd-note { color: #9fb3d1; font-size: 13px; }
     .fmd-actions { margin-top: 14px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
     .fmd-btn { min-width: 150px; padding: 10px 18px; border: 0; border-radius: 10px; font-weight: 800; font-size: 14px; cursor: pointer;
                background: #1ea5ff; color: #04111f; visibility: hidden; }
     .fmd-btn.fmd-show { visibility: visible; }
-    .fmd-bar { width: 150px; height: 3px; border-radius: 2px; background: rgba(255, 255, 255, .12); overflow: hidden; visibility: hidden; }
+    .fmd-bar { width: 150px; height: 3px; border-radius: 2px; background: rgba(var(--fm-tint-rgb), .12); overflow: hidden; visibility: hidden; }
     .fmd-bar.fmd-show { visibility: visible; }
     .fmd-bar i { display: block; height: 100%; width: 100%; background: #1ea5ff; transform-origin: left; }
     .fmd-bar.fmd-run i { animation: fmd-bar 4s linear forwards; }

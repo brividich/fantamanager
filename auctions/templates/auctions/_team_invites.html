@@ -11,14 +11,14 @@ invite_rows), ``mail_ready``.
 <style>
     .ti-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; container-type: inline-size; }
     .ti-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; align-items: center;
-              padding: 10px 12px; border-radius: 10px; border: 1px solid var(--fm-border); background: rgba(255,255,255,.02); }
+              padding: 10px 12px; border-radius: 10px; border: 1px solid var(--fm-border); background: rgba(var(--fm-tint-rgb),.02); }
     .ti-row .nm { min-width: 0; }
     .ti-row .nm b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .ti-row .nm small { font-size: 11.5px; color: var(--fm-text-muted); overflow-wrap: anywhere; }
     .ti-badge { display: inline-block; margin-top: 3px; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 800; }
-    .ti-badge.todo { background: rgba(250,204,21,.14); color: #facc15; }
+    .ti-badge.todo { background: rgba(250,204,21,.14); color: var(--fm-yellow-400); }
     .ti-badge.sent { background: rgba(8,124,240,.15); color: var(--fm-primary-light); }
-    .ti-badge.open { background: rgba(168,85,247,.16); color: #c084fc; }
+    .ti-badge.open { background: rgba(168,85,247,.16); color: var(--fm-purple-400); }
     .ti-badge.in { background: rgba(22,217,104,.15); color: var(--fm-success); }
     .ti-acts { display: flex; gap: 6px; flex-wrap: nowrap; min-width: 0; }
     .ti-acts form { margin: 0; }

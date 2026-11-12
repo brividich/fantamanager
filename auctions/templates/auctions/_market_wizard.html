@@ -16,13 +16,13 @@ Apertura dalla pagina: openMarketWizard() / closeMarketWizard().
 {% load fm_pages %}
 <style>
     .mwz {
-        --mwz-accent: var(--accent, var(--fm-primary-light, #10b981));
+        --mwz-accent: var(--accent, var(--fm-primary-light, var(--fm-emerald-500)));
         --mwz-panel: var(--panel-2, #192d24);
-        --mwz-line: var(--line, rgba(255,255,255,.12));
+        --mwz-line: var(--line, rgba(var(--fm-tint-rgb),.12));
         --mwz-ink: var(--ink, #f6f9ff);
-        --mwz-muted: var(--muted, #aabbd0);
+        --mwz-muted: var(--muted, var(--fm-text-secondary));
         --mwz-bg: var(--bg-deep, #0b1511);
-        position: fixed; inset: 0; z-index: 1200; background: rgba(0,0,0,.78);
+        position: fixed; inset: 0; z-index: 1200; background: var(--fm-scrim);
         display: flex; align-items: flex-end; justify-content: center;
         opacity: 0; pointer-events: none; transition: opacity .25s ease;
         font-family: inherit;
@@ -49,9 +49,9 @@ Apertura dalla pagina: openMarketWizard() / closeMarketWizard().
         padding: 3px 8px; border-radius: 6px; border: 1px solid var(--mwz-accent); }
     .mwz-close { background: none; border: none; font-size: 24px; color: var(--mwz-muted); cursor: pointer; padding: 0 4px; line-height: 1; }
     .mwz-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 16px; }
-    .mwz-pill { height: 4px; border-radius: 2px; background: rgba(255,255,255,.12); transition: background .2s; }
+    .mwz-pill { height: 4px; border-radius: 2px; background: rgba(var(--fm-tint-rgb),.12); transition: background .2s; }
     .mwz-pill.active { background: var(--mwz-accent); }
-    .mwz-pill.done { background: #10b981; }
+    .mwz-pill.done { background: var(--fm-emerald-500); }
     .mwz-step { display: none; }
     .mwz-step.active { display: block; }
     .mwz-intro { font-size: 12.5px; color: var(--mwz-muted); margin: 0 0 14px; }
@@ -59,13 +59,13 @@ Apertura dalla pagina: openMarketWizard() / closeMarketWizard().
     .mwz-cards { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 14px; }
     .mwz-card { padding: 13px 14px; border-radius: 12px; border: 1px solid var(--mwz-line); background: var(--mwz-panel);
         cursor: pointer; display: flex; align-items: flex-start; gap: 12px; transition: border-color .15s, background .15s; }
-    .mwz-card:hover { border-color: rgba(255,255,255,.3); }
+    .mwz-card:hover { border-color: rgba(var(--fm-tint-rgb),.3); }
     .mwz-card.selected { border-color: var(--mwz-accent); }
     .mwz-card input { margin-top: 3px; accent-color: var(--mwz-accent); }
     .mwz-card h4 { margin: 0 0 3px; font-size: 14px; font-weight: 800; color: var(--mwz-ink); }
     .mwz-card p { margin: 0; font-size: 12px; color: var(--mwz-muted); line-height: 1.35; }
     .mwz-info { display: none; margin-top: 8px; padding: 8px 10px; border-radius: 8px; font-size: 11.5px; line-height: 1.45;
-        color: var(--mwz-muted); border: 1px solid var(--mwz-line); background: rgba(255,255,255,.03); }
+        color: var(--mwz-muted); border: 1px solid var(--mwz-line); background: rgba(var(--fm-tint-rgb),.03); }
     .mwz-card.selected .mwz-info { display: block; }
     .mwz-info b { color: var(--mwz-ink); }
     .mwz-box { background: var(--mwz-panel); border: 1px solid var(--mwz-line); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; }
@@ -76,7 +76,7 @@ Apertura dalla pagina: openMarketWizard() / closeMarketWizard().
     .mwz-opt input { margin-top: 3px; accent-color: var(--mwz-accent); }
     .mwz-opt small { display: block; font-size: 11.5px; font-weight: 500; color: var(--mwz-muted); }
     .mwz-input { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--mwz-line);
-        background: rgba(0,0,0,.18); color: var(--mwz-ink); font-size: 14px; font-family: inherit; }
+        background: var(--fm-well); color: var(--mwz-ink); font-size: 14px; font-family: inherit; }
     .mwz-input:focus { outline: none; border-color: var(--mwz-accent); }
     .mwz-roles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
     .mwz-roles label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 800; color: var(--mwz-muted); text-align: center; }

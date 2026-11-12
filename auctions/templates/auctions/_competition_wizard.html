@@ -14,10 +14,10 @@ Apertura dalla pagina: openCompWizard() / closeCompWizard().
 {% endcomment %}
 <style>
     .cwz-overlay {
-        --cwz-accent: var(--accent, var(--fm-primary-light, #10b981));
+        --cwz-accent: var(--accent, var(--fm-primary-light, var(--fm-emerald-500)));
         --cwz-accent-glow: var(--accent-glow, rgba(19,181,255,.3));
         --cwz-accent-line: var(--accent-line, var(--fm-border-active, rgba(19,181,255,.4)));
-        --cwz-ink-soft: var(--ink-soft, var(--fm-text-secondary, #aabbd0));
+        --cwz-ink-soft: var(--ink-soft, var(--fm-text-secondary, var(--fm-text-secondary)));
     }
     /* Le pagine danno alle label maiuscolo e grassetto: qui no. */
     .cwz-overlay label { letter-spacing: normal; }
@@ -25,7 +25,7 @@ Apertura dalla pagina: openCompWizard() / closeCompWizard().
 <style>
     .cwz-overlay {
         position: fixed; inset: 0; z-index: 1200;
-        background: rgba(0, 0, 0, 0.75);
+        background: var(--fm-scrim);
         backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
         display: none; align-items: center; justify-content: center;
         opacity: 0; transition: opacity .22s ease;
@@ -61,7 +61,7 @@ Apertura dalla pagina: openCompWizard() / closeCompWizard().
         border: 1px solid var(--cwz-accent-line); margin-top: 3px;
     }
     .cwz-close {
-        background: rgba(255,255,255,.06); border: 1px solid var(--line);
+        background: rgba(var(--fm-tint-rgb),.06); border: 1px solid var(--line);
         border-radius: 50%; width: 34px; height: 34px; color: var(--muted);
         font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center;
     }
@@ -69,7 +69,7 @@ Apertura dalla pagina: openCompWizard() / closeCompWizard().
         display: flex; gap: 6px; margin-bottom: 18px;
     }
     .cwz-step-pill {
-        flex: 1; height: 5px; border-radius: 99px; background: rgba(255,255,255,.1);
+        flex: 1; height: 5px; border-radius: 99px; background: rgba(var(--fm-tint-rgb),.1);
         transition: background .2s ease;
     }
     .cwz-step-pill.active { background: var(--cwz-accent); box-shadow: 0 0 10px var(--cwz-accent-glow); }
@@ -85,7 +85,7 @@ Apertura dalla pagina: openCompWizard() / closeCompWizard().
         transition: all .15s ease; display: flex; gap: 12px; align-items: flex-start;
     }
     .cwz-kind-card:hover {
-        border-color: rgba(255,255,255,.25); background: var(--panel);
+        border-color: rgba(var(--fm-tint-rgb),.25); background: var(--panel);
     }
     .cwz-kind-card.selected {
         border-color: var(--cwz-accent); background: var(--accent-soft);
@@ -97,7 +97,7 @@ Apertura dalla pagina: openCompWizard() / closeCompWizard().
         font-size: 20px; flex-shrink: 0;
     }
     .cwz-kind-card.selected .cwz-kind-icon {
-        background: var(--cwz-accent); color: #0a1108; border-color: var(--cwz-accent);
+        background: var(--cwz-accent); color: var(--fm-on-accent); border-color: var(--cwz-accent);
     }
     .cwz-kind-title {
         font-family: var(--display); font-size: 16px; font-weight: 900;
@@ -105,7 +105,7 @@ Apertura dalla pagina: openCompWizard() / closeCompWizard().
     }
     .cwz-kind-badge {
         font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em;
-        padding: 2px 7px; border-radius: 6px; background: rgba(255,255,255,0.08); color: var(--muted);
+        padding: 2px 7px; border-radius: 6px; background: rgba(var(--fm-tint-rgb),0.08); color: var(--muted);
         margin-left: 6px; vertical-align: middle;
     }
     .cwz-kind-desc {
@@ -136,7 +136,7 @@ Apertura dalla pagina: openCompWizard() / closeCompWizard().
     }
     .cwz-chip {
         padding: 4px 10px; border-radius: 8px; font-size: 11.5px; font-weight: 700;
-        background: rgba(255,255,255,0.06); border: 1px solid var(--line);
+        background: rgba(var(--fm-tint-rgb),0.06); border: 1px solid var(--line);
         color: var(--ink); cursor: pointer; transition: background .12s ease;
     }
     .cwz-chip:hover {
@@ -145,8 +145,8 @@ Apertura dalla pagina: openCompWizard() / closeCompWizard().
 
     .cwz-kind-info {
         display: none;
-        margin-top: 8px; padding: 8px 10px; background: rgba(255,255,255,0.03);
-        border: 1px solid rgba(255,255,255,0.07); border-radius: 8px;
+        margin-top: 8px; padding: 8px 10px; background: rgba(var(--fm-tint-rgb),0.03);
+        border: 1px solid rgba(var(--fm-tint-rgb),0.07); border-radius: 8px;
         font-size: 11.5px; line-height: 1.45; color: var(--muted);
     }
     .cwz-kind-card.selected .cwz-kind-info {
@@ -163,9 +163,9 @@ Apertura dalla pagina: openCompWizard() / closeCompWizard().
     .cwz-nav-btns .btn-cancel {
         background: transparent; border: 1px solid var(--line); color: var(--muted);
     }
-    .cwz-nav-btns .btn-cancel:hover { color: var(--ink); border-color: rgba(255,255,255,0.25); }
+    .cwz-nav-btns .btn-cancel:hover { color: var(--ink); border-color: rgba(var(--fm-tint-rgb),0.25); }
     .cwz-nav-btns .btn-next {
-        background: var(--cwz-accent); border: none; color: #0a1108; box-shadow: 0 4px 14px -2px var(--cwz-accent-glow);
+        background: var(--cwz-accent); border: none; color: var(--fm-on-accent); box-shadow: 0 4px 14px -2px var(--cwz-accent-glow);
     }
 </style>
 
@@ -216,7 +216,7 @@ Apertura dalla pagina: openCompWizard() / closeCompWizard().
                 <div class="cwz-kind-card" id="cwz-card-FORMULA_1" onclick="selectCompKind('FORMULA_1', this)">
                     <div class="cwz-kind-icon">🏎️</div>
                     <div style="flex:1">
-                        <div class="cwz-kind-title">Formula 1 (Punti GP di Giornata) <span class="cwz-kind-badge" style="color:#f59e0b">Novità</span></div>
+                        <div class="cwz-kind-title">Formula 1 (Punti GP di Giornata) <span class="cwz-kind-badge" style="color:var(--fm-amber-500)">Novità</span></div>
                         <div class="cwz-kind-desc">Punti mondiali assegnati ai primi 10 fantapunteggi di ogni giornata (25, 18, 15, 12, 10, 8, 6, 4, 2, 1).</div>
                         <div class="cwz-kind-info">
                             <b>ℹ️ Informativa:</b> Ispirato al Mondiale di F1: ogni turno è un Gran Premio! La squadra che fa il miglior punteggio vince 25 pt GP, la seconda 18 pt, fino al 10° classificato (1 pt). Premia la qualità e la costanza al vertice.
@@ -228,7 +228,7 @@ Apertura dalla pagina: openCompWizard() / closeCompWizard().
                 <div class="cwz-kind-card" id="cwz-card-SURVIVAL" onclick="selectCompKind('SURVIVAL', this)">
                     <div class="cwz-kind-icon">💀</div>
                     <div style="flex:1">
-                        <div class="cwz-kind-title">Survival Cup (L'Uomo Morto) <span class="cwz-kind-badge" style="color:#ef4444">Battle Royale</span></div>
+                        <div class="cwz-kind-title">Survival Cup (L'Uomo Morto) <span class="cwz-kind-badge" style="color:var(--fm-red-500)">Battle Royale</span></div>
                         <div class="cwz-kind-desc">In ogni giornata il punteggio più basso tra le squadre vive viene eliminato, fino all'ultimo superstite.</div>
                         <div class="cwz-kind-info">
                             <b>ℹ️ Informativa:</b> La modalità più adrenalinica del fantacalcio: non serve essere i migliori, l'importante è NON essere gli ultimi! Ogni turno miete una vittima. L'ultima rosa rimasta vince il trofeo.
@@ -240,7 +240,7 @@ Apertura dalla pagina: openCompWizard() / closeCompWizard().
                 <div class="cwz-kind-card" id="cwz-card-SWISS_LEAGUE" onclick="selectCompKind('SWISS_LEAGUE', this)">
                     <div class="cwz-kind-icon">🌐</div>
                     <div style="flex:1">
-                        <div class="cwz-kind-title">Nuova Champions a Girone Svizzero <span class="cwz-kind-badge" style="color:#06b6d4">Formula UEFA</span></div>
+                        <div class="cwz-kind-title">Nuova Champions a Girone Svizzero <span class="cwz-kind-badge" style="color:var(--fm-cyan-500)">Formula UEFA</span></div>
                         <div class="cwz-kind-desc">Girone unico continentale: Top 8 qualificate direttamente agli Ottavi, posizioni 9-24 ai Play-off di spareggio.</div>
                         <div class="cwz-kind-info">
                             <b>ℹ️ Informativa:</b> Riproduce la nuova UEFA Champions League a classifica unica. Ogni sfida vale punti preziosi per entrare nelle prime 8 o evitare l'eliminazione diretta.
@@ -456,7 +456,7 @@ Apertura dalla pagina: openCompWizard() / closeCompWizard().
                 </div>
 
                 <!-- Informativa Regole specifica per il formato selezionato -->
-                <div class="cwz-field-box" id="cwz-step4-format-notice" style="background:rgba(255,255,255,0.03);border-color:rgba(255,255,255,0.1);font-size:12px;color:var(--cwz-ink-soft);line-height:1.5;">
+                <div class="cwz-field-box" id="cwz-step4-format-notice" style="background:rgba(var(--fm-tint-rgb),0.03);border-color:rgba(var(--fm-tint-rgb),0.1);font-size:12px;color:var(--cwz-ink-soft);line-height:1.5;">
                     Configura i criteri di punteggio per le partite di questa competizione:
                 </div>
 

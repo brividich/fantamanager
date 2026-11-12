@@ -42,37 +42,33 @@ app through one of their teams — a banner with the way back.
     }
     body.app-mode .fm-btn-primary { color: #04130d; box-shadow: 0 6px 16px -8px var(--accent-glow); }
 
-    html.light-theme body.role-player, html.light-theme {
+    /* Light theme (tokens in console.css): the app keeps its green and its
+       mint background; the bars become frosted white. */
+    html.light-theme {
         --bg-deep: #f0fdf4;
         --panel: #ffffff;
-        --panel-2: #f8fafc;
-        --line: rgba(16,185,129,0.3);
-        --accent: #059669;
-        --accent-glow: rgba(5,150,105,0.2);
-        --accent-line: rgba(5,150,105,0.3);
-        --accent-soft: rgba(5,150,105,0.1);
-        --ink: #0f172a;
-        --muted: #475569;
+        --panel-2: #f3f8f5;
+        --line: rgba(5,120,85,0.20);
+        --accent: #047857;
+        --accent-glow: rgba(5,150,105,0.22);
+        --accent-line: rgba(5,150,105,0.35);
+        --accent-soft: rgba(5,150,105,0.10);
         --fm-bg: #f0fdf4;
-        --fm-bg-alt: #ffffff;
-        --fm-surface: #ffffff;
-        --fm-surface-2: #f8fafc;
-        --fm-border: rgba(16,185,129,0.3);
-        --fm-text: #0f172a;
-        --fm-text-secondary: #475569;
-        background: var(--bg-deep) !important;
-        color: var(--ink) !important;
+        --fm-bg-alt: #f7fdf9;
+        --fm-surface-2: #f3f8f5;
+        --fm-surface-3: #e7f2ec;
+        --fm-border: rgba(5,95,70,0.16);
     }
+    html.light-theme body.app-mode .fm-btn-primary { color: #fff; }
     html.light-theme .app-nav {
-        background: rgba(255,255,255,0.85);
-        border: 1px solid rgba(0,0,0,0.08);
-        box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        background: rgba(255,255,255,0.9);
+        border: 1px solid rgba(5,95,70,0.12);
+        box-shadow: 0 8px 32px rgba(15,40,30,0.12);
     }
     html.light-theme .app-nav a.active {
-        background: rgba(16,185,129,0.15);
+        background: rgba(16,185,129,0.14);
     }
 
-    /* Neutralise base .wrap constraints — the shell owns the whole viewport */
     /* Neutralise base .wrap constraints — the shell owns the whole viewport */
     .wrap.app-wrap { max-width: none; margin: 0; padding: 0; }
 
@@ -99,13 +95,13 @@ app through one of their teams — a banner with the way back.
         transition: transform .12s ease, background .12s ease;
     }
     .app-hamburger .ic { width: 22px; height: 22px; }
-    .app-hamburger:active { transform: scale(0.92); background: rgba(255,255,255,0.08); }
+    .app-hamburger:active { transform: scale(0.92); background: rgba(var(--fm-tint-rgb),0.08); }
 
     .app-top .app-mark {
         width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
         display: flex; align-items: center; justify-content: center;
         font-family: var(--display); font-weight: 900; font-size: 16px; letter-spacing: .02em;
-        color: #0a1108; background: var(--accent);
+        color: var(--fm-on-accent); background: var(--accent);
         box-shadow: 0 0 18px -4px var(--accent-glow);
     }
     @media (max-width: 879px) {
@@ -139,7 +135,7 @@ app through one of their teams — a banner with the way back.
     .app-bell .dot {
         position: absolute; top: 7px; right: 7px;
         width: 8px; height: 8px; border-radius: 50%;
-        background: #ef4444; box-shadow: 0 0 8px rgba(239,68,68,0.7);
+        background: var(--fm-red-500); box-shadow: 0 0 8px rgba(239,68,68,0.7);
     }
 
     /* ---- Main nav — bottom-nav docked edge-to-edge (mobile-first) ------ */
@@ -361,13 +357,13 @@ app through one of their teams — a banner with the way back.
     }
     .a-seg button .n {
         display: inline-block; min-width: 20px; margin-left: 6px; padding: 1px 6px;
-        border-radius: 999px; background: rgba(255,255,255,.08); font-size: 11px;
+        border-radius: 999px; background: rgba(var(--fm-tint-rgb),.08); font-size: 11px;
     }
     .a-seg button.on {
-        background: var(--accent); color: #0a1108; box-shadow: 0 2px 10px -2px var(--accent-glow);
+        background: var(--accent); color: var(--fm-on-accent); box-shadow: 0 2px 10px -2px var(--accent-glow);
     }
-    .a-seg button.on .n { background: rgba(10,17,8,.22); color: #0a1108; font-weight: 800; }
-    .a-seg button:not(.on):hover { color: var(--ink); background: rgba(255,255,255,.05); }
+    .a-seg button.on .n { background: rgba(10,17,8,.22); color: var(--fm-on-accent); font-weight: 800; }
+    .a-seg button:not(.on):hover { color: var(--ink); background: rgba(var(--fm-tint-rgb),.05); }
 
     /* On a phone the bar takes the whole width and shares it out; when the
        labels don't fit it scrolls (fading on the side with more, like
@@ -422,7 +418,7 @@ app through one of their teams — a banner with the way back.
     </a>
     {% endif %}
     {% if request.user.is_authenticated %}
-    <a class="app-bell" href="{% url 'logout' %}" onclick="return confirm('Confermi di voler uscire dal tuo account ({{ request.user.username|escapejs }})?');" title="Esci ({{ request.user.username }})" style="color:#ef4444" aria-label="Esci">
+    <a class="app-bell" href="{% url 'logout' %}" onclick="return confirm('Confermi di voler uscire dal tuo account ({{ request.user.username|escapejs }})?');" title="Esci ({{ request.user.username }})" style="color:var(--fm-red-500)" aria-label="Esci">
         <svg class="ic"><use href="#i-logout"/></svg>
     </a>
     {% else %}
@@ -444,9 +440,9 @@ app through one of their teams — a banner with the way back.
 {% endif %}
 
 <!-- Player Detail Modal (Bottom-sheet on mobile, centered on desktop) -->
-<div id="fm-player-modal" style="display:none; position:fixed; inset:0; z-index:100; background:rgba(0,0,0,0.65); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); align-items:center; justify-content:center; opacity:0; transition:opacity 0.22s ease;">
+<div id="fm-player-modal" style="display:none; position:fixed; inset:0; z-index:100; background:var(--fm-scrim); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); align-items:center; justify-content:center; opacity:0; transition:opacity 0.22s ease;">
     <div style="background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); width:92%; max-width:380px; padding:20px; box-shadow:0 14px 45px rgba(0,0,0,0.6); transform:translateY(24px); transition:transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);" id="fm-pm-content">
-        <div class="sheet-drag-handle" style="width:36px; height:4px; border-radius:99px; background:rgba(255,255,255,0.22); margin:0 auto 14px; display:none;"></div>
+        <div class="sheet-drag-handle" style="width:36px; height:4px; border-radius:99px; background:rgba(var(--fm-tint-rgb),0.22); margin:0 auto 14px; display:none;"></div>
         <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px;">
             <div style="min-width:0; flex:1;">
                 <h2 id="fm-pm-name" style="margin:0; font-family:var(--display); font-size:24px; color:var(--ink); line-height:1.1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></h2>
@@ -455,23 +451,23 @@ app through one of their teams — a banner with the way back.
                     <span id="fm-pm-team" style="font-size:12px; color:var(--ink); font-weight:700;"></span>
                 </div>
             </div>
-            <button type="button" onclick="closePlayerModal()" style="background:rgba(255,255,255,0.06); border:1px solid var(--line); border-radius:50%; width:32px; height:32px; color:var(--muted); font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center; margin-left:10px; line-height:1; flex-shrink:0;">&times;</button>
+            <button type="button" onclick="closePlayerModal()" style="background:rgba(var(--fm-tint-rgb),0.06); border:1px solid var(--line); border-radius:50%; width:32px; height:32px; color:var(--muted); font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center; margin-left:10px; line-height:1; flex-shrink:0;">&times;</button>
         </div>
         <div class="a-stats" style="margin-bottom:16px;">
-            <div class="a-stat" style="background:rgba(255,255,255,0.03);">
+            <div class="a-stat" style="background:rgba(var(--fm-tint-rgb),0.03);">
                 <div class="v" id="fm-pm-fanta" style="color:var(--accent);"></div>
                 <div class="k">FantaMedia</div>
             </div>
-            <div class="a-stat" style="background:rgba(255,255,255,0.03);">
+            <div class="a-stat" style="background:rgba(var(--fm-tint-rgb),0.03);">
                 <div class="v" id="fm-pm-goals"></div>
                 <div class="k">Gol</div>
             </div>
-            <div class="a-stat" style="background:rgba(255,255,255,0.03);">
+            <div class="a-stat" style="background:rgba(var(--fm-tint-rgb),0.03);">
                 <div class="v" id="fm-pm-assists"></div>
                 <div class="k">Assist</div>
             </div>
         </div>
-        <div style="text-align:center; font-size:12.5px; color:var(--muted); padding:10px; border-radius:10px; background:rgba(255,255,255,0.02); border:1px solid var(--line);">
+        <div style="text-align:center; font-size:12.5px; color:var(--muted); padding:10px; border-radius:10px; background:rgba(var(--fm-tint-rgb),0.02); border:1px solid var(--line);">
             Quotazione iniziale: <b id="fm-pm-price" style="color:var(--ink); font-size:15px; font-family:var(--display); font-weight:900;"></b> <span style="font-weight:700; color:var(--accent);">FM</span>
         </div>
     </div>
@@ -524,11 +520,11 @@ window.showToast = function(msg, type) {
     toast.style.cssText = `background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 16px; color:var(--ink); font-weight:700; font-size:13.5px; box-shadow:0 10px 30px rgba(0,0,0,0.4); opacity:0; transform:translateY(-16px); transition:all 0.28s cubic-bezier(0.16, 1, 0.3, 1); display:flex; align-items:center; gap:10px; pointer-events:auto;`;
     
     if(type === 'good' || type === 'success') {
-        toast.style.borderLeft = '4px solid #22c55e';
-        toast.innerHTML = `<svg style="width:20px;height:20px;color:#22c55e;flex-shrink:0"><use href="#i-check"/></svg> <span></span>`;
+        toast.style.borderLeft = '4px solid var(--fm-green-500)';
+        toast.innerHTML = `<svg style="width:20px;height:20px;color:var(--fm-green-500);flex-shrink:0"><use href="#i-check"/></svg> <span></span>`;
     } else if (type === 'bad' || type === 'error') {
-        toast.style.borderLeft = '4px solid #ef4444';
-        toast.innerHTML = `<svg style="width:20px;height:20px;color:#ef4444;flex-shrink:0"><use href="#i-alert"/></svg> <span></span>`;
+        toast.style.borderLeft = '4px solid var(--fm-red-500)';
+        toast.innerHTML = `<svg style="width:20px;height:20px;color:var(--fm-red-500);flex-shrink:0"><use href="#i-alert"/></svg> <span></span>`;
     } else {
         toast.style.borderLeft = '4px solid var(--accent)';
         toast.innerHTML = `<svg style="width:20px;height:20px;color:var(--accent);flex-shrink:0"><use href="#i-bell"/></svg> <span></span>`;
@@ -550,11 +546,11 @@ window.showToast = function(msg, type) {
 </script>
 
 <!-- Mobile Sidebar Hamburger Menu -->
-<div id="fm-sidebar-overlay" style="display:none; position:fixed; inset:0; z-index:90; background:rgba(0,0,0,0.65); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); opacity:0; transition:opacity 0.25s ease;" onclick="closeFmSidebar()"></div>
-<aside id="fm-sidebar" style="position:fixed; top:0; left:0; bottom:0; width:290px; max-width:85vw; background:var(--panel); z-index:91; transform:translateX(-100%); transition:transform 0.28s cubic-bezier(0.32, 1, 0.23, 1); border-right:1px solid var(--line); box-shadow:8px 0 32px rgba(0,0,0,0.45); display:flex; flex-direction:column; padding-bottom:max(16px, env(safe-area-inset-bottom, 16px)); padding-top:env(safe-area-inset-top, 0px);" aria-label="Menu laterale">
+<div id="fm-sidebar-overlay" style="display:none; position:fixed; inset:0; z-index:90; background:var(--fm-scrim); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); opacity:0; transition:opacity 0.25s ease;" onclick="closeFmSidebar()"></div>
+<aside id="fm-sidebar" style="position:fixed; top:0; left:0; bottom:0; width:290px; max-width:85vw; background:var(--panel); z-index:91; transform:translateX(-100%); transition:transform 0.28s cubic-bezier(0.32, 1, 0.23, 1); border-right:1px solid var(--line); display:flex; flex-direction:column; padding-bottom:max(16px, env(safe-area-inset-bottom, 16px)); padding-top:env(safe-area-inset-top, 0px);" aria-label="Menu laterale">
     <div style="padding:18px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; background:var(--panel-2);">
         <div style="display:flex; align-items:center; gap:10px;">
-            <div style="width:34px; height:34px; border-radius:9px; background:var(--accent); color:#0a1108; display:flex; align-items:center; justify-content:center; font-family:var(--display); font-weight:900; font-size:16px;">FM</div>
+            <div style="width:34px; height:34px; border-radius:9px; background:var(--accent); color:var(--fm-on-accent); display:flex; align-items:center; justify-content:center; font-family:var(--display); font-weight:900; font-size:16px;">FM</div>
             <div>
                 <div style="font-family:var(--display); font-weight:900; font-size:18px; color:var(--ink); line-height:1.1;">{% if app_league %}{{ app_league.name }}{% else %}FantaManager{% endif %}</div>
                 <div style="font-size:11px; color:var(--muted); font-weight:700;">{% if participant %}{{ participant.display_name }}{% else %}Area Manageriale{% endif %}</div>
@@ -574,11 +570,11 @@ window.showToast = function(msg, type) {
         <a href="{% url 'app_home' %}" class="fm-drawer-link"><span class="dr-icon"><svg class="ic"><use href="#i-home"/></svg></span> <span>Home</span></a>
         <a href="{% url 'app_rosa' %}" class="fm-drawer-link"><span class="dr-icon"><svg class="ic"><use href="#i-shirt"/></svg></span> <span>La tua Rosa</span></a>
         <a href="{% url 'app_formazione' %}" class="fm-drawer-link"><span class="dr-icon"><svg class="ic"><use href="#i-table"/></svg></span> <span>Formazione</span></a>
-        <a href="{% url 'app_live' %}" class="fm-drawer-link"><span class="dr-icon" style="color:#13b5ff"><svg class="ic"><use href="#i-pulse"/></svg></span> <span>Live Risultati</span></a>
+        <a href="{% url 'app_live' %}" class="fm-drawer-link"><span class="dr-icon" style="color:var(--fm-sky)"><svg class="ic"><use href="#i-pulse"/></svg></span> <span>Live Risultati</span></a>
         <a href="{% url 'app_mercato' %}" class="fm-drawer-link"><span class="dr-icon"><svg class="ic"><use href="#i-swap"/></svg></span> <span>Mercato & Buste</span></a>
         <a href="{% url 'app_scambi' %}" class="fm-drawer-link"><span class="dr-icon"><svg class="ic"><use href="#i-swap"/></svg></span> <span>Scambi</span></a>
         <a href="{% url 'app_footballers' %}" class="fm-drawer-link"><span class="dr-icon"><svg class="ic"><use href="#i-ball"/></svg></span> <span>Calciatori</span></a>
-        <a href="{% url 'app_lega' %}" class="fm-drawer-link"><span class="dr-icon" style="color:#eab308"><svg class="ic"><use href="#i-trophy"/></svg></span> <span>Classifiche e Lega</span></a>
+        <a href="{% url 'app_lega' %}" class="fm-drawer-link"><span class="dr-icon" style="color:var(--fm-yellow-500)"><svg class="ic"><use href="#i-trophy"/></svg></span> <span>Classifiche e Lega</span></a>
         
         <div style="height:1px; background:var(--line); margin:8px 6px;"></div>
 
@@ -587,7 +583,7 @@ window.showToast = function(msg, type) {
         <a href="{% url 'app_regia_league_settings' %}" class="fm-drawer-link"><span class="dr-icon"><svg class="ic"><use href="#i-gear"/></svg></span> <span>Impostazioni lega</span></a>
         {% endif %}
         <a href="{% url 'app_altro' %}" class="fm-drawer-link"><span class="dr-icon"><svg class="ic"><use href="#i-gear"/></svg></span> <span>Impostazioni & PIN</span></a>
-        <a href="#" onclick="toggleFmTheme(event)" class="fm-drawer-link"><span class="dr-icon"><svg class="ic"><use href="#i-pulse"/></svg></span> <span>Cambia Tema (Chiaro / Scuro)</span></a>
+        <a href="#" data-fm-theme-toggle class="fm-drawer-link"><span class="dr-icon"><svg class="ic"><use href="#i-sun"/></svg></span> <span>Tema: <span data-fm-theme-now>Scuro</span> (tocca per cambiare)</span></a>
     </div>
 
     <div style="padding:10px 14px; border-top:1px solid var(--line); display:flex; flex-direction:column; gap:6px;">
@@ -604,7 +600,7 @@ window.showToast = function(msg, type) {
     font-weight: 700; font-size: 13.5px;
     transition: background .12s ease, transform .1s ease;
 }
-.fm-drawer-link:active { background: rgba(255,255,255,0.06); transform: translateX(2px); }
+.fm-drawer-link:active { background: rgba(var(--fm-tint-rgb),0.06); transform: translateX(2px); }
 .fm-drawer-link .dr-icon {
     width: 32px; height: 32px; border-radius: 8px;
     background: var(--panel-2); border: 1px solid var(--line);
@@ -621,33 +617,23 @@ function openFmSidebar() {
     void ov.offsetWidth;
     ov.style.opacity = '1';
     sb.style.transform = 'translateX(0)';
+    // The shadow only while open: closed, it would spill a grey band onto the light theme.
+    sb.style.boxShadow = '8px 0 32px rgba(0,0,0,0.30)';
 }
 function closeFmSidebar() {
     const ov = document.getElementById('fm-sidebar-overlay');
     const sb = document.getElementById('fm-sidebar');
     ov.style.opacity = '0';
     sb.style.transform = 'translateX(-100%)';
-    setTimeout(() => { ov.style.display = 'none'; }, 280);
+    setTimeout(() => { ov.style.display = 'none'; sb.style.boxShadow = 'none'; }, 280);
 }
-window.toggleFmTheme = function(e) {
-    if (e && e.preventDefault) e.preventDefault();
-    if (document.documentElement.classList.contains('light-theme')) {
-        document.documentElement.classList.remove('light-theme');
-        localStorage.setItem('fm-theme', 'dark');
-        if (window.showToast) window.showToast('Tema Scuro attivato', 'info');
-    } else {
-        document.documentElement.classList.add('light-theme');
-        localStorage.setItem('fm-theme', 'light');
-        if (window.showToast) window.showToast('Tema Chiaro attivato', 'info');
-    }
-};
 </script>
 <main class="app-main {% block mainclass %}{% endblock %}">
     {% if messages and not page_messages %}
     <div style="margin-bottom:14px">
         {% for msg in messages %}
         <div role="status" style="padding:10px 14px;border-radius:8px;font-size:13px;font-weight:700;margin-bottom:6px;
-                    {% if msg.tags == 'error' %}background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3){% elif msg.tags == 'info' %}background:var(--accent-soft);color:var(--ink);border:1px solid var(--accent-line){% else %}background:rgba(34,197,94,0.15);color:#22c55e;border:1px solid rgba(34,197,94,0.3){% endif %}">
+                    {% if msg.tags == 'error' %}background:rgba(239,68,68,0.15);color:var(--fm-red-500);border:1px solid rgba(239,68,68,0.3){% elif msg.tags == 'info' %}background:var(--accent-soft);color:var(--ink);border:1px solid var(--accent-line){% else %}background:rgba(34,197,94,0.15);color:var(--fm-green-500);border:1px solid rgba(34,197,94,0.3){% endif %}">
             {{ msg }}
         </div>
         {% endfor %}

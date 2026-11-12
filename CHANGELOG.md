@@ -77,6 +77,15 @@ Prima versione numerata (prima l'etichetta era 1.2.0, senza rilasci).
   banco, «rimanda» lo toglie dalla coda e il «prossimo» annunciato lo salta.
   Le code fatte prima dell'aggiornamento vengono ripulite.
 
+### Tema chiaro e scuro
+- Il tema chiaro copre tutta la console e tutta l'app (prima solo la cornice
+  dell'app: molte schede restavano scure o con testi bianchi sul bianco).
+- «Tema» con tre scelte, Scuro, Chiaro e Automatico (come il dispositivo), in
+  «Il mio account» (console e app) e in Altro; scorciatoia ☀/☾ nella barra
+  della console e nel menu dell'app. Anche il colore della barra del telefono
+  e i controlli nativi (menu a tendina, date) seguono il tema.
+- Il maxischermo resta scuro.
+
 ### Backup e ripristino
 - Su PostgreSQL (NAS, Docker) il Supervisor ripristina un backup dal browser:
   prima salva lo stato attuale, poi ripristina tutto in una transazione.

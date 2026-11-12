@@ -1,10 +1,9 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="it"{% block html_attrs %}{% endblock %}>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover">
-    <meta name="theme-color" content="#0b1511" media="(prefers-color-scheme: dark)">
-    <meta name="theme-color" content="#f0fdf4" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#031226" id="fm-theme-color">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -23,10 +22,59 @@
     {% load static %}
     <link rel="stylesheet" href="{% static 'css/console.css' %}">
     <script>
-        // Apply light mode instantly to prevent flash of unstyled content
-        if (localStorage.getItem('fm-theme') === 'light') {
-            document.documentElement.classList.add('light-theme');
-        }
+        // Tema: «dark» (predefinito), «light» o «auto» (come il dispositivo),
+        // scelto in «Tema» (_theme_switch.html) e tenuto in localStorage
+        // «fm-theme»: vale per questo dispositivo, console e app insieme.
+        // Si applica qui, prima del primo disegno (niente lampo bianco o nero).
+        // Una pagina che resta di un tema (il maxischermo) mette
+        // data-theme-fixed="dark" su <html> (blocco html_attrs).
+        (function () {
+            var root = document.documentElement;
+            var mq = window.matchMedia ? window.matchMedia("(prefers-color-scheme: light)") : null;
+            function pref() {
+                var v = null;
+                try { v = localStorage.getItem("fm-theme"); } catch (e) {}
+                return v === "light" || v === "auto" ? v : "dark";
+            }
+            function apply() {
+                var p = pref(), fixed = root.getAttribute("data-theme-fixed");
+                var light = fixed ? fixed === "light" : (p === "light" || (p === "auto" && !!(mq && mq.matches)));
+                root.classList.toggle("light-theme", light);
+                // The phone's status bar takes the page's own background.
+                var meta = document.getElementById("fm-theme-color");
+                if (meta) meta.content = document.body
+                    ? getComputedStyle(document.body).backgroundColor : (light ? "#eef3f9" : "#031226");
+                document.querySelectorAll("[data-fm-theme]").forEach(function (b) {
+                    var on = b.getAttribute("data-fm-theme") === p;
+                    b.setAttribute("aria-checked", on ? "true" : "false");
+                    b.classList.toggle("on", on);
+                });
+                document.querySelectorAll("[data-fm-theme-now]").forEach(function (el) {
+                    el.textContent = light ? "Chiaro" : "Scuro";
+                });
+            }
+            window.fmTheme = {
+                get: pref,
+                isLight: function () { return root.classList.contains("light-theme"); },
+                set: function (v) {
+                    try { localStorage.setItem("fm-theme", v); } catch (e) {}
+                    apply();
+                },
+                // Quick switch (console bar, app menu): the other one of the two.
+                toggle: function () { this.set(this.isLight() ? "dark" : "light"); },
+                apply: apply,
+            };
+            apply();
+            if (mq) { if (mq.addEventListener) mq.addEventListener("change", apply); else if (mq.addListener) mq.addListener(apply); }
+            window.addEventListener("storage", function (e) { if (e.key === "fm-theme") apply(); });
+            document.addEventListener("DOMContentLoaded", apply);
+            document.addEventListener("click", function (e) {
+                var b = e.target.closest && e.target.closest("[data-fm-theme]");
+                if (b) { e.preventDefault(); window.fmTheme.set(b.getAttribute("data-fm-theme")); }
+                var t = e.target.closest && e.target.closest("[data-fm-theme-toggle]");
+                if (t) { e.preventDefault(); window.fmTheme.toggle(); }
+            });
+        })();
     </script>
 </head>
 <body class="{% block bodyclass %}role-player{% endblock %}">
@@ -126,6 +174,7 @@
             opacity: 0; pointer-events: none;
             transition: opacity .22s ease;
         }
+        html.light-theme .award-overlay { background: rgba(244,248,253,.96); }
         .award-overlay.show { opacity: 1; pointer-events: auto; }
         .award-overlay.hiding { opacity: 0; }
         .award-inner { position: relative; z-index: 1; text-align: center; padding: 32px 24px; }
@@ -145,7 +194,7 @@
         }
         .award-winner {
             font-family: var(--fm-display); font-weight: 800; font-size: clamp(26px,6vw,52px);
-            color: #fff; letter-spacing: .02em; margin-top: 10px;
+            color: var(--fm-strong); letter-spacing: .02em; margin-top: 10px;
             opacity: 0; transform: translateY(18px);
         }
         .award-overlay.show .award-winner { animation: slideUp .26s ease .16s forwards; }

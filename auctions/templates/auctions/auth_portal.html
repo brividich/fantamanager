@@ -141,7 +141,7 @@
     <!-- 3. GUEST / PIN TAB -->
     <div id="tab-guest" style="display:{% if active_tab == 'guest' %}block{% else %}none{% endif %}">
         <div class="guest-box">
-            <svg class="ic" style="width:28px;height:28px;color:#38bdf8;margin-bottom:8px"><use href="#i-phone"/></svg>
+            <svg class="ic" style="width:28px;height:28px;color:var(--fm-sky-400);margin-bottom:8px"><use href="#i-phone"/></svg>
             <h3 style="margin:0 0 6px;font-size:16px">Accesso Rapido all'Asta Live</h3>
             <p>Sei al tavolo d'asta e hai ricevuto un codice o link dalla regia? Entra senza bisogno di password.</p>
             
@@ -177,7 +177,7 @@
                 <div class="live-auc-title">{{ a.title }}</div>
                 <div class="live-auc-meta">{% if a.league %}{{ a.league.name }} • {% endif %}{{ a.get_status_display }}</div>
             </div>
-            <div style="font-size:12px;font-weight:700;color:#38bdf8;display:flex;align-items:center;gap:4px">
+            <div style="font-size:12px;font-weight:700;color:var(--fm-sky-400);display:flex;align-items:center;gap:4px">
                 <svg class="ic" style="width:14px;height:14px"><use href="#i-screen"/></svg> Maxischermo &rarr;
             </div>
         </a>

@@ -1,6 +1,8 @@
 {% extends "auctions/base.html" %}
 {% block title %}{{ auction.title }} — Maxischermo{% endblock %}
 {% block bodyclass %}role-tv{% endblock %}
+{# Il maxischermo resta scuro: è un palco (TV, proiettore), non segue il tema di chi apre la regia. #}
+{% block html_attrs %} data-theme-fixed="dark"{% endblock %}
 {# Maxischermo (proiettore, nessuno ci clicca): niente avvisi né link legali. #}
 {% block privacy_notice %}{% endblock %}{% block legal_footer %}{% endblock %}
 {% block wrapclass %}wrap-wide{% endblock %}
@@ -13,7 +15,7 @@
        element IDs are preserved so the WebSocket JS keeps driving it. */
     .tv-shell, .join-overlay, .qr-zoom {
         --sky:#46c2ff; --sky-b:#8ad8ff; --royal:#2f7dff;
-        --tv-ink:#eef4ff; --tv-mut:#9fb4d6; --tv-red:#ff4d5a; --tv-warn:#ffb526;
+        --tv-ink:#eef4ff; --tv-mut:#9fb4d6; --tv-red:#ff4d5a; --tv-warn:var(--fm-warning);
     }
     /* The maxischermo is a kiosk display, not a page in a card: go edge-to-edge
        by default (no wrap padding, no rounded card) so it fills the projector
@@ -35,8 +37,8 @@
     .tv-bg {
         position: absolute; inset: 0; pointer-events: none;
         background:
-            linear-gradient(180deg, rgba(255,255,255,.05), transparent 18%),
-            repeating-linear-gradient(0deg, rgba(255,255,255,.015) 0 2px, transparent 2px 5px);
+            linear-gradient(180deg, rgba(var(--fm-tint-rgb),.05), transparent 18%),
+            repeating-linear-gradient(0deg, rgba(var(--fm-tint-rgb),.015) 0 2px, transparent 2px 5px);
         mix-blend-mode: soft-light;
     }
     .tv-content { position: relative; z-index: 1; flex: 1; display: grid;
@@ -77,7 +79,7 @@
     .hero-ghost { position: absolute; left: 3.5%; top: 3%; z-index: 0;
         font-family: var(--display); font-weight: 900; font-size: min(27vw, 300px);
         line-height: .8; letter-spacing: -.02em; text-transform: uppercase;
-        color: rgba(255,255,255,.05); white-space: nowrap; pointer-events: none; }
+        color: rgba(var(--fm-tint-rgb),.05); white-space: nowrap; pointer-events: none; }
 
     /* Lower-third name bar */
     #tv-player.tv-player { position: relative; z-index: 2; display: flex; align-items: stretch;
@@ -139,7 +141,7 @@
         justify-content: flex-start; margin-top: 2px; min-height: 4px; }
     .tv-stats .stat { display: flex; flex-direction: column; gap: 0; padding: 8px 15px 7px;
         min-width: 68px; border-radius: 3px;
-        background: rgba(255,255,255,.05); border: 1px solid rgba(120,190,255,.16);
+        background: rgba(var(--fm-tint-rgb),.05); border: 1px solid rgba(120,190,255,.16);
         border-top: 2px solid var(--royal); }
     .tv-stats .stat b { font-family: var(--display); font-weight: 900; font-size: clamp(20px,2vw,28px); line-height: 1; }
     .tv-stats .stat span { color: var(--tv-mut); font-size: 10px; font-weight: 800;
@@ -197,9 +199,9 @@
     .tv-clock .clock-lbl b { display: block; color: var(--tv-ink); font-size: 18px; }
     /* Interlude: the dial is counting to the next player, not to a deadline —
        amber, so nobody in the room mistakes it for time left to raise. */
-    .tv-clock.is-gap .ring-bar { stroke: var(--tv-warn, #ffb526); opacity: 1; }
-    .tv-clock.is-gap .timer { color: var(--tv-warn, #ffb526); }
-    .tv-clock.is-gap .clock-lbl b { color: var(--tv-warn, #ffb526); }
+    .tv-clock.is-gap .ring-bar { stroke: var(--tv-warn, var(--fm-warning)); opacity: 1; }
+    .tv-clock.is-gap .timer { color: var(--tv-warn, var(--fm-warning)); }
+    .tv-clock.is-gap .clock-lbl b { color: var(--tv-warn, var(--fm-warning)); }
     /* Idle: no clock is running, so the dial must not read as a countdown. */
     .tv-clock.is-idle .ring-bar { opacity: 0; }
     .tv-clock.is-idle .timer { color: var(--tv-mut); opacity: .55; }
@@ -211,7 +213,7 @@
     .tv-leader-logo img { width: 60px; height: 60px; border-radius: 12px; object-fit: cover;
         border: 2px solid rgba(120,190,255,.3); }
     .tv-bidder-name { font-family: var(--display); font-weight: 900; font-size: clamp(26px, 3.2vw, 44px);
-        text-transform: uppercase; letter-spacing: .01em; line-height: .95; color: #fff; word-break: break-word; }
+        text-transform: uppercase; letter-spacing: .01em; line-height: .95; color: var(--fm-strong); word-break: break-word; }
     .tv-bidder-badge { display: inline-block; margin-top: 8px; background: rgba(70,194,255,.16);
         color: var(--sky); border: 1px solid rgba(70,194,255,.35); border-radius: 6px;
         padding: 4px 14px; font-family: var(--display); font-size: 13px; font-weight: 900;
@@ -274,17 +276,17 @@
         margin: 0; text-transform: uppercase; letter-spacing: .01em; }
     .join-ov-head h2 .accent { color: var(--sky); }
     .join-ov-head p { margin: 4px 0 0; color: var(--tv-mut); font-size: 15px; }
-    .join-close { background: rgba(255,255,255,.08); color: #fff; border: 1px solid rgba(255,255,255,.18);
+    .join-close { background: rgba(var(--fm-tint-rgb),.08); color: var(--fm-strong); border: 1px solid rgba(var(--fm-tint-rgb),.18);
         border-radius: 10px; padding: 12px 20px; font-size: 20px; cursor: pointer; }
     .join-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
         gap: 20px; align-content: start; }
-    .join-card { background: rgba(255,255,255,.05); border: 1px solid rgba(120,190,255,.14);
+    .join-card { background: rgba(var(--fm-tint-rgb),.05); border: 1px solid rgba(120,190,255,.14);
         border-radius: 14px; padding: 18px 16px; text-align: center; cursor: pointer;
         transition: transform .15s, border-color .15s; }
     .join-card:hover { transform: translateY(-5px); border-color: var(--sky); }
     .join-card .jc-logo { width: 60px; height: 60px; border-radius: 12px; object-fit: cover;
         margin: 0 auto 10px; display: flex; align-items: center; justify-content: center;
-        background: rgba(255,255,255,.06); border: 1px solid rgba(120,190,255,.16); font-size: 30px; }
+        background: rgba(var(--fm-tint-rgb),.06); border: 1px solid rgba(120,190,255,.16); font-size: 30px; }
     .join-card .jc-name { font-family: var(--display); font-weight: 800; text-transform: uppercase;
         font-size: 16px; letter-spacing: .04em; margin-bottom: 12px; word-break: break-word; }
     .join-card .jc-qr { background: #fff; border-radius: 12px; padding: 10px; display: inline-block; line-height: 0; }

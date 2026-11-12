@@ -20,25 +20,25 @@
     .giornate-strip::-webkit-scrollbar { display: none; }
     .g-chip {
         flex: 0 0 auto; padding: 6px 12px; font-size: 13px; font-weight: 800;
-        border-radius: 999px; background: rgba(255,255,255,0.05); border: 1px solid var(--line);
+        border-radius: 999px; background: rgba(var(--fm-tint-rgb),0.05); border: 1px solid var(--line);
         color: var(--muted); text-decoration: none; transition: all .15s ease;
     }
-    .g-chip:hover { color: var(--ink); background: rgba(255,255,255,0.1); }
+    .g-chip:hover { color: var(--ink); background: rgba(var(--fm-tint-rgb),0.1); }
     .g-chip.active {
-        background: var(--accent); color: #0a1108; border-color: var(--accent);
+        background: var(--accent); color: var(--fm-on-accent); border-color: var(--accent);
         box-shadow: 0 2px 10px var(--accent-glow);
     }
     .g-chip.is-live {
-        border-color: #22c55e; color: #4ade80;
+        border-color: var(--fm-green-500); color: var(--fm-green-400);
     }
     .g-chip.active.is-live {
-        background: #22c55e; color: #0a1108;
+        background: var(--fm-green-500); color: var(--fm-on-accent);
     }
 
     /* Head-to-Head 1vs1 Match Card */
     .match-h2h-card {
         padding: 20px; border-radius: 20px;
-        background: linear-gradient(135deg, rgba(10,36,69,0.95), rgba(6,22,43,0.98));
+        background: linear-gradient(135deg, rgba(var(--fm-navy-rgb),0.95), rgba(var(--fm-navy-rgb),0.98));
         border: 1px solid rgba(19,181,255,0.35);
         box-shadow: 0 16px 40px rgba(0,0,0,0.5), inset 0 0 30px rgba(19,181,255,0.08);
         position: relative; overflow: hidden; margin-bottom: 18px;
@@ -51,11 +51,11 @@
     .match-badge-live {
         display: inline-flex; align-items: center; gap: 6px;
         background: rgba(34,197,94,0.18); border: 1px solid rgba(34,197,94,0.4);
-        color: #4ade80; padding: 4px 10px; border-radius: 999px;
+        color: var(--fm-green-400); padding: 4px 10px; border-radius: 999px;
     }
     .match-dot {
-        width: 7px; height: 7px; border-radius: 50%; background: #22c55e;
-        box-shadow: 0 0 8px #22c55e; animation: live-pulse 1.8s infinite;
+        width: 7px; height: 7px; border-radius: 50%; background: var(--fm-green-500);
+        box-shadow: 0 0 8px var(--fm-green-500); animation: live-pulse 1.8s infinite;
     }
 
     .match-board {
@@ -65,13 +65,13 @@
     .team-side {
         display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0;
     }
-    .team-side.is-me .team-name { color: #13b5ff; }
+    .team-side.is-me .team-name { color: var(--fm-sky); }
     .team-name {
-        font-size: 15px; font-weight: 900; color: #fff; line-height: 1.2;
+        font-size: 15px; font-weight: 900; color: var(--fm-strong); line-height: 1.2;
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
     }
     .team-score-num {
-        font-family: var(--display); font-size: 32px; font-weight: 900; color: #fff;
+        font-family: var(--display); font-size: 32px; font-weight: 900; color: var(--fm-strong);
         line-height: 1; margin-top: 4px;
     }
     .team-pts-sub {
@@ -83,7 +83,7 @@
         padding: 0 10px;
     }
     .score-goals {
-        font-family: var(--display); font-size: 40px; font-weight: 900; color: #fff;
+        font-family: var(--display); font-size: 40px; font-weight: 900; color: var(--fm-strong);
         line-height: 1; letter-spacing: .06em;
         text-shadow: 0 2px 14px rgba(19,181,255,0.4);
     }
@@ -91,9 +91,9 @@
         margin-top: 6px; font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 6px;
         text-transform: uppercase; letter-spacing: .05em;
     }
-    .match-status-tag.win { background: rgba(34,197,94,0.2); color: #4ade80; border: 1px solid rgba(34,197,94,0.35); }
-    .match-status-tag.loss { background: rgba(239,68,68,0.2); color: #f87171; border: 1px solid rgba(239,68,68,0.35); }
-    .match-status-tag.draw { background: rgba(234,179,8,0.2); color: #facc15; border: 1px solid rgba(234,179,8,0.35); }
+    .match-status-tag.win { background: rgba(34,197,94,0.2); color: var(--fm-green-400); border: 1px solid rgba(34,197,94,0.35); }
+    .match-status-tag.loss { background: rgba(239,68,68,0.2); color: var(--fm-red-400); border: 1px solid rgba(239,68,68,0.35); }
+    .match-status-tag.draw { background: rgba(234,179,8,0.2); color: var(--fm-yellow-400); border: 1px solid rgba(234,179,8,0.35); }
 
     /* Single Team Standalone Score (if no fixture) */
     .single-score-card {
@@ -108,7 +108,7 @@
 
     /* Team Switcher & Segments */
     .view-switch {
-        display: flex; gap: 6px; background: rgba(0,0,0,0.25);
+        display: flex; gap: 6px; background: var(--fm-well);
         border: 1px solid var(--line); border-radius: 12px; padding: 4px; margin-bottom: 14px;
     }
     .view-btn {
@@ -120,7 +120,7 @@
     .view-btn.active {
         background: var(--panel-2); color: var(--ink); box-shadow: 0 2px 8px rgba(0,0,0,0.25);
     }
-    .view-btn.active.is-me { color: #13b5ff; }
+    .view-btn.active.is-me { color: var(--fm-sky); }
 
     /* Desktop 2-Col Grid */
     .live-desktop-grid {
@@ -139,15 +139,15 @@
         transition: background .12s;
     }
     .perf-row:last-child { border-bottom: none; }
-    .perf-row:hover { background: rgba(255,255,255,.02); }
+    .perf-row:hover { background: rgba(var(--fm-tint-rgb),.02); }
     .perf-info { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; cursor: pointer; }
     .perf-name { font-weight: 800; font-size: 14px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .perf-team { font-size: 11px; font-weight: 700; color: var(--muted); margin-left: 4px; text-transform: uppercase; }
     .perf-bonus { display: flex; gap: 6px; font-size: 12px; margin-top: 3px; flex-wrap: wrap; }
     .perf-vote-badge { min-width: 52px; text-align: right; }
     .perf-vote { font-family: var(--display); font-weight: 900; font-size: 19px; color: var(--ink); line-height: 1; }
-    .perf-vote.high { color: #22c55e; }
-    .perf-vote.low { color: #ef4444; }
+    .perf-vote.high { color: var(--fm-green-500); }
+    .perf-vote.low { color: var(--fm-red-500); }
     .perf-vote.sv { color: var(--muted); font-size: 14px; font-weight: 700; }
     .perf-fv { font-size: 11px; font-weight: 800; color: var(--accent); display: block; margin-top: 2px; }
 
@@ -155,11 +155,11 @@
     .sub-indicator {
         display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 800;
         background: rgba(19,181,255,0.14); border: 1px solid rgba(19,181,255,0.3);
-        color: #93c5fd; padding: 2px 6px; border-radius: 4px; margin-top: 3px;
+        color: var(--fm-blue-300); padding: 2px 6px; border-radius: 4px; margin-top: 3px;
     }
     .sub-bench-badge {
         font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 4px;
-        background: rgba(34,197,94,0.16); color: #4ade80; border: 1px solid rgba(34,197,94,0.3);
+        background: rgba(34,197,94,0.16); color: var(--fm-green-400); border: 1px solid rgba(34,197,94,0.3);
     }
 
     /* Leaderboard mini table */
@@ -168,7 +168,7 @@
         padding: 9px 12px; border-bottom: 1px solid var(--line); font-size: 13px; font-weight: 700;
     }
     .leader-row:last-child { border-bottom: none; }
-    .leader-row.me { background: rgba(19,181,255,0.1); border-left: 3px solid #13b5ff; }
+    .leader-row.me { background: rgba(19,181,255,0.1); border-left: 3px solid var(--fm-sky); }
 </style>
 
 <div class="tab-head" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px">
@@ -213,12 +213,12 @@
 
 {% if active_auction %}
 <a class="a-cta" href="{% url 'bid' active_auction.id %}" style="background:rgba(239,68,68,0.15);border-color:rgba(239,68,68,0.4);margin-bottom:12px;">
-    <svg class="ic" style="color:#ef4444"><use href="#i-gavel"/></svg>
+    <svg class="ic" style="color:var(--fm-red-500)"><use href="#i-gavel"/></svg>
     <span class="t">
         <b>Asta in diretta: {{ active_auction.title }}</b>
         <span>Entra subito nella sala offerte</span>
     </span>
-    <span class="go" style="color:#ef4444">›</span>
+    <span class="go" style="color:var(--fm-red-500)">›</span>
 </a>
 {% endif %}
 
@@ -313,7 +313,7 @@
             <div class="a-label" style="display:flex;justify-content:space-between;align-items:center">
                 <span><svg class="ic"><use href="#i-shield"/></svg> {{ participant.display_name }} (Titolari)</span>
                 {% if my_live.subs > 0 %}
-                <span style="font-size:11px;font-weight:800;color:#93c5fd">🔄 {{ my_live.subs }} subentr{{ my_live.subs|pluralize:"o,i" }}</span>
+                <span style="font-size:11px;font-weight:800;color:var(--fm-blue-300)">🔄 {{ my_live.subs }} subentr{{ my_live.subs|pluralize:"o,i" }}</span>
                 {% endif %}
             </div>
 
@@ -323,7 +323,7 @@
                     <span class="role-badge role-{{ item.role }}" style="flex-shrink:0;">{{ item.role }}</span>
                     <div style="min-width:0;">
                         <div class="perf-name">
-                            {{ item.player.name }}{% if item.is_captain %} <span title="Capitano" style="font-size:10px;font-weight:900;color:#0a1108;background:#facc15;border-radius:6px;padding:1px 5px">C</span>{% endif %}
+                            {{ item.player.name }}{% if item.is_captain %} <span title="Capitano" style="font-size:10px;font-weight:900;color:var(--fm-on-accent);background:var(--fm-yellow-400);border-radius:6px;padding:1px 5px">C</span>{% endif %}
                             {% if item.player.team %}<span class="perf-team">{{ item.player.team|slice:":3" }}</span>{% endif %}
                         </div>
 
@@ -400,7 +400,7 @@
             <div class="a-label" style="display:flex;justify-content:space-between;align-items:center">
                 <span><svg class="ic"><use href="#i-shield"/></svg> {{ opponent.display_name }} (Avversario)</span>
                 {% if opp_live.subs > 0 %}
-                <span style="font-size:11px;font-weight:800;color:#93c5fd">🔄 {{ opp_live.subs }} subentr{{ opp_live.subs|pluralize:"o,i" }}</span>
+                <span style="font-size:11px;font-weight:800;color:var(--fm-blue-300)">🔄 {{ opp_live.subs }} subentr{{ opp_live.subs|pluralize:"o,i" }}</span>
                 {% endif %}
             </div>
 
@@ -410,7 +410,7 @@
                     <span class="role-badge role-{{ item.role }}" style="flex-shrink:0;">{{ item.role }}</span>
                     <div style="min-width:0;">
                         <div class="perf-name">
-                            {{ item.player.name }}{% if item.is_captain %} <span title="Capitano" style="font-size:10px;font-weight:900;color:#0a1108;background:#facc15;border-radius:6px;padding:1px 5px">C</span>{% endif %}
+                            {{ item.player.name }}{% if item.is_captain %} <span title="Capitano" style="font-size:10px;font-weight:900;color:var(--fm-on-accent);background:var(--fm-yellow-400);border-radius:6px;padding:1px 5px">C</span>{% endif %}
                             {% if item.player.team %}<span class="perf-team">{{ item.player.team|slice:":3" }}</span>{% endif %}
                         </div>
 
@@ -493,11 +493,11 @@
         {% for r in leaderboard %}
         <div class="leader-row {% if r.is_me %}me{% endif %}">
             <div style="display:flex;align-items:center;gap:10px">
-                <span style="width:20px;font-family:var(--display);font-weight:900;color:{% if forloop.first %}#f59e0b{% elif forloop.counter == 2 %}#94a3b8{% elif forloop.counter == 3 %}#d97706{% else %}var(--muted){% endif %}">
+                <span style="width:20px;font-family:var(--display);font-weight:900;color:{% if forloop.first %}var(--fm-amber-500){% elif forloop.counter == 2 %}var(--fm-slate-400){% elif forloop.counter == 3 %}#d97706{% else %}var(--muted){% endif %}">
                     {{ forloop.counter }}.
                 </span>
                 <span style="color:var(--ink);font-weight:{% if r.is_me %}900{% else %}700{% endif %}">
-                    {{ r.participant.display_name }} {% if r.is_me %}<span style="color:#13b5ff;font-size:11px">(TU)</span>{% endif %}
+                    {{ r.participant.display_name }} {% if r.is_me %}<span style="color:var(--fm-sky);font-size:11px">(TU)</span>{% endif %}
                 </span>
             </div>
             <div style="text-align:right">
