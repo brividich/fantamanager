@@ -366,7 +366,11 @@
         Buste segrete: consegni le offerte prima della chiusura{% if market_session.closes_at %} ({{ market_session.closes_at|date:"d/m H:i" }}){% endif %}; allo spoglio vince chi offre di più.
         <ol>
             <li>In <b>Svincolati &amp; Offerte</b> cerca il giocatore e tocca <b>Offri</b>.</li>
+            {% if market_session.budget_rule == "total" %}
+            <li>Scrivi l'offerta e, se serve, chi tagliare; poi tocca <b>Consegna Busta</b>.{% if market_session.max_bids %} Hai {{ market_session.max_bids }} buste in tutto, anche sullo stesso giocatore.{% endif %} Su ogni giocatore conta solo la tua offerta più alta e la somma di queste non può superare il budget: la finestra ti dice quanto puoi offrire al massimo.</li>
+            {% else %}
             <li>Scrivi l'offerta, scegli la priorità e, se serve, chi tagliare; poi tocca <b>Consegna Busta</b>.</li>
+            {% endif %}
             <li>In <b>Le mie Buste</b> controlli le offerte consegnate; <b>✕ Ritira</b> per annullarne una.</li>
         </ol>
         {% endif %}
@@ -1150,7 +1154,7 @@
             {% if market_open and my_bids %}
             <div style="padding:10px 14px 6px;font-size:12.5px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--line)">
                 Offerte totali: <b style="color:{% if my_bids_total > participant.remaining_credits %}var(--fm-yellow-500){% else %}var(--ink){% endif %}">{{ my_bids_total }} FM</b>
-                su {{ participant.remaining_credits|floatformat:0 }} FM disponibili{% if my_bids_total > participant.remaining_credits %}{% if market_session.budget_rule == "total" %} — oltre il budget: allo spoglio verranno annullate le offerte più alte finché il totale non rientra{% else %} — allo spoglio vale l'ordine di priorità{% endif %}{% endif %}
+                su {{ participant.remaining_credits|floatformat:0 }} FM disponibili{% if my_bids_total > participant.remaining_credits %}{% if market_session.budget_rule == "total" %} — oltre il budget: ritira una busta, altrimenti allo spoglio verranno annullate le offerte più alte finché il totale non rientra{% else %} — allo spoglio vale l'ordine di priorità{% endif %}{% endif %}
             </div>
             {% endif %}
 
@@ -1745,10 +1749,20 @@
                 <div style="height:8px; background:var(--panel); border-radius:4px; overflow:hidden; border:1px solid var(--line); margin-bottom:8px">
                     <div id="credit-progress-bar" style="height:100%; width:100%; background:var(--accent); transition:width 0.2s, background-color 0.2s;"></div>
                 </div>
+                {% if market_session.budget_rule == "total" %}
+                <div style="display:flex;justify-content:space-between;gap:8px;font-size:11px" id="calc-total-row">
+                    <span style="color:var(--muted)" id="calc-committed">Già impegnati in altre buste: 0 FM</span>
+                    <span style="color:var(--accent);font-weight:700" id="calc-top">Massimo su questo giocatore: {{ participant.remaining_credits|floatformat:0 }} FM</span>
+                </div>
+                <div style="color:var(--muted);font-size:11px;margin-top:6px;line-height:1.4">
+                    Su ogni giocatore conta solo la tua offerta più alta; la somma di queste non può superare il budget ({{ participant.remaining_credits|floatformat:0 }} FM).
+                </div>
+                {% else %}
                 <div style="display:flex;justify-content:space-between;font-size:11px" id="calc-refund-row">
                     <span style="color:var(--muted)">Budget base: {{ participant.remaining_credits|floatformat:0 }} FM</span>
                     <span style="color:var(--accent);font-weight:700" id="calc-refund">+0 FM da svincolo</span>
                 </div>
+                {% endif %}
             </div>
 
             <div class="modal-btns">
@@ -1942,8 +1956,13 @@
 <!-- =========================================================================
      JAVASCRIPT: CLIENT INTERACTION & STATE
      ========================================================================= -->
+{{ my_bid_best|json_script:"fm-bid-best" }}
 <script>
     const REMAINING_CREDITS = {{ participant.remaining_credits|floatformat:0 }};
+    // Regola "totale": l'offerta più alta già consegnata su ogni giocatore.
+    const TOTAL_RULE = {% if market_session.budget_rule == "total" %}true{% else %}false{% endif %};
+    let BID_BEST = {};
+    try { BID_BEST = JSON.parse(document.getElementById("fm-bid-best").textContent) || {}; } catch (e) {}
     const CSRF_TOKEN = '{{ csrf_token }}';
 
 
@@ -1991,10 +2010,23 @@
         }
         const refEl = document.getElementById("calc-refund");
         if (refEl) refEl.textContent = "+" + refund + " FM da svincolo";
-        const maxSpend = REMAINING_CREDITS + refund;
-        
+        let maxSpend = REMAINING_CREDITS + refund;
+
         const amount = parseInt(document.getElementById("bid-amount").value, 10) || 0;
-        const remaining = maxSpend - amount;
+        let remaining = maxSpend - amount;
+        if (TOTAL_RULE) {
+            // Come allo spoglio: conta la busta più alta su ogni giocatore, il
+            // taglio non alza il budget.
+            const pid = String(document.getElementById("bid-player-id").value);
+            let others = 0;
+            Object.entries(BID_BEST).forEach(([k, v]) => { if (k !== pid) others += Number(v) || 0; });
+            maxSpend = REMAINING_CREDITS;
+            remaining = REMAINING_CREDITS - others - Math.max(Number(BID_BEST[pid]) || 0, amount);
+            const cEl = document.getElementById("calc-committed");
+            if (cEl) cEl.textContent = "Già impegnati in altre buste: " + others + " FM";
+            const tEl = document.getElementById("calc-top");
+            if (tEl) tEl.textContent = "Massimo su questo giocatore: " + Math.max(0, REMAINING_CREDITS - others) + " FM";
+        }
         
         const txtEl = document.getElementById("calc-max-spendable-txt");
         if (txtEl) txtEl.textContent = remaining + " FM";

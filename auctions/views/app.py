@@ -583,6 +583,12 @@ def app_mercato(request):
     if market_session and market_session.release_after_count and market_session.status == MarketSession.Status.OPEN:
         release_list_ctx = services.release_list_view(market_session, participant.id, roster=my_roster)
     my_bids_total = services.market_bids_total(market_session, my_bids) if market_session else 0
+    # Regola "totale": l'offerta più alta su ogni giocatore, per il conto del
+    # budget nella finestra dell'offerta (lo stesso del servizio).
+    my_bid_best = {}
+    for b in my_bids:
+        if b["status"] == MarketBid.Status.PENDING:
+            my_bid_best[str(b["player_id"])] = max(my_bid_best.get(str(b["player_id"]), 0), b["amount"])
     bids_left = None
     if market_session and market_session.max_bids:
         bids_left = max(0, market_session.max_bids - len(my_bids))
@@ -739,6 +745,7 @@ def app_mercato(request):
         "release_list": release_list_ctx,
         "contracts_on": bool(league and league.contracts_enabled),
         "my_bids_total": my_bids_total,
+        "my_bid_best": my_bid_best,
         "bids_left": bids_left,
         "moves_this_week": moves_this_week,
         "moves_left": moves_left,

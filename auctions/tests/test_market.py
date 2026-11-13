@@ -1199,15 +1199,16 @@ class RegolamentoBusteTests(TestCase):
             self.assertTrue(res["ok"], res)
 
     def test_example_from_the_rules(self):
-        # Team A: 1 + 10 + 2 + 35 + 100 = 148 (valide)
+        # Team A: offerte più alte 1 + 10 + 35 + 100 = 146 (valide)
         self._example(self.a, [("Boban", 1), ("Raul", 10), ("R.Carlos", 2), ("R.Carlos", 35), ("Iniesta", 100)])
-        # Team B: 99 + 10 + 2 + 35 + 100 = 246 > 200 → si annulla Iniesta (100)
-        self._example(self.b, [("Boban", 99), ("Raul", 10), ("R.Carlos", 2), ("R.Carlos", 35), ("Iniesta", 100)])
+        # Team B: 99 + 10 + 35 + 100 = 244 > 200 → la busta su Iniesta non parte
+        self._example(self.b, [("Boban", 99), ("Raul", 10), ("R.Carlos", 2), ("R.Carlos", 35)])
+        res = self._bid(self.b, "Iniesta", 100, cut_index=4)
+        self.assertEqual(res["error"], "budget_total")
+        self.assertIn("al massimo 56 FM", res["message"])
         resolve_market_session(self.session.id)
 
-        b_iniesta = MarketBid.objects.get(participant=self.b, player=self.free["Iniesta"])
-        self.assertEqual(b_iniesta.status, MarketBid.Status.CANCELLED)
-        self.assertIn("superava il budget", b_iniesta.note)
+        self.assertFalse(MarketBid.objects.filter(participant=self.b, player=self.free["Iniesta"]).exists())
 
         owner = lambda n: Player.objects.get(pk=self.free[n].pk)
         self.assertEqual(owner("Iniesta").owner, self.a)        # unica offerta valida
@@ -1227,17 +1228,64 @@ class RegolamentoBusteTests(TestCase):
     def test_example_from_the_august_2026_rules(self):
         # Team A: Boban 1, Raul 10, R.Carlos 2/35/100 → offerte massime 1+10+100 = 111 (valide)
         self._example(self.a, [("Boban", 1), ("Raul", 10), ("R.Carlos", 2), ("R.Carlos", 35), ("R.Carlos", 100)])
-        # Team B: Boban 99, Raul 10, R.Carlos 2/35/100 → 209 > 200: si annulla R.Carlos 100
-        self._example(self.b, [("Boban", 99), ("Raul", 10), ("R.Carlos", 2), ("R.Carlos", 35), ("R.Carlos", 100)])
+        # Team B: Boban 99, Raul 10, R.Carlos 2/35/100 → 209 > 200: R.Carlos 100 non parte
+        self._example(self.b, [("Boban", 99), ("Raul", 10), ("R.Carlos", 2), ("R.Carlos", 35)])
+        self.assertEqual(self._bid(self.b, "R.Carlos", 100, cut_index=4)["error"], "budget_total")
         resolve_market_session(self.session.id)
-        b100 = MarketBid.objects.get(participant=self.b, player=self.free["R.Carlos"], amount=100)
-        self.assertEqual(b100.status, MarketBid.Status.CANCELLED)
         a100 = MarketBid.objects.get(participant=self.a, player=self.free["R.Carlos"], amount=100)
         self.assertEqual(a100.status, MarketBid.Status.WON)
         rc = Player.objects.get(pk=self.free["R.Carlos"].pk)
         self.assertEqual((rc.owner, rc.cost), (self.a, Decimal("100")))  # la minima che batte il 35 di B
         boban = Player.objects.get(pk=self.free["Boban"].pk)
         self.assertEqual((boban.owner, boban.cost), (self.b, Decimal("99")))
+
+    def test_only_the_highest_offer_per_player_counts_in_the_budget(self):
+        # Cinque buste sullo stesso giocatore: nel budget conta solo la più alta.
+        for amount, i in ((150, 0), (160, 1), (170, 0), (180, 1), (200, 0)):
+            self.assertTrue(self._bid(self.a, "Boban", amount, cut_index=i)["ok"])
+        res = self._bid(self.a, "Boban", 190, cut_index=1)
+        self.assertEqual(res["error"], "too_many_bids")
+
+    def test_bids_on_several_players_add_up_to_the_budget(self):
+        # Su giocatori diversi contano tutte (la più alta di ciascuno).
+        self.assertTrue(self._bid(self.a, "Boban", 120)["ok"])
+        self.assertTrue(self._bid(self.a, "Raul", 80)["ok"])           # 200: tutto il budget
+        res = self._bid(self.a, "Iniesta", 1, cut_index=1)
+        self.assertEqual(res["error"], "budget_total")
+        self.assertIn("Ritira una busta", res["message"])
+        # Una busta più bassa su un giocatore già offerto non cambia il totale.
+        self.assertTrue(self._bid(self.a, "Boban", 50, cut_index=1)["ok"])
+        res = self._bid(self.a, "Boban", 130, cut_index=0)
+        self.assertEqual(res["error"], "budget_total")
+        self.assertIn("al massimo 120 FM", res["message"])
+        # Ritirata la busta su Raul, il budget torna libero.
+        raul = MarketBid.objects.get(participant=self.a, player=self.free["Raul"])
+        self.assertTrue(delete_market_bid(self.session.id, self.a.id, raul.id)["ok"])
+        self.assertTrue(self._bid(self.a, "Boban", 200, cut_index=0)["ok"])
+
+    def test_app_bid_dialog_shows_the_room_left(self):
+        self.assertTrue(self._bid(self.a, "Boban", 50)["ok"])
+        self.assertTrue(self._bid(self.a, "Boban", 70, cut_index=1)["ok"])
+        session = self.client.session
+        session["participant_id"] = self.a.id
+        session.save()
+        resp = self.client.get(reverse("app_mercato") + f"?session_id={self.session.id}")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["my_bid_best"], {str(self.free["Boban"].id): 70})
+        self.assertContains(resp, 'id="fm-bid-best"')
+        self.assertContains(resp, "Massimo su questo giocatore")
+        self.assertContains(resp, "conta solo la tua offerta più alta")
+
+    def test_spoglio_still_cancels_when_credits_drop_after_the_bids(self):
+        # Buste in regola alla consegna; poi i crediti calano (es. l'admin li
+        # corregge): allo spoglio si annullano le offerte più alte.
+        self._example(self.b, [("Boban", 99), ("Raul", 10), ("R.Carlos", 35), ("Iniesta", 50)])
+        Participant.objects.filter(pk=self.b.pk).update(credits=Decimal("150"))
+        resolve_market_session(self.session.id)
+        boban = MarketBid.objects.get(participant=self.b, player=self.free["Boban"])
+        self.assertEqual(boban.status, MarketBid.Status.CANCELLED)
+        self.assertIn("superava il budget", boban.note)
+        self.assertEqual(Player.objects.get(pk=self.free["Iniesta"].pk).owner, self.b)
 
     def test_pays_the_lowest_own_offer_that_wins(self):
         for amount, i in ((2, 0), (35, 1), (100, 0)):
