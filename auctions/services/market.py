@@ -268,6 +268,26 @@ def place_market_bid(
             "error": "insufficient_credits",
             "message": f"Crediti insufficienti. Massimo spendibile: {max_spendable:.0f} FM.",
         }
+    if total_rule:
+        # Regola "totale": su ogni giocatore conta solo l'offerta più alta e la
+        # somma di queste resta entro il budget (e il tetto salariale) già alla
+        # consegna, non solo allo spoglio.
+        budget = participant.remaining_credits if room is None else min(participant.remaining_credits, room)
+        committed = market_bids_committed(session, participant.id)
+        others = sum((a for p, a in committed.items() if p != player.id), Decimal("0"))
+        new_total = others + max(committed.get(player.id, Decimal("0")), val)
+        if new_total > budget:
+            top = budget - others
+            if top >= 1:
+                fix = (f"Su {player.name} puoi offrire al massimo {top:.0f} FM, "
+                       "oppure ritira un'altra busta.")
+            else:
+                fix = f"Ritira una busta per offrire su {player.name}."
+            return {
+                "ok": False, "error": "budget_total",
+                "message": f"Con questa busta le tue offerte (la più alta su ogni giocatore) arriverebbero "
+                           f"a {new_total:.0f} FM: il budget è {budget:.0f} FM. {fix}",
+            }
 
     try:
         prio = max(1, int(priority or 1))
@@ -358,6 +378,18 @@ def delete_market_bid(session_id, participant_id, bid_id):
         logger.info(f"Market bid deleted: session={session_id}, participant={participant_id}, bid={bid_id}")
 
     return {"ok": bool(deleted)}
+
+
+def market_bids_committed(session, participant_id):
+    """Regola "totale": quanto impegna sul budget ogni giocatore su cui la
+    squadra ha buste in attesa, cioè la sua offerta più alta ({player_id: FM})."""
+    best = {}
+    rows = MarketBid.objects.filter(
+        session=session, participant_id=participant_id, status=MarketBid.Status.PENDING,
+    ).values_list("player_id", "amount")
+    for pid, amount in rows:
+        best[pid] = max(best.get(pid, Decimal("0")), amount)
+    return best
 
 
 def market_bids_total(session, bids):

@@ -62,7 +62,7 @@ class MarketSession(models.Model):
     # invece le regole del regolamento di lega.
     class BudgetRule(models.TextChoices):
         PRIORITY = "priority", "Ordine di preferenza: ogni offerta entro il budget, allo spoglio conta la priorità"
-        TOTAL    = "total",    "Totale cumulativo: la somma delle offerte entro il budget, quelle più alte in eccesso si annullano"
+        TOTAL    = "total",    "Totale cumulativo: su ogni giocatore conta l'offerta più alta e la loro somma resta entro il budget"
 
     class TieBreak(models.TextChoices):
         MANUAL = "manual", "Decide l'admin (scelta o sorteggio)"
