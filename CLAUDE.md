@@ -337,6 +337,14 @@ falso per chi è uscito dal listone o dalla Serie A; resta per lo storico).
 L'admin di una lega (proprietario o co-admin in `league.admins`) gestisce solo
 le sue leghe: usare `user_can_manage_league` / `manageable_leagues`
 (`views/common.py`), mai il solo `league.owner`.
+Una squadra ha fino a due account (`Participant.user` e il secondo
+allenatore `co_user`): le squadre di un account si cercano con
+`Participant.objects.of_user(user)` e «è la sua squadra» con
+`participant.has_account(user)`, mai col solo `user`. Il secondo lo apre
+l'admin dalla pagina Squadre (`slot=2` in `admin_participant_account`,
+`_team_account_slot.html`) o col link del secondo allenatore
+(`co_invite_token`, una volta); invito e codice della squadra collegano solo
+il primo.
 Una squadra creata per sbaglio si elimina dalla sua Scheda nella pagina
 Squadre (`services/teams.py`): i giocatori tornano svincolati. Se ha già una
 storia (punteggi, partite calcolate, offerte, buste, scambi) non si elimina.

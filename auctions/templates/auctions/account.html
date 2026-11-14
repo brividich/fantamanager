@@ -84,7 +84,7 @@ cambia la cornice (views/privacy.py:_account_frame).
     <section class="fm-card acc-card">
         <h2>Squadre e leghe</h2>
         {% if teams %}
-        <ul class="acc-list">{% for t in teams %}<li><b>{{ t.display_name }}</b>{% if t.league %} · {{ t.league.name }}{% endif %}{% if not t.is_active %} <span class="muted">(non attiva)</span>{% endif %}</li>{% endfor %}</ul>
+        <ul class="acc-list">{% for t in teams %}<li><b>{{ t.display_name }}</b>{% if t.league %} · {{ t.league.name }}{% endif %}{% if t.co_user_id == account_user.id %} <span class="muted">(secondo account)</span>{% endif %}{% if not t.is_active %} <span class="muted">(non attiva)</span>{% endif %}</li>{% endfor %}</ul>
         {% else %}<p>Nessuna squadra collegata al tuo account.</p>{% endif %}
         {% if managed or co_managed %}
         <p style="margin-top:12px"><b>Leghe che gestisci</b></p>

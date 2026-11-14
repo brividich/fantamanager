@@ -558,6 +558,7 @@ def supervisor_dashboard(request):
                 uname = user_to_del.username
                 League.objects.filter(owner=user_to_del).update(owner=None)
                 Participant.objects.filter(user=user_to_del).update(user=None)
+                Participant.objects.filter(co_user=user_to_del).update(co_user=None)
                 user_to_del.delete()
                 messages.success(request, f"Account '{uname}' eliminato definitivamente.")
                 logger.info("Supervisor ha eliminato l'utente %s (id=%s)", uname, uid)
@@ -579,7 +580,7 @@ def supervisor_dashboard(request):
             messages.success(request, f"Stai ora visualizzando la piattaforma come '{target_user.username}'.")
 
             # Route to target user's context
-            first_team = target_user.teams.filter(is_active=True).first()
+            first_team = Participant.objects.of_user(target_user).filter(is_active=True).first()
             if first_team:
                 request.session["participant_id"] = first_team.id
                 request.session["display_name"] = first_team.display_name
@@ -858,6 +859,7 @@ def supervisor_dashboard(request):
             "leagues",
             "managed_leagues",
             "teams__league",
+            "co_teams__league",
         ).annotate(
             owned_leagues_count=Count("leagues", distinct=True),
             teams_count=Count("teams", distinct=True),

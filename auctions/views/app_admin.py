@@ -185,7 +185,6 @@ def _team_rows(request, league, viewer):
     by_owner = {}
     for pl in players.filter(owner__isnull=False).order_by("name"):
         by_owner.setdefault(pl.owner_id, []).append(pl)
-    user_id = getattr(request.user, "id", None)
     rows = []
     for p in participants:
         roster = by_owner.get(p.id, [])
@@ -193,7 +192,7 @@ def _team_rows(request, league, viewer):
             "team": p,
             "groups": [{"code": code, "label": label, "list": [pl for pl in roster if pl.role == code]}
                        for code, label in _ROLE_NAMES],
-            "is_mine": p.user_id is not None and p.user_id == user_id,
+            "is_mine": p.has_account(request.user),
             "is_viewing": viewer is not None and viewer.id == p.id,
             "join_url": participant_join_url(request, p),
         })
@@ -277,10 +276,11 @@ def app_view_as(request, participant_id):
     request.session["participant_id"] = team.id
     request.session["display_name"] = team.display_name
     request.session[SESSION_LEAGUE_KEY] = team.league_id
-    if team.user_id and team.user_id != request.user.id:
-        # Il manager di quella squadra lo vede in «Il mio account».
-        privacy.audit(request.user, "view_as", target_user=team.user, league=team.league,
-                      detail=f"Squadra {team.display_name}")
+    if not team.has_account(request.user):
+        # I manager di quella squadra lo vedono in «Il mio account».
+        for account in team.accounts:
+            privacy.audit(request.user, "view_as", target_user=account, league=team.league,
+                          detail=f"Squadra {team.display_name}")
     # No flash message: the shell's "Vista admin" banner already says it.
     return redirect("app_home")
 

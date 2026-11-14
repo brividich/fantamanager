@@ -390,6 +390,8 @@ def linkable_users(user):
             Q(leagues__in=foreign) | Q(managed_leagues__in=foreign)).values("pk")
         qs = qs.filter(Q(pk=user.pk) | Q(teams__league__owner=user)
                        | Q(teams__league__admins=user)
+                       | Q(co_teams__league__owner=user)
+                       | Q(co_teams__league__admins=user)
                        | Q(managed_account__created_by=user)).distinct()
         qs = qs.exclude(~Q(pk=user.pk) & (Q(is_superuser=True) | Q(is_staff=True)
                                           | Q(pk__in=foreign_admins)))
@@ -474,7 +476,7 @@ def _session_participant(request):
     if user and user.is_authenticated:
         # Only an account with a single team gets it by default: with teams in
         # several leagues the login asks which one (never the database order).
-        mine = list(Participant.objects.filter(user=user, is_active=True)[:2])
+        mine = list(Participant.objects.of_user(user).filter(is_active=True)[:2])
         p = mine[0] if len(mine) == 1 else None
         if p:
             request.session["participant_id"] = p.id
@@ -660,7 +662,7 @@ def _app_ctx(request, active_tab):
         "viewing_as": bool(
             admin_leagues and participant is not None
             and participant.league_id in admin_ids
-            and participant.user_id != getattr(user, "id", None)
+            and not participant.has_account(user)
         ),
     }
 

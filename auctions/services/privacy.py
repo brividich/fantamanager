@@ -145,6 +145,7 @@ def apply_verification(user, digest):
         # Le squadre che scrivevano al vecchio indirizzo dell'account seguono il nuovo.
         if old:
             user.teams.filter(email__iexact=old).update(email=row.pending_email)
+            user.co_teams.filter(email__iexact=old).update(email=row.pending_email)
         row.pending_email = ""
         row.email_verified_at = now
         row.save(update_fields=["pending_email", "email_verified_at"])
@@ -234,7 +235,7 @@ def export_user_data(user):
     )
 
     row = privacy_row(user)
-    teams = list(Participant.objects.filter(user=user).select_related("league"))
+    teams = list(Participant.objects.of_user(user).select_related("league"))
     team_ids = [t.id for t in teams]
     data = {
         "generato_il": timezone.now().isoformat(),
@@ -257,7 +258,8 @@ def export_user_data(user):
         ],
         "squadre": [
             {"id": t.id, "nome": t.display_name, "lega": t.league.name if t.league else None,
-             "email_della_squadra": t.email, "crediti": str(t.credits), "spesi": str(t.spent_credits),
+             "account": "primo" if t.user_id == user.id else "secondo",
+             "email_della_squadra": t.email if t.user_id == user.id else None, "crediti": str(t.credits), "spesi": str(t.spent_credits),
              "attiva": t.is_active, "creata_il": _dt(t.created_at)}
             for t in teams
         ],
@@ -320,7 +322,8 @@ def deletion_blockers(user):
 
     blocking = []
     for league in League.objects.filter(owner=user).order_by("name"):
-        others = Participant.objects.filter(league=league, is_active=True).exclude(user=user)
+        others = (Participant.objects.filter(league=league, is_active=True)
+                  .exclude(user=user).exclude(co_user=user, user__isnull=True))
         if others.exists():
             blocking.append(league)
     return blocking
@@ -344,11 +347,16 @@ def delete_account(user):
     email = (user.email or "").lower()
     username = user.username
     with transaction.atomic():
-        teams = list(Participant.objects.filter(user=user))
+        teams = list(Participant.objects.of_user(user))
         team_ids = [t.id for t in teams]
         for t in teams:
-            fields = ["user"]
-            t.user = None
+            fields = []
+            if t.user_id == user.id:
+                t.user = None
+                fields.append("user")
+            if t.co_user_id == user.id:
+                t.co_user = None
+                fields.append("co_user")
             if email and t.email.lower() == email:
                 t.email = ""
                 fields.append("email")

@@ -99,7 +99,9 @@ def teams_manage_context(request, current_league):
     live = target is not None and target.status == Auction.Status.LIVE
 
     accounts_ok = current_league is not None and can_manage_accounts(request.user, current_league)
-    participants = participants.select_related("user", "user__managed_account")
+    participants = participants.select_related("user", "user__managed_account",
+                                               "co_user", "co_user__managed_account")
+    base_url = remote.best_base_url(request).rstrip("/")
     honour_labels = team_sheets.league_honour_labels(current_league)
 
     rows = []
@@ -120,6 +122,11 @@ def teams_manage_context(request, current_league):
             "account": p.user if accounts_ok else None,
             "account_lock": account_lock_reason(request.user, p.user) if accounts_ok and p.user else "",
             "account_deletable": accounts_ok and p.user is not None and account_deletable(request.user, p.user),
+            # Il secondo account: due persone che guidano la stessa squadra.
+            "account2": p.co_user if accounts_ok else None,
+            "account2_lock": account_lock_reason(request.user, p.co_user) if accounts_ok and p.co_user else "",
+            "account2_deletable": accounts_ok and p.co_user is not None and account_deletable(request.user, p.co_user),
+            "co_invite_url": (base_url + onboarding.co_invite_path(p)) if accounts_ok and p.co_invite_token else "",
             "honours": team_sheets.honours_for(p, honour_labels),
             "images": [("logo", "Logo", p.logo), ("kit_home", "Prima maglia", p.kit_home),
                        ("kit_away", "Seconda maglia", p.kit_away)],
@@ -653,6 +660,16 @@ def _is_managed(account):
         return False
 
 
+SAME_ACCOUNT_MSG = "«{user}» è già l'altro account di «{team}»: il secondo account dev'essere di un'altra persona."
+OTHER_TEAM_MSG = ("«{user}» guida già un'altra squadra di questa lega: un account guida una squadra "
+                  "sola per lega.")
+
+
+def _other_team_in_league(user, team):
+    return (Participant.objects.of_user(user).filter(league_id=team.league_id)
+            .exclude(pk=team.pk).exists())
+
+
 LINK_REFUSED_MSG = (
     "Non puoi collegare questo account: da qui si collegano solo gli account che "
     "giocano già in una tua lega o che hai creato tu. Se l'allenatore si è "
@@ -705,7 +722,7 @@ def account_lock_reason(actor, account, action=None):
         return "È l'account del presidente di un'altra lega."
 
     # If the target account plays in leagues not administered by actor
-    if Participant.objects.filter(user=account).exclude(league__in=actor_leagues).exists():
+    if Participant.objects.of_user(account).exclude(league__in=actor_leagues).exists():
         return "Guida anche squadre di leghe che non gestisci."
 
     if not _is_managed(account):
@@ -788,6 +805,10 @@ def admin_participant_account(request, participant_id):
     existing login (username or email) to the team; ``unlink`` unties it.
     ``update`` (username, email, name), ``password``, ``toggle_active`` and
     ``delete`` change the login itself: see ``account_lock_reason``.
+
+    ``slot=2`` acts on the team's second account (``co_user``) instead of the
+    first; ``co_invite`` / ``co_invite_revoke`` make or withdraw the one-time
+    link the second coach opens to link their own account.
     """
     p, denied = managed_or_403(request, Participant, participant_id)
     if denied:
@@ -798,15 +819,45 @@ def admin_participant_account(request, participant_id):
     User = get_user_model()
     back = safe_next(request, _participants_url(p))
     action = request.POST.get("action", "")
-    account = p.user
+    second = request.POST.get("slot") == "2"
+    field = "co_user" if second else "user"
+    account = getattr(p, field)
+    other = p.user if second else p.co_user
+    what = "un secondo account" if second else "un account"
 
     def fail(msg):
         messages.error(request, msg)
         return redirect(back)
 
+    def attach(user):
+        setattr(p, field, user)
+        fields = [field]
+        if second and p.co_invite_token:
+            p.co_invite_token = ""          # il posto è preso: il link non serve più
+            fields.append("co_invite_token")
+        p.save(update_fields=fields)
+
+    def same_as_other(user):
+        return other is not None and user is not None and other.pk == user.pk
+
+    if action == "co_invite":
+        if p.co_user_id is not None:
+            return fail(f"«{p.display_name}» ha già il secondo account: scollegalo prima di invitarne un altro.")
+        onboarding.new_co_invite(p)
+        messages.success(request, f"Link per il secondo allenatore di «{p.display_name}» pronto: "
+                                  "copialo e mandalo solo a lui. Vale una volta.")
+        return redirect(back)
+
+    if action == "co_invite_revoke":
+        if p.co_invite_token:
+            p.co_invite_token = ""
+            p.save(update_fields=["co_invite_token"])
+        messages.success(request, f"Link per il secondo allenatore di «{p.display_name}» ritirato.")
+        return redirect(back)
+
     if action == "create":
         if account is not None:
-            return fail(f"«{p.display_name}» ha già un account: scollegalo prima di crearne un altro.")
+            return fail(f"«{p.display_name}» ha già {what}: scollegalo prima di crearne un altro.")
         username, error = _clean_username(request.POST.get("username"))
         if error:
             return fail(error)
@@ -825,22 +876,26 @@ def admin_participant_account(request, participant_id):
                 first_name=(request.POST.get("first_name") or "").strip()[:150],
             )
             ManagedAccount.objects.create(user=account, created_by=request.user)
-            p.user = account
-            p.save(update_fields=["user"])
+            attach(account)
         if generated:
             _remember_secret(request, p, account, password)
-        messages.success(request, f"Account «{account.username}» creato e collegato a «{p.display_name}».")
+        messages.success(request, f"Account «{account.username}» creato e collegato a «{p.display_name}»"
+                                  f"{' come secondo account' if second else ''}.")
         return redirect(back)
 
     if action == "link":
         if account is not None:
-            return fail(f"«{p.display_name}» ha già un account: scollegalo prima di collegarne un altro.")
+            return fail(f"«{p.display_name}» ha già {what}: scollegalo prima di collegarne un altro.")
         found = _find_linkable(request.user, ident=request.POST.get("identifier"))
         if found is None:
             return fail(LINK_REFUSED_MSG)
-        p.user = found
-        p.save(update_fields=["user"])
-        messages.success(request, f"Account «{found.username}» collegato a «{p.display_name}».")
+        if same_as_other(found):
+            return fail(SAME_ACCOUNT_MSG.format(user=found.username, team=p.display_name))
+        if second and _other_team_in_league(found, p):
+            return fail(OTHER_TEAM_MSG.format(user=found.username))
+        attach(found)
+        messages.success(request, f"Account «{found.username}» collegato a «{p.display_name}»"
+                                  f"{' come secondo account' if second else ''}.")
         return redirect(back)
 
     if action == "manage":
@@ -848,8 +903,8 @@ def admin_participant_account(request, participant_id):
         if request.POST.get("unlink_account") == "1":
             if account is not None:
                 uname = account.username
-                p.user = None
-                p.save(update_fields=["user"])
+                setattr(p, field, None)
+                p.save(update_fields=[field])
                 privacy.audit(request.user, "unlink", target_user=account, league=p.league,
                               detail=f"Squadra {p.display_name}")
                 messages.success(request, f"Account «{uname}» scollegato da «{p.display_name}».")
@@ -867,6 +922,10 @@ def admin_participant_account(request, participant_id):
                 found = _find_linkable(request.user, uid=link_uid, ident=link_ident)
                 if found is None:
                     return fail(LINK_REFUSED_MSG)
+                if same_as_other(found):
+                    return fail(SAME_ACCOUNT_MSG.format(user=found.username, team=p.display_name))
+                if second and _other_team_in_league(found, p):
+                    return fail(OTHER_TEAM_MSG.format(user=found.username))
                 account = found
                 linking = True
             else:
@@ -891,8 +950,7 @@ def admin_participant_account(request, participant_id):
                         first_name=(request.POST.get("first_name") or "").strip()[:150],
                     )
                     ManagedAccount.objects.create(user=account, created_by=request.user)
-                    p.user = account
-                    p.save(update_fields=["user"])
+                    attach(account)
                 if gen_pwd:
                     _remember_secret(request, p, account, password)
 
@@ -962,8 +1020,7 @@ def admin_participant_account(request, participant_id):
                 _remember_secret(request, p, account, new_password)
 
         if linking:
-            p.user = account
-            p.save(update_fields=["user"])
+            attach(account)
         elif wants_change:
             account.save()
             if account.pk != request.user.pk:
@@ -996,8 +1053,8 @@ def admin_participant_account(request, participant_id):
         return fail(f"«{p.display_name}» non ha un account collegato.")
 
     if action == "unlink":
-        p.user = None
-        p.save(update_fields=["user"])
+        setattr(p, field, None)
+        p.save(update_fields=[field])
         privacy.audit(request.user, "unlink", target_user=account, league=p.league,
                       detail=f"Squadra {p.display_name}")
         messages.success(

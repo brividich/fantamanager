@@ -117,13 +117,18 @@ def invite(request, token):
     """La pagina d'invito di una squadra."""
     team = Participant.objects.filter(public_token=token, is_active=True).select_related("league", "user").first() \
         if token else None
+    if team is None and token:
+        co_team = (Participant.objects.filter(co_invite_token=token, is_active=True)
+                   .select_related("league").first())
+        if co_team is not None:
+            return _co_invite(request, co_team)
     if team is None:
         return render(request, "auctions/invite.html", {"invalid": True}, status=404)
     league = team.league
     next_url = safe_next(request, reverse("app_home"))
     live = _live_auction(team)
     user = request.user if request.user.is_authenticated else None
-    if user is None or team.user_id != user.id:
+    if user is None or not team.has_account(user):
         onboarding.mark_invite_opened(team)
 
     error = ""
@@ -150,8 +155,8 @@ def invite(request, token):
                     messages.success(request, LINK_MESSAGES[outcome].format(team=team.display_name))
                     return redirect(next_url)
 
-    taken = team.user_id is not None and (user is None or team.user_id != user.id)
-    if user is not None and team.user_id == user.id and request.method == "GET":
+    taken = team.user_id is not None and not team.has_account(user)
+    if user is not None and team.has_account(user) and request.method == "GET":
         onboarding.enter_team(request, team)
         return redirect(next_url)
     return render(request, "auctions/invite.html", {
@@ -168,6 +173,59 @@ def invite(request, token):
         "legal_required": privacy.legal_required(),
         "min_age": legal.MIN_AGE,
         "active_mode": request.POST.get("action") or ("login" if taken else "signup"),
+    })
+
+
+CO_LINK_MESSAGES = {
+    "linked": "Fatto: guidi {team} insieme al suo allenatore. Da adesso entri con nome utente e password, da qualsiasi dispositivo.",
+    "mine": "{team} è già collegata al tuo account.",
+}
+CO_LINK_ERRORS = {
+    "taken": onboarding.CO_TAKEN_MESSAGE,
+    "other_team": onboarding.CO_OTHER_TEAM_MESSAGE,
+}
+
+
+def _co_invite(request, team):
+    """Il link del secondo allenatore (``co_invite_token``): solo con un
+    account, che diventa il secondo account della squadra. Vale una volta."""
+    league = team.league
+    next_url = safe_next(request, reverse("app_home"))
+    user = request.user if request.user.is_authenticated else None
+    error = ""
+    if request.method == "POST":
+        action = request.POST.get("action", "")
+        if action in ("signup", "login", "link"):
+            if action == "signup":
+                user, error = _signup(request)
+            elif action == "login":
+                user, error = _login(request)
+            elif user is None:
+                error = "Entra prima con il tuo account."
+            if user is not None and not error:
+                outcome = onboarding.link_co_user(user, team)
+                if outcome in CO_LINK_ERRORS:
+                    error = CO_LINK_ERRORS[outcome]
+                else:
+                    onboarding.enter_team(request, team)
+                    messages.success(request, CO_LINK_MESSAGES[outcome].format(team=team.display_name))
+                    return redirect(next_url)
+    taken = team.co_user_id is not None and not team.has_account(user)
+    return render(request, "auctions/invite.html", {
+        "co": True,
+        "team": team,
+        "league": league,
+        "inviter": _inviter_name(league),
+        "live": None,
+        "taken": taken,
+        "error": error,
+        "next": request.GET.get("next") or request.POST.get("next") or "",
+        "suggested_username": request.POST.get("username") or "",
+        "suggested_email": request.POST.get("email") or "",
+        "account": user,
+        "legal_required": privacy.legal_required(),
+        "min_age": legal.MIN_AGE,
+        "active_mode": request.POST.get("action") or "signup",
     })
 
 

@@ -15,7 +15,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from .. import legal, throttle
-from ..models import AccountPrivacy, League
+from ..models import AccountPrivacy, League, Participant
 from ..services import mail, privacy
 from .common import in_app, manageable_leagues, page_frame, safe_next
 
@@ -133,7 +133,7 @@ def account_page(request):
         "pending_email": row.pending_email if row else "",
         "acceptances": user.legal_acceptances.all()[:6],
         "acceptance_state": privacy.acceptance_state(user),
-        "teams": user.teams.select_related("league").order_by("league__name", "display_name"),
+        "teams": Participant.objects.of_user(user).select_related("league").order_by("league__name", "display_name"),
         "managed": League.objects.filter(owner=user).order_by("name"),
         "co_managed": user.managed_leagues.order_by("name"),
         "blockers": blockers,
@@ -201,6 +201,7 @@ def account_email(request):
     user.save(update_fields=["email"])
     if old:
         user.teams.filter(email__iexact=old).update(email=new)
+        user.co_teams.filter(email__iexact=old).update(email=new)
     row.pending_email = ""
     row.email_verified_at = None if row.self_registered else row.email_verified_at
     row.save(update_fields=["pending_email", "email_verified_at"])

@@ -79,7 +79,7 @@ def portal_view(request):
             return redirect("dashboard")
 
         # Check if user has teams
-        teams = Participant.objects.filter(user=request.user, is_active=True)
+        teams = Participant.objects.of_user(request.user).filter(is_active=True)
         if teams.count() > 1:
             # Più squadre (in leghe diverse): sceglie l'allenatore, mai l'ordine del database.
             from urllib.parse import urlencode
