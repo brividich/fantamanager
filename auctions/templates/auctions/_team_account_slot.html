@@ -1,0 +1,141 @@
+{% comment %}
+Un account della squadra nella finestra «Account» di _teams_manage.html:
+dati, password, collegamento — oppure, se il posto è vuoto, crea o collega.
+``slot`` "1" è il primo account (``Participant.user``), "2" il secondo
+(``co_user``, con in più il link per il secondo allenatore). Vuole
+``account_url``, ``r`` (la riga), ``acc``, ``lock``, ``deletable``.
+{% endcomment %}
+{% if acc %}
+    {% if lock %}
+    <div class="acc-lock"><svg class="ic"><use href="#i-lock"/></svg>
+        <span><b>{{ acc.username }}</b>: {{ lock }}</span></div>
+    {% else %}
+    <form method="post" action="{{ account_url }}" class="acc-sec">
+        {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <input type="hidden" name="action" value="update"><input type="hidden" name="slot" value="{{ slot }}">
+        <h4>Dati di accesso</h4>
+        <label for="acc-u-{{ r.p.id }}-{{ slot }}">Nome utente</label>
+        <input id="acc-u-{{ r.p.id }}-{{ slot }}" name="username" value="{{ acc.username }}" required minlength="3" maxlength="150" autocomplete="off">
+        <label for="acc-n-{{ r.p.id }}-{{ slot }}">Nome allenatore</label>
+        <input id="acc-n-{{ r.p.id }}-{{ slot }}" name="first_name" value="{{ acc.first_name }}" maxlength="150" autocomplete="off">
+        <label for="acc-e-{{ r.p.id }}-{{ slot }}">Email (facoltativa, vale anche per entrare)</label>
+        <input id="acc-e-{{ r.p.id }}-{{ slot }}" type="email" name="email" value="{{ acc.email }}" autocomplete="off">
+        <div class="row-actions"><button type="submit" class="fm-btn fm-btn-primary fm-btn-sm">
+            <svg class="ic"><use href="#i-save"/></svg> Salva</button></div>
+    </form>
+    <form method="post" action="{{ account_url }}" class="acc-sec">
+        {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <input type="hidden" name="action" value="password"><input type="hidden" name="slot" value="{{ slot }}">
+        <h4>Password</h4>
+        <p>Per l'allenatore che l'ha dimenticata. Lascia vuoto e ne genero una io, da consegnargli.</p>
+        <label for="acc-p-{{ r.p.id }}-{{ slot }}">Nuova password</label>
+        <input id="acc-p-{{ r.p.id }}-{{ slot }}" type="text" name="password" minlength="8" autocomplete="new-password"
+               placeholder="vuota = la genero io">
+        <div class="row-actions"><button type="submit" class="fm-btn fm-btn-secondary fm-btn-sm">
+            <svg class="ic"><use href="#i-lock"/></svg> Reimposta password</button></div>
+    </form>
+    {% endif %}
+    <div class="acc-sec">
+        <h4>Collegamento</h4>
+        {% if lock %}
+        <p>Puoi sempre scollegarlo dalla squadra: l'account resta, ma non guida più «{{ r.p.display_name }}».</p>
+        {% else %}
+        <p><b>Disattiva</b> blocca l'accesso con password; <b>Scollega</b> lo toglie dalla squadra ma lo
+           tiene. In entrambi i casi il link e il PIN della squadra restano validi.</p>
+        {% endif %}
+        <div class="row-actions">
+            {% if not lock and acc.pk != request.user.pk %}
+            <form method="post" action="{{ account_url }}">
+                {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <input type="hidden" name="action" value="toggle_active"><input type="hidden" name="slot" value="{{ slot }}">
+                {% if acc.is_active %}
+                <button type="submit" class="fm-btn btn-warn fm-btn-sm">Disattiva accesso</button>
+                {% else %}
+                <button type="submit" class="fm-btn fm-btn-secondary fm-btn-sm">Riattiva accesso</button>
+                {% endif %}
+            </form>
+            {% endif %}
+            <form method="post" action="{{ account_url }}"
+                  data-confirm="Scollegare l'account «{{ acc.username }}» da «{{ r.p.display_name }}»?">
+                {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <input type="hidden" name="action" value="unlink"><input type="hidden" name="slot" value="{{ slot }}">
+                <button type="submit" class="fm-btn fm-btn-secondary fm-btn-sm">
+                    <svg class="ic"><use href="#i-link"/></svg> Scollega</button>
+            </form>
+            {% if deletable %}
+            <form method="post" action="{{ account_url }}"
+                  data-confirm="Eliminare per sempre l'account «{{ acc.username }}»? L'allenatore non potrà più entrare con quella password.">
+                {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <input type="hidden" name="action" value="delete"><input type="hidden" name="slot" value="{{ slot }}">
+                <button type="submit" class="fm-btn fm-btn-danger fm-btn-sm">
+                    <svg class="ic"><use href="#i-trash"/></svg> Elimina account</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+{% else %}
+    <form method="post" action="{{ account_url }}" class="acc-sec">
+        {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <input type="hidden" name="action" value="create"><input type="hidden" name="slot" value="{{ slot }}">
+        <h4>Crea un account</h4>
+        <p>L'allenatore entra nell'app con nome utente (o email) e password, da qualunque dispositivo.</p>
+        <label for="acc-cu-{{ r.p.id }}-{{ slot }}">Nome utente</label>
+        <input id="acc-cu-{{ r.p.id }}-{{ slot }}" name="username" value="{{ r.p.display_name|slugify }}{% if slot == "2" %}-2{% endif %}" required minlength="3" maxlength="150" autocomplete="off">
+        <label for="acc-cn-{{ r.p.id }}-{{ slot }}">Nome allenatore (facoltativo)</label>
+        <input id="acc-cn-{{ r.p.id }}-{{ slot }}" name="first_name" maxlength="150" autocomplete="off">
+        <label for="acc-ce-{{ r.p.id }}-{{ slot }}">Email (facoltativa)</label>
+        <input id="acc-ce-{{ r.p.id }}-{{ slot }}" type="email" name="email" autocomplete="off">
+        <label for="acc-cp-{{ r.p.id }}-{{ slot }}">Password</label>
+        <input id="acc-cp-{{ r.p.id }}-{{ slot }}" type="text" name="password" minlength="8" autocomplete="new-password"
+               placeholder="vuota = la genero io">
+        <div class="row-actions"><button type="submit" class="fm-btn fm-btn-primary fm-btn-sm">
+            <svg class="ic"><use href="#i-plus"/></svg> Crea e collega</button></div>
+    </form>
+    <form method="post" action="{{ account_url }}" class="acc-sec">
+        {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <input type="hidden" name="action" value="link"><input type="hidden" name="slot" value="{{ slot }}">
+        <h4>Oppure collega un account esistente</h4>
+        {% if slot == "2" %}
+        <p>Un account che gioca già in una tua lega o che hai creato tu. Se il secondo allenatore si è registrato da solo, mandagli il link qui sotto.</p>
+        {% else %}
+        <p>Un account che gioca già in una tua lega o che hai creato tu. Se l'allenatore si è registrato da solo, dagli il codice della squadra: lo inserisce nell'app e la squadra si collega al suo account.</p>
+        {% endif %}
+        <label for="acc-li-{{ r.p.id }}-{{ slot }}">Nome utente o email</label>
+        <input id="acc-li-{{ r.p.id }}-{{ slot }}" name="identifier" required autocomplete="off">
+        <div class="row-actions"><button type="submit" class="fm-btn fm-btn-secondary fm-btn-sm">
+            <svg class="ic"><use href="#i-link"/></svg> Collega</button></div>
+    </form>
+    {% if slot == "2" %}
+    <div class="acc-sec">
+        <h4>Oppure mandagli il link</h4>
+        {% if r.co_invite_url %}
+        <p>Il secondo allenatore lo apre, crea il suo account (o entra con quello che ha) e la squadra si collega.
+           Vale una volta: mandalo solo a lui.</p>
+        <div class="link-row" style="max-width:none;margin-top:10px"><span class="link-text" title="{{ r.co_invite_url }}">{{ r.co_invite_url }}</span>
+            <button type="button" class="fm-btn fm-btn-ghost" data-copy="{{ r.co_invite_url }}" title="Copia link" aria-label="Copia link del secondo allenatore">
+                <svg class="ic"><use href="#i-copy"/></svg></button></div>
+        <div class="row-actions">
+            <form method="post" action="{{ account_url }}">
+                {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <input type="hidden" name="action" value="co_invite"><input type="hidden" name="slot" value="2">
+                <button type="submit" class="fm-btn fm-btn-secondary fm-btn-sm">Link nuovo</button>
+            </form>
+            <form method="post" action="{{ account_url }}">
+                {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <input type="hidden" name="action" value="co_invite_revoke"><input type="hidden" name="slot" value="2">
+                <button type="submit" class="fm-btn fm-btn-ghost fm-btn-sm">Ritira il link</button>
+            </form>
+        </div>
+        {% else %}
+        <p>Per chi si è registrato da solo o preferisce scegliersi nome utente e password: un link che vale una
+           volta, da mandare solo a lui.</p>
+        <form method="post" action="{{ account_url }}" class="row-actions">
+            {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <input type="hidden" name="action" value="co_invite"><input type="hidden" name="slot" value="2">
+            <button type="submit" class="fm-btn fm-btn-secondary fm-btn-sm">
+                <svg class="ic"><use href="#i-link"/></svg> Crea il link per il secondo allenatore</button>
+        </form>
+        {% endif %}
+    </div>
+    {% endif %}
+{% endif %}

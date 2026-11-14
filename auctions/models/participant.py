@@ -58,13 +58,33 @@ def find_team_by_code(code):
     return (matches[0] if matches else None), False
 
 
+class ParticipantQuerySet(models.QuerySet):
+    def of_user(self, user):
+        """Le squadre che ``user`` guida, da primo o da secondo account."""
+        if user is None or not getattr(user, "is_authenticated", False):
+            return self.none()
+        return self.filter(Q(user=user) | Q(co_user=user))
+
+
 class Participant(models.Model):
+    objects = ParticipantQuerySet.as_manager()
+
     league        = models.ForeignKey(
         "League", null=True, blank=True, on_delete=models.SET_NULL, related_name="participants"
     )
     user          = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="teams"
     )
+    # Il secondo account della squadra: due persone che la guidano insieme
+    # (formazione, offerte, buste, scambi), ognuna con la sua password. Lo
+    # apre l'admin della lega dalla pagina Squadre: crea o collega l'account,
+    # oppure manda il link per il secondo allenatore (``co_invite_token``,
+    # vale una volta). L'invito e il codice della squadra collegano solo il
+    # primo account: una squadra già collegata non si prende con un link.
+    co_user       = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="co_teams"
+    )
+    co_invite_token = models.CharField(max_length=64, blank=True, db_index=True)
     # External team identity (when imported from a provider such as Fantapazz).
     external_team_id = models.CharField(max_length=60, blank=True)
     display_name  = models.CharField(max_length=80)
@@ -124,6 +144,17 @@ class Participant(models.Model):
 
     def __str__(self):
         return self.display_name
+
+    def has_account(self, user):
+        """True se ``user`` è uno dei due account della squadra."""
+        uid = getattr(user, "id", None)
+        return uid is not None and uid in (self.user_id, self.co_user_id)
+
+    @property
+    def accounts(self):
+        """Gli account collegati alla squadra, il primo per primo."""
+        return [u for u in (self.user if self.user_id else None,
+                            self.co_user if self.co_user_id else None) if u is not None]
 
     @property
     def contact_email(self):

@@ -83,7 +83,7 @@ def claims_team(user, team):
 
     if user_can_manage_scope(user, team.league):
         return False
-    return not Participant.objects.filter(user=user, league_id=team.league_id).exists()
+    return not Participant.objects.of_user(user).filter(league_id=team.league_id).exists()
 
 
 TAKEN_MESSAGE = ("Questa squadra è già collegata a un altro account. Se è la tua, entra con quell'account; "
@@ -97,7 +97,7 @@ def link_team(user, team):
     ``"taken"`` (è di un altro account: nessun cambio) o ``"visit"`` (l'account
     gestisce la lega o ha già una squadra lì: si entra senza collegare).
     """
-    if team.user_id == user.id:
+    if team.has_account(user):
         return "mine"
     if team.user_id is not None:
         return "taken"
@@ -116,6 +116,46 @@ def link_team(user, team):
         league.save(update_fields=["first_team_joined_at"])
     if league is not None:
         refresh_ready(league)
+    return "linked"
+
+
+CO_TAKEN_MESSAGE = ("Questa squadra ha già il suo secondo allenatore. Se sei tu, entra con quell'account; "
+                    "altrimenti chiedi al presidente della lega un link nuovo.")
+CO_OTHER_TEAM_MESSAGE = ("Hai già una squadra in questa lega: un account guida una squadra sola per lega. "
+                         "Entra con un altro account, o chiedi al presidente.")
+
+
+def new_co_invite(team):
+    """Un link nuovo per il secondo allenatore (quello di prima non vale più)."""
+    import secrets
+
+    team.co_invite_token = secrets.token_urlsafe(24)
+    team.save(update_fields=["co_invite_token"])
+    return team.co_invite_token
+
+
+def co_invite_path(team):
+    from django.urls import reverse
+
+    return reverse("invite", args=[team.co_invite_token]) if team.co_invite_token else ""
+
+
+def link_co_user(user, team):
+    """Collega ``user`` come secondo account di ``team`` (link del secondo
+    allenatore). ``"linked"``, ``"mine"`` (è già uno dei due account),
+    ``"taken"`` (il posto è occupato) o ``"other_team"`` (l'account ha già
+    un'altra squadra nella lega). Collegato, il link non vale più."""
+    from ..models import Participant
+
+    if team.has_account(user):
+        return "mine"
+    if team.co_user_id is not None:
+        return "taken"
+    if Participant.objects.of_user(user).filter(league_id=team.league_id).exists():
+        return "other_team"
+    team.co_user = user
+    team.co_invite_token = ""
+    team.save(update_fields=["co_user", "co_invite_token"])
     return "linked"
 
 

@@ -674,7 +674,7 @@
                 data-role="{% if u.is_superuser %}superadmin{% elif u.owned_leagues_count > 0 or u.managed_leagues.all %}admin{% else %}manager{% endif %}"
                 data-active="{% if u.is_active %}1{% else %}0{% endif %}"
                 data-leagues="{% for lg in u.leagues.all %}{{ lg.name|lower }} {% endfor %}{% for lg in u.managed_leagues.all %}{{ lg.name|lower }} {% endfor %}"
-                data-teams="{% for t in u.teams.all %}{{ t.display_name|lower }} {% endfor %}">
+                data-teams="{% for t in u.teams.all %}{{ t.display_name|lower }} {% endfor %}{% for t in u.co_teams.all %}{{ t.display_name|lower }} {% endfor %}">
                 <td>
                     <b>{{ u.username }}</b>
                     {% if u == request.user %}
@@ -721,11 +721,16 @@
                     {% endif %}
                 </td>
                 <td>
-                    {% if u.teams.all %}
+                    {% if u.teams.all or u.co_teams.all %}
                         <div style="display:flex;flex-direction:column;gap:3px">
                         {% for t in u.teams.all %}
                             <span style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);color:var(--fm-emerald-300);padding:2px 7px;border-radius:4px;font-size:11px;font-weight:600;display:inline-block">
                                 ⚽ {{ t.display_name }}{% if t.league %} <span style="opacity:0.75;font-weight:400">({{ t.league.name }})</span>{% endif %}
+                            </span>
+                        {% endfor %}
+                        {% for t in u.co_teams.all %}
+                            <span style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);color:var(--fm-emerald-300);padding:2px 7px;border-radius:4px;font-size:11px;font-weight:600;display:inline-block">
+                                ⚽ {{ t.display_name }} <span style="opacity:0.75;font-weight:400">(secondo account{% if t.league %} · {{ t.league.name }}{% endif %})</span>
                             </span>
                         {% endfor %}
                         </div>

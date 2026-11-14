@@ -37,6 +37,11 @@ Prima versione numerata (prima l'etichetta era 1.2.0, senza rilasci).
   `Auction.ticker_seen_at`); senza ticker chiude con un margine di 3 s.
 
 ### Lega
+- **Due account per una squadra**: nella pagina Squadre (console e app),
+  in «Gestisci account», il **secondo allenatore** si crea, si collega o
+  riceve il suo link, che vale una volta. Ognuno entra con la sua password e
+  guida la squadra (formazione, offerte, buste, scambi). Il link d'invito e
+  il codice della squadra collegano solo il primo account.
 - Nuova pagina **Impostazioni lega**, in console (barra in alto) e nell'app
   (Regia, menu e Altro): tutte le regole di una lega in un posto, crediti,
   sistema di gioco, rosa, scambi, contratti e tetto si cambiano lì; mercati,

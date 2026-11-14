@@ -70,7 +70,7 @@ def admin_dashboard(request, league_id=None, hub=False, auction_id=None):
     if not user.is_superuser:
         owned_leagues = list(manageable_leagues(user))
         if not owned_leagues:
-            if Participant.objects.filter(user=user, is_active=True).exists():
+            if Participant.objects.of_user(user).filter(is_active=True).exists():
                 return redirect("app_home")
             return redirect("onboarding")
         leagues = owned_leagues

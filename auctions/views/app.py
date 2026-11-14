@@ -1296,12 +1296,12 @@ def app_login(request):
     # If the user is already authenticated via Django user and has a linked team,
     # and they are not explicitly asking to switch (?switch=1):
     if request.method == "GET" and request.user.is_authenticated and not request.GET.get("switch"):
-        mine = list(Participant.objects.filter(user=request.user, is_active=True)[:2])
+        mine = list(Participant.objects.of_user(request.user).filter(is_active=True)[:2])
         current = request.session.get("participant_id")
         participant = None
         if len(mine) == 1:
             participant = mine[0]
-        elif mine and Participant.objects.filter(pk=current, user=request.user, is_active=True).exists():
+        elif mine and Participant.objects.of_user(request.user).filter(pk=current, is_active=True).exists():
             return redirect(next_url)          # already playing one of their teams
         # Two or more teams (in different leagues): the page below asks which.
         if participant:
@@ -1348,7 +1348,7 @@ def app_login(request):
                     error = "Questo account è disattivato. Contatta l'amministratore."
                 else:
                     auth_login(request, user)
-                    teams = list(Participant.objects.filter(user=user, is_active=True)[:2])
+                    teams = list(Participant.objects.of_user(user).filter(is_active=True)[:2])
                     if len(teams) > 1:
                         # Teams in more than one league: the account picks, never the database order.
                         request.session.pop("participant_id", None)
@@ -1380,7 +1380,8 @@ def app_login(request):
                 elif not participant:
                     throttle.failure(request, "code")
                     error = "Codice squadra non valido o non riconosciuto."
-                elif participant.user_id is not None and request.user.is_authenticated and request.user.id != participant.user_id:
+                elif (participant.user_id is not None and request.user.is_authenticated
+                      and not participant.has_account(request.user)):
                     error = "Questa squadra è già associata a un altro account utente."
                 elif request.user.is_authenticated:
                     # Il collegamento di sempre (invito, onboarding, qui): una regola sola.
@@ -1390,9 +1391,9 @@ def app_login(request):
             if participant_id and participant_id.isdigit():
                 candidate = Participant.objects.filter(pk=int(participant_id), is_active=True).first()
                 if candidate:
-                    if request.user.is_authenticated and candidate.user_id == request.user.id:
+                    if request.user.is_authenticated and candidate.has_account(request.user):
                         participant = candidate              # one of the account's own teams
-                    elif candidate.user_id is not None and (not request.user.is_authenticated or request.user.id != candidate.user_id):
+                    elif candidate.user_id is not None and not candidate.has_account(request.user):
                         error = f"{candidate.display_name} è associata all'account di un utente. Accedi con Username e Password."
                     elif candidate.access_code and throttle.blocked(request, "code"):
                         error = throttle.MESSAGE
@@ -1427,7 +1428,7 @@ def app_login(request):
     leagues = visible_leagues(request).prefetch_related("participants").order_by("name")
     user_teams = []
     if request.user.is_authenticated:
-        user_teams = list(Participant.objects.filter(user=request.user, is_active=True)
+        user_teams = list(Participant.objects.of_user(request.user).filter(is_active=True)
                           .select_related("league").order_by("league__name", "display_name"))
 
     return render(
@@ -1464,7 +1465,7 @@ def _can_see_league(request, league):
     if participant is not None and participant.league_id == league.id:
         return True
     return bool(user and user.is_authenticated
-                and Participant.objects.filter(user=user, league=league, is_active=True).exists())
+                and Participant.objects.of_user(user).filter(league=league, is_active=True).exists())
 
 
 def app_fixture_detail(request, fixture_id):
