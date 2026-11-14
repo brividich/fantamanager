@@ -37,7 +37,7 @@ Prima versione numerata (prima l'etichetta era 1.2.0, senza rilasci).
   `Auction.ticker_seen_at`); senza ticker chiude con un margine di 3 s.
 
 ### Installazione
-- Watchtower torna ad aggiornare: `docker-compose.ghcr.yml` usa
+- Watchtower funziona anche con Docker 29: `docker-compose.ghcr.yml` usa
   `nickfedor/watchtower`, il seguito mantenuto di `containrrr/watchtower`
   (fermo al 2023, rifiutato da Docker 29 con «client version 1.25 is too
   old»). Sul server: copia il file nuovo e
