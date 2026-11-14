@@ -177,8 +177,13 @@ services:
           sleep 60
         done
 
+  # Aggiorna app e scheduler quando esce un'immagine nuova (ogni 5 minuti).
+  # nickfedor/watchtower è il seguito mantenuto di containrrr/watchtower, fermo
+  # al 2023: quello parla una versione dell'API di Docker che Docker 29 non
+  # accetta più («client version 1.25 is too old») e smette di aggiornare.
+  # Stesse impostazioni WATCHTOWER_*; «:1» prende le correzioni della 1.x.
   watchtower:
-    image: containrrr/watchtower:latest
+    image: nickfedor/watchtower:1
     container_name: fantamanager-watchtower
     restart: unless-stopped
     volumes:

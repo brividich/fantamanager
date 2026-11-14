@@ -36,6 +36,13 @@ Prima versione numerata (prima l'etichetta era 1.2.0, senza rilasci).
 - Lo scheduler lascia i lotti al ticker della sala quando è vivo (battito
   `Auction.ticker_seen_at`); senza ticker chiude con un margine di 3 s.
 
+### Installazione
+- Watchtower torna ad aggiornare: `docker-compose.ghcr.yml` usa
+  `nickfedor/watchtower`, il seguito mantenuto di `containrrr/watchtower`
+  (fermo al 2023, rifiutato da Docker 29 con «client version 1.25 is too
+  old»). Sul server: copia il file nuovo e
+  `docker compose -f docker-compose.ghcr.yml up -d watchtower` (DOCKER.md).
+
 ### Lega
 - **Due account per una squadra**: nella pagina Squadre (console e app),
   in «Gestisci account», il **secondo allenatore** si crea, si collega o
