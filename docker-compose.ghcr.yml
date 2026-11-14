@@ -187,7 +187,9 @@ services:
       - WATCHTOWER_CLEANUP=true
       - WATCHTOWER_POLL_INTERVAL=300
       - WATCHTOWER_INCLUDE_RESTARTING=true
-    command: fantamanager
+    # App e scheduler usano la stessa immagine: si aggiornano insieme, mai due
+    # versioni del codice sullo stesso database.
+    command: fantamanager fantamanager-scheduler
 
 volumes:
   postgres_data:

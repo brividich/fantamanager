@@ -86,6 +86,15 @@ class ComposeOneImageTests(SimpleTestCase):
                 self.assertEqual(self._image(name, "app"), self._image(name, "scheduler"))
                 self.assertNotIn("build:", _service(name, "scheduler"))
 
+    def test_watchtower_updates_app_and_scheduler_together(self):
+        # Watchtower aggiorna solo i container che nomina: lasciato fuori lo
+        # scheduler, resterebbe alla versione vecchia sullo stesso database.
+        src = (ROOT / "docker-compose.ghcr.yml").read_text(encoding="utf-8")
+        names = {m.group(1): m.group(2) for m in re.finditer(r"^  ([\w-]+):\n(?:.*\n)*?    container_name: (\S+)$", src, re.M)}
+        watched = re.search(r"^    command: (.+)$", _service("docker-compose.ghcr.yml", "watchtower"), re.M).group(1).split()
+        for service in ("app", "scheduler"):
+            self.assertIn(names[service], watched, service)
+
     def test_no_source_bind_in_production(self):
         for name in COMPOSES:
             with self.subTest(compose=name):
