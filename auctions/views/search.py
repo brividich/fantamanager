@@ -75,7 +75,8 @@ def league_search(request):
         groups.append({"label": "Squadre", "items": teams})
 
     comps = [{"title": c.name, "detail": c.get_kind_display(),
-              "url": (reverse("app_lega") if app else f"{reverse('admin_competitions')}?{lq}&comp={c.id}")}
+              "url": (f"{reverse('app_lega')}?comp={c.id}" if app
+                      else f"{reverse('admin_competitions')}?{lq}&comp={c.id}")}
              for c in Competition.objects.filter(season__league=league, season__is_current=True).order_by("id")
              if _hit(needle, c.name)][:PER_GROUP]
     if comps:

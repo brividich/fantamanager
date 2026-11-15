@@ -175,6 +175,8 @@ class LeagueSearchTests(TestCase):
         session.save()
         found = self.groups(self.client.get(reverse("app_league_search"), {"q": "lautaro"}))
         self.assertIn(reverse("app_footballers"), found["Calciatori"][0]["url"])
+        found = self.groups(self.client.get(reverse("app_league_search"), {"q": "coppa"}))
+        self.assertIn(f"{reverse('app_lega')}?comp=", found["Competizioni"][0]["url"])
         page = self.client.get(reverse("app_altro"))
         self.assertContains(page, "Cerca nella lega")
 
