@@ -70,6 +70,8 @@ class MergeTests(TestCase):
         from ..models import SealedBid
         from .common import make_live_auction
         auction = make_live_auction(league=self.league)
+        auction.status = auction.Status.CLOSED                    # asta finita: resta solo il conflitto delle buste
+        auction.save(update_fields=["status"])
         for team in (self.keep, self.dup):
             SealedBid.objects.create(auction=auction, participant=team, cycle=1, round=1, amount=Decimal("10"))
         self.assertTrue(any("busta segreta" in p for p in teams.merge_problems(self.dup, self.keep)))
@@ -91,6 +93,11 @@ class MergeTests(TestCase):
         self.assertEqual(prev.order, [self.other.id, self.keep.id])
         self.assertEqual(mid.order, [self.keep.id, self.other.id])
         self.assertEqual(CapEntry.objects.filter(participant=self.keep, kind=CapEntry.Kind.BASE).count(), 1)
+
+    def test_not_while_an_auction_is_running(self):
+        from .common import make_live_auction
+        make_live_auction(league=self.league)
+        self.assertTrue(any("asta in corso" in p for p in teams.merge_problems(self.dup, self.keep)))
 
     def test_three_accounts_do_not_fit(self):
         self.keep.co_user = User.objects.create_user("vice1", password="pw")

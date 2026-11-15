@@ -118,6 +118,12 @@ def merge_problems(dup, keep):
                         "resterebbero senza squadra")
     if Trade.objects.filter(Q(proposer=dup, receiver=keep) | Q(proposer=keep, receiver=dup)).exists():
         problems.append("le due squadre hanno fatto scambi fra loro")
+    from ..models import Auction
+    running = Auction.objects.filter(league_id=keep.league_id,
+                                     status__in=[Auction.Status.LIVE, Auction.Status.PAUSED])
+    if running.exists():
+        problems.append("c'è un'asta in corso nella lega (offerte e spareggi a buste aspettano le squadre "
+                        "come sono): uniscile quando l'asta è chiusa")
     rounds = set(SealedBid.objects.filter(participant=keep).values_list("auction_id", "cycle", "round"))
     if rounds and any(r in rounds for r in SealedBid.objects.filter(participant=dup)
                       .values_list("auction_id", "cycle", "round")):
