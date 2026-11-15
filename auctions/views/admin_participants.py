@@ -135,6 +135,16 @@ def teams_manage_context(request, current_league):
                        ("kit_away", "Seconda maglia", p.kit_away)],
             "removal": teams_service.team_removal(p),
         })
+    # Squadre che sembrano la stessa (di solito una creata dall'import delle
+    # rose con il nome scritto diverso): l'avviso in cima e, in ogni Scheda,
+    # «Unisci a un'altra squadra».
+    by_id = {r["p"].id: r for r in rows}
+    dup_pairs = teams_service.likely_duplicates([r["p"] for r in rows]) if current_league is not None else []
+    for a, b in dup_pairs:
+        by_id[a.id].setdefault("twins", []).append(b)
+        by_id[b.id].setdefault("twins", []).append(a)
+    for r in rows:
+        r["merge_targets"] = [o["p"] for o in rows if o["p"].id != r["p"].id]
 
     # A password the server generated is shown once, on the page the action
     # lands on, and then forgotten: only the login's hash is stored.
@@ -145,6 +155,7 @@ def teams_manage_context(request, current_league):
     return {
         "current_league": current_league,
         "rows": rows,
+        "dup_pairs": [(by_id[a.id], by_id[b.id]) for a, b in dup_pairs],
         # Gli inviti, una squadra alla volta (_team_invites.html).
         "invite_rows": invite_rows(request, teams) if current_league is not None else [],
         "joined_count": sum(1 for t in teams if t.user_id),
@@ -436,6 +447,38 @@ def admin_delete_participant(request, participant_id):
     if info["fixtures"]:
         msg += (f" Il calendario aveva {info['fixtures']} sue partite da giocare: rigeneralo in "
                 "Competizioni, così nessuno resta senza avversario.")
+    messages.success(request, msg)
+    return redirect(safe_next(request, fallback))
+
+
+@staff_member_required
+@require_POST
+def admin_merge_participant(request, participant_id):
+    """Una squadra doppia (``participant_id``) confluisce in un'altra della
+    stessa lega (``target_id``) e sparisce: giocatori, account e movimenti
+    passano a quella che resta (services/teams.py:merge_teams)."""
+    dup, denied = managed_or_403(request, Participant, participant_id)
+    if denied:
+        return denied
+    fallback = f"/dashboard/participants/?league={dup.league_id}" if dup.league_id else "/dashboard/"
+    keep = Participant.objects.filter(pk=request.POST.get("target_id") or 0, league_id=dup.league_id).first()
+    if keep is None:
+        messages.error(request, f"«{dup.display_name}» non è stata unita: scegli la squadra in cui unirla e riprova.")
+        return redirect(safe_next(request, fallback))
+    if request.POST.get("confirm") != "1":
+        messages.error(request, f"«{dup.display_name}» non è stata unita: spunta «Sì, unisci» e premi di nuovo Unisci.")
+        return redirect(safe_next(request, fallback))
+    try:
+        info = teams_service.merge_teams(dup, keep, budget=request.POST.get("budget") or "keep")
+    except teams_service.TeamsNotMergeable as exc:
+        messages.error(request, str(exc))
+        return redirect(safe_next(request, fallback))
+    msg = (f"«{info['name']}» unita a «{keep.display_name}»: {info['players']} giocatori passati, "
+           f"budget a disposizione {info['left']:.0f} FM.")
+    if info["accounts"]:
+        msg += " Account passati: " + ", ".join(info["accounts"]) + "."
+    if info["fixtures"]:
+        msg += (f" Il calendario aveva {info['fixtures']} sue partite da giocare: rigeneralo in Competizioni.")
     messages.success(request, msg)
     return redirect(safe_next(request, fallback))
 

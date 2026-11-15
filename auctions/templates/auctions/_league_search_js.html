@@ -1,0 +1,75 @@
+{% comment %}
+La ricerca nella lega (views/search.py:league_search), condivisa dalla ricerca
+rapida della console (dashboard/_home_cmd_palette.html) e dal campo Cerca
+dell'app (_league_search.html). I risultati si scrivono con textContent: sono
+nomi di giocatori e squadre arrivati da import.
+  fmLeagueSearch.attach(input, box, url, {itemClass, onRender})
+{% endcomment %}
+<script>
+window.fmLeagueSearch = window.fmLeagueSearch || (function () {
+    const ICONS = { "Calciatori": "i-users", "Squadre": "i-shield", "Competizioni": "i-trophy", "Mercati": "i-swap", "Aste": "i-gavel" };
+
+    function el(tag, cls, text) {
+        const n = document.createElement(tag);
+        if (cls) n.className = cls;
+        if (text !== undefined && text !== null) n.textContent = text;
+        return n;
+    }
+
+    function render(box, data, itemClass) {
+        box.replaceChildren();
+        const groups = (data && data.groups) || [];
+        if (!groups.length) {
+            if (data && data.q && data.q.length >= 2) box.appendChild(el("div", "fls-empty", "Nella lega non c'è niente che si chiami «" + data.q + "»."));
+            return;
+        }
+        groups.forEach(g => {
+            box.appendChild(el("div", "cmd-group-title", "Nella lega · " + g.label));
+            g.items.forEach(it => {
+                const a = el("a", itemClass || "cmd-item");
+                a.href = it.url;
+                const icon = el("span", "cmd-icon");
+                const svgNS = "http://www.w3.org/2000/svg";
+                const svg = document.createElementNS(svgNS, "svg");
+                svg.setAttribute("class", "ic");
+                const use = document.createElementNS(svgNS, "use");
+                use.setAttribute("href", "#" + (ICONS[g.label] || "i-search"));
+                svg.appendChild(use);
+                icon.appendChild(svg);
+                const text = el("div", "cmd-text");
+                text.appendChild(el("div", "cmd-name", it.title));
+                if (it.detail) text.appendChild(el("div", "cmd-desc", it.detail));
+                a.append(icon, text);
+                if (it.role) a.appendChild(el("span", "cmd-tag role-badge role-" + fmRole(it.role), it.role));
+                box.appendChild(a);
+            });
+        });
+    }
+
+    function attach(input, box, url, opts) {
+        opts = opts || {};
+        let timer = null, seq = 0;
+        input.addEventListener("input", () => {
+            clearTimeout(timer);
+            const q = input.value.trim();
+            if (q.length < 2) { box.replaceChildren(); if (opts.onRender) opts.onRender(); return; }
+            timer = setTimeout(async () => {
+                const mine = ++seq;
+                try {
+                    const r = await fetch(url + (url.includes("?") ? "&" : "?") + "q=" + encodeURIComponent(q),
+                                          { headers: { "Accept": "application/json" } });
+                    const data = await r.json();
+                    if (mine !== seq) return;          // è arrivata una ricerca più nuova
+                    render(box, data, opts.itemClass);
+                } catch (e) {
+                    if (mine !== seq) return;
+                    box.replaceChildren(el("div", "fls-empty", "Ricerca non riuscita: controlla la connessione e riprova."));
+                }
+                if (opts.onRender) opts.onRender();
+            }, 220);
+        });
+    }
+
+    return { attach, render };
+})();
+</script>

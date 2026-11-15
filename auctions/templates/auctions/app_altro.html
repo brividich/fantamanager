@@ -5,6 +5,7 @@
     <h1>Altro</h1>
     <p>{% if participant %}Profilo, sicurezza e accessi{% else %}Account e accessi{% endif %}</p>
 </div>
+{% if app_league %}{% include "auctions/_league_search.html" %}{% endif %}
 
 <style>
     .altro-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }

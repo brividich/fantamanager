@@ -373,6 +373,21 @@ squadra collegano solo il primo.
 Una squadra creata per sbaglio si elimina dalla sua Scheda nella pagina
 Squadre (`services/teams.py`): i giocatori tornano svincolati. Se ha già una
 storia (punteggi, partite calcolate, offerte, buste, scambi) non si elimina.
+Una squadra **doppia** (lo stesso nome scritto in un altro modo: `team_key`,
+`likely_duplicates`) si **unisce** a quella che resta dalla stessa Scheda
+(`merge_teams`): giocatori, account, movimenti, offerte e formazioni passano
+lì; la pagina Squadre avvisa delle coppie sospette. L'import delle rose cerca
+la squadra anche per `team_key`, così non ne crea una doppia.
+
+## Ricerca nella lega
+
+La ricerca rapida della console («Cerca o salta a…», Ctrl+K,
+`dashboard/_home_cmd_palette.html`) e il Cerca dell'app (Altro,
+`_league_search.html`) chiedono a `league_search` (`views/search.py`, due
+indirizzi: `dashboard/cerca/` e `app/cerca/`) calciatori, squadre,
+competizioni, mercati e aste della lega; lo script è uno solo
+(`_league_search_js.html`, risultati con `textContent`). Un campo Cerca nuovo
+cerca nei dati (nel database o con quella view), non solo fra le etichette.
 
 ## Stagioni
 

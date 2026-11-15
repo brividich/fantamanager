@@ -662,6 +662,15 @@ def import_rose_data(teams_data, replace=False, league=None, default_budget=None
         # La squadra si cerca solo nella lega dell'import: un'omonima di
         # un'altra lega resta dov'è, con i suoi crediti.
         participant = Participant.objects.filter(league=league, display_name=name).order_by("pk").first()
+        if participant is None:
+            # Lo stesso nome scritto in un altro modo («SLAVIA VIA FONDA» e
+            # «Slavia Viafonda», «MACCABI DE FEO» e «Maccabi DeFeo»): è la
+            # stessa squadra, non una nuova (prima l'import ne creava una doppia).
+            from ..services.teams import team_key
+            key = team_key(name)
+            same = [p for p in Participant.objects.filter(league=league).order_by("pk")
+                    if key and team_key(p.display_name) == key]
+            participant = same[0] if len(same) == 1 else None
         created = participant is None
         if created:
             participant = Participant.objects.create(display_name=name, **defaults)

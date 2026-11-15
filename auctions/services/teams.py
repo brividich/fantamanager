@@ -70,3 +70,133 @@ def delete_team(team):
         player.save(update_fields=["owner", "cost"])
     team.delete()
     return info
+
+
+# --- Squadre doppie: si uniscono, non si cancellano ------------------------------------
+
+def team_key(name):
+    """Il nome di una squadra ridotto per confrontarlo: senza maiuscole,
+    accenti, punteggiatura e spazi («SLAVIA VIA FONDA» = «Slavia Viafonda»,
+    «MACCABI DE FEO» = «Maccabi DeFeo»)."""
+    from ..providers.importers import _norm
+    return _norm(name).replace(" ", "")
+
+
+def likely_duplicates(teams):
+    """Le coppie di squadre della stessa lega che sembrano la stessa
+    (nome uguale a meno di spazi e punteggiatura, o quasi uguale): di solito
+    una creata dall'import delle rose accanto a quella che c'era già."""
+    from difflib import SequenceMatcher
+
+    teams = list(teams)
+    keys = {t.pk: team_key(t.display_name) for t in teams}
+    pairs = []
+    for i, a in enumerate(teams):
+        for b in teams[i + 1:]:
+            ka, kb = keys[a.pk], keys[b.pk]
+            if not ka or not kb:
+                continue
+            if ka == kb or (min(len(ka), len(kb)) >= 6 and SequenceMatcher(None, ka, kb).ratio() >= 0.9):
+                pairs.append((a, b))
+    return pairs
+
+
+class TeamsNotMergeable(Exception):
+    """Perché le due squadre non si uniscono (il messaggio è per l'admin)."""
+
+
+def merge_problems(dup, keep):
+    """Perché ``dup`` non può confluire in ``keep`` (lista vuota se può)."""
+    problems = []
+    if dup.pk == keep.pk:
+        problems.append("hai scelto la stessa squadra")
+    if dup.league_id != keep.league_id:
+        problems.append("le due squadre sono di leghe diverse")
+    played = Fixture.objects.filter(Q(home=dup) | Q(away=dup), computed=True).count()
+    if played or GiornataScore.objects.filter(participant=dup).exists():
+        problems.append(f"«{dup.display_name}» ha già giocato giornate con il punteggio: le sue partite "
+                        "resterebbero senza squadra")
+    if Trade.objects.filter(Q(proposer=dup, receiver=keep) | Q(proposer=keep, receiver=dup)).exists():
+        problems.append("le due squadre hanno fatto scambi fra loro")
+    accounts = {u.pk: u for u in (keep.user, keep.co_user, dup.user, dup.co_user) if u is not None}
+    if len(accounts) > 2:
+        problems.append("insieme hanno più di due account, e una squadra ne ha al massimo due: "
+                        "scollegane uno dalla colonna Account")
+    return problems
+
+
+@transaction.atomic
+def merge_teams(dup, keep, *, budget="keep"):
+    """``dup`` confluisce in ``keep`` e sparisce: giocatori (con costo e
+    contratto), account, movimenti, offerte, buste, formazioni e voci del
+    tetto passano a ``keep``. ``budget`` dice quanto resta a disposizione:
+    ``keep`` (quello di chi resta), ``dup`` (quello dell'altra) o ``sum``.
+    Ritorna un riassunto per l'admin."""
+    from ..models import (AuctionCycleResult, CapEntry, ContractEvent, Formation, MarketReleaseIntent,
+                          MatchdayFormation, Watch)
+
+    keep = Participant.objects.select_for_update().get(pk=keep.pk)
+    dup = Participant.objects.select_for_update().get(pk=dup.pk)
+    sala.ensure_unlocked(keep.league_id)
+    problems = merge_problems(dup, keep)
+    if problems:
+        raise TeamsNotMergeable(f"«{dup.display_name}» e «{keep.display_name}» non si uniscono: "
+                                + "; ".join(problems) + ".")
+    left = {"keep": keep.remaining_credits, "dup": dup.remaining_credits,
+            "sum": keep.remaining_credits + dup.remaining_credits}.get(budget, keep.remaining_credits)
+
+    moved = Player.objects.filter(owner=dup).update(owner=keep)
+    Player.objects.filter(loan_from=dup).update(loan_from=keep)
+    Player.objects.filter(rescinded_from=dup).update(rescinded_from=keep)
+    RosterLog.objects.filter(participant=dup).update(participant=keep)
+    ContractEvent.objects.filter(participant=dup).update(participant=keep)
+    CapEntry.objects.filter(participant=dup).update(participant=keep)
+    AuctionCycleResult.objects.filter(winner=dup).update(winner=keep)
+    Bid.objects.filter(participant=dup).update(participant=keep)
+    SealedBid.objects.filter(participant=dup).update(participant=keep)
+    MarketBid.objects.filter(participant=dup).update(participant=keep)
+    Trade.objects.filter(proposer=dup).update(proposer=keep)
+    Trade.objects.filter(receiver=dup).update(receiver=keep)
+    # Dove c'è un vincolo «una per squadra» vince quella di chi resta.
+    watched = Watch.objects.filter(participant=keep).values_list("player_id", flat=True)
+    Watch.objects.filter(participant=dup, player_id__in=list(watched)).delete()
+    Watch.objects.filter(participant=dup).update(participant=keep)
+    intents = MarketReleaseIntent.objects.filter(participant=keep).values_list("session_id", "player_id")
+    for session_id, player_id in list(intents):
+        MarketReleaseIntent.objects.filter(participant=dup, session_id=session_id, player_id=player_id).delete()
+    MarketReleaseIntent.objects.filter(participant=dup).update(participant=keep)
+    days = MatchdayFormation.objects.filter(participant=keep).values_list("giornata_id", flat=True)
+    MatchdayFormation.objects.filter(participant=dup, giornata_id__in=list(days)).delete()
+    MatchdayFormation.objects.filter(participant=dup).update(participant=keep)
+    if Formation.objects.filter(participant=keep).exists():
+        Formation.objects.filter(participant=dup).delete()
+    else:
+        Formation.objects.filter(participant=dup).update(participant=keep)
+    fixtures = Fixture.objects.filter(Q(home=dup) | Q(away=dup), computed=False).count()
+
+    # Account: chi resta tiene i suoi, quelli dell'altra riempiono i posti liberi.
+    incoming = [u for u in (dup.user, dup.co_user) if u is not None and not keep.has_account(u)]
+    dup.user = dup.co_user = None
+    dup.co_invite_token, dup.co_invite_user = "", None
+    dup.save(update_fields=["user", "co_user", "co_invite_token", "co_invite_user"])
+    for user in incoming:
+        if keep.user_id is None:
+            keep.user = user
+        elif keep.co_user_id is None:
+            keep.co_user = user
+    if keep.co_user_id and (keep.co_invite_token or keep.co_invite_user_id):
+        keep.co_invite_token, keep.co_invite_user = "", None
+    keep.spent_credits = keep.spent_credits + dup.spent_credits
+    keep.credits = keep.spent_credits + left
+    if not keep.email and dup.email:
+        keep.email = dup.email
+    keep.save()
+    RosterLog.objects.create(
+        participant=keep, participant_name=keep.display_name, player_name=f"Unita «{dup.display_name}»",
+        action=RosterLog.Action.EDIT, credits_delta=Decimal("0"), by_admin=True,
+        note=f"Squadra doppia «{dup.display_name}» unita: {moved} giocatori, budget a disposizione {left:.0f} FM",
+    )
+    name = dup.display_name
+    dup.delete()
+    return {"name": name, "players": moved, "accounts": [u.username for u in incoming], "left": left,
+            "fixtures": fixtures}

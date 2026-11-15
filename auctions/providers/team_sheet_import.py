@@ -905,6 +905,11 @@ def match_team(title, participants):
     for p in participants:
         if _norm(p.display_name) in keys or (p.short_name and _norm(p.short_name) in keys):
             return p
+    # Spazi diversi: «SLAVIA VIA FONDA» è «Slavia Viafonda».
+    compact = {k.replace(" ", "") for k in keys if k}
+    same = [p for p in participants if _norm(p.display_name).replace(" ", "") in compact]
+    if len(same) == 1:
+        return same[0]
     for p in participants:
         if _split_founded(p.display_name)[0] and _norm(_split_founded(p.display_name)[0]) in keys:
             return p
