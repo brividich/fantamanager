@@ -129,6 +129,16 @@ class MarketSession(models.Model):
         """Chi esce dalla rosa si sceglie dopo lo spoglio (non con la busta)."""
         return self.require_same_role_release and self.release_after
 
+    @property
+    def release_list_required(self):
+        """Con chi esce scelto dopo lo spoglio: la lista «Chi lasceresti
+        andare» serve prima delle buste (config ``release_list`` =
+        ``required``, il default delle sessioni che non lo dicono) oppure è
+        facoltativa (``optional``): si consegna senza e chi esce si sceglie
+        solo dopo lo spoglio; scaduto il tempo, dove manca la lista decide
+        l'admin."""
+        return self.release_after_count and (self.config or {}).get("release_list") != "optional"
+
     def max_for_role(self, role):
         field = f"max_acquisitions_{role.lower()}" if role else ""
         return getattr(self, field, 0)

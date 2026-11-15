@@ -19,7 +19,9 @@ Parametri:
     <input type="hidden" name="next" value="{{ rl_next }}{{ rl_next_q }}">{% endif %}
     <div style="font-size:13px;font-weight:800;margin-bottom:6px">Chi lasceresti andare{% if rl_team %} · {{ rl_team.display_name }}{% endif %}</div>
     <div style="font-size:12px;opacity:.75;line-height:1.45;margin-bottom:10px">
-        {% if rl_team %}Ogni giocatore vinto entra al posto di un pari ruolo della rosa. Spunta chi la squadra lascerebbe andare:
+        {% if not rl.required %}Facoltativa: chi esce si sceglie dopo lo spoglio, per ogni giocatore vinto. Spunta chi {% if rl_team %}la squadra lascerebbe{% else %}lasceresti{% endif %}
+        andare e alla conferma lo {% if rl_team %}ritrova{% else %}ritrovi{% endif %} già proposto (si può cambiare); scaduto il tempo per confermare esce chi è in lista.
+        {% elif rl_team %}Ogni giocatore vinto entra al posto di un pari ruolo della rosa. Spunta chi la squadra lascerebbe andare:
         per ogni ruolo almeno uno per ogni giocatore su cui offre (le buste restano segrete: se la lista è corta lo dice il messaggio).
         Dopo lo spoglio si conferma chi esce, anche cambiandolo; se vince meno buste, gli altri restano in rosa.
         {% else %}Ogni giocatore vinto entra al posto di un tuo pari ruolo. Spunta chi lasceresti andare: per ogni ruolo

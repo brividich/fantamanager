@@ -118,7 +118,7 @@ def league_admin_digest(league):
             "info", "mail", f"{'Buste aperte' if is_buste else 'Mercato aperto'}: {opened.title}",
             f"{delivered}/{teams_n} squadre {'hanno consegnato' if is_buste else 'hanno già agito'}{when}.",
             reverse("app_regia_market_session", args=[opened.id]), "Segui"))
-        if opened.release_after_count and opened.is_open:
+        if opened.release_list_required and opened.is_open:
             missing = services.release_list_board(opened)["missing"]
             if missing:
                 items.append(_todo(

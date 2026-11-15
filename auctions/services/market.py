@@ -294,9 +294,10 @@ def place_market_bid(
     except (ValueError, TypeError):
         prio = 1
 
-    if session.release_after_count:
+    if session.release_list_required:
         # Lista «Chi lasceresti andare»: per ogni ruolo almeno un giocatore in
-        # lista per ogni giocatore diverso su cui la squadra offre.
+        # lista per ogni giocatore diverso su cui la squadra offre (se la
+        # sessione la chiede: facoltativa, chi esce si sceglie solo dopo).
         need = release_list_needs(session, participant.id, extra=player).get(player.role, 0)
         have = release_list_counts(session, participant.id).get(player.role, 0)
         if need > have:
@@ -1368,7 +1369,9 @@ def set_release_list(session_id, participant_id, player_ids, *, by_admin=False):
     have = defaultdict(int)
     for pl in chosen:
         have[pl.role] += 1
-    for role, need in sorted(release_list_needs(session, participant_id).items()):
+    # Lista facoltativa: è solo la proposta per dopo lo spoglio, anche corta.
+    needs = release_list_needs(session, participant_id) if session.release_list_required else {}
+    for role, need in sorted(needs.items()):
         if have[role] < need and by_admin:
             return {"ok": False, "message": f"La lista è più corta delle buste già consegnate dalla squadra fra i "
                                             f"{ROLE_PLURALS.get(role, role)}: aggiungi un {ROLE_NAMES.get(role, role)}."}
@@ -1392,7 +1395,8 @@ def release_list_view(session, participant_id, roster=None):
     if roster is None:
         roster = list(Player.objects.filter(owner_id=participant_id).order_by("name"))
     listed = [ri.player_id for ri in MarketReleaseIntent.objects.filter(session=session, participant_id=participant_id)]
-    needs = release_list_needs(session, participant_id)
+    # Lista facoltativa: niente «servono», è solo la proposta per dopo.
+    needs = release_list_needs(session, participant_id) if session.release_list_required else {}
     have = release_list_counts(session, participant_id)
     roles = [{"role": r, "need": needs.get(r, 0), "have": have.get(r, 0),
               "short": needs.get(r, 0) > have.get(r, 0),
@@ -1400,7 +1404,7 @@ def release_list_view(session, participant_id, roster=None):
               "players": [pl for pl in roster if pl.role == r and not pl.abroad_list]}
              for r in ("P", "D", "C", "A")]
     return {"listed": set(listed), "count": len(listed), "roles": roles,
-            "short": any(r["short"] for r in roles)}
+            "short": any(r["short"] for r in roles), "required": session.release_list_required}
 
 
 def release_list_board(session):

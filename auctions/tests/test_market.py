@@ -1773,6 +1773,80 @@ class ReleaseAfterCountTests(TestCase):
         from ..services.market import release_list
         self.assertEqual(release_list(self.session, self.a.id), [c1, c0])
 
+    def _optional_list_session(self):
+        """Buste con chi esce scelto solo dopo lo spoglio: lista facoltativa."""
+        from ..models import MarketReleaseIntent
+        MarketReleaseIntent.objects.filter(session=self.session).delete()
+        self.session.config = {"release_list": "optional"}
+        self.session.save()
+
+    def test_optional_list_bids_without_a_list_and_choose_after(self):
+        from ..services.market import confirm_market_releases, proposed_releases, release_list_view
+        self._optional_list_session()
+        self.assertTrue(self.session.release_after_count)
+        self.assertFalse(self.session.release_list_required)
+        # Senza lista la busta parte lo stesso, anche due sullo stesso ruolo.
+        self.assertTrue(place_market_bid(self.session.id, self.a.id, self.boban.id, 20)["ok"])
+        self.assertTrue(place_market_bid(self.session.id, self.a.id, self.iniesta.id, 30)["ok"])
+        # Il taglio nella busta resta vietato: si sceglie dopo.
+        res = place_market_bid(self.session.id, self.b.id, self.boban.id, 10,
+                               release_player_id=self.mid[self.b.id][0].id)
+        self.assertEqual(res["error"], "release_after")
+        view = release_list_view(self.session, self.a.id)
+        self.assertFalse(view["short"])
+        self.assertFalse(view["required"])
+        self._resolve()
+        boban, iniesta = self._won(self.boban), self._won(self.iniesta)
+        self.assertTrue(boban["release_pending"] and iniesta["release_pending"])
+        self.assertEqual(proposed_releases(self.session, self.a.id), {})            # niente lista, niente proposta
+        c0, c1, _c2 = self.mid[self.a.id]
+        res = confirm_market_releases(self.session.id, self.a.id, {boban["bid_id"]: c0.id, iniesta["bid_id"]: c1.id},
+                                      participant_id=self.a.id)
+        self.assertTrue(res["ok"], res)
+        self.assertEqual(Player.objects.filter(owner=self.a, role="C").count(), 3)
+
+    def test_optional_list_can_be_short_and_still_proposes(self):
+        from ..services.market import proposed_releases, set_release_list
+        self._optional_list_session()
+        c0, _c1, _c2 = self.mid[self.a.id]
+        place_market_bid(self.session.id, self.a.id, self.boban.id, 20)
+        place_market_bid(self.session.id, self.a.id, self.iniesta.id, 30)
+        self.assertTrue(set_release_list(self.session.id, self.a.id, [c0.id])["ok"])   # 2 C offerti, 1 in lista
+        self._resolve()
+        self.assertEqual(list(proposed_releases(self.session, self.a.id).values()), [c0.id])
+
+    def test_optional_list_pages(self):
+        self._optional_list_session()
+        sess = self.client.session
+        sess["participant_id"] = self.a.id
+        sess.save()
+        page = self.client.get(reverse("app_mercato") + f"?session_id={self.session.id}")
+        self.assertContains(page, "Chi esce lo scegli <b style=\"color:var(--ink)\">dopo lo spoglio</b>", html=False)
+        self.assertContains(page, "Facoltativa: chi esce si sceglie dopo lo spoglio")
+        self.assertNotContains(page, "servono")
+        home = self.client.get(reverse("app_home"))
+        self.assertNotContains(home, "prima compila «Chi lasceresti andare»")
+        self.client.force_login(self.owner)
+        page = self.client.get(reverse("admin_market_session", args=[self.session.id]))
+        self.assertContains(page, "lista facoltativa")
+        self.assertContains(page, "La lista è facoltativa")
+
+    def test_rules_form_switches_the_list(self):
+        self.client.force_login(self.owner)
+        url = reverse("admin_market_rules", args=[self.session.id])
+        self.client.post(url, {"release_timing": "after", "release_list": "optional",
+                               "checks": ["require_same_role_release"], "require_same_role_release": "1"})
+        self.session.refresh_from_db()
+        self.assertFalse(self.session.release_list_required)
+        self.client.post(url, {"release_timing": "after", "release_list": "required",
+                               "checks": ["require_same_role_release"], "require_same_role_release": "1"})
+        self.session.refresh_from_db()
+        self.assertTrue(self.session.release_list_required)
+        # Una modifica che non manda la scelta della lista non la cambia.
+        self.client.post(url, {"title": "Buste rinominate"})
+        self.session.refresh_from_db()
+        self.assertTrue(self.session.release_list_required)
+
     def _age_pending(self, hours):
         from datetime import timedelta
         from django.utils import timezone

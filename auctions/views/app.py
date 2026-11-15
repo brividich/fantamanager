@@ -131,7 +131,7 @@ def app_home(request):
         "release_deadline": release_deadline,
         # Buste aperte e la lista «Chi lasceresti andare» ancora vuota.
         "release_list_empty": bool(
-            open_market and open_market.is_open and open_market.release_after_count
+            open_market and open_market.is_open and open_market.release_list_required
             and not services.release_list(open_market, participant.id)),
         "open_market": open_market if open_market and open_market.is_open else None,
         "my_open_bids": MarketBid.objects.filter(session=open_market, participant=participant).count() if open_market else 0,

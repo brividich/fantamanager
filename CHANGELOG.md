@@ -94,6 +94,11 @@ Prima versione numerata (prima l'etichetta era 1.2.0, senza rilasci).
   server si è aggiornato.
 
 ### Mercato
+- Buste con chi esce scelto dopo lo spoglio: la lista «Chi lasceresti andare»
+  può essere facoltativa (predefinito nel wizard «Nuovo Mercato», si cambia
+  nelle regole della sessione). Le buste partono senza lista e chi esce si
+  sceglie solo per i giocatori vinti; la lista, se c'è, è la proposta già
+  pronta alla conferma. Le sessioni esistenti la chiedono come prima.
 - Verbale di spoglio (PDF e CSV, console e app): nuovo «Allegato A» con ogni
   singola offerta, giocatore per giocatore, con l'orario di consegna al
   millesimo di secondo e il distacco dalla prima offerta; evidenziate le
