@@ -121,6 +121,14 @@ class MergeTests(TestCase):
         self.assertEqual(session.config["waiver_order"], [self.other.id, self.keep.id])
         self.assertEqual(session.results_summary["waiver_order_before"], [self.keep.id, self.other.id])
 
+    def test_not_with_a_market_tie_to_settle(self):
+        from ..models import MarketBid, MarketSession
+        session = MarketSession.objects.create(league=self.league, title="Buste", status=MarketSession.Status.RESOLVED)
+        player = Player.objects.create(name="Conteso", role="A", league=self.league)
+        MarketBid.objects.create(session=session, participant=self.dup, player=player, amount=Decimal("30"),
+                                 status=MarketBid.Status.TIED)
+        self.assertTrue(any("pari merito" in p for p in teams.merge_problems(self.dup, self.keep)))
+
     def test_three_accounts_do_not_fit(self):
         self.keep.co_user = User.objects.create_user("vice1", password="pw")
         self.keep.save()

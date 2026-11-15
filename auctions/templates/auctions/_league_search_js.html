@@ -51,10 +51,12 @@ window.fmLeagueSearch = window.fmLeagueSearch || (function () {
         let timer = null, seq = 0;
         input.addEventListener("input", () => {
             clearTimeout(timer);
+            // Ogni battuta rende vecchie le risposte ancora in viaggio: anche
+            // svuotare il campo non deve vedersele ricomparire.
+            const mine = ++seq;
             const q = input.value.trim();
             if (q.length < 2) { box.replaceChildren(); if (opts.onRender) opts.onRender(); return; }
             timer = setTimeout(async () => {
-                const mine = ++seq;
                 try {
                     const r = await fetch(url + (url.includes("?") ? "&" : "?") + "q=" + encodeURIComponent(q),
                                           { headers: { "Accept": "application/json" } });

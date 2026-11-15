@@ -135,6 +135,10 @@ def merge_problems(dup, keep):
         elif pending_releases(session, dup.id):
             problems.append(f"«{dup.display_name}» deve ancora scegliere chi esce per le buste vinte in "
                             f"«{session.title}»: completa prima i tagli, poi unisci")
+    tied = MarketBid.objects.filter(participant__in=[dup, keep], status=MarketBid.Status.TIED)
+    if tied.exists():
+        problems.append(f"c'è un pari merito di buste ancora da spareggiare (mercato «{tied.first().session.title}»): "
+                        "risolvilo nella pagina del mercato, poi unisci")
     rounds = set(SealedBid.objects.filter(participant=keep).values_list("auction_id", "cycle", "round"))
     if rounds and any(r in rounds for r in SealedBid.objects.filter(participant=dup)
                       .values_list("auction_id", "cycle", "round")):
