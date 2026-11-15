@@ -664,6 +664,18 @@ class TwinTests(TestCase):
         self.assertFalse(self.pool().filter(name="C. Pulisic").exists())
         self.assertEqual(footballers.find_twins(self.league), [])
 
+    def test_the_listone_data_stays_with_the_roster_copy(self):
+        pulisic = self.make_twin("Pulisic", "A", "Mil")          # dalla rosa: quotazione = costo
+        pulisic.initial_price = pulisic.cost
+        pulisic.save()
+        Player.objects.filter(league=self.league, footballer__api_id=1).update(
+            initial_price=Decimal("28"), ext_id="4321", mantra_roles="T;A", fanta_avg=Decimal("7.10"))
+        footballers.merge_twins(self.league)
+        pulisic.refresh_from_db()
+        self.assertEqual((pulisic.owner, pulisic.cost), (self.team, Decimal("20")))
+        self.assertEqual((pulisic.initial_price, pulisic.ext_id, pulisic.mantra_roles, pulisic.fanta_avg),
+                         (Decimal("28"), "4321", "T;A", Decimal("7.10")))
+
     def test_the_anagrafica_update_repairs_the_listone(self):
         self.make_twin("Pulisic", "A", "Mil")
         self.make_twin("Orban G.", "A", "Ver")

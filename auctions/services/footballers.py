@@ -8,6 +8,7 @@ vi collega i giocatori del proprio listone. Il collegamento è per club e nome
 non si collega nulla, meglio un giocatore senza scheda che quella sbagliata.
 """
 import logging
+from decimal import Decimal
 import threading
 import time
 from datetime import timedelta
@@ -351,6 +352,28 @@ def find_twins(league):
     return twins
 
 
+# I dati del listone che la copia svincolata può avere e quella in rosa no
+# (la rosa da file porta solo nome, ruolo, club e costo).
+_LISTONE_FIELDS = ("ext_id", "photo_url", "mantra_roles", "fvm", "price_m", "fvm_m",
+                   "presences", "avg_vote", "fanta_avg", "goals", "assists")
+
+
+def _listone_fields(keep, extra):
+    """Cosa passa dalla copia che se ne va a quella che resta: i dati del
+    listone che chi resta non ha, e la quotazione ufficiale se chi resta ha
+    solo quella messa dall'import delle rose (il costo, o 1). Proprietario,
+    costo e contratto restano quelli di chi resta."""
+    fields = {}
+    for name in _LISTONE_FIELDS:
+        mine, theirs = getattr(keep, name), getattr(extra, name)
+        if theirs not in (None, "") and mine in (None, ""):
+            fields[name] = theirs
+    if (extra.initial_price and extra.initial_price != keep.initial_price
+            and keep.initial_price in (keep.cost, Decimal("1"))):
+        fields["initial_price"] = extra.initial_price
+    return fields
+
+
 def merge_twins(league):
     """Toglie dal listone i doppioni (:func:`find_twins`). Quello che resta
     (in rosa, o il primo dei due svincolati) prende il collegamento
@@ -366,12 +389,14 @@ def merge_twins(league):
     _sala_guard(league)
     linked = set(Player.objects.filter(league=league, footballer__isnull=False).values_list("pk", flat=True))
     for keep, extra in twins:
+        fields = _listone_fields(keep, extra)
         if keep.pk not in linked and extra.footballer_id:
-            fields = {"footballer_id": extra.footballer_id}
-            if not keep.photo_url and extra.photo_url:
-                fields["photo_url"] = extra.photo_url
-            Player.objects.filter(pk=keep.pk).update(**fields)
+            fields["footballer_id"] = extra.footballer_id
             linked.add(keep.pk)
+        if fields:
+            Player.objects.filter(pk=keep.pk).update(**fields)
+            for name, value in fields.items():
+                setattr(keep, name, value)
     ids = [extra.pk for _keep, extra in twins]
     drop_from_queues(ids)
     on_block = Auction.objects.exclude(player__isnull=True).values("player_id")

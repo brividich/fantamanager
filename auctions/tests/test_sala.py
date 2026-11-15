@@ -140,6 +140,17 @@ class SalaRoundTripTests(_SalaSite):
         with self.assertRaises(sala.SalaError):
             sala.send_results(copy)
 
+    def test_the_kind_of_a_credit_move_comes_back_from_the_pc(self):
+        copy = sala.connect(SITE, self.key)
+        self._pc_auction(copy)
+        alfa_pc = copy.participants.get(display_name="Alfa")
+        RosterLog.objects.create(participant=alfa_pc, participant_name="Alfa", player_name="Premio sala",
+                                 action=RosterLog.Action.EDIT, credits_delta=Decimal("-15"),
+                                 money=RosterLog.Money.MANUAL)
+        sala.send_results(copy)
+        log = RosterLog.objects.get(participant=self.alfa, player_name="Premio sala")
+        self.assertEqual(log.money, RosterLog.Money.MANUAL)
+
     def test_second_download_needs_force(self):
         sala.connect(SITE, self.key)
         with self.assertRaisesMessage(sala.SalaError, "già bloccata"):
