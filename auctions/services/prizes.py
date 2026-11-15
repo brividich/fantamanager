@@ -114,7 +114,7 @@ def award_prizes(competition, order):
     Una volta sola per competizione."""
     from . import salary
 
-    competition = Competition.objects.select_for_update().select_related("season__league").get(pk=competition.pk)
+    competition = Competition.objects.select_for_update(of=("self",)).select_related("season__league").get(pk=competition.pk)
     league = competition.season.league
     if PrizeAward.objects.filter(competition=competition).exists():
         raise ValueError(f"I premi di «{competition.name}» sono già stati assegnati.")
