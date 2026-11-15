@@ -19,6 +19,9 @@ from ..models import CapEntry, CapPhase, League, LeagueRanking, Participant, Ros
 
 ZERO = Decimal("0")
 
+# Accrediti per un giocatore perso (estero, rescisso e rivenduto): ricavi del mercato.
+_INCOME_PREFIXES = ("Cessione fuori dalla Serie A", "Incasso asta di ")
+
 # Le righe che annullano un acquisto (non sono un incasso: tolgono la spesa).
 _UNDO_PREFIXES = ("Aggiudicazione annullata", "Annullamento spoglio", "Riassegnato a")
 
@@ -67,6 +70,8 @@ def _money_kind(log):
         return RosterLog.Money.DECREE
     if log.player_name == "Extra salary cap":
         return RosterLog.Money.EXTRA
+    if log.player_name.startswith(_INCOME_PREFIXES):
+        return RosterLog.Money.INCOME
     return ""
 
 
@@ -85,6 +90,8 @@ def classify(log, winter_at):
         return f"{season_part}_income", abs(delta), f"{log.player_name}: {'svincolo' if log.action == RosterLog.Action.RELEASE else 'svincolo (admin)'}"
     if log.action == RosterLog.Action.EDIT:
         kind = _money_kind(log)
+        if kind == RosterLog.Money.INCOME:
+            return f"{season_part}_income", -delta, log.player_name
         column = {RosterLog.Money.DECREE: "decree", RosterLog.Money.PRIZE: "prizes",
                   RosterLog.Money.EXTRA: "extra", RosterLog.Money.MANUAL: "manual"}.get(kind)
         if column:

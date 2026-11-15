@@ -79,9 +79,11 @@ def lost_bonus(table, points):
     return bonus
 
 
-def add_credits(participant, amount, note, *, budget_max=None, money=RosterLog.Money.DECREE):
+def add_credits(participant, amount, note, *, money, budget_max=None):
     """Accredita fantamilioni; la parte oltre il budget massimo si brucia (3.01).
-    ``money`` dice al tabellone che voce è (Decreto, premio…)."""
+    ``money`` dice al tabellone che voce è (``RosterLog.Money``: Decreto,
+    premio, ricavo da cessione…): obbligatorio, così nessun accredito finisce
+    nella colonna sbagliata."""
     participant.refresh_from_db()
     _sala_guard(participant.league_id)
     amount = Decimal(amount)
@@ -274,7 +276,7 @@ def award_decree(league, kind, ranking):
         credits = Decimal(by_rank(table, pos))
         credited = add_credits(
             p, credits, f"Decreto Salvacalcio ({LeagueRanking.Kind(kind).label}): {pos}° posto",
-            budget_max=r["budget_max"],
+            budget_max=r["budget_max"], money=RosterLog.Money.DECREE,
         )
         details.append({"participant_id": p.id, "name": p.display_name, "position": pos,
                         "credits": int(credits), "credited": int(credited),

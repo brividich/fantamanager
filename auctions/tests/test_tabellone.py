@@ -229,3 +229,28 @@ class PrizeTests(TestCase):
         new = roll_season(self.league)
         clone = new.competitions.get(name="Coppa Lugnanese")
         self.assertEqual(prizes.table(clone)["credits"], [250, 150])
+
+
+class IncomeNotDecreeTests(TestCase):
+    """Un accredito per un giocatore perso (estero, rescisso e rivenduto) è un
+    ricavo del mercato, non un Decreto (segnalato dalla revisione)."""
+
+    def test_abroad_compensation_is_market_income(self):
+        from ..services.salary import add_credits
+        league = League.objects.create(name="Lega Estero")
+        Season.objects.create(league=league, name="2027/28", is_current=True)
+        team = Participant.objects.create(display_name="Club", league=league, credits=Decimal("500"))
+        add_credits(team, 120, "Cessione fuori dalla Serie A: Bomber", money=RosterLog.Money.INCOME)
+        row = economy.tabellone(league)["rows"][0]
+        self.assertEqual(row["totals"]["summer_income"], Decimal("120"))
+        self.assertEqual(row["totals"]["decree"], Decimal("0"))
+        self.assertEqual(row["budget_start"], Decimal("500"))
+
+    def test_old_rows_without_type_are_read_by_their_name(self):
+        league = League.objects.create(name="Lega Vecchia")
+        team = Participant.objects.create(display_name="Club", league=league, credits=Decimal("580"))
+        RosterLog.objects.create(participant=team, participant_name="Club", action=RosterLog.Action.EDIT,
+                                 player_name="Incasso asta di Rescisso (rescisso al rinnovo) · asta #3",
+                                 credits_delta=Decimal("-80"))
+        row = economy.tabellone(league)["rows"][0]
+        self.assertEqual((row["totals"]["summer_income"], row["totals"]["decree"]), (Decimal("80"), Decimal("0")))

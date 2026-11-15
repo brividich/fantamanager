@@ -13,6 +13,8 @@ def forwards(apps, schema_editor):
     League.objects.filter(salary_cap_enabled=True).update(decree_mid_enabled=True, decree_final_enabled=True)
     RosterLog.objects.filter(action="edit", player_name__startswith="Decreto Salvacalcio").update(money="decree")
     RosterLog.objects.filter(action="edit", player_name="Extra salary cap").update(money="extra")
+    for prefix in ("Cessione fuori dalla Serie A", "Incasso asta di "):
+        RosterLog.objects.filter(action="edit", player_name__startswith=prefix).update(money="income")
 
 
 class Migration(migrations.Migration):
@@ -42,6 +44,7 @@ class Migration(migrations.Migration):
                     ("prize", "Premio"),
                     ("extra", "Extra salary cap"),
                     ("manual", "Crediti a mano"),
+                    ("income", "Ricavo da cessione"),
                 ],
                 max_length=10,
             ),

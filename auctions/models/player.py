@@ -34,6 +34,7 @@ class RosterLog(models.Model):
         PRIZE  = "prize",  "Premio"
         EXTRA  = "extra",  "Extra salary cap"
         MANUAL = "manual", "Crediti a mano"
+        INCOME = "income", "Ricavo da cessione"
 
     money = models.CharField(max_length=10, choices=Money.choices, blank=True)
 

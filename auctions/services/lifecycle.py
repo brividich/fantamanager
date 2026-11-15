@@ -712,7 +712,8 @@ def _contracts_after_sale(player_id, winner, amount, auction):
         cap = (contract_rules(league)["rescind_proceeds_cap"].get(player.role) if league else None)
         proceeds = min(amount, Decimal(cap)) if cap else amount
         add_credits(former, proceeds,
-                    f"Incasso asta di {player.name} (rescisso al rinnovo) · asta #{auction.id}")
+                    f"Incasso asta di {player.name} (rescisso al rinnovo) · asta #{auction.id}",
+                    money=RosterLog.Money.INCOME)
     Player.objects.filter(pk=player_id).update(rescinded_from=None)
 
 
