@@ -76,6 +76,22 @@ class MergeTests(TestCase):
         with self.assertRaises(teams.TeamsNotMergeable):
             teams.merge_teams(self.dup, self.keep)
 
+    def test_rankings_and_cap_follow_the_team_that_stays(self):
+        from ..models import CapEntry, CapPhase, LeagueRanking
+        from ..services import salary
+        self.league.salary_cap_enabled = True
+        self.league.save()
+        prev = salary.save_ranking(self.league, self.league.season_number - 1, LeagueRanking.Kind.FINAL,
+                                   [self.other.id, self.dup.id])           # la classifica conosce solo la doppia
+        mid = salary.save_ranking(self.league, self.league.season_number, LeagueRanking.Kind.MIDSEASON,
+                                  [self.keep.id, self.other.id, self.dup.id])   # tutte e due
+        salary.open_phase(self.league, CapPhase.Kind.SUMMER, prev)
+        teams.merge_teams(self.dup, self.keep)
+        prev.refresh_from_db(); mid.refresh_from_db()
+        self.assertEqual(prev.order, [self.other.id, self.keep.id])
+        self.assertEqual(mid.order, [self.keep.id, self.other.id])
+        self.assertEqual(CapEntry.objects.filter(participant=self.keep, kind=CapEntry.Kind.BASE).count(), 1)
+
     def test_three_accounts_do_not_fit(self):
         self.keep.co_user = User.objects.create_user("vice1", password="pw")
         self.keep.save()

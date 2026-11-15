@@ -137,8 +137,8 @@ def merge_teams(dup, keep, *, budget="keep"):
     tetto passano a ``keep``. ``budget`` dice quanto resta a disposizione:
     ``keep`` (quello di chi resta), ``dup`` (quello dell'altra) o ``sum``.
     Ritorna un riassunto per l'admin."""
-    from ..models import (AuctionCycleResult, CapEntry, ContractEvent, Formation, MarketReleaseIntent,
-                          MatchdayFormation, Watch)
+    from ..models import (AuctionCycleResult, CapEntry, ContractEvent, Formation, LeagueRanking,
+                          MarketReleaseIntent, MatchdayFormation, Watch)
 
     keep = Participant.objects.select_for_update().get(pk=keep.pk)
     dup = Participant.objects.select_for_update().get(pk=dup.pk)
@@ -155,7 +155,23 @@ def merge_teams(dup, keep, *, budget="keep"):
     Player.objects.filter(rescinded_from=dup).update(rescinded_from=keep)
     RosterLog.objects.filter(participant=dup).update(participant=keep)
     ContractEvent.objects.filter(participant=dup).update(participant=keep)
+    # Tetto: la quota per classifica (base estiva, fondi invernali) di una fase
+    # in cui chi resta ha già la sua non si somma; il resto (bonus, extra cap,
+    # rettifiche) passa.
+    for kind in (CapEntry.Kind.BASE, CapEntry.Kind.WINTER):
+        phases = CapEntry.objects.filter(participant=keep, kind=kind).values_list("phase_id", flat=True)
+        CapEntry.objects.filter(participant=dup, kind=kind, phase_id__in=list(phases)).delete()
     CapEntry.objects.filter(participant=dup).update(participant=keep)
+    # Classifiche salvate: la doppia diventa chi resta; se ci sono tutte e
+    # due, chi resta tiene il suo posto e la doppia esce.
+    for ranking in LeagueRanking.objects.filter(league_id=keep.league_id):
+        order = list(ranking.order or [])
+        if dup.id not in order:
+            continue
+        order = ([pid for pid in order if pid != dup.id] if keep.id in order
+                 else [keep.id if pid == dup.id else pid for pid in order])
+        ranking.order = order
+        ranking.save(update_fields=["order"])
     AuctionCycleResult.objects.filter(winner=dup).update(winner=keep)
     Bid.objects.filter(participant=dup).update(participant=keep)
     SealedBid.objects.filter(participant=dup).update(participant=keep)
