@@ -101,6 +101,7 @@ from .admin_participants import (
     admin_adjust_team_credits,
     admin_create_participant,
     admin_delete_participant,
+    admin_merge_participant,
     admin_edit_participant,
     admin_invite_teams,
     admin_participant_account,
@@ -245,6 +246,7 @@ from .auth import (
 )
 from .history import admin_storico, app_storico
 from .economy import admin_tabellone, app_tabellone
+from .search import league_search
 from .images import remote_image
 from .invite import co_invite_answer, coadmin_invite, invite
 from .admin_onboarding import admin_coadmin, admin_invite_missing, admin_setup_card
@@ -290,6 +292,7 @@ __all__ = [
     "app_storico",
     "admin_tabellone",
     "app_tabellone",
+    "league_search",
     "remote_image",
     "coadmin_invite",
     "co_invite_answer",
@@ -431,6 +434,7 @@ __all__ = [
     "admin_create_participant",
     "admin_edit_participant",
     "admin_delete_participant",
+    "admin_merge_participant",
     "admin_adjust_team_credits",
     "admin_reset_team_pin",
     "admin_quick_assign_player",

@@ -6,12 +6,14 @@
             <svg class="ic">
                 <use href="#i-search" />
             </svg>
-            <input type="text" id="cmd-palette-input" placeholder="Cerca modulo, calciatore, squadra o comando..."
+            <input type="text" id="cmd-palette-input" placeholder="Cerca calciatore, squadra, competizione, mercato o pagina…"
                 autocomplete="off" oninput="filterCmdPalette(this.value)">
             <kbd onclick="closeCmdPalette()">ESC</kbd>
         </div>
         <div class="cmd-palette-list" id="cmd-palette-list">
-            <div class="cmd-group-title">Moduli Principali</div>
+            {# Quello che si trova nella lega (views/search.py): arriva mentre si scrive. #}
+            <div id="cmd-league-results"></div>
+            <div class="cmd-group-title">Pagine</div>
             <a class="cmd-item" href="{% url 'dashboard' %}">
                 <span class="cmd-icon"><svg class="ic">
                         <use href="#i-home" />
@@ -140,7 +142,17 @@
     </div>
 </div>
 
+{% include "auctions/_league_search_js.html" %}
 <script>
+    (function () {
+        const input = document.getElementById("cmd-palette-input");
+        const box = document.getElementById("cmd-league-results");
+        if (!input || !box || !window.fmLeagueSearch) return;
+        fmLeagueSearch.attach(input, box,
+            "{% url 'league_search' %}{% if current_league %}?league={{ current_league.id }}{% endif %}",
+            { itemClass: "cmd-item", onRender: () => _setCmdSelection(0) });
+    })();
+
     async function startQuit() {
         if (!confirm("Chiudere FantaManager?\n\nNessuno potrà più collegarsi finché non riavvii l'app. I dati restano salvati.")) return;
         const m = document.cookie.match("(^|;)\\s*csrftoken\\s*=\\s*([^;]+)");
@@ -179,6 +191,8 @@
         const inp = document.getElementById("cmd-palette-input");
         if (inp) {
             inp.value = "";
+            const box = document.getElementById("cmd-league-results");
+            if (box) box.replaceChildren();
             filterCmdPalette("");
             setTimeout(() => inp.focus(), 50);
         }
@@ -194,10 +208,20 @@
 
     function filterCmdPalette(q) {
         const val = (q || "").trim().toLowerCase();
-        const items = document.querySelectorAll("#cmd-palette-list .cmd-item");
+        // Le pagine si filtrano per nome; i risultati della lega li sceglie il server.
+        const items = document.querySelectorAll("#cmd-palette-list > .cmd-item");
         items.forEach(it => {
             const txt = (it.innerText || "").toLowerCase();
             it.style.display = (!val || txt.includes(val)) ? "flex" : "none";
+        });
+        // Un titolo di gruppo senza voci visibili sotto si nasconde.
+        document.querySelectorAll("#cmd-palette-list > .cmd-group-title").forEach(title => {
+            let n = title.nextElementSibling, any = false;
+            while (n && !n.classList.contains("cmd-group-title")) {
+                if (n.classList.contains("cmd-item") && n.style.display !== "none") { any = true; break; }
+                n = n.nextElementSibling;
+            }
+            title.style.display = any ? "" : "none";
         });
         _setCmdSelection(0);
     }

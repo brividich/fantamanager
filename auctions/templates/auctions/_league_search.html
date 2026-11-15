@@ -1,0 +1,37 @@
+{% comment %}
+Il campo Cerca dell'app: cerca nella lega calciatori, squadre, competizioni e
+mercati (views/search.py:league_search), come la ricerca rapida della console.
+Incluso da app_altro.html.
+{% endcomment %}
+<style>
+    .fls { container-type: inline-size; margin-bottom: 16px; }
+    .fls-field { display: flex; align-items: center; gap: 8px; padding: 0 12px; height: 44px; border-radius: 12px;
+        border: 1px solid var(--fm-border); background: var(--fm-input-bg); }
+    .fls-field .ic { color: var(--fm-text-muted); flex: 0 0 auto; }
+    .fls-field input { flex: 1 1 auto; min-width: 0; border: 0; background: transparent; color: var(--fm-text); font-size: 15px; outline: none; }
+    .fls-results { margin-top: 8px; display: grid; gap: 4px; }
+    .fls-results:empty { display: none; }
+    .fls .cmd-group-title { margin: 8px 2px 2px; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--fm-text-muted); font-weight: 800; }
+    .fls-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 10px; text-decoration: none;
+        background: var(--fm-card); border: 1px solid var(--fm-border); color: var(--fm-text); }
+    .fls-item .cmd-icon .ic { width: 18px; height: 18px; color: var(--fm-text-muted); }
+    .fls-item .cmd-text { flex: 1 1 auto; min-width: 0; }
+    .fls-item .cmd-name { font-weight: 700; color: var(--fm-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .fls-item .cmd-desc { font-size: 12px; color: var(--fm-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .fls-item .cmd-tag { flex: 0 0 auto; }
+</style>
+<section class="fls" aria-label="Cerca nella lega">
+    <label class="fls-field">
+        <svg class="ic"><use href="#i-search"/></svg>
+        <input type="search" id="fls-input" placeholder="Cerca calciatore, squadra, competizione o mercato…"
+               autocomplete="off" aria-label="Cerca nella lega">
+    </label>
+    <div class="fls-results" id="fls-results" aria-live="polite"></div>
+</section>
+{% include "auctions/_league_search_js.html" %}
+<script>
+    (function () {
+        const input = document.getElementById("fls-input"), box = document.getElementById("fls-results");
+        if (input && box && window.fmLeagueSearch) fmLeagueSearch.attach(input, box, "{% url 'app_league_search' %}", { itemClass: "fls-item" });
+    })();
+</script>

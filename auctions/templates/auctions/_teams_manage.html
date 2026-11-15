@@ -100,6 +100,22 @@ mostra la cornice.
     .sheet-thumb span { font-size:11px; color:#888; }
     .opt-inline { display:flex; align-items:center; gap:6px; font-size:12px; text-transform:none; letter-spacing:0; }
     .opt-inline input { width:auto; margin:0; }
+    .tm-merge { padding-top:0; }
+    .tm-merge h4 { color:var(--fm-primary-light); }
+    .tm-merge p { font-size:12.5px; color:var(--fm-text-secondary); line-height:1.5; margin:6px 0 8px; }
+    .tm-merge select { max-width:100%; }
+    .tm-merge .opt-inline { display:flex; gap:6px; align-items:center; margin-top:4px; }
+    .tm-dups { margin-bottom:14px; padding:14px 16px; border:1px solid rgba(234,179,8,.45); background:rgba(234,179,8,.10);
+        font-size:13px; line-height:1.5; }
+    .tm-dups b { color:var(--fm-strong); }
+    .tm-dups .tm-del-steps { margin:8px 0; }
+    .tm-dup-list { list-style:none; margin:8px 0 0; padding:0; display:grid; gap:8px; }
+    .tm-dup-list li { display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center; justify-content:space-between;
+        padding-top:8px; border-top:1px solid var(--fm-border); }
+    .tm-dup-list li > span:first-child { min-width:0; }
+    .tm-dup-list small { color:var(--fm-text-muted); }
+    .tm-twin { display:inline-block; margin-left:6px; padding:1px 7px; border-radius:9px; font-size:10.5px; font-weight:800;
+        background:rgba(234,179,8,.18); color:var(--fm-amber-500); }
     .tm-del { padding-top:0; }
     .tm-del .acc-sec { border-bottom:0; }
     .tm-del h4 { color:var(--fm-danger); }
@@ -251,7 +267,9 @@ mostra la cornice.
                 {% if target_auction %}direttamente nell'asta <b>{{ target_auction.title }}</b>{% else %}già riconosciuto{% endif %}
                 come la sua squadra, senza digitare codici.</li>
             <li><b>Stampa</b> la pagina per avere i QR su carta la sera dell'asta.</li>
-            <li>Una squadra in più, creata per sbaglio? Apri la sua <b>Scheda</b> e in fondo, in <b>Elimina la squadra</b>, spunta la conferma e premi <b>Elimina squadra</b>: i suoi giocatori tornano svincolati.</li>
+            <li>Una squadra doppia (lo stesso nome scritto in due modi, di solito dall'import delle rose)? Apri la <b>Scheda</b>
+                di quella da togliere e in <b>Unisci a un'altra squadra</b> scegli quella che resta: giocatori, account e movimenti passano lì.</li>
+            <li>Una squadra in più, creata per sbaglio e vuota? Apri la sua <b>Scheda</b> e in fondo, in <b>Elimina la squadra</b>, spunta la conferma e premi <b>Elimina squadra</b>: i suoi giocatori tornano svincolati.</li>
             {% if accounts_ok %}
             <li>Dalla colonna <b>Account portale</b> dai a ogni allenatore un <b>nome utente e una password</b>
                 per entrare nell'app da qualunque dispositivo: crealo (se lasci vuota la password la genero io),
@@ -270,6 +288,28 @@ mostra la cornice.
         <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Il link è personale: chi ce l'ha offre a nome di quella squadra. Una squadra nuova la aggiungi con <b>Aggiungi squadra</b>, qui in alto.</div>
     </div>
 </details>
+
+{% if dup_pairs %}
+<div class="fm-card tm-dups noprint" role="alert">
+    <b>{{ dup_pairs|length }} squadr{{ dup_pairs|length|pluralize:"a,e" }} doppi{{ dup_pairs|length|pluralize:"a,e" }}?</b>
+    Hanno lo stesso nome scritto in modo diverso: di solito una l'ha creata l'import delle rose accanto a quella che c'era già.
+    <ol class="tm-del-steps">
+        <li>Guarda quale delle due tenere: quella con l'account dell'allenatore e i giocatori giusti.</li>
+        <li><b>Adesso:</b> premi <b>Scheda</b> sull'altra e, in <b>Unisci a un'altra squadra</b>, scegli quella che resta, il budget e premi <b>Unisci</b>.
+            Giocatori, account e movimenti passano lì; la doppia sparisce.</li>
+    </ol>
+    <ul class="tm-dup-list">
+        {% for a, b in dup_pairs %}
+        <li><span>«{{ a.p.display_name }}» <small>({{ a.roster }} giocatori{% if a.p.user %}, account {{ a.p.user.username }}{% endif %})</small>
+            e «{{ b.p.display_name }}» <small>({{ b.roster }} giocatori{% if b.p.user %}, account {{ b.p.user.username }}{% endif %})</small></span>
+            <span class="fm-onerow">
+                <button type="button" class="fm-btn fm-btn-secondary fm-btn-sm" data-open-sheet="sheet-dlg-{{ a.p.id }}">Scheda di «{{ a.p.display_name }}»</button>
+                <button type="button" class="fm-btn fm-btn-secondary fm-btn-sm" data-open-sheet="sheet-dlg-{{ b.p.id }}">Scheda di «{{ b.p.display_name }}»</button>
+            </span></li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
 
 {% if current_league and not mail_ready %}
 <div class="fm-card noprint" role="note" style="margin-bottom:14px;font-size:13px">✉️ {{ mail_off_message }}</div>
@@ -306,7 +346,7 @@ mostra la cornice.
                 <tr id="team-{{ r.p.id }}">
                     <td class="rank-cell">{{ forloop.counter }}</td>
                     <td class="c-team">
-                        <div class="team-name">{{ r.p.display_name }}</div>
+                        <div class="team-name">{{ r.p.display_name }}{% if r.twins %}<span class="tm-twin" title="Sembra la stessa di {% for t in r.twins %}{{ t.display_name }}{% if not forloop.last %}, {% endif %}{% endfor %}: apri la Scheda e unisci">doppia?</span>{% endif %}</div>
                         {% if not r.p.is_active %}<div class="muted" style="font-size:12px">disattivata</div>{% endif %}
                         {% if r.p.access_code %}<div style="margin-top:4px"><span class="code">{{ r.p.access_code }}</span></div>{% endif %}
                         <form method="post" action="{% url 'admin_participant_email' r.p.id %}" class="mail-row noprint">
@@ -486,6 +526,34 @@ mostra la cornice.
             {% endif %}
         </div>
     </form>
+    {# Unisci: per la squadra doppia (services/teams.py:merge_teams). #}
+    {% if r.merge_targets %}
+    <form class="acc-dlg-body tm-merge" method="post" action="{% url 'admin_merge_participant' r.p.id %}">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <div class="acc-sec">
+            <h4>Unisci a un'altra squadra</h4>
+            <p>Per una squadra doppia: «{{ r.p.display_name }}» sparisce e giocatori (con costo e contratto), account,
+                movimenti, offerte e formazioni passano alla squadra che scegli.{% if r.twins %} Sembra la stessa di
+                {% for t in r.twins %}«{{ t.display_name }}»{% if not forloop.last %}, {% endif %}{% endfor %}.{% endif %}</p>
+            <ol class="tm-del-steps">
+                <li><label for="mg-t-{{ r.p.id }}">Squadra che resta</label>
+                    <select id="mg-t-{{ r.p.id }}" name="target_id" required>
+                        <option value="">— scegli —</option>
+                        {% for t in r.merge_targets %}<option value="{{ t.id }}"{% if r.twins and t == r.twins.0 %} selected{% endif %}>{{ t.display_name }} · {{ t.remaining_credits|floatformat:0 }} FM a disposizione</option>{% endfor %}
+                    </select></li>
+                <li>Budget a disposizione dopo l'unione:
+                    <label class="opt-inline"><input type="radio" name="budget" value="keep" checked> quello della squadra che resta</label>
+                    <label class="opt-inline"><input type="radio" name="budget" value="dup"> quello di «{{ r.p.display_name }}» ({{ r.p.remaining_credits|floatformat:0 }} FM)</label>
+                    <label class="opt-inline"><input type="radio" name="budget" value="sum"> la somma dei due</label></li>
+                <li><label class="opt-inline"><input type="checkbox" name="confirm" value="1" required>
+                    Sì, unisci «{{ r.p.display_name }}» alla squadra scelta</label></li>
+                <li><button type="submit" class="fm-btn fm-btn-primary fm-btn-sm">
+                    <svg class="ic"><use href="#i-users"/></svg> Unisci</button></li>
+            </ol>
+        </div>
+    </form>
+    {% endif %}
     {# Elimina: per la squadra creata per sbaglio (services/teams.py). #}
     <form class="acc-dlg-body tm-del" method="post" action="{% url 'admin_delete_participant' r.p.id %}">
         {% csrf_token %}

@@ -44,6 +44,14 @@ Prima versione numerata (prima l'etichetta era 1.2.0, senza rilasci).
   `docker compose -f docker-compose.ghcr.yml up -d watchtower` (DOCKER.md).
 
 ### Lega
+- **Squadre doppie**: la pagina Squadre segnala le coppie con lo stesso nome
+  scritto in modo diverso e, dalla Scheda, **Unisci a un'altra squadra** sposta
+  giocatori, account e movimenti su quella che resta (budget a scelta).
+  L'import delle rose riconosce «SLAVIA VIA FONDA» e «Slavia Viafonda» come la
+  stessa squadra invece di crearne una nuova.
+- **Ricerca nella lega**: «Cerca o salta a…» (Ctrl+K) della console e il nuovo
+  Cerca dell'app (Altro) trovano calciatori, squadre, competizioni, mercati e
+  aste della lega, non solo le pagine.
 - **Tabellone budget**: per ogni squadra budget a disposizione, tetto
   iniziale, tetto spendibile e totale spesa, con le voci della stagione
   (mercato estivo e invernale, scambi, Decreto, premi, extra cap, crediti a
