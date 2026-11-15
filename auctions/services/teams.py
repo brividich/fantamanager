@@ -124,6 +124,17 @@ def merge_problems(dup, keep):
     if running.exists():
         problems.append("c'è un'asta in corso nella lega (offerte e spareggi a buste aspettano le squadre "
                         "come sono): uniscile quando l'asta è chiusa")
+    from ..models import MarketSession
+    from .market import pending_releases
+    for session in MarketSession.objects.filter(league_id=keep.league_id).exclude(
+            status=MarketSession.Status.DRAFT):
+        if session.status in (MarketSession.Status.OPEN, MarketSession.Status.CLOSED) \
+                and MarketBid.objects.filter(session=session, participant__in=[dup, keep]).exists():
+            problems.append(f"il mercato «{session.title}» è ancora aperto o da spogliare con buste di queste "
+                            "squadre: uniscile dopo lo spoglio")
+        elif pending_releases(session, dup.id):
+            problems.append(f"«{dup.display_name}» deve ancora scegliere chi esce per le buste vinte in "
+                            f"«{session.title}»: completa prima i tagli, poi unisci")
     rounds = set(SealedBid.objects.filter(participant=keep).values_list("auction_id", "cycle", "round"))
     if rounds and any(r in rounds for r in SealedBid.objects.filter(participant=dup)
                       .values_list("auction_id", "cycle", "round")):

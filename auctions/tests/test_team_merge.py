@@ -99,6 +99,17 @@ class MergeTests(TestCase):
         make_live_auction(league=self.league)
         self.assertTrue(any("asta in corso" in p for p in teams.merge_problems(self.dup, self.keep)))
 
+    def test_not_while_the_duplicate_has_releases_to_choose(self):
+        from ..models import MarketSession
+        session = MarketSession.objects.create(
+            league=self.league, title="Buste di gennaio", status=MarketSession.Status.RESOLVED,
+            results_summary={"won": [{"winner_id": self.dup.id, "player_id": 1, "player_role": "C",
+                                      "release_pending": True}]})
+        self.assertTrue(any("chi esce" in p for p in teams.merge_problems(self.dup, self.keep)))
+        session.results_summary = {"won": []}
+        session.save()
+        self.assertEqual(teams.merge_problems(self.dup, self.keep), [])
+
     def test_three_accounts_do_not_fit(self):
         self.keep.co_user = User.objects.create_user("vice1", password="pw")
         self.keep.save()
