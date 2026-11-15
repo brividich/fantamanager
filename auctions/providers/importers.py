@@ -7,6 +7,7 @@ imported through here. Keeps DB logic out of both providers and views.
 import re
 import unicodedata
 from decimal import Decimal
+from functools import lru_cache
 from itertools import islice
 from pathlib import Path
 
@@ -64,6 +65,20 @@ def _team_code(team):
     return (team or "").strip()[:3].upper()
 
 
+@lru_cache(maxsize=4096)
+def _same_team(a, b):
+    """Lo stesso club scritto in due modi: sigla («MIL»), nome del listone
+    («Milan») o nome di API-Football («AC Milan», «AS Roma», «Hellas Verona»).
+
+    Le prime tre lettere non bastano: «AC Milan» darebbe «AC », e l'import
+    delle rose sopra la lista generale creava un secondo giocatore (in rosa)
+    accanto a quello svincolato."""
+    if _team_code(a) == _team_code(b):
+        return True
+    from .apifootball import same_club
+    return same_club(a or "", b or "") or same_club(b or "", a or "")
+
+
 def _decimal_or_none(s):
     """Parse a decimal cell, returning None for blank/garbage (never a default)."""
     s = str(s or "").replace(",", ".").strip()
@@ -116,12 +131,13 @@ def _find_match(row, existing, claimed):
             if p.pk not in claimed and p.ext_id and p.ext_id == ext_id:
                 return p
 
-    code = _team_code(row.get("team"))
+    team = row.get("team") or ""
+    code = _team_code(team)
 
     def _pick(candidates):
         # Two players with the same name (two «Martinez L.»): the row's club decides.
         if len(candidates) > 1 and code:
-            same_club = [p for p in candidates if _team_code(p.team) == code]
+            same_club = [p for p in candidates if _same_team(p.team, team)]
             if same_club:
                 return same_club[0]
         return candidates[0] if candidates else None
@@ -140,7 +156,7 @@ def _find_match(row, existing, claimed):
     l_long, l_short = _name_parts(name)
     best, best_score = None, -1
     for p in existing:
-        if p.pk in claimed or _team_code(p.team) != code:
+        if p.pk in claimed or not _same_team(p.team, team):
             continue
         p_long, p_short = _name_parts(p.name)
         if not (l_long & p_long) or not _shorts_compatible(l_short, p_short):
@@ -189,6 +205,22 @@ def sync_players(rows, *, league=None, replace=False, prune=False):
       block.
     """
     _sala_guard(league)
+    # Tutto o niente, e una sola scrittura su disco: riga per riga, su un NAS
+    # con SQLite, l'import superava il minuto del proxy (504) e chi riprovava
+    # lo faceva girare due volte insieme, con i nomi doppi.
+    with transaction.atomic():
+        return _sync_players(rows, league=league, replace=replace, prune=prune)
+
+
+def _no_club(team):
+    """Il file dice che il giocatore non ha un club di Serie A (estero, svincolato)."""
+    return _norm(team) in _NO_CLUB
+
+
+_NO_CLUB = {"", "-", "--", "nd", "n d", "svincolato", "svincolati", "estero", "nessuna", "none", "null"}
+
+
+def _sync_players(rows, *, league, replace, prune):
     from ..models import Player, Auction
 
     if replace:
@@ -196,7 +228,11 @@ def sync_players(rows, *, league=None, replace=False, prune=False):
 
     existing = list(Player.objects.filter(league=league))
     claimed = set()
-    created = updated = matched_owned = 0
+    created = updated = matched_owned = no_club = 0
+    # Un listone con i club (Fantapazz mette anche chi è all'estero o
+    # svincolato, con la squadra vuota): chi non ha un club di Serie A non è
+    # nel listone. Un file senza la colonna dei club si prende tutto.
+    with_clubs = sum(1 for r in rows if not _no_club(r.get("team"))) > len(rows) / 2
 
     for row in rows:
         name = (row.get("name") or "").strip()
@@ -204,6 +240,9 @@ def sync_players(rows, *, league=None, replace=False, prune=False):
             continue
         role = (row.get("role") or "A").strip() or "A"
         team = (row.get("team") or "").strip()
+        if with_clubs and _no_club(team):
+            no_club += 1
+            continue
         try:
             price = Decimal(str(row.get("price", 1) or 1))
         except Exception:
@@ -289,15 +328,18 @@ def sync_players(rows, *, league=None, replace=False, prune=False):
         league.own_listone = True
         league.save(update_fields=["own_listone"])
 
-    # I giocatori nuovi del listone si collegano subito all'anagrafica comune.
-    from ..services.footballers import link_players
+    # I giocatori nuovi del listone si collegano subito all'anagrafica comune;
+    # chi è in rosa non resta anche fra gli svincolati.
+    from ..services.footballers import link_players, merge_twins
     link_players(Player.objects.filter(league=league) if league else Player.objects.filter(league__isnull=True))
+    merge_twins(league)
 
     return {
         "created": created,
         "updated": updated,
         "matched_owned": matched_owned,
         "pruned": pruned,
+        "no_club": no_club,
         "owned_not_in_listone": owned_not_in_listone,
         "flagged_left_serie_a": flagged_left,
         "stats_seeded": seed_stats(league),
@@ -663,9 +705,17 @@ def import_rose_data(teams_data, replace=False, league=None, default_budget=None
                 claimed.add(new.pk)
             players_created += 1
 
+    # Un giocatore della rosa che il nome non ha fatto riconoscere nel listone
+    # (lista generale: «C. Pulisic», AC Milan) si riconosce dall'anagrafica:
+    # la sua copia svincolata esce, così non si compra due volte.
+    from ..services.footballers import link_players, merge_twins
+    link_players(Player.objects.filter(league=league))
+    merged = merge_twins(league)
+
     return {
         "teams": teams_created,
         "players": players_created,
+        "merged": merged,
         "stats_seeded": seed_stats(league),
     }
 

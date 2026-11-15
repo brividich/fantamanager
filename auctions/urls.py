@@ -165,6 +165,7 @@ urlpatterns = [
     path("dashboard/players/<int:player_id>/release/", views.admin_release_player, name="admin_release_player"),
     path("dashboard/players/<int:player_id>/assign/", views.admin_assign_player, name="admin_assign_player"),
     path("dashboard/players/clear/", views.admin_clear_players, name="admin_clear_players"),
+    path("dashboard/players/doppioni/", views.admin_merge_twins, name="admin_merge_twins"),
     path("dashboard/calciatori/", views.admin_footballers, name="admin_footballers"),
     path("dashboard/calciatori/aggiorna/", views.admin_footballers_sync, name="admin_footballers_sync"),
     path("dashboard/calciatori/<int:footballer_id>/ruoli/", views.admin_footballer_edit, name="admin_footballer_edit"),

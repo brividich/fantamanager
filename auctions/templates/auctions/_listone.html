@@ -141,6 +141,27 @@ Dati da views/footballers.py:listone_context (lst_*).
 </nav>
 {% endwith %}
 
+{% if lst_can_manage and lst_twins %}
+<div class="lst-alert noprint" id="lst-twins">
+    <b>{{ lst_twins }} doppion{{ lst_twins|pluralize:"e,i" }} nel listone</b>
+    ({{ lst_twin_names|join:", " }}{% if lst_twins > lst_twin_names|length %}…{% endif %}): lo stesso calciatore compare due volte,
+    la seconda fra gli svincolati, e si potrebbe comprare di nuovo{% if lst_twins_owned %} anche se è già in una rosa
+    ({{ lst_twins_owned }} di questi){% endif %}. Succede quando rose e listone scrivono il nome in modo diverso
+    («Pulisic» e «C. Pulisic») o quando lo stesso listone si importa due volte.
+    <ol class="lst-steps">
+        <li class="now"><span class="dot">1</span>
+            <span><b>Adesso:</b> premi <b>Togli i doppioni</b>. Chi è in rosa resta solo nella sua rosa, degli svincolati doppi ne resta uno;
+                la copia esce dal listone (se ha già voti o buste resta per lo storico, fuori listone).</span></li>
+        <li><span class="dot">2</span>
+            <span>Controlla il conteggio degli <b>svincolati</b>: scende di {{ lst_twins }}. Rose e crediti non cambiano.</span></li>
+    </ol>
+    <div class="lst-form" style="margin-top:12px">
+        <button type="button" class="fm-btn fm-btn-primary fm-btn-sm" onclick="mergeTwins(this)">Togli i doppioni</button>
+    </div>
+    <p class="lst-msg" id="twins-msg"></p>
+</div>
+{% endif %}
+
 {% if lst_can_manage %}
 <details class="lst-tools noprint" {% if need_listone or not lst_total %}open{% endif %}>
     <summary><svg class="ic"><use href="#i-gear"/></svg> Strumenti listone <span class="muted" style="font-weight:500">· import, statistiche, export</span> <span class="chev">▼</span></summary>
@@ -365,6 +386,7 @@ Dati da views/footballers.py:listone_context (lst_*).
         importSheets: "{% url 'admin_import_team_sheets' %}",
         importStats: "{% url 'admin_import_stats' %}",
         clear: "{% url 'admin_clear_players' %}",
+        twins: "{% url 'admin_merge_twins' %}",
         del: "{% url 'admin_delete_player' 0 %}",
         release: "{% url 'admin_release_player' 0 %}",
         assign: "{% url 'admin_assign_player' 0 %}",
@@ -378,7 +400,10 @@ Dati da views/footballers.py:listone_context (lst_*).
             const r = await fetch(url, { method: "POST", body: form || new FormData(), headers: { "X-CSRFToken": LST_CSRF } });
             const data = await r.json().catch(() => ({}));
             if (!r.ok && data.ok === undefined) data.ok = false;
-            if (!data.ok && !data.error) data.error = r.status === 403 ? "Non puoi modificare questa lega." : `Errore del server (${r.status}): riprova.`;
+            if (!data.ok && !data.error) data.error = r.status === 403 ? "Non puoi modificare questa lega."
+                // 502/504: il proxy ha smesso di aspettare, il server può star finendo il lavoro.
+                : (r.status === 502 || r.status === 504) ? "Il server ci mette più del solito e potrebbe star ancora finendo: aspetta un minuto e ricarica la pagina prima di riprovare (se i conteggi sono cambiati è già fatto)."
+                : `Errore del server (${r.status}): riprova.`;
             return data;
         } catch (e) {
             return { ok: false, error: "Errore di rete: controlla la connessione e riprova." };
@@ -406,6 +431,7 @@ Dati da views/footballers.py:listone_context (lst_*).
         if (data.updated) parts.push(`${data.updated} aggiornati`);
         if (data.matched_owned) parts.push(`${data.matched_owned} già in rosa preservati`);
         if (data.pruned) parts.push(`${data.pruned} svincolati rimossi`);
+        if (data.no_club) parts.push(`${data.no_club} senza club di Serie A saltati`);
         lstMsg("import-msg", "✓ " + (parts.join(" · ") || "nessuna modifica") +
             ((data.errors || []).length ? ` · ${data.errors.length} righe ignorate.` : ""), "var(--live)");
         const left = data.left_serie_a;
@@ -504,6 +530,16 @@ Dati da views/footballers.py:listone_context (lst_*).
             return;
         }
         lstMsg("sheet-msg", `✓ Importate ${data.sheets.filter(s => !s.skipped).length} schede · ${total} giocatori.`, "var(--live)");
+    }
+
+    async function mergeTwins(btn) {
+        btn.disabled = true;
+        const form = new FormData();
+        if (LST_LEAGUE_ID) form.append("league_id", LST_LEAGUE_ID);
+        const data = await lstPost(LST_URLS.twins, form);
+        if (!data.ok) { btn.disabled = false; lstMsg("twins-msg", "✗ " + data.error, "var(--closed)"); return; }
+        lstMsg("twins-msg", `✓ Tolti ${data.merged} doppioni dagli svincolati.`, "var(--live)");
+        setTimeout(() => location.reload(), 800);
     }
 
     async function clearPlayers() {
