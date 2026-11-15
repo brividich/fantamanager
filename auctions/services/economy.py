@@ -75,17 +75,27 @@ def _money_kind(log):
     return ""
 
 
+_SALA_PREFIX = "Asta in sala · "
+
+
+def _note(log):
+    """La nota com'era scritta: senza il «Asta in sala · » che aggiunge il
+    ritorno dei risultati dal PC (services/sala.py)."""
+    note = log.note or ""
+    return note[len(_SALA_PREFIX):] if note.startswith(_SALA_PREFIX) else note
+
+
 def classify(log, winter_at):
     """(colonna, importo con segno sul budget, testo) di una riga del registro,
     o None se non muove crediti. Importo > 0: la squadra incassa."""
     delta = log.credits_delta or ZERO
     season_part = "winter" if winter_at is not None and log.created_at >= winter_at else "summer"
     if log.action in (RosterLog.Action.ASSIGN, RosterLog.Action.ADMIN_ASSIGN):
-        if log.note.startswith("Annullamento spoglio"):     # il giocatore lasciato torna: rende la cessione
+        if _note(log).startswith("Annullamento spoglio"):     # il giocatore lasciato torna: rende la cessione
             return f"{season_part}_income", -abs(delta), f"{log.player_name}: torna in rosa"
         return f"{season_part}_spent", -delta, f"{log.player_name}: acquisto"
     if log.action in (RosterLog.Action.RELEASE, RosterLog.Action.ADMIN_RELEASE):
-        if log.note.startswith(_UNDO_PREFIXES):
+        if _note(log).startswith(_UNDO_PREFIXES):
             return f"{season_part}_spent", abs(delta), f"{log.player_name}: acquisto annullato"
         return f"{season_part}_income", abs(delta), f"{log.player_name}: {'svincolo' if log.action == RosterLog.Action.RELEASE else 'svincolo (admin)'}"
     if log.action == RosterLog.Action.EDIT:

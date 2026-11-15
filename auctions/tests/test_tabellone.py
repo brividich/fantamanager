@@ -269,3 +269,17 @@ class SetAvailableBudgetTests(TestCase):
         self.assertEqual((team.remaining_credits, team.credits), (Decimal("500"), Decimal("800")))
         row = economy.tabellone(league)["rows"][0]
         self.assertEqual(row["totals"]["manual"], Decimal("-200"))
+
+
+class SalaUndoTests(TestCase):
+    def test_a_cancelled_purchase_from_the_pc_is_not_income(self):
+        league = League.objects.create(name="Lega Sala Undo")
+        team = Participant.objects.create(display_name="Club", league=league, credits=Decimal("500"))
+        for action, delta, note in ((RosterLog.Action.ASSIGN, "100", "Asta in sala"),
+                                    (RosterLog.Action.ADMIN_RELEASE, "100",
+                                     "Asta in sala · Aggiudicazione annullata · asta #3 ciclo 1")):
+            RosterLog.objects.create(participant=team, participant_name="Club", player_name="Bomber",
+                                     action=action, credits_delta=Decimal(delta), note=note)
+        row = economy.tabellone(league)["rows"][0]
+        self.assertEqual((row["totals"]["summer_spent"], row["totals"]["summer_income"]), (Decimal("0"), Decimal("0")))
+        self.assertEqual(row["spent"], Decimal("0"))
