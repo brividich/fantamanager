@@ -371,6 +371,16 @@ def _listone_fields(keep, extra):
     if (extra.initial_price and extra.initial_price != keep.initial_price
             and keep.initial_price in (keep.cost, Decimal("1"))):
         fields["initial_price"] = extra.initial_price
+    if extra.in_listone:
+        # La copia stava nel listone: chi resta c'è ancora. Se l'import l'aveva
+        # appena segnalato come uscito dalla Serie A (senza una destinazione
+        # rilevata), la segnalazione cade, come in abroad.flag_missing.
+        flagged = keep.left_serie_a_at is not None
+        if flagged and not keep.left_club and not keep.left_rank_kind:
+            fields.update(left_serie_a_at=None, left_rank_pos=None)
+            flagged = False
+        if not flagged and not keep.in_listone:
+            fields["in_listone"] = True
     return fields
 
 

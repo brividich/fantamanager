@@ -9,9 +9,9 @@ Non tiene conti suoi: il budget a disposizione è quello vero della squadra
 (``RosterLog``) e dagli scambi conclusi (``Trade``). Il budget di inizio
 stagione è quindi «a disposizione meno i movimenti»: torna sempre.
 
-Le finestre: la stagione parte con il campionato in corso (``Season``) o con
-la prima fase del tetto; l'inverno con la fase invernale del tetto o con la
-classifica di metà stagione.
+Le finestre: la stagione parte con il passaggio di stagione (il campionato
+nuovo creato da ``roll_season``; senza passaggi si conta tutto); l'inverno
+con la fase invernale del tetto o con la classifica di metà stagione.
 """
 from decimal import Decimal
 
@@ -42,14 +42,14 @@ def season_window(league):
     """(inizio della stagione, inizio dell'inverno): date o None."""
     from ..models import Season
 
-    starts = []
+    # La stagione economica parte dal passaggio di stagione (start_new_season
+    # → roll_season crea il campionato nuovo). Un campionato senza stagioni
+    # prima di lui è nato con la lega o alla prima visita di Competizioni:
+    # non è un confine, e prima di lui si conta tutto.
+    start = None
     current = Season.objects.filter(league=league, is_current=True).order_by("-created_at").first()
-    if current is not None:
-        starts.append(current.created_at)
-    first_phase = CapPhase.objects.filter(league=league, season=league.season_number).order_by("started_at").first()
-    if first_phase is not None:
-        starts.append(first_phase.started_at)
-    start = min(starts) if starts else None
+    if current is not None and Season.objects.filter(league=league, created_at__lt=current.created_at).exists():
+        start = current.created_at
 
     winter = CapPhase.objects.filter(league=league, season=league.season_number,
                                      kind=CapPhase.Kind.WINTER).first()

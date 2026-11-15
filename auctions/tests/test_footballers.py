@@ -676,6 +676,17 @@ class TwinTests(TestCase):
         self.assertEqual((pulisic.initial_price, pulisic.ext_id, pulisic.mantra_roles, pulisic.fanta_avg),
                          (Decimal("28"), "4321", "T;A", Decimal("7.10")))
 
+    def test_the_roster_copy_gets_back_into_the_listone(self):
+        # L'import del listone ha appena segnalato la copia in rosa come uscita
+        # dalla Serie A (non si è riconosciuta), ma la copia svincolata c'è.
+        pulisic = self.make_twin("Pulisic", "A", "Mil")
+        from django.utils import timezone
+        Player.objects.filter(pk=pulisic.pk).update(in_listone=False, left_serie_a_at=timezone.now())
+        footballers.merge_twins(self.league)
+        pulisic.refresh_from_db()
+        self.assertTrue(pulisic.in_listone)
+        self.assertIsNone(pulisic.left_serie_a_at)
+
     def test_the_anagrafica_update_repairs_the_listone(self):
         self.make_twin("Pulisic", "A", "Mil")
         self.make_twin("Orban G.", "A", "Ver")

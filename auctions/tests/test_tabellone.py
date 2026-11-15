@@ -283,3 +283,27 @@ class SalaUndoTests(TestCase):
         row = economy.tabellone(league)["rows"][0]
         self.assertEqual((row["totals"]["summer_spent"], row["totals"]["summer_income"]), (Decimal("0"), Decimal("0")))
         self.assertEqual(row["spent"], Decimal("0"))
+
+
+class SeasonWindowTests(TestCase):
+    def test_a_championship_created_late_does_not_hide_earlier_spending(self):
+        league = League.objects.create(name="Lega Senza Campionato")
+        team = Participant.objects.create(display_name="Club", league=league, credits=Decimal("500"))
+        RosterLog.objects.create(participant=team, participant_name="Club", player_name="Bomber",
+                                 action=RosterLog.Action.ASSIGN, credits_delta=Decimal("100"))
+        Season.objects.create(league=league, name="2027/28", is_current=True)   # alla prima visita di Competizioni
+        row = economy.tabellone(league)["rows"][0]
+        self.assertEqual(row["spent"], Decimal("100"))
+
+    def test_the_season_rollover_is_the_boundary(self):
+        from ..services.competitions import roll_season
+        league = League.objects.create(name="Lega Rollover")
+        Season.objects.create(league=league, name="2026/27", is_current=True)
+        team = Participant.objects.create(display_name="Club", league=league, credits=Decimal("500"))
+        RosterLog.objects.create(participant=team, participant_name="Club", player_name="Vecchio",
+                                 action=RosterLog.Action.ASSIGN, credits_delta=Decimal("100"))
+        roll_season(league)
+        RosterLog.objects.create(participant=team, participant_name="Club", player_name="Nuovo",
+                                 action=RosterLog.Action.ASSIGN, credits_delta=Decimal("30"))
+        row = economy.tabellone(league)["rows"][0]
+        self.assertEqual(row["spent"], Decimal("30"))
