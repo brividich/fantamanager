@@ -66,6 +66,16 @@ class MergeTests(TestCase):
             teams.merge_teams(self.dup, self.keep)
         self.assertTrue(Participant.objects.filter(pk=self.dup.pk).exists())
 
+    def test_sealed_bids_in_the_same_round_block_the_merge(self):
+        from ..models import SealedBid
+        from .common import make_live_auction
+        auction = make_live_auction(league=self.league)
+        for team in (self.keep, self.dup):
+            SealedBid.objects.create(auction=auction, participant=team, cycle=1, round=1, amount=Decimal("10"))
+        self.assertTrue(any("busta segreta" in p for p in teams.merge_problems(self.dup, self.keep)))
+        with self.assertRaises(teams.TeamsNotMergeable):
+            teams.merge_teams(self.dup, self.keep)
+
     def test_three_accounts_do_not_fit(self):
         self.keep.co_user = User.objects.create_user("vice1", password="pw")
         self.keep.save()
@@ -144,6 +154,17 @@ class LeagueSearchTests(TestCase):
         self.assertIn(reverse("app_footballers"), found["Calciatori"][0]["url"])
         page = self.client.get(reverse("app_altro"))
         self.assertContains(page, "Cerca nella lega")
+
+    def test_draft_markets_stay_hidden_in_the_app(self):
+        from ..models import MarketSession
+        MarketSession.objects.create(league=self.league, title="Mercato segreto", status=MarketSession.Status.DRAFT)
+        session = self.client.session
+        session["participant_id"] = self.team.id
+        session.save()
+        self.assertNotIn("Mercati", self.groups(self.client.get(reverse("app_league_search"), {"q": "segreto"})))
+        self.client.force_login(self.owner)
+        found = self.groups(self.client.get(reverse("league_search"), {"q": "segreto", "league": self.league.id}))
+        self.assertEqual(found["Mercati"][0]["title"], "Mercato segreto")      # chi gestisce la vede in console
 
     def test_strangers_find_nothing(self):
         self.client.force_login(User.objects.create_user("estraneo", password="pw", is_staff=True))

@@ -81,10 +81,14 @@ def league_search(request):
     if comps:
         groups.append({"label": "Competizioni", "items": comps})
 
+    sessions = MarketSession.objects.filter(league=league)
+    if app:
+        # Le bozze non sono visibili ai partecipanti (come in app_mercato).
+        sessions = sessions.exclude(status=MarketSession.Status.DRAFT)
     markets = [{"title": s.title, "detail": s.get_status_display(),
                 "url": (f"{reverse('app_mercato')}?session_id={s.id}" if app
                         else reverse("admin_market_session", args=[s.id]))}
-               for s in MarketSession.objects.filter(league=league).order_by("-id")
+               for s in sessions.order_by("-id")
                if _hit(needle, s.title)][:PER_GROUP]
     if markets:
         groups.append({"label": "Mercati", "items": markets})

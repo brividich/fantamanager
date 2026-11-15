@@ -118,6 +118,11 @@ def merge_problems(dup, keep):
                         "resterebbero senza squadra")
     if Trade.objects.filter(Q(proposer=dup, receiver=keep) | Q(proposer=keep, receiver=dup)).exists():
         problems.append("le due squadre hanno fatto scambi fra loro")
+    rounds = set(SealedBid.objects.filter(participant=keep).values_list("auction_id", "cycle", "round"))
+    if rounds and any(r in rounds for r in SealedBid.objects.filter(participant=dup)
+                      .values_list("auction_id", "cycle", "round")):
+        problems.append("hanno fatto tutte e due una busta segreta nello stesso giro della stessa asta: "
+                        "sono due squadre che hanno giocato davvero")
     accounts = {u.pk: u for u in (keep.user, keep.co_user, dup.user, dup.co_user) if u is not None}
     if len(accounts) > 2:
         problems.append("insieme hanno più di due account, e una squadra ne ha al massimo due: "
