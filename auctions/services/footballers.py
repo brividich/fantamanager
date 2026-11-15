@@ -322,10 +322,14 @@ def find_twins(league):
         by_name.setdefault(norm[p.pk], []).append(p)
 
     def same(a, b):
-        if norm[a.pk] == norm[b.pk] and importers._same_team(a.team, b.team):
-            return True
-        return bool(fb.get(a.pk)) and fb.get(a.pk) == fb.get(b.pk) \
-            and name_match_score(a.name, a.role, b.name, b.role) is not None
+        fa, fb_ = fb.get(a.pk), fb.get(b.pk)
+        if fa and fb_:
+            # L'anagrafica decide: due calciatori diversi non sono mai doppioni,
+            # anche col nome uguale (un portiere e un attaccante «Martinez»).
+            return fa == fb_ and name_match_score(a.name, a.role, b.name, b.role) is not None
+        # Senza l'anagrafica di tutti e due, solo stesso nome, club e ruolo
+        # (lo stesso listone importato due volte).
+        return norm[a.pk] == norm[b.pk] and a.role == b.role and importers._same_team(a.team, b.team)
 
     twins, gone, kept = [], set(), set()
 

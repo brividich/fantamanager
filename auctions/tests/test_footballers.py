@@ -718,6 +718,17 @@ class TwinTests(TestCase):
         self.assertEqual(footballers.merge_twins(self.league), 2)
         self.assertEqual(list(self.pool().filter(team__icontains="roma")), [first])
 
+    def test_namesakes_the_registry_tells_apart_are_not_doubles(self):
+        # Un portiere e un attaccante «Martinez» dell'Inter: l'anagrafica li distingue.
+        gk = Footballer.objects.create(api_id=20, name="Josep Martínez", position="P", club_name="Inter", club_api_id=4)
+        fw = Footballer.objects.create(api_id=21, name="Lautaro Martínez", position="A", club_name="Inter", club_api_id=4)
+        Player.objects.create(name="Martinez", role="P", team="Inter", league=self.league, footballer=gk)
+        Player.objects.create(name="Martinez", role="A", team="Inter", league=self.league, footballer=fw)
+        Player.objects.create(name="Martinez", role="C", team="Inter", league=self.league)   # senza anagrafica, altro ruolo
+        self.assertEqual(footballers.find_twins(self.league), [])
+        self.assertEqual(footballers.merge_twins(self.league), 0)
+        self.assertEqual(self.pool().filter(name="Martinez").count(), 3)
+
     def test_namesakes_of_different_clubs_are_not_doubles(self):
         Player.objects.create(name="F. Esposito", role="A", team="Spezia", league=self.league)
         self.assertEqual(footballers.find_twins(self.league), [])
