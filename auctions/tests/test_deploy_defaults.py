@@ -95,6 +95,13 @@ class ComposeOneImageTests(SimpleTestCase):
         for service in ("app", "scheduler"):
             self.assertIn(names[service], watched, service)
 
+    def test_watchtower_is_the_maintained_one(self):
+        # containrrr/watchtower è fermo al 2023 e Docker 29 rifiuta la sua API
+        # («client version 1.25 is too old»): non aggiorna più niente.
+        block = _service("docker-compose.ghcr.yml", "watchtower")
+        image = re.search(r"^    image: (\S+)$", block, re.M).group(1)
+        self.assertTrue(image.startswith("nickfedor/watchtower:"), image)
+
     def test_no_source_bind_in_production(self):
         for name in COMPOSES:
             with self.subTest(compose=name):

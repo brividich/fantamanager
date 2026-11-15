@@ -534,6 +534,8 @@
         </div>
     </header>
 
+    {% include "auctions/_co_invites_pending.html" %}
+
     <!-- 2. LIVE BROADCAST BANNER (if active auction exists for current league) -->
     {% if active_auction and current_league %}
     <div class="hp-live-banner">

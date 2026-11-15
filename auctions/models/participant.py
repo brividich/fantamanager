@@ -85,6 +85,13 @@ class Participant(models.Model):
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="co_teams"
     )
     co_invite_token = models.CharField(max_length=64, blank=True, db_index=True)
+    # L'invito per nome: l'admin ha scritto il nome utente o l'email di un
+    # account senza squadra in questa lega. Solo quell'account lo accetta (lo
+    # trova nell'app, o apre il link dell'email); vuoto = link per chiunque lo
+    # riceva. L'email dell'account non si vede finché non accetta.
+    co_invite_user  = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
     # External team identity (when imported from a provider such as Fantapazz).
     external_team_id = models.CharField(max_length=60, blank=True)
     display_name  = models.CharField(max_length=80)

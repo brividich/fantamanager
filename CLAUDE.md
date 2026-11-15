@@ -342,9 +342,11 @@ allenatore `co_user`): le squadre di un account si cercano con
 `Participant.objects.of_user(user)` e «è la sua squadra» con
 `participant.has_account(user)`, mai col solo `user`. Il secondo lo apre
 l'admin dalla pagina Squadre (`slot=2` in `admin_participant_account`,
-`_team_account_slot.html`) o col link del secondo allenatore
-(`co_invite_token`, una volta); invito e codice della squadra collegano solo
-il primo.
+`_team_account_slot.html`), col link del secondo allenatore
+(`co_invite_token`, una volta) o con l'invito per nome a un account senza
+squadra nella lega (`co_invite_user`: accetta solo lui, da
+`_co_invites_pending.html` → `co_invite_answer`); invito e codice della
+squadra collegano solo il primo.
 Una squadra creata per sbaglio si elimina dalla sua Scheda nella pagina
 Squadre (`services/teams.py`): i giocatori tornano svincolati. Se ha già una
 storia (punteggi, partite calcolate, offerte, buste, scambi) non si elimina.

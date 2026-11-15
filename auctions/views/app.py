@@ -104,6 +104,7 @@ def app_home(request):
         "lineup_done": fstate["starters_count"],
         "lineup_target": fstate["starters_target"],
         "lineup_incomplete": plan["owned"] > 0 and fstate["starters_count"] < fstate["starters_target"],
+        "co_invites": onboarding.pending_co_invites(request.user),
     })
     league = participant.league
     open_market = None
@@ -1358,6 +1359,9 @@ def app_login(request):
                         return redirect(f"{reverse('app_login')}?{urlencode({'switch': 1, 'next': next_url})}")
                     if teams:
                         participant = teams[0]
+                    elif onboarding.pending_co_invites(user):
+                        # Nessuna squadra, ma un invito da allenatore in seconda: si accetta lì.
+                        return redirect("onboarding")
                     elif app_admin_leagues(user):
                         # No team, but a league to run: straight to the Regia,
                         # where "Vedi come" opens any team on purpose instead

@@ -243,7 +243,7 @@ from .auth import (
 )
 from .history import admin_storico, app_storico
 from .images import remote_image
-from .invite import coadmin_invite, invite
+from .invite import co_invite_answer, coadmin_invite, invite
 from .admin_onboarding import admin_coadmin, admin_invite_missing, admin_setup_card
 from .password_reset import password_reset_confirm, password_reset_request
 from .privacy import (
@@ -287,6 +287,7 @@ __all__ = [
     "app_storico",
     "remote_image",
     "coadmin_invite",
+    "co_invite_answer",
     "admin_coadmin",
     "admin_invite_missing",
     "admin_setup_card",

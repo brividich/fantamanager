@@ -8,7 +8,8 @@ d'invito della squadra e il codice continuano a collegare solo il primo.
 from decimal import Decimal
 
 from django.contrib.auth.models import User
-from django.test import TestCase
+from django.core import mail as django_mail
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from ..models import League, ManagedAccount, Participant
@@ -170,3 +171,123 @@ class SecondAccountTests(TestCase):
         self.team.refresh_from_db()
         self.assertIsNone(self.team.co_user_id)
         self.assertEqual(self.team.user, self.coach)
+
+
+class NamedCoInviteTests(TestCase):
+    """L'invito per nome: un account senza squadra diventa allenatore in
+    seconda quando accetta lui, dall'app."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user("presidente3", password="pw")
+        self.coach = User.objects.create_user("titolare", password="pw")
+        self.league = League.objects.create(name="Lega Inviti", owner=self.owner)
+        self.team = Participant.objects.create(league=self.league, display_name="Inviti FC",
+                                               user=self.coach, credits=Decimal("500"))
+        self.other = Participant.objects.create(league=self.league, display_name="Altri FC",
+                                                credits=Decimal("500"))
+        # Si è registrato da solo e non gioca in nessuna lega del presidente.
+        self.solo = User.objects.create_user("solitario", email="solo@x.local", password="Password-Lunga-5")
+
+    def _invite(self, ident):
+        self.client.force_login(self.owner)
+        return self.client.post(reverse("admin_participant_account", args=[self.team.id]),
+                                {"action": "co_invite_user", "slot": "2", "identifier": ident})
+
+    def test_invite_accept(self):
+        # Collegarlo direttamente non si può: non è un account del presidente.
+        self.client.force_login(self.owner)
+        self.client.post(reverse("admin_participant_account", args=[self.team.id]),
+                         {"action": "link", "slot": "2", "identifier": "solitario"})
+        self.team.refresh_from_db()
+        self.assertIsNone(self.team.co_user_id)
+        # Invitarlo sì: per email, senza vederne i dati.
+        self._invite("SOLO@x.local")
+        self.team.refresh_from_db()
+        self.assertEqual(self.team.co_invite_user, self.solo)
+        self.assertIsNone(self.team.co_user_id)
+        page = self.client.get(reverse("admin_participants") + f"?league={self.league.id}")
+        self.assertContains(page, "Invito in attesa per <b>solitario</b>")
+        self.assertNotContains(page, "solo@x.local")
+
+        # Lui lo trova entrando e accetta.
+        self.client.force_login(self.solo)
+        self.assertRedirects(self.client.get(reverse("home")), reverse("onboarding"), fetch_redirect_response=False)
+        page = self.client.get(reverse("onboarding"))
+        self.assertContains(page, "allenatore in seconda")
+        self.assertContains(page, "Inviti FC")
+        self.client.post(reverse("co_invite_answer", args=[self.team.id]), {"action": "accept"})
+        self.team.refresh_from_db()
+        self.assertEqual(self.team.co_user, self.solo)
+        self.assertEqual(self.team.user, self.coach)
+        self.assertIsNone(self.team.co_invite_user_id)
+        self.assertEqual(self.team.co_invite_token, "")
+        self.assertEqual(self.client.session.get("participant_id"), self.team.id)
+
+    def test_decline_changes_nothing(self):
+        self._invite("solitario")
+        self.client.force_login(self.solo)
+        self.client.post(reverse("co_invite_answer", args=[self.team.id]), {"action": "decline"})
+        self.team.refresh_from_db()
+        self.assertIsNone(self.team.co_user_id)
+        self.assertIsNone(self.team.co_invite_user_id)
+        self.assertEqual(self.team.co_invite_token, "")
+
+    def test_only_the_invited_account_answers(self):
+        self._invite("solitario")
+        self.team.refresh_from_db()
+        intruder = User.objects.create_user("intruso", password="pw")
+        self.client.force_login(intruder)
+        self.client.post(reverse("co_invite_answer", args=[self.team.id]), {"action": "accept"})
+        page = self.client.post(reverse("invite", args=[self.team.co_invite_token]), {"action": "link"})
+        self.assertContains(page, "Questo invito è per un altro account")
+        self.team.refresh_from_db()
+        self.assertIsNone(self.team.co_user_id)
+        self.assertEqual(self.team.co_invite_user, self.solo)
+
+    def test_named_invite_link_from_the_email_works_for_that_account(self):
+        self._invite("solitario")
+        self.team.refresh_from_db()
+        self.client.logout()
+        url = reverse("invite", args=[self.team.co_invite_token])
+        page = self.client.get(url)
+        self.assertNotContains(page, "Crea l'account ed entra")      # niente account nuovo
+        self.client.post(url, {"action": "login", "identifier": "solitario", "password": "Password-Lunga-5"})
+        self.team.refresh_from_db()
+        self.assertEqual(self.team.co_user, self.solo)
+
+    def test_who_cannot_be_invited(self):
+        rival = User.objects.create_user("rivale3", password="pw")
+        self.other.user = rival
+        self.other.save()
+        for ident in ("non-esiste", "titolare", "rivale3"):
+            with self.subTest(ident=ident):
+                self._invite(ident)
+                self.team.refresh_from_db()
+                self.assertIsNone(self.team.co_invite_user_id)
+                self.assertEqual(self.team.co_invite_token, "")
+
+    def test_app_login_leads_to_the_invite(self):
+        self._invite("solitario")
+        self.client.logout()
+        resp = self.client.post(reverse("app_login"), {
+            "login_mode": "account", "identifier": "solitario", "password": "Password-Lunga-5"})
+        self.assertRedirects(resp, reverse("onboarding"), fetch_redirect_response=False)
+
+    def test_revoke_and_direct_link_clear_the_invite(self):
+        self._invite("solitario")
+        self.client.post(reverse("admin_participant_account", args=[self.team.id]),
+                         {"action": "co_invite_revoke", "slot": "2"})
+        self.team.refresh_from_db()
+        self.assertIsNone(self.team.co_invite_user_id)
+        self.client.force_login(self.solo)
+        self.assertNotContains(self.client.get(reverse("onboarding")), "Ti hanno invitato come allenatore in seconda")
+
+    @override_settings(EMAIL_HOST="smtp.env.local", FM_SITE_URL="http://testserver")
+    def test_invite_email_has_the_link(self):
+        self._invite("solitario")
+        self.team.refresh_from_db()
+        self.assertEqual(len(django_mail.outbox), 1)
+        msg = django_mail.outbox[0]
+        self.assertEqual(msg.to, ["solo@x.local"])
+        self.assertIn("http://testserver" + reverse("invite", args=[self.team.co_invite_token]), msg.body)
+        self.assertIn("Inviti FC", msg.body)

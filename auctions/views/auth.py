@@ -354,6 +354,7 @@ def onboarding_view(request):
         "auctions/onboarding.html",
         {
             "error": error,
+            "co_invites": onboarding.pending_co_invites(request.user),
             "setup_url": reverse("app_setup") if is_mobile else reverse("admin_setup"),
             "desktop_app": settings.DESKTOP_APP,
         },

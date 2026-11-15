@@ -48,6 +48,7 @@ onboarding_view), da telefono e da PC. Tre strade, una per riga:
         <summary><svg class="ic"><use href="#i-shield"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
         <div class="howto-body">
             <ol>
+                {% if co_invites %}<li><b>Adesso:</b> ti hanno invitato come allenatore in seconda: premi <b>Accetta</b> nel riquadro verde ed entri nella squadra (o <b>Rifiuta</b>).</li>{% endif %}
                 <li>Organizzi tu la lega? <b>Creo una lega</b>: in pochi passi scrivi le squadre (anche con le email) e mandi gli inviti.</li>
                 <li>Ti ha invitato un presidente? <b>Mi hanno invitato</b>: incolla il link che ti ha mandato (o scrivi il codice della squadra) e premi <b>Entra</b>.</li>
                 {% if desktop_app %}<li>Su questo PC farai l'asta in sala per una lega che sta sul sito? <b>Scarico una lega dal sito</b>.</li>{% endif %}
@@ -58,6 +59,7 @@ onboarding_view), da telefono e da PC. Tre strade, una per riga:
 
     {% for m in messages %}<div class="ob-err" style="{% if m.tags != 'error' %}background:rgba(22,217,104,.10);border-color:rgba(22,217,104,.35);color:var(--fm-green-200){% endif %}" role="status">{{ m }}</div>{% endfor %}
     {% if error %}<div class="ob-err" role="alert">{{ error }}</div>{% endif %}
+    {% include "auctions/_co_invites_pending.html" %}
 
     <div class="ob-choice">
         <a class="ob-card primary" href="{{ setup_url }}">

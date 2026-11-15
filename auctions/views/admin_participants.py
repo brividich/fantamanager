@@ -100,7 +100,7 @@ def teams_manage_context(request, current_league):
 
     accounts_ok = current_league is not None and can_manage_accounts(request.user, current_league)
     participants = participants.select_related("user", "user__managed_account",
-                                               "co_user", "co_user__managed_account")
+                                               "co_user", "co_user__managed_account", "co_invite_user")
     base_url = remote.best_base_url(request).rstrip("/")
     honour_labels = team_sheets.league_honour_labels(current_league)
 
@@ -126,7 +126,10 @@ def teams_manage_context(request, current_league):
             "account2": p.co_user if accounts_ok else None,
             "account2_lock": account_lock_reason(request.user, p.co_user) if accounts_ok and p.co_user else "",
             "account2_deletable": accounts_ok and p.co_user is not None and account_deletable(request.user, p.co_user),
-            "co_invite_url": (base_url + onboarding.co_invite_path(p)) if accounts_ok and p.co_invite_token else "",
+            # Il link per chi lo riceve; l'invito per nome lo accetta solo quell'account.
+            "co_invite_url": ((base_url + onboarding.co_invite_path(p))
+                              if accounts_ok and p.co_invite_token and not p.co_invite_user_id else ""),
+            "co_invite_user": p.co_invite_user if accounts_ok and p.co_invite_token else None,
             "honours": team_sheets.honours_for(p, honour_labels),
             "images": [("logo", "Logo", p.logo), ("kit_home", "Prima maglia", p.kit_home),
                        ("kit_away", "Seconda maglia", p.kit_away)],
@@ -783,6 +786,23 @@ def _clean_email(raw, exclude=None):
     return email, ""
 
 
+def _send_co_invite(request, p, account):
+    """L'email dell'invito per nome, se l'account ha un indirizzo confermato e
+    le email partono. ``True`` se è partita."""
+    from django.template.loader import render_to_string
+
+    if not account.email or not mail.is_ready() or privacy.email_unverified(account):
+        return False
+    base = mail.link_base(request)
+    if not base:
+        return False
+    ctx = {"team": p, "league": p.league, "sender": mail.sender_name(request, p.league),
+           "link": base + onboarding.co_invite_path(p), **privacy.legal_links(base)}
+    ok, _err = mail.send(f"Secondo allenatore di {p.display_name} — FantaManager", account.email,
+                         render_to_string("auctions/email/co_invite.txt", ctx))
+    return ok
+
+
 def _participants_url(p):
     url = reverse("admin_participants")
     return f"{url}?league={p.league_id}" if p.league_id else url
@@ -832,9 +852,10 @@ def admin_participant_account(request, participant_id):
     def attach(user):
         setattr(p, field, user)
         fields = [field]
-        if second and p.co_invite_token:
-            p.co_invite_token = ""          # il posto è preso: il link non serve più
-            fields.append("co_invite_token")
+        if second and (p.co_invite_token or p.co_invite_user_id):
+            p.co_invite_token = ""          # il posto è preso: l'invito non serve più
+            p.co_invite_user = None
+            fields += ["co_invite_token", "co_invite_user"]
         p.save(update_fields=fields)
 
     def same_as_other(user):
@@ -849,10 +870,25 @@ def admin_participant_account(request, participant_id):
         return redirect(back)
 
     if action == "co_invite_revoke":
-        if p.co_invite_token:
-            p.co_invite_token = ""
-            p.save(update_fields=["co_invite_token"])
-        messages.success(request, f"Link per il secondo allenatore di «{p.display_name}» ritirato.")
+        onboarding.clear_co_invite(p)
+        messages.success(request, f"Invito per il secondo allenatore di «{p.display_name}» ritirato.")
+        return redirect(back)
+
+    if action == "co_invite_user":
+        # Un account senza squadra in questa lega, per nome utente o email: lo
+        # trova nell'app (e per email, se si può) e accetta lui. Niente
+        # collegamento senza il suo sì, e la sua email resta sua finché non accetta.
+        if p.co_user_id is not None:
+            return fail(f"«{p.display_name}» ha già il secondo account: scollegalo prima di invitarne un altro.")
+        invited, error = onboarding.invitable_account(request.POST.get("identifier"), p)
+        if error:
+            return fail(error)
+        onboarding.new_co_invite(p, invited)
+        sent = _send_co_invite(request, p, invited)
+        messages.success(
+            request,
+            f"Invito mandato a «{invited.username}» come secondo allenatore di «{p.display_name}»"
+            f"{' (anche per email)' if sent else ''}: lo trova entrando nell'app e lo accetta lui.")
         return redirect(back)
 
     if action == "create":

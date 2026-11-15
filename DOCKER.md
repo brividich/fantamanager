@@ -67,6 +67,27 @@ versioni del codice sullo stesso database.
 | `docker-compose.yml` | costruita dal sorgente della cartella (`fantamanager:local`) | `git pull` e poi `docker compose up -d --build` |
 | `docker-compose.ghcr.yml` | `ghcr.io/brividich/fantamanager` (`DOCKER_IMAGE`, di default `:latest`) | `docker compose -f docker-compose.ghcr.yml pull` e `up -d` (o da solo con watchtower) |
 
+**Aggiornamento automatico (watchtower)**: ogni 5 minuti guarda se c'è
+un'immagine nuova e aggiorna insieme app e scheduler. Per vedere se lavora:
+
+```bash
+docker logs --tail 50 fantamanager-watchtower
+```
+
+Se il log dice `client version 1.25 is too old` (o il container si riavvia di
+continuo), è la vecchia `containrrr/watchtower`, ferma al 2023, che Docker 29
+non accetta più. Il file di adesso usa `nickfedor/watchtower`, il suo seguito
+mantenuto con le stesse impostazioni: copia sul server il
+`docker-compose.ghcr.yml` nuovo e ricrea il solo watchtower (watchtower non
+aggiorna il proprio file):
+
+```bash
+docker compose -f docker-compose.ghcr.yml up -d watchtower
+```
+
+Che app e server siano alla stessa versione lo dice il commit accanto al numero
+di versione (app → Altro, o in fondo alla console).
+
 Con `docker-compose.ghcr.yml` puoi fissare una versione: `DOCKER_IMAGE=ghcr.io/brividich/fantamanager:0.9.0`
 nel `.env`. Le immagini si pubblicano solo dopo test verdi e un avvio di prova
 (`CHANGELOG.md` dice come si rilascia una versione).

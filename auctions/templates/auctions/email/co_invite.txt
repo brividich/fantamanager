@@ -1,0 +1,13 @@
+{% autoescape off %}Ciao,
+
+{{ sender }} ti ha invitato in «{{ league.name }}» su FantaManager come secondo allenatore della squadra «{{ team.display_name }}»: la guidi insieme al suo allenatore (formazione, offerte, buste, scambi), ognuno con il suo account.
+
+Accetta entrando con il tuo account da qui:
+{{ link }}
+
+Lo trovi anche nell'app, appena entri. Non te lo aspettavi? Ignora questa email: senza il tuo sì non succede niente.
+
+--
+Ricevi questa email perché {{ sender }} ha scritto il tuo nome utente o il tuo indirizzo per invitarti.
+Informativa privacy: {{ privacy_url }} · Termini: {{ terms_url }}
+{% endautoescape %}

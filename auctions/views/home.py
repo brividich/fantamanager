@@ -3,6 +3,7 @@ from django.shortcuts import redirect, render
 from django.urls import reverse
 from ..models import Auction
 from .. import remote
+from ..services.onboarding import pending_co_invites
 from .common import _session_participant, manageable_leagues, safe_next, target_league, try_regia_pin, visible_leagues
 
 
@@ -72,4 +73,5 @@ def home_portal(request):
         "has_admin": has_admin,
         "error": error,
         "is_remote": remote.request_is_remote(request),
+        "co_invites": pending_co_invites(user),
     })

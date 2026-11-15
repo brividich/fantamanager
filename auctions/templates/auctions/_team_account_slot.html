@@ -96,7 +96,7 @@ dati, password, collegamento — oppure, se il posto è vuoto, crea o collega.
         <input type="hidden" name="action" value="link"><input type="hidden" name="slot" value="{{ slot }}">
         <h4>Oppure collega un account esistente</h4>
         {% if slot == "2" %}
-        <p>Un account che gioca già in una tua lega o che hai creato tu. Se il secondo allenatore si è registrato da solo, mandagli il link qui sotto.</p>
+        <p>Un account che gioca già in una tua lega o che hai creato tu. Se il secondo allenatore si è registrato da solo, invitalo qui sotto per nome utente o email.</p>
         {% else %}
         <p>Un account che gioca già in una tua lega o che hai creato tu. Se l'allenatore si è registrato da solo, dagli il codice della squadra: lo inserisce nell'app e la squadra si collega al suo account.</p>
         {% endif %}
@@ -106,6 +106,30 @@ dati, password, collegamento — oppure, se il posto è vuoto, crea o collega.
             <svg class="ic"><use href="#i-link"/></svg> Collega</button></div>
     </form>
     {% if slot == "2" %}
+    <div class="acc-sec">
+        <h4>Oppure invita un account senza squadra</h4>
+        {% if r.co_invite_user %}
+        <p>Invito in attesa per <b>{{ r.co_invite_user.username }}</b>: lo trova entrando nell'app (e per email,
+           se ne ha una confermata) e lo accetta lui. Finché non risponde, la squadra resta com'è.</p>
+        <form method="post" action="{{ account_url }}" class="row-actions">
+            {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <input type="hidden" name="action" value="co_invite_revoke"><input type="hidden" name="slot" value="2">
+            <button type="submit" class="fm-btn fm-btn-ghost fm-btn-sm">Ritira l'invito</button>
+        </form>
+        {% else %}
+        <p>Chi si è registrato da solo e non ha una squadra in questa lega: scrivi il suo nome utente o la sua
+           email. Riceve l'invito nell'app e diventa allenatore in seconda quando accetta.</p>
+        <form method="post" action="{{ account_url }}">
+            {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <input type="hidden" name="action" value="co_invite_user"><input type="hidden" name="slot" value="2">
+            <label for="acc-iu-{{ r.p.id }}-{{ slot }}">Nome utente o email</label>
+            <input id="acc-iu-{{ r.p.id }}-{{ slot }}" name="identifier" required autocomplete="off">
+            <div class="row-actions"><button type="submit" class="fm-btn fm-btn-secondary fm-btn-sm">
+                <svg class="ic"><use href="#i-mail"/></svg> Invita</button></div>
+        </form>
+        {% endif %}
+    </div>
+    {% if not r.co_invite_user %}
     <div class="acc-sec">
         <h4>Oppure mandagli il link</h4>
         {% if r.co_invite_url %}
@@ -137,5 +161,6 @@ dati, password, collegamento — oppure, se il posto è vuoto, crea o collega.
         </form>
         {% endif %}
     </div>
+    {% endif %}
     {% endif %}
 {% endif %}
