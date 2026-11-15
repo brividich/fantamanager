@@ -2,6 +2,7 @@
 
 La pagina del listone è la scheda Listone di Calciatori (views/footballers.py):
 qui restano le azioni che la pagina chiama."""
+from django.core.cache import cache
 from django.http import JsonResponse
 from django.urls import reverse
 from django.views.decorators.http import require_POST
@@ -98,6 +99,9 @@ def admin_import_stats(request):
     return JsonResponse(report)
 
 
+LISTONE_IMPORT_LOCK = 600  # secondi: oltre, un import rimasto appeso non blocca più
+
+
 @staff_member_required
 @require_POST
 def admin_import_players(request):
@@ -122,13 +126,24 @@ def admin_import_players(request):
     # Reconcile against the existing pool: matches existing players (preserving
     # roster ownership), creates free agents for the rest, and prunes departed
     # free agents — instead of blindly creating duplicate rows.
-    report = importers.sync_players(parsed, league=league, replace=replace, prune=prune)
+    # Un import alla volta per lega: chi riprova mentre il primo gira ancora
+    # (il proxy ha già risposto 504) lo farebbe girare due volte, con i doppioni.
+    lock = f"listone-import-{league.id if league is not None else 0}"
+    if not cache.add(lock, 1, LISTONE_IMPORT_LOCK):
+        return JsonResponse({"ok": False, "error": (
+            "Un import del listone di questa lega è già in corso. Aspetta un minuto e ricarica la pagina: "
+            "se i conteggi sono cambiati è andato a buon fine, non serve ricaricare il file.")}, status=409)
+    try:
+        report = importers.sync_players(parsed, league=league, replace=replace, prune=prune)
+    finally:
+        cache.delete(lock)
     return JsonResponse({
         "ok": True,
         "created": report["created"],
         "updated": report["updated"],
         "matched_owned": report["matched_owned"],
         "pruned": report["pruned"],
+        "no_club": report.get("no_club", 0),
         "owned_not_in_listone": report["owned_not_in_listone"][:50],
         "left_serie_a": _left_serie_a(league, report),
         "errors": errors[:10],
@@ -285,6 +300,20 @@ def admin_clear_players(request):
     _sala_guard(league)
     Player.objects.filter(league=league).delete()
     return JsonResponse({"ok": True})
+
+
+@staff_member_required
+@require_POST
+def admin_merge_twins(request):
+    """«Togli i doppioni»: i giocatori in rosa che compaiono anche fra gli
+    svincolati (lo stesso calciatore due volte) restano solo in rosa."""
+    league, denied = league_scope_or_403(request, request.POST.get("league_id"))
+    if denied:
+        return denied
+    _sala_guard(league)
+    from ..services.footballers import link_players, merge_twins
+    link_players(Player.objects.filter(league=league))
+    return JsonResponse({"ok": True, "merged": merge_twins(league)})
 
 
 @staff_member_required

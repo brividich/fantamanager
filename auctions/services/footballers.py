@@ -8,6 +8,7 @@ vi collega i giocatori del proprio listone. Il collegamento è per club e nome
 non si collega nulla, meglio un giocatore senza scheda che quella sbagliata.
 """
 import logging
+from decimal import Decimal
 import threading
 import time
 from datetime import timedelta
@@ -235,16 +236,32 @@ def _best(player, candidates):
     return scored[0][1]
 
 
-def link_players(players=None):
-    """Collega all'anagrafica i giocatori dei listoni che non lo sono ancora.
+def _match_footballer(player, registry, by_team):
+    """Il calciatore dell'anagrafica che è ``player``, o None se è in dubbio.
 
     Prima fra i calciatori dello stesso club; chi non si trova lì (ha cambiato
     squadra e il listone non lo sa ancora) solo se in tutta la Serie A c'è un
-    unico calciatore col suo cognome e il suo ruolo. Riempie anche la foto,
-    se il giocatore non ne ha. Ritorna quanti ne ha collegati.
-    """
+    unico calciatore col suo cognome e il suo ruolo. ``by_team`` è la cache
+    dei candidati per club, riempita qui."""
     from ..providers.apifootball import same_club
 
+    if player.team not in by_team:
+        by_team[player.team] = [f for f in registry if player.team and same_club(f.club_name, player.team)]
+    match = _best(player, by_team[player.team])
+    if match is None:
+        p_long, p_short = _name_parts(player.name)
+        same = [f for f in registry if p_long and f.position == player.role
+                and (f_parts := _name_parts(f.name))[0] >= p_long
+                and _initials_ok(p_short, (f_parts[0] - p_long) | f_parts[1])]
+        match = same[0] if len(same) == 1 else None
+    return match
+
+
+def link_players(players=None):
+    """Collega all'anagrafica i giocatori dei listoni che non lo sono ancora
+    (vedi :func:`_match_footballer`). Riempie anche la foto, se il giocatore
+    non ne ha. Ritorna quanti ne ha collegati.
+    """
     registry = list(Footballer.objects.filter(in_serie_a=True))
     if not registry:
         return 0
@@ -253,15 +270,7 @@ def link_players(players=None):
     by_team = {}
     linked = 0
     for player in todo:
-        if player.team not in by_team:
-            by_team[player.team] = [f for f in registry if player.team and same_club(f.club_name, player.team)]
-        match = _best(player, by_team[player.team])
-        if match is None:
-            p_long, p_short = _name_parts(player.name)
-            same = [f for f in registry if p_long and f.position == player.role
-                    and (f_parts := _name_parts(f.name))[0] >= p_long
-                    and _initials_ok(p_short, (f_parts[0] - p_long) | f_parts[1])]
-            match = same[0] if len(same) == 1 else None
+        match = _match_footballer(player, registry, by_team)
         if match is None:
             continue
         fields = {"footballer": match}
@@ -270,6 +279,141 @@ def link_players(players=None):
         Player.objects.filter(pk=player.pk).update(**fields)
         linked += 1
     return linked
+
+
+# --- Doppioni: lo stesso calciatore in rosa e fra gli svincolati ------------------------
+
+def _has_history():
+    """I giocatori con voti, buste o liste: non si cancellano (lo storico)."""
+    return Q(performances__isnull=False) | Q(market_bids__isnull=False) | Q(release_intents__isnull=False)
+
+
+def find_twins(league):
+    """I doppioni della lega: coppie ``(resta, togli)`` che sono lo stesso
+    calciatore. ``togli`` è sempre un giocatore senza squadra e nel listone,
+    cioè uno svincolato che si comprerebbe una seconda volta; ``resta`` è il
+    giocatore in rosa o, fra due svincolati, il primo arrivato.
+
+    Nascono quando le rose arrivano da un file («Pulisic», MIL) e il listone
+    dall'anagrafica («C. Pulisic», AC Milan) senza riconoscersi, o quando lo
+    stesso listone si importa due volte insieme. Sono lo stesso calciatore se
+    sono collegati (o il collegamento li collegherebbe) allo stesso calciatore
+    dell'anagrafica con nomi che si somigliano, oppure se hanno lo stesso nome
+    e lo stesso club. Solo lettura: la usa anche la pagina per contarli.
+    """
+    players = list(Player.objects.filter(league=league).order_by("pk"))
+    free = [p for p in players if p.owner_id is None and p.in_listone]
+    if not free:
+        return []
+    owned = [p for p in players if p.owner_id is not None]
+    fb = {p.pk: p.footballer_id for p in players if p.footballer_id}
+    unlinked = [p for p in owned if p.footballer_id is None]
+    if unlinked:
+        registry = list(Footballer.objects.filter(in_serie_a=True))
+        by_team = {}
+        for p in unlinked:
+            f = _match_footballer(p, registry, by_team) if registry else None
+            if f is not None:
+                fb[p.pk] = f.id
+    norm = {p.pk: importers._norm(_ascii(p.name)) for p in players}
+    by_fb, by_name = {}, {}
+    for p in free:
+        if fb.get(p.pk):
+            by_fb.setdefault(fb[p.pk], []).append(p)
+        by_name.setdefault(norm[p.pk], []).append(p)
+
+    def same(a, b):
+        fa, fb_ = fb.get(a.pk), fb.get(b.pk)
+        if fa and fb_:
+            # L'anagrafica decide: due calciatori diversi non sono mai doppioni,
+            # anche col nome uguale (un portiere e un attaccante «Martinez»).
+            return fa == fb_ and name_match_score(a.name, a.role, b.name, b.role) is not None
+        # Senza l'anagrafica di tutti e due, solo stesso nome, club e ruolo
+        # (lo stesso listone importato due volte).
+        return norm[a.pk] == norm[b.pk] and a.role == b.role and importers._same_team(a.team, b.team)
+
+    twins, gone, kept = [], set(), set()
+
+    def pair(keep, after_pk=0):
+        for other in by_fb.get(fb.get(keep.pk), []) + by_name.get(norm[keep.pk], []):
+            if other.pk == keep.pk or other.pk in gone or other.pk in kept or other.pk <= after_pk:
+                continue
+            if same(keep, other):
+                twins.append((keep, other))
+                gone.add(other.pk)
+
+    for p in owned:
+        pair(p)
+    for p in free:
+        if p.pk in gone:
+            continue
+        kept.add(p.pk)
+        pair(p, after_pk=p.pk)
+    return twins
+
+
+# I dati del listone che la copia svincolata può avere e quella in rosa no
+# (la rosa da file porta solo nome, ruolo, club e costo).
+_LISTONE_FIELDS = ("ext_id", "photo_url", "mantra_roles", "fvm", "price_m", "fvm_m",
+                   "presences", "avg_vote", "fanta_avg", "goals", "assists")
+
+
+def _listone_fields(keep, extra):
+    """Cosa passa dalla copia che se ne va a quella che resta: i dati del
+    listone che chi resta non ha, e la quotazione ufficiale se chi resta ha
+    solo quella messa dall'import delle rose (il costo, o 1). Proprietario,
+    costo e contratto restano quelli di chi resta."""
+    fields = {}
+    for name in _LISTONE_FIELDS:
+        mine, theirs = getattr(keep, name), getattr(extra, name)
+        if theirs not in (None, "") and mine in (None, ""):
+            fields[name] = theirs
+    if (extra.initial_price and extra.initial_price != keep.initial_price
+            and keep.initial_price in (keep.cost, Decimal("1"))):
+        fields["initial_price"] = extra.initial_price
+    if extra.in_listone:
+        # La copia stava nel listone: chi resta c'è ancora. Se l'import l'aveva
+        # appena segnalato come uscito dalla Serie A (senza una destinazione
+        # rilevata), la segnalazione cade, come in abroad.flag_missing.
+        flagged = keep.left_serie_a_at is not None
+        if flagged and not keep.left_club and not keep.left_rank_kind:
+            fields.update(left_serie_a_at=None, left_rank_pos=None)
+            flagged = False
+        if not flagged and not keep.in_listone:
+            fields["in_listone"] = True
+    return fields
+
+
+def merge_twins(league):
+    """Toglie dal listone i doppioni (:func:`find_twins`). Quello che resta
+    (in rosa, o il primo dei due svincolati) prende il collegamento
+    all'anagrafica se non l'aveva; la copia svincolata si cancella oppure, se
+    ha già voti, buste o liste, resta per lo storico ma fuori listone. Ritorna
+    quante copie ha tolto."""
+    from ..models import Auction
+    from .queue import drop_from_queues
+
+    twins = find_twins(league)
+    if not twins:
+        return 0
+    _sala_guard(league)
+    linked = set(Player.objects.filter(league=league, footballer__isnull=False).values_list("pk", flat=True))
+    for keep, extra in twins:
+        fields = _listone_fields(keep, extra)
+        if keep.pk not in linked and extra.footballer_id:
+            fields["footballer_id"] = extra.footballer_id
+            linked.add(keep.pk)
+        if fields:
+            Player.objects.filter(pk=keep.pk).update(**fields)
+            for name, value in fields.items():
+                setattr(keep, name, value)
+    ids = [extra.pk for _keep, extra in twins]
+    drop_from_queues(ids)
+    on_block = Auction.objects.exclude(player__isnull=True).values("player_id")
+    keep = Player.objects.filter(pk__in=ids).filter(_has_history()).values("id")
+    Player.objects.filter(pk__in=ids).exclude(id__in=on_block).exclude(id__in=keep).delete()
+    Player.objects.filter(pk__in=ids).update(in_listone=False)
+    return len(ids)
 
 
 # --- La lista generale come listone di default ----------------------------------------
@@ -299,7 +443,14 @@ def apply_default_listone(league):
         return None
     pool = Player.objects.filter(league=league)
     link_players(pool)
-    by_footballer = {p.footballer_id: p for p in pool.filter(footballer__isnull=False)}
+    merged = merge_twins(league)
+    # Due giocatori collegati allo stesso calciatore: conta quello in rosa,
+    # poi quello nel listone.
+    by_footballer = {}
+    for p in pool.filter(footballer__isnull=False).order_by("pk"):
+        held = by_footballer.get(p.footballer_id)
+        if held is None or (p.owner_id is not None, p.in_listone) > (held.owner_id is not None, held.in_listone):
+            by_footballer[p.footballer_id] = p
     new, changed = [], []
     for f in registry:
         values = {"name": f.name, "role": default_role(f), "mantra_roles": f.mantra_roles,
@@ -318,8 +469,7 @@ def apply_default_listone(league):
     on_block = Auction.objects.exclude(player__isnull=True).values("player_id")
     # Chi ha già voti, buste o liste di questa lega non si cancella (si
     # porterebbe via lo storico): resta, segnalato, ma fuori dal listone.
-    keep = gone.filter(Q(performances__isnull=False) | Q(market_bids__isnull=False)
-                       | Q(release_intents__isnull=False)).values("id")
+    keep = gone.filter(_has_history()).values("id")
     removed, _ = gone.filter(owner__isnull=True).exclude(id__in=on_block).exclude(id__in=keep).delete()
     # Chi non è nella lista generale (uscito dalla Serie A, o rimasto da un
     # listone caricato prima) non è uno svincolato: resta solo per la rosa o
@@ -329,7 +479,7 @@ def apply_default_listone(league):
     from .queue import drop_from_queues
     drop_from_queues(out)
     flag_missing(league, list(gone.filter(owner__isnull=False).values_list("name", flat=True)))
-    return {"created": len(new), "updated": len(changed), "removed": removed}
+    return {"created": len(new), "updated": len(changed), "removed": removed, "merged": merged}
 
 
 def apply_default_listoni():

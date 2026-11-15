@@ -14,7 +14,8 @@ from .common import make_live_auction
 
 
 def _league(**kw):
-    opts = dict(name="Lugnanese", salary_cap_enabled=True, contracts_enabled=True, season_number=2)
+    opts = dict(name="Lugnanese", salary_cap_enabled=True, contracts_enabled=True, season_number=2,
+                decree_mid_enabled=True, decree_final_enabled=True)
     opts.update(kw)
     return League.objects.create(**opts)
 
@@ -109,9 +110,9 @@ class DecreeAndSeasonTests(TestCase):
         ranking = salary.save_ranking(self.league, 1, LeagueRanking.Kind.FINAL, [t.id for t in self.teams])
         award = salary.award_decree(self.league, LeagueRanking.Kind.FINAL, ranking)
         rich.refresh_from_db()
-        self.assertEqual(rich.credits, 4500)  # +800 ma massimo 4500
+        self.assertEqual(rich.credits, 4500)  # +1200 ma massimo 4500
         first = next(d for d in award.details if d["position"] == 1)
-        self.assertEqual((first["credits"], first["euro"]), (300, 350))
+        self.assertEqual((first["credits"], first["euro"]), (400, 350))
         with self.assertRaises(ValueError):
             salary.award_decree(self.league, LeagueRanking.Kind.FINAL, ranking)
 

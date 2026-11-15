@@ -31,7 +31,7 @@ from .league import (
 )
 from .trade import Trade, TradeWindow
 from .contract import ContractEvent
-from .season import CapEntry, CapPhase, DecreeAward, LeagueRanking, UefaClubRank
+from .season import CapEntry, CapPhase, DecreeAward, LeagueRanking, PrizeAward, UefaClubRank
 from .mail import MailSettings
 from .market import (
     MarketBid,
@@ -85,6 +85,7 @@ __all__ = [
     "CapPhase",
     "CapEntry",
     "DecreeAward",
+    "PrizeAward",
     "UefaClubRank",
     "Formation",
     "Competition",

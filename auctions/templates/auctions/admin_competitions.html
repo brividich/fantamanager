@@ -87,6 +87,19 @@
     }
     .fix-teams { display: flex; align-items: center; gap: 6px; }
     .fix-score { font-weight: 900; font-variant-numeric: tabular-nums; }
+    .cp-steps { list-style:none; padding:0; margin:0 0 12px; display:flex; flex-direction:column; gap:6px; font-size:12.5px; }
+    .cp-steps li { display:flex; gap:10px; align-items:flex-start; }
+    .cp-steps .dot { flex:0 0 22px; height:22px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center;
+        font-size:11px; font-weight:800; background:rgba(var(--fm-tint-rgb),.06); color:var(--fm-text-muted); }
+    .cp-steps li.ok .dot { background:rgba(22,217,104,.18); color:var(--fm-success); }
+    .cp-steps li.now .dot { background:rgba(8,124,240,.25); color:var(--fm-primary-light); }
+    .cp-form, .cp-award-form { display:flex; gap:10px 14px; flex-wrap:wrap; align-items:flex-end; margin-top:10px; }
+    .cp-form label, .cp-award-form label { display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--fm-text-secondary); min-width:0; }
+    .cp-form input { width:220px; max-width:100%; }
+    .cp-award-form select { min-width:170px; max-width:100%; }
+    .cp-award { list-style:none; padding:0; margin:0; font-size:13px; }
+    .cp-award li { display:flex; gap:8px; padding:5px 0; border-top:1px solid var(--line); }
+    .cp-award li span { margin-left:auto; color:var(--fm-strong); font-weight:700; }
 </style>
 
 
@@ -123,6 +136,8 @@
             {% if selected_competition and selected_competition.kind in "ROUND_ROBIN KNOCKOUT SEASON_SPLIT" %}
             <li>Se sono cambiate le squadre, <b>Rigenera Calendario</b> rifà gli accoppiamenti: le partite già registrate di questo torneo si cancellano.</li>
             {% endif %}
+            <li>Premi in fantamilioni o euro (Coppa, Champions, Supercoppa…): in fondo alla competizione, riquadro <b>Premi</b>,
+                scrivi gli importi per posizione e, a competizione finita, <b>Assegna premi</b>.</li>
             <li>Per aggiungere un torneo premi <b>Nuova Competizione</b> e segui i 5 passi fino a <b>Crea e Genera Calendario</b>.</li>
             {% endif %}
         </ol>
@@ -412,6 +427,52 @@
         </div>
         {% endif %}
     </div>
+</div>
+
+<!-- Premi della competizione: fantamilioni (nel budget, tabellone) ed euro per posizione -->
+<div class="card-box cp-prizes" id="premi" style="margin-top:18px">
+    <div class="card-title">
+        <h3><svg class="ic"><use href="#i-award"/></svg> Premi</h3>
+        {% if prize_award %}<span class="status-pill s-OPEN" style="font-size:10px">Assegnati</span>{% endif %}
+    </div>
+    {% if prize_award %}
+    <ol class="cp-steps">
+        <li class="ok"><span class="dot">✓</span><span>Premi assegnati il {{ prize_award.created_at|date:"d/m/Y" }}: i fantamilioni sono nel budget delle squadre (vedi il <a href="{% purl 'admin_tabellone' %}?league={{ current_league.id }}">Tabellone budget</a>).</span></li>
+    </ol>
+    <ul class="cp-award">
+        {% for d in prize_award.details %}
+        <li><b>{{ d.position }}°</b> {{ d.name }} <span>{% if d.credits %}+{{ d.credited }} FM{% if d.credited != d.credits %} ({{ d.credits }}, il resto oltre il budget massimo){% endif %}{% endif %}{% if d.euro %} · {{ d.euro }} €{% endif %}</span></li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <ol class="cp-steps">
+        <li class="{% if prize_slots %}ok{% else %}now{% endif %}"><span class="dot">{% if prize_slots %}✓{% else %}1{% endif %}</span>
+            <span>{% if prize_slots %}Premi per {{ prize_slots|length }} posti.{% else %}<b>Adesso:</b> scrivi i fantamilioni per posizione (e gli euro, se ci sono), separati da virgole, e premi <b>Salva premi</b>.{% endif %}</span></li>
+        <li class="{% if prize_slots %}now{% endif %}"><span class="dot">2</span>
+            <span>{% if prize_slots %}<b>Adesso, a competizione finita:</b> controlla chi è arrivato dove (lo propongo dalla classifica o dal tabellone) e premi <b>Assegna premi</b>.{% else %}A competizione finita scegli le squadre premiate e premi <b>Assegna premi</b>.{% endif %}
+                I fantamilioni entrano nel budget (oltre il budget massimo si bruciano) e compaiono nel Tabellone budget; si assegnano una volta sola.</span></li>
+    </ol>
+    <form method="post" action="{% url 'admin_competition_prizes' selected_competition.id %}" class="cp-form">
+        {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="action" value="save">
+        <label>Fantamilioni per posizione<input name="credits" value="{{ prize_credits_raw }}" placeholder="es. {{ prize_example.0 }}" inputmode="numeric"></label>
+        <label>Euro per posizione <small>(facoltativo)</small><input name="euro" value="{{ prize_euro_raw }}" placeholder="{% if prize_example.1 %}es. {{ prize_example.1 }}{% else %}—{% endif %}" inputmode="numeric"></label>
+        <button type="submit" class="fm-btn fm-btn-secondary fm-btn-sm">Salva premi</button>
+    </form>
+    {% if prize_slots %}
+    <form method="post" action="{% url 'admin_competition_prizes' selected_competition.id %}" class="cp-award-form"
+          onsubmit="return confirm('Assegnare adesso i premi di «{{ selected_competition.name|escapejs }}»? Si fa una volta sola.')">
+        {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="action" value="award">
+        {% for slot in prize_slots %}
+        <label><b>{{ slot.position }}°</b> <small>{% if slot.credits %}{{ slot.credits }} FM{% endif %}{% if slot.euro %} · {{ slot.euro }} €{% endif %}</small>
+            <select name="pos_{{ slot.position }}" required>
+                <option value="">— scegli —</option>
+                {% for t in teams %}<option value="{{ t.id }}"{% if slot.suggested == t.id %} selected{% endif %}>{{ t.display_name }}</option>{% endfor %}
+            </select></label>
+        {% endfor %}
+        <button type="submit" class="fm-btn fm-btn-primary fm-btn-sm">Assegna premi</button>
+    </form>
+    {% endif %}
+    {% endif %}
 </div>
 {% endif %}
 

@@ -132,6 +132,12 @@ def listone_context(request, pool, league, can_manage):
             "stats_server_file": importers.server_stats_path() is not None,
             "stats_covered": pool.exclude(fanta_avg__isnull=True).count(),
         })
+        # Lo stesso calciatore due volte, la seconda fra gli svincolati: si
+        # tolgono con «Togli i doppioni».
+        twins = footballers.find_twins(league)
+        ctx["lst_twins"] = len(twins)
+        ctx["lst_twins_owned"] = sum(1 for keep, _extra in twins if keep.owner_id)
+        ctx["lst_twin_names"] = [keep.name for keep, _extra in twins[:6]]
     return ctx
 
 

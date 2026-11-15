@@ -81,6 +81,10 @@ class League(models.Model):
         NET   = "net",   "Netta (acquisti meno incassi da vendite e svincoli)"
 
     salary_cap_enabled = models.BooleanField(default=False)
+    # Decreto Salvacalcio (1.3.A): l'admin sceglie quali si assegnano.
+    # Invernale = metà stagione, estivo = fine stagione (premi del campionato).
+    decree_mid_enabled = models.BooleanField(default=False)
+    decree_final_enabled = models.BooleanField(default=False)
     salary_cap_spend = models.CharField(max_length=5, choices=CapSpend.choices, default=CapSpend.GROSS)
     # Tabelle del regolamento (vedi services.salary.DEFAULT_RULES); vuoto =
     # valori di default.

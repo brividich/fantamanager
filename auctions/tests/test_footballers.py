@@ -613,3 +613,196 @@ class OutageTests(ApiTestCase):
         self.assertContains(resp, "file Quotazioni")
         resp = self.client.get(reverse("admin_contracts") + f"?league={league.id}")
         self.assertContains(resp, "API-Football ferma")
+
+
+class TwinTests(TestCase):
+    """Lo stesso calciatore in rosa e fra gli svincolati: le rose arrivano da
+    un file («Pulisic», MIL) e il listone dall'anagrafica («C. Pulisic», AC Milan)."""
+
+    def setUp(self):
+        cache.clear()
+        self.owner = User.objects.create_user("owner_tw", password="pw")
+        self.league = League.objects.create(name="Lega Doppioni", owner=self.owner)
+        mk = lambda api_id, name, pos, club: Footballer.objects.create(
+            api_id=api_id, name=name, position=pos, club_name=club, club_api_id=api_id)
+        mk(1, "C. Pulisic", "C", "AC Milan")
+        mk(2, "M. Soulé", "C", "AS Roma")
+        mk(3, "G. Orban", "D", "Hellas Verona")
+        mk(4, "F. Esposito", "A", "Inter")
+        mk(5, "S. Esposito", "A", "Inter")
+        footballers.apply_default_listone(self.league)   # la lega nasce con la lista generale
+        self.team = Participant.objects.create(display_name="Squadra A", league=self.league,
+                                               credits=Decimal("100"))
+
+    def pool(self):
+        return Player.objects.filter(league=self.league)
+
+    def make_twin(self, name, role, team):
+        """Lo stato lasciato dalle versioni di prima: la copia in rosa, non collegata."""
+        return Player.objects.create(name=name, role=role, team=team, league=self.league,
+                                     owner=self.team, cost=Decimal("20"))
+
+    def test_rose_import_on_the_default_listone_makes_no_duplicates(self):
+        from ..providers.importers import import_rose_data
+        import_rose_data([{"name": "Squadra A", "credits": 10, "players": [
+            {"name": "Pulisic", "role": "A", "club": "Mil", "cost": 30},   # club «AC Milan», ruolo API C
+            {"name": "Soule'", "role": "A", "club": "Rom", "cost": 20},
+            {"name": "Orban G.", "role": "A", "club": "Ver", "cost": 10},
+        ]}], league=self.league)
+        self.assertEqual(self.pool().count(), 5)
+        self.assertEqual(self.pool().filter(owner=self.team).count(), 3)
+        self.assertEqual(sorted(self.pool().free_agents().values_list("name", flat=True)),
+                         ["F. Esposito", "S. Esposito"])
+
+    def test_merge_removes_the_free_copy_and_keeps_the_roster(self):
+        pulisic = self.make_twin("Pulisic", "A", "Mil")
+        twins = footballers.find_twins(self.league)
+        self.assertEqual([(k.pk, f.name) for k, f in twins], [(pulisic.pk, "C. Pulisic")])
+        self.assertEqual(footballers.merge_twins(self.league), 1)
+        pulisic.refresh_from_db()
+        self.assertEqual((pulisic.owner, pulisic.footballer.api_id), (self.team, 1))
+        self.assertFalse(self.pool().filter(name="C. Pulisic").exists())
+        self.assertEqual(footballers.find_twins(self.league), [])
+
+    def test_the_listone_data_stays_with_the_roster_copy(self):
+        pulisic = self.make_twin("Pulisic", "A", "Mil")          # dalla rosa: quotazione = costo
+        pulisic.initial_price = pulisic.cost
+        pulisic.save()
+        Player.objects.filter(league=self.league, footballer__api_id=1).update(
+            initial_price=Decimal("28"), ext_id="4321", mantra_roles="T;A", fanta_avg=Decimal("7.10"))
+        footballers.merge_twins(self.league)
+        pulisic.refresh_from_db()
+        self.assertEqual((pulisic.owner, pulisic.cost), (self.team, Decimal("20")))
+        self.assertEqual((pulisic.initial_price, pulisic.ext_id, pulisic.mantra_roles, pulisic.fanta_avg),
+                         (Decimal("28"), "4321", "T;A", Decimal("7.10")))
+
+    def test_the_roster_copy_gets_back_into_the_listone(self):
+        # L'import del listone ha appena segnalato la copia in rosa come uscita
+        # dalla Serie A (non si è riconosciuta), ma la copia svincolata c'è.
+        pulisic = self.make_twin("Pulisic", "A", "Mil")
+        from django.utils import timezone
+        Player.objects.filter(pk=pulisic.pk).update(in_listone=False, left_serie_a_at=timezone.now())
+        footballers.merge_twins(self.league)
+        pulisic.refresh_from_db()
+        self.assertTrue(pulisic.in_listone)
+        self.assertIsNone(pulisic.left_serie_a_at)
+
+    def test_the_anagrafica_update_repairs_the_listone(self):
+        self.make_twin("Pulisic", "A", "Mil")
+        self.make_twin("Orban G.", "A", "Ver")
+        result = footballers.apply_default_listone(self.league)
+        self.assertEqual(result["merged"], 2)
+        self.assertEqual(self.pool().count(), 5)
+        self.assertEqual(self.pool().filter(footballer__api_id=1).get().owner, self.team)
+        self.assertEqual(self.pool().free_agents().count(), 3)
+
+    def test_a_free_copy_with_votes_stays_out_of_the_listone(self):
+        from ..models import Giornata, PlayerPerformance, Season
+        season = Season.objects.create(league=self.league, name="2026/27", is_current=True)
+        giornata = Giornata.objects.create(season=season, number=1)
+        free = self.pool().get(footballer__api_id=1)
+        PlayerPerformance.objects.create(giornata=giornata, player=free, vote=Decimal("6.5"))
+        self.make_twin("Pulisic", "A", "Mil")
+        footballers.apply_default_listone(self.league)
+        free.refresh_from_db()
+        self.assertFalse(free.in_listone)
+        self.assertFalse(self.pool().free_agents().filter(pk=free.pk).exists())
+
+    def test_doubtful_names_are_not_merged(self):
+        self.make_twin("Esposito", "A", "Int")      # F. o S.? Non si sa
+        self.assertEqual(footballers.find_twins(self.league), [])
+
+    def test_the_page_says_it_and_the_button_fixes_it(self):
+        self.make_twin("Pulisic", "A", "Mil")
+        self.client.force_login(self.owner)
+        for page in ("admin_footballers", "app_footballers"):
+            with self.subTest(page=page):
+                resp = self.client.get(reverse(page) + f"?league={self.league.id}")
+                self.assertContains(resp, "1 doppione nel listone")
+                self.assertContains(resp, "anche se è già in una rosa")
+                self.assertContains(resp, "Togli i doppioni")
+        resp = self.client.post(reverse("admin_merge_twins"), {"league_id": self.league.id})
+        self.assertEqual(resp.json(), {"ok": True, "merged": 1})
+        resp = self.client.get(reverse("admin_footballers") + f"?league={self.league.id}")
+        self.assertNotContains(resp, "Togli i doppioni")
+
+    def test_only_who_manages_the_league_can_merge(self):
+        self.make_twin("Pulisic", "A", "Mil")
+        User.objects.create_user("stranger_tw", password="pw")
+        self.client.login(username="stranger_tw", password="pw")
+        resp = self.client.post(reverse("admin_merge_twins"), {"league_id": self.league.id})
+        self.assertNotEqual(resp.status_code, 200)
+        self.assertEqual(len(footballers.find_twins(self.league)), 1)
+
+    def test_the_same_free_player_twice_keeps_the_first(self):
+        first = self.pool().get(footballer__api_id=2)
+        Player.objects.create(name="M. Soulé", role="C", team="AS Roma", league=self.league)   # import doppio
+        Player.objects.create(name="Soule' M.", role="C", team="Roma", league=self.league, footballer_id=first.footballer_id)
+        self.assertEqual(footballers.merge_twins(self.league), 2)
+        self.assertEqual(list(self.pool().filter(team__icontains="roma")), [first])
+
+    def test_namesakes_the_registry_tells_apart_are_not_doubles(self):
+        # Un portiere e un attaccante «Martinez» dell'Inter: l'anagrafica li distingue.
+        gk = Footballer.objects.create(api_id=20, name="Josep Martínez", position="P", club_name="Inter", club_api_id=4)
+        fw = Footballer.objects.create(api_id=21, name="Lautaro Martínez", position="A", club_name="Inter", club_api_id=4)
+        Player.objects.create(name="Martinez", role="P", team="Inter", league=self.league, footballer=gk)
+        Player.objects.create(name="Martinez", role="A", team="Inter", league=self.league, footballer=fw)
+        Player.objects.create(name="Martinez", role="C", team="Inter", league=self.league)   # senza anagrafica, altro ruolo
+        self.assertEqual(footballers.find_twins(self.league), [])
+        self.assertEqual(footballers.merge_twins(self.league), 0)
+        self.assertEqual(self.pool().filter(name="Martinez").count(), 3)
+
+    def test_namesakes_of_different_clubs_are_not_doubles(self):
+        Player.objects.create(name="F. Esposito", role="A", team="Spezia", league=self.league)
+        self.assertEqual(footballers.find_twins(self.league), [])
+
+
+class ListoneImportTests(TestCase):
+    """Il listone di Fantapazz: chi è all'estero o svincolato ha la squadra vuota."""
+
+    def setUp(self):
+        cache.clear()
+        self.owner = User.objects.create_user("owner_li", password="pw")
+        self.league = League.objects.create(name="Lega Import", owner=self.owner)
+
+    ROWS = [{"name": "Pulisic", "role": "C", "team": "Milan", "price": "20"},
+            {"name": "Lukaku", "role": "A", "team": "Napoli", "price": "15"},
+            {"name": "Barella", "role": "C", "team": "Inter", "price": "18"},
+            {"name": "Immobile", "role": "A", "team": "", "price": "1"},
+            {"name": "Zaniolo", "role": "C", "team": "-", "price": "1"}]
+
+    def test_players_without_a_serie_a_club_are_not_free_agents(self):
+        report = sync_players(self.ROWS, league=self.league)
+        self.assertEqual((report["created"], report["no_club"]), (3, 2))
+        self.assertFalse(Player.objects.filter(league=self.league, name="Immobile").exists())
+
+    def test_an_owned_player_gone_abroad_stays_in_the_roster(self):
+        team = Participant.objects.create(display_name="T", league=self.league, credits=Decimal("100"))
+        Player.objects.create(name="Immobile", role="A", team="Lazio", league=self.league, owner=team)
+        sync_players(self.ROWS, league=self.league)
+        immobile = Player.objects.get(league=self.league, name="Immobile")
+        self.assertEqual(immobile.owner, team)
+        self.assertFalse(immobile.in_listone)
+
+    def test_a_file_without_clubs_is_taken_whole(self):
+        rows = [{"name": r["name"], "role": r["role"], "team": "", "price": "1"} for r in self.ROWS]
+        self.assertEqual(sync_players(rows, league=self.league)["created"], 5)
+
+    def test_importing_twice_makes_no_doubles(self):
+        sync_players(self.ROWS, league=self.league)
+        sync_players(self.ROWS, league=self.league)
+        self.assertEqual(Player.objects.filter(league=self.league).count(), 3)
+
+    def test_a_second_import_while_the_first_runs_is_refused(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        self.client.force_login(self.owner)
+        cache.add(f"listone-import-{self.league.id}", 1, 60)   # il primo è ancora in corso
+        upload = SimpleUploadedFile("listone.csv", b"Nome;Ruolo;Squadra;Quotazione\nPulisic;C;Milan;20\n")
+        resp = self.client.post(reverse("admin_import_players"), {"csv_file": upload, "league_id": self.league.id})
+        self.assertEqual(resp.status_code, 409)
+        self.assertIn("già in corso", resp.json()["error"])
+        self.assertFalse(Player.objects.filter(league=self.league).exists())
+        cache.delete(f"listone-import-{self.league.id}")
+        upload.seek(0)
+        resp = self.client.post(reverse("admin_import_players"), {"csv_file": upload, "league_id": self.league.id})
+        self.assertEqual((resp.json()["ok"], resp.json()["created"]), (True, 1))

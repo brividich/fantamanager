@@ -241,6 +241,7 @@ colonna dell'app è più stretta della pagina della console.
                 <option value="set">Imposta il budget totale</option>
             </select></label>
         <label>Importo (FM)<input type="number" name="amount" min="0" step="1" required inputmode="numeric" placeholder="es. 10"></label>
+        <label>Motivo <small>(compare nel tabellone del budget)</small><input type="text" name="note" maxlength="120" placeholder="es. Premio Coppa, multa modulo asta"></label>
         <div class="row">
             <button type="button" class="fm-btn fm-btn-ghost" data-rm-close>Annulla</button>
             <button type="submit" class="fm-btn fm-btn-primary">Applica</button>
@@ -351,7 +352,7 @@ colonna dell'app è più stretta della pagina della console.
             cForm.next.value = backUrl();
             cDlg.querySelector("h3").textContent = `Crediti · ${t.dataset.name}`;
             cDlg.querySelector("[data-rm-credits-sum]").textContent = `Budget ${t.dataset.total} FM · residui ${t.dataset.left} FM.`;
-            cForm.amount.value = "";
+            cForm.amount.value = ""; cForm.note.value = "";
             openDlg(cDlg); cForm.amount.focus();
             return;
         }

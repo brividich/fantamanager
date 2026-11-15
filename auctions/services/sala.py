@@ -286,6 +286,7 @@ def apply_results(league, lock_id, payload):
         Player.objects.bulk_update(changed_players, ["owner"] + list(ROSTER_FIELDS), batch_size=500)
 
         actions = set(RosterLog.Action.values)
+        moneys = set(RosterLog.Money.values)
         RosterLog.objects.bulk_create([
             RosterLog(
                 participant=teams.get(e.get("team")),
@@ -295,6 +296,8 @@ def apply_results(league, lock_id, payload):
                 action=e.get("action") if e.get("action") in actions else RosterLog.Action.EDIT,
                 credits_delta=_in("credits", e.get("credits_delta")) or Decimal("0"),
                 by_admin=bool(e.get("by_admin")),
+                # Il tipo del movimento (Decreto, premio, crediti a mano…) per il tabellone.
+                money=e.get("money") if e.get("money") in moneys else "",
                 note=("Asta in sala" + (f" · {e['note']}" if e.get("note") else ""))[:200],
             )
             for e in payload.get("log") or []
@@ -443,7 +446,8 @@ def results_payload(league):
         "log": [
             {"team": team_ids.get(r.participant_id), "team_name": r.participant_name,
              "player_name": r.player_name, "player_role": r.player_role, "action": r.action,
-             "credits_delta": str(r.credits_delta), "by_admin": r.by_admin, "note": r.note}
+             "credits_delta": str(r.credits_delta), "by_admin": r.by_admin, "note": r.note,
+             "money": r.money}
             for r in RosterLog.objects.filter(participant__league=league, created_at__gte=since)
                                       .order_by("created_at", "id")
         ],

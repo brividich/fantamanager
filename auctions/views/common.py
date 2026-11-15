@@ -568,6 +568,8 @@ APP_PAGES = {
     "admin_season": "app_regia_season",
     # Lo storico nell'app è la pagina della Lega che vedono anche i manager.
     "admin_storico": "app_storico",
+    # Anche il tabellone del budget: nell'app è la pagina della Lega per tutti.
+    "admin_tabellone": "app_tabellone",
     "admin_fantapazz": "app_regia_import",
     "admin_export": "app_regia_export",
     "admin_config": "app_regia_config",

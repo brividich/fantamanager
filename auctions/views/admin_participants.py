@@ -20,7 +20,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from ..models import Auction, League, ManagedAccount, Participant, Player
+from ..models import Auction, League, ManagedAccount, Participant, Player, RosterLog
 from ..models.participant import custom_code_error, generate_access_code
 from .. import remote, team_sheets
 from ..uploads import UploadRejected, clean_image
@@ -448,21 +448,35 @@ def admin_adjust_team_credits(request, participant_id):
     if denied:
         return denied
     _sala_guard(p.league_id)
-    mode = request.POST.get("mode", "add")  # "add", "sub", "set"
+    mode = request.POST.get("mode", "add")  # "add", "sub", "set" (totale), "set_left" (a disposizione)
     raw_amount = request.POST.get("amount", "0")
     try:
         val = Decimal(raw_amount)
     except (InvalidOperation, ValueError):
         val = Decimal("0")
 
+    before = p.credits
     if mode == "add":
         p.credits += val
     elif mode == "sub":
         p.credits = max(Decimal("0"), p.credits - val)
     elif mode == "set":
         p.credits = max(Decimal("0"), val)
+    elif mode == "set_left":
+        # Il budget a disposizione (quello del tabellone): i crediti già spesi restano spesi.
+        p.credits = max(Decimal("0"), p.spent_credits + val)
 
     p.save(update_fields=["credits"])
+    if p.credits != before:
+        # Nel registro, così il tabellone del budget mostra chi, quanto e perché.
+        reason = (request.POST.get("note") or "").strip()[:120] or "Crediti a mano"
+        RosterLog.objects.create(
+            participant=p, participant_name=p.display_name, player_name=reason,
+            action=RosterLog.Action.EDIT, credits_delta=before - p.credits, by_admin=True,
+            money=RosterLog.Money.MANUAL,
+            note=f"{reason}: {'+' if p.credits > before else '−'}{abs(p.credits - before):.0f} FM "
+                 f"(da {request.user.get_username()})"[:200],
+        )
     msg = f"Crediti di «{p.display_name}» aggiornati: {p.remaining_credits:.0f} FM rimanenti (Totale: {p.credits:.0f} FM)"
     messages.success(request, msg)
 

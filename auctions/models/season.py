@@ -98,6 +98,20 @@ class DecreeAward(models.Model):
         ]
 
 
+class PrizeAward(models.Model):
+    """Premi in fantamilioni (ed euro) di una competizione, assegnati una volta."""
+
+    competition = models.OneToOneField("Competition", on_delete=models.CASCADE, related_name="prize_award")
+    league = models.ForeignKey(League, on_delete=models.CASCADE, related_name="prize_awards")
+    season = models.PositiveIntegerField()
+    # [{"participant_id", "name", "position", "credits", "credited", "euro"}]
+    details = models.JSONField(default=list)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+
 class UefaClubRank(models.Model):
     """Ranking UEFA per club, scaricato da internet (o caricato a mano)."""
 

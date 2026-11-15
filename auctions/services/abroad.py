@@ -33,7 +33,7 @@ from django.db import connection, transaction
 from django.db.models import Max, Q
 from django.utils import timezone
 
-from ..models import ContractEvent, Player, UefaClubRank
+from ..models import ContractEvent, Player, RosterLog, UefaClubRank
 from .sala import ensure_unlocked as _sala_guard
 
 logger = logging.getLogger("auctions.abroad")
@@ -423,7 +423,7 @@ def _lose(player, amount, note):
         season=league.season_number, by_admin=True, note=note[:200],
     )
     if amount:
-        add_credits(owner, amount, f"Cessione fuori dalla Serie A: {player.name}")
+        add_credits(owner, amount, f"Cessione fuori dalla Serie A: {player.name}", money=RosterLog.Money.INCOME)
     player.owner = None
     player.cost = Decimal("0")
     player.contract_years = None
