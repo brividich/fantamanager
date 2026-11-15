@@ -179,16 +179,32 @@ def merge_teams(dup, keep, *, budget="keep"):
         phases = CapEntry.objects.filter(participant=keep, kind=kind).values_list("phase_id", flat=True)
         CapEntry.objects.filter(participant=dup, kind=kind, phase_id__in=list(phases)).delete()
     CapEntry.objects.filter(participant=dup).update(participant=keep)
-    # Classifiche salvate: la doppia diventa chi resta; se ci sono tutte e
-    # due, chi resta tiene il suo posto e la doppia esce.
+    # Classifiche salvate e ordini dei waiver: la doppia diventa chi resta; se
+    # ci sono tutte e due, chi resta tiene il suo posto e la doppia esce.
+    def follow(order):
+        if not isinstance(order, list) or dup.id not in order:
+            return None
+        return ([pid for pid in order if pid != dup.id] if keep.id in order
+                else [keep.id if pid == dup.id else pid for pid in order])
+
     for ranking in LeagueRanking.objects.filter(league_id=keep.league_id):
-        order = list(ranking.order or [])
-        if dup.id not in order:
-            continue
-        order = ([pid for pid in order if pid != dup.id] if keep.id in order
-                 else [keep.id if pid == dup.id else pid for pid in order])
-        ranking.order = order
-        ranking.save(update_fields=["order"])
+        order = follow(list(ranking.order or []))
+        if order is not None:
+            ranking.order = order
+            ranking.save(update_fields=["order"])
+    from ..models import MarketSession
+    for session in MarketSession.objects.filter(league_id=keep.league_id):
+        fields = []
+        order = follow((session.config or {}).get("waiver_order"))
+        if order is not None:
+            session.config = {**session.config, "waiver_order": order}
+            fields.append("config")
+        before = follow((session.results_summary or {}).get("waiver_order_before"))
+        if before is not None:
+            session.results_summary = {**session.results_summary, "waiver_order_before": before}
+            fields.append("results_summary")
+        if fields:
+            session.save(update_fields=fields)
     AuctionCycleResult.objects.filter(winner=dup).update(winner=keep)
     Bid.objects.filter(participant=dup).update(participant=keep)
     SealedBid.objects.filter(participant=dup).update(participant=keep)

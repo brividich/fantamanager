@@ -110,6 +110,17 @@ class MergeTests(TestCase):
         session.save()
         self.assertEqual(teams.merge_problems(self.dup, self.keep), [])
 
+    def test_the_waiver_priority_follows_the_team_that_stays(self):
+        from ..models import MarketSession
+        session = MarketSession.objects.create(
+            league=self.league, title="Waiver", status=MarketSession.Status.RESOLVED,
+            config={"waiver_order": [self.other.id, self.dup.id]},
+            results_summary={"waiver_order_before": [self.dup.id, self.other.id]})
+        teams.merge_teams(self.dup, self.keep)
+        session.refresh_from_db()
+        self.assertEqual(session.config["waiver_order"], [self.other.id, self.keep.id])
+        self.assertEqual(session.results_summary["waiver_order_before"], [self.keep.id, self.other.id])
+
     def test_three_accounts_do_not_fit(self):
         self.keep.co_user = User.objects.create_user("vice1", password="pw")
         self.keep.save()
