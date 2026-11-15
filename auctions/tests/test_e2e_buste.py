@@ -136,7 +136,7 @@ class BusteEndToEndTests(TestCase):
         resp = self.console.post(reverse("admin_market_create"), {
             "league_id": league.id, "market_kind": "buste", "title": "Riparazione Novembre", "open_timing": "now",
             "closes_at": closes, "require_same_role_release": "1", "release_timing": "after",
-            "release_confirm_hours": "24", "refund_mode": "PURCHASE", "budget_rule": "priority",
+            "release_list": "required", "release_confirm_hours": "24", "refund_mode": "PURCHASE", "budget_rule": "priority",
             "tie_break": "manual"})
         self.assertEqual(resp.status_code, 302)
         session = MarketSession.objects.get(league=league, title="Riparazione Novembre")

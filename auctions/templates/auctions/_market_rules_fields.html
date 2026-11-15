@@ -114,13 +114,18 @@ nome, così chi salva sa che c'erano anche quando sono spente.
 <div class="mr-checks">
     <span class="mr-lbl">Con la sostituzione obbligatoria, chi esce si sceglie</span>
     <label><input type="radio" name="release_timing" value="after"{% if s.release_after %} checked{% endif %}>
-        Dopo lo spoglio: con le buste si dichiara chi si lascerebbe andare, poi si conferma (dall'app, o l'admin per la squadra)</label>
+        Dopo lo spoglio: per ogni giocatore vinto la squadra sceglie chi esce (dall'app, o l'admin per la squadra)</label>
     <label><input type="radio" name="release_timing" value="bid"{% if not s.release_after %} checked{% endif %}>
         Con la busta: esce da solo se la busta vince</label>
+    <span class="mr-lbl" style="margin-top:6px">Dopo lo spoglio: lista «Chi lasceresti andare» prima delle buste</span>
+    <label><input type="radio" name="release_list" value="optional"{% if s.config.release_list == "optional" %} checked{% endif %}>
+        Facoltativa: le buste partono anche senza, chi esce si sceglie solo dopo lo spoglio</label>
+    <label><input type="radio" name="release_list" value="required"{% if s.config.release_list != "optional" %} checked{% endif %}>
+        Obbligatoria: per ogni giocatore su cui offre la squadra mette in lista un pari ruolo, senza la busta non parte</label>
     <label class="mr-field" style="margin-top:6px">
         <span class="mr-lbl">Ore per confermare dopo lo spoglio</span>
         <input type="number" name="release_confirm_hours" min="0" value="{{ s.release_confirm_hours }}" class="mr-input" style="max-width:120px">
-        <span class="mr-hint">Scadute, chi esce è quello proposto dalla lista della squadra (i dadi restano da tirare). 0 = nessun termine.</span>
+        <span class="mr-hint">Scadute, esce chi è nella lista della squadra (i dadi restano da tirare); senza lista sceglie l'admin. 0 = nessun termine.</span>
     </label>
 </div>
 <div class="mr-field">

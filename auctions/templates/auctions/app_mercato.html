@@ -496,7 +496,7 @@
                         {% endif %}
 
                         {% if s.session.release_after_count %}
-                        <span class="hc-chip">Pari ruolo: chi esce si sceglie dopo lo spoglio</span>
+                        <span class="hc-chip">Pari ruolo: chi esce si sceglie dopo lo spoglio{% if not s.session.release_list_required %}, lista facoltativa{% endif %}</span>
                         {% elif s.require_same_role_release %}
                         <span class="hc-chip">Taglio pari ruolo obbligatorio</span>
                         {% elif s.allow_conditional_release %}
@@ -1221,9 +1221,10 @@
             {% if buste_results.my_pending %}
             <div style="margin-bottom:12px;padding:10px 12px;border-radius:10px;background:rgba(234,179,8,.08);border:1px solid rgba(234,179,8,.35);font-size:12.5px;line-height:1.45">
                 <b>Adesso: conferma chi esce.</b> Ogni giocatore vinto entra al posto di uno della tua rosa con lo stesso ruolo:
-                sotto c'è già chi esce, preso dalla tua lista «Chi lasceresti andare». Cambialo se vuoi (anche un giocatore fuori lista)
-                e premi {% if contracts_on %}<b>Conferma e tira i dadi</b> oppure <b>Conferma, dadi dopo</b>{% else %}<b>Conferma</b>{% endif %}.
-                Finché non confermi hai un giocatore in più; {% if buste_results.my_deadline %}<b>entro il {{ buste_results.my_deadline|date:"d/m H:i" }}</b>, poi esce chi è proposto dalla tua lista (i dadi restano da tirare){% else %}se non lo fai, conferma l'admin{% endif %}.
+                {% if market_session.release_list_required %}sotto c'è già chi esce, preso dalla tua lista «Chi lasceresti andare». Cambialo se vuoi (anche un giocatore fuori lista)
+                {% else %}scegli sotto chi esce per ognuno (se l'avevi messo in «Chi lasceresti andare» è già proposto, puoi cambiarlo)
+                {% endif %}e premi {% if contracts_on %}<b>Conferma e tira i dadi</b> oppure <b>Conferma, dadi dopo</b>{% else %}<b>Conferma</b>{% endif %}.
+                Finché non confermi hai un giocatore in più; {% if buste_results.my_deadline %}<b>entro il {{ buste_results.my_deadline|date:"d/m H:i" }}</b>, poi esce chi è proposto dalla tua lista (i dadi restano da tirare){% if not market_session.release_list_required %}; senza lista sceglie l'admin{% endif %}{% else %}se non lo fai, conferma l'admin{% endif %}.
             </div>
             {% endif %}
             {% if buste_results.my_won %}
@@ -1622,7 +1623,7 @@
                 {% endif %}
                 <div style="background:var(--panel-2);padding:10px 12px;border-radius:10px;border:1px solid var(--line);">
                     <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Sostituzione Rosa</span>
-                    <b style="font-size:13.5px">{% if market_session.release_after_count %}Ogni giocatore vinto sostituisce un pari ruolo: dichiari prima chi lasceresti andare, dopo lo spoglio confermi chi esce{% elif market_session.require_same_role_release %}Obbligatoria con pari ruolo{% elif market_session.allow_conditional_release %}Taglio condizionato facoltativo{% else %}Nessun taglio consentito{% endif %}</b>
+                    <b style="font-size:13.5px">{% if market_session.release_list_required %}Ogni giocatore vinto sostituisce un pari ruolo: dichiari prima chi lasceresti andare, dopo lo spoglio confermi chi esce{% elif market_session.release_after_count %}Ogni giocatore vinto sostituisce un pari ruolo: chi esce lo scegli dopo lo spoglio{% elif market_session.require_same_role_release %}Obbligatoria con pari ruolo{% elif market_session.allow_conditional_release %}Taglio condizionato facoltativo{% else %}Nessun taglio consentito{% endif %}</b>
                 </div>
                 <div style="background:var(--panel-2);padding:10px 12px;border-radius:10px;border:1px solid var(--line);">
                     <span style="color:var(--muted);display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Rimborso Svincoli</span>
@@ -1723,9 +1724,12 @@
 
             {% if market_session.release_after_count %}
             <div class="form-group" style="font-size:12px;color:var(--muted);line-height:1.45">
-                Se vinci, il giocatore entra al posto di uno della tua rosa con lo stesso ruolo. Per ogni giocatore su cui offri
+                Se vinci, il giocatore entra al posto di uno della tua rosa con lo stesso ruolo.
+                {% if market_session.release_list_required %}Per ogni giocatore su cui offri
                 serve in <b style="color:var(--ink)">«Chi lasceresti andare»</b> (scheda Le mie Buste) un tuo pari ruolo:
                 dopo lo spoglio confermi chi esce, anche cambiandolo.
+                {% else %}Chi esce lo scegli <b style="color:var(--ink)">dopo lo spoglio</b>, solo per i giocatori che vinci.
+                Se vuoi, prepara già la proposta in «Chi lasceresti andare» (scheda Le mie Buste).{% endif %}
             </div>
             {% elif market_session.allow_conditional_release or market_session.require_same_role_release %}
             <div class="form-group">

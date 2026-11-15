@@ -254,7 +254,7 @@ mk_labels, is_buste, is_renewals, renewals,
         <span class="mk-rule">Offerte: <b>{% if s.max_bids %}max {{ s.max_bids }} per squadra{% else %}senza limite{% endif %}</b></span>
         <span class="mk-rule">Budget: <b>{% if s.budget_rule == "total" %}totale offerte ≤ budget{% else %}priorità{% endif %}</b></span>
         <span class="mk-rule">Pari merito: <b>{% if s.tie_break == "first" %}vince chi offre prima{% elif s.tie_break == "rebid" %}secondo sfoglio{% else %}decide l'admin{% endif %}</b></span>
-        <span class="mk-rule">Taglio: <b>{% if s.release_after_count %}pari ruolo, scelto dopo lo spoglio{% elif s.require_same_role_release %}obbligatorio, pari ruolo{% elif s.allow_conditional_release %}facoltativo{% else %}no{% endif %}</b>{% if s.require_same_role_release or s.allow_conditional_release %} · rimborso {{ s.get_release_refund_mode_display|lower }}{% endif %}</span>
+        <span class="mk-rule">Taglio: <b>{% if s.release_after_count %}pari ruolo, scelto dopo lo spoglio{% if s.release_list_required %} (lista prima delle buste){% else %} (lista facoltativa){% endif %}{% elif s.require_same_role_release %}obbligatorio, pari ruolo{% elif s.allow_conditional_release %}facoltativo{% else %}no{% endif %}</b>{% if s.require_same_role_release or s.allow_conditional_release %} · rimborso {{ s.get_release_refund_mode_display|lower }}{% endif %}</span>
         <span class="mk-rule">Acquisti per ruolo: <b>P {{ s.max_acquisitions_p|default:"∞" }} · D {{ s.max_acquisitions_d|default:"∞" }} · C {{ s.max_acquisitions_c|default:"∞" }} · A {{ s.max_acquisitions_a|default:"∞" }}</b></span>
         {% endif %}
     </div>
@@ -333,8 +333,8 @@ mk_labels, is_buste, is_renewals, renewals,
 <div class="mk-banner warn">
     <svg class="ic"><use href="#i-info"/></svg>
     <span><b>{{ pending_releases|length }} sostituzion{{ pending_releases|length|pluralize:"e,i" }} da scegliere.</b>
-    In «Aggiudicazioni effettuate» per ogni giocatore vinto c'è già chi esce, preso dalla lista «Chi lasceresti andare»
-    della squadra: cambialo se serve (anche fuori lista) e conferma la squadra qui sotto. Le squadre possono farlo dall'app.
+    In «Aggiudicazioni effettuate» per ogni giocatore vinto scegli chi esce: dove la squadra l'aveva messo nella lista
+    «Chi lasceresti andare» è già proposto (cambialo se serve, anche fuori lista). Poi conferma la squadra qui sotto. Le squadre possono farlo dall'app.
     Finché non si conferma, la squadra ha un giocatore in più.</span>
 </div>
 <div class="mk-col" style="gap:8px;margin-bottom:12px">
@@ -587,7 +587,7 @@ mk_labels, is_buste, is_renewals, renewals,
     <div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(127,127,127,.25)">
         <div style="font-size:13px;font-weight:800">Chi lasceresti andare
             <span class="mk-pill {% if not release_board.missing %}ok{% endif %}">{{ release_board.teams|length }} squadre · {{ release_board.missing|length }} senza lista</span></div>
-        <p class="mk-hint">Le squadre compilano la lista dall'app (scheda Le mie Buste). Per chi non usa l'app aprila qui e compilala tu:
+        <p class="mk-hint">{% if not s.release_list_required %}La lista è facoltativa: le buste partono anche senza e chi esce si sceglie dopo lo spoglio; serve come proposta (e, scaduto il tempo, esce chi è in lista). {% endif %}Le squadre compilano la lista dall'app (scheda Le mie Buste). Per chi non usa l'app aprila qui e compilala tu:
             vedi solo quella squadra, mai le sue buste.{% if release_board.missing %} Senza lista: <b>{{ release_board.missing|join:", " }}</b>.{% endif %}</p>
         <form method="get" action="{{ mk_back }}" class="mk-tie-form">
             <select name="list_team" aria-label="Squadra di cui compilare la lista">

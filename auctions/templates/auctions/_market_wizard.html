@@ -319,12 +319,19 @@ Apertura dalla pagina: openMarketWizard() / closeMarketWizard().
                 <div id="mwz-timing-box" style="margin:4px 0 6px 24px">
                     <span class="mwz-hint" style="margin:0 0 4px">Chi esce si sceglie:</span>
                     <label class="mwz-opt"><input type="radio" name="release_timing" value="after" checked> Dopo lo spoglio, per ogni giocatore vinto
-                        <small>Con le buste ogni squadra dichiara chi lascerebbe andare (un pari ruolo per ogni giocatore su cui offre); dopo lo spoglio conferma chi esce, anche cambiandolo, e tira i dadi del contratto subito o dopo. L'admin può confermare per lei.</small></label>
+                        <small>Dopo lo spoglio ogni squadra sceglie chi esce (un pari ruolo per ogni giocatore vinto) e tira i dadi del contratto subito o dopo. L'admin può scegliere per lei.</small></label>
+                    <div id="mwz-list-box" style="margin:2px 0 6px 24px">
+                        <span class="mwz-hint" style="margin:0 0 4px">Lista «Chi lasceresti andare» prima delle buste:</span>
+                        <label class="mwz-opt"><input type="radio" name="release_list" value="optional" checked> Facoltativa: chi esce si sceglie solo dopo lo spoglio
+                            <small>Le buste partono anche senza lista. Chi la compila se la ritrova già proposta alla conferma.</small></label>
+                        <label class="mwz-opt"><input type="radio" name="release_list" value="required"> Obbligatoria
+                            <small>Per ogni giocatore su cui offre la squadra mette in lista un suo pari ruolo: senza, la busta non parte. Dopo lo spoglio conferma chi esce, anche cambiandolo.</small></label>
+                    </div>
                     <label class="mwz-opt"><input type="radio" name="release_timing" value="bid"> Con la busta
                         <small>Il taglio si indica insieme all'offerta ed esce da solo se la busta vince.</small></label>
                     <label class="mwz-lbl" for="mwz-confirm-hours" style="margin-top:6px">Ore per confermare dopo lo spoglio</label>
                     <input type="number" name="release_confirm_hours" id="mwz-confirm-hours" min="0" value="24" class="mwz-input" style="max-width:120px">
-                    <span class="mwz-hint">Scadute, chi esce è quello proposto dalla lista della squadra (i dadi restano da tirare). 0 = nessun termine: conferma la squadra o l'admin.</span>
+                    <span class="mwz-hint">Scadute, esce chi è nella lista della squadra (i dadi restano da tirare); senza lista sceglie l'admin. 0 = nessun termine: sceglie la squadra o l'admin.</span>
                 </div>
                 <label class="mwz-lbl" for="mwz-refund" style="margin-top:6px">Rimborso del giocatore tagliato</label>
                 <select name="refund_mode" id="mwz-refund" class="mwz-input">
@@ -420,8 +427,12 @@ Apertura dalla pagina: openMarketWizard() / closeMarketWizard().
     // «Chi esce si sceglie» vale solo per le buste con la sostituzione obbligatoria.
     function mwzTimingBox() {
         $("mwz-timing-box").style.display = kind === "buste" && $("mwz-same-role").checked ? "block" : "none";
+        const after = document.querySelector("#market-wizard-modal input[name=release_timing]:checked");
+        $("mwz-list-box").style.display = after && after.value === "after" ? "block" : "none";
     }
     $("mwz-same-role").addEventListener("change", mwzTimingBox);
+    document.querySelectorAll("#market-wizard-modal input[name=release_timing]").forEach((el) =>
+        el.addEventListener("change", mwzTimingBox));
     window.mwzGo = function (step) {
         for (let i = 1; i <= 4; i++) {
             $("mwz-step-" + i).classList.toggle("active", i === step);

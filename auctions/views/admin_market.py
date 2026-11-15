@@ -729,6 +729,9 @@ def _session_rules(post):
         "buyout_min_hold_days": _parse_int(post.get("buyout_min_hold_days") or 7),
         "live_timer_seconds": _parse_int(post.get("live_timer_seconds") or 15),
         "description": (post.get("description") or "").strip(),
+        # Buste con chi esce dopo lo spoglio: la lista «Chi lasceresti andare»
+        # chiesta prima delle buste o facoltativa (si sceglie solo dopo).
+        "release_list": "optional" if post.get("release_list") == "optional" else "required",
     }
 
     return {
