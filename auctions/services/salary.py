@@ -45,8 +45,10 @@ DEFAULT_RULES = {
     # Extra salary cap (3.03): ogni X FM di budget danno Y FM di tetto.
     "extra_cap_cost": 400,
     "extra_cap_gain": 100,
-    "decree_mid": [50, 50, 50, 100, 100, 100, 100, 200, 200, 200],
-    "decree_final": [300, 300, 300, 400, 400, 400, 500, 500, 800, 800],
+    # Decreto Salvacalcio (1.3.A): invernale (metà stagione) ed estivo (fine
+    # stagione, i premi del campionato del tabellone «Posizioni finali»).
+    "decree_mid": [100, 150, 150, 200, 200, 250, 250, 300, 300, 400],
+    "decree_final": [400, 500, 500, 500, 600, 600, 800, 800, 1200, 1200],
     "prize_euro": [350, 200, 100, 50],
 }
 
@@ -77,8 +79,9 @@ def lost_bonus(table, points):
     return bonus
 
 
-def add_credits(participant, amount, note, *, budget_max=None):
-    """Accredita fantamilioni; la parte oltre il budget massimo si brucia (3.01)."""
+def add_credits(participant, amount, note, *, budget_max=None, money=RosterLog.Money.DECREE):
+    """Accredita fantamilioni; la parte oltre il budget massimo si brucia (3.01).
+    ``money`` dice al tabellone che voce è (Decreto, premio…)."""
     participant.refresh_from_db()
     _sala_guard(participant.league_id)
     amount = Decimal(amount)
@@ -90,7 +93,7 @@ def add_credits(participant, amount, note, *, budget_max=None):
     participant.save(update_fields=["credits"])
     RosterLog.objects.create(
         participant=participant, participant_name=participant.display_name, player_name=note[:120],
-        action=RosterLog.Action.EDIT, credits_delta=-(amount - burned), by_admin=True,
+        action=RosterLog.Action.EDIT, credits_delta=-(amount - burned), by_admin=True, money=money,
         note=(f"{note} (+{amount:.0f} FM" + (f", {burned:.0f} bruciati oltre {limit:.0f}" if burned else "") + ")")[:200],
     )
     return amount - burned
@@ -319,7 +322,7 @@ def convert_budget(participant_id, blocks):
                             note=f"Extra salary cap: {cost:.0f} FM di budget convertiti")
     RosterLog.objects.create(
         participant=participant, participant_name=participant.display_name, player_name="Extra salary cap",
-        action=RosterLog.Action.EDIT, credits_delta=cost, by_admin=False,
+        action=RosterLog.Action.EDIT, credits_delta=cost, by_admin=False, money=RosterLog.Money.EXTRA,
         note=f"Convertiti {cost:.0f} FM di budget in {gain:.0f} FM di tetto",
     )
     return {"ok": True, "cost": int(cost), "gain": int(gain)}

@@ -1,0 +1,19 @@
+{% extends "auctions/base.html" %}
+{% comment %}
+Tabellone del budget nella console. Il contenuto è lo stesso partial dell'app
+(_tabellone.html): qui c'è solo la cornice.
+{% endcomment %}
+{% block title %}Tabellone budget — FantaManager{% endblock %}
+{% block bodyclass %}role-admin{% endblock %}
+{% block wrapclass %}wrap-wide{% endblock %}
+
+{% block content %}
+{% include "auctions/_console_head.html" %}
+<div style="margin:6px 0 14px">
+    <h1 style="margin:0;font-size:26px">Tabellone budget</h1>
+    <div style="font-size:12.5px;color:var(--fm-text-secondary)">Budget, tetto salariale e movimenti di ogni squadra di {{ current_league.name }}, stagione {{ current_league.season_number }}</div>
+</div>
+{% include "auctions/_page_tabs.html" with tabs="season" active="tabellone" lg=current_league %}
+{% if messages %}<div style="margin-bottom:12px">{% for msg in messages %}<div class="saved-flash">{{ msg }}</div>{% endfor %}</div>{% endif %}
+{% include "auctions/_tabellone.html" %}
+{% endblock %}

@@ -140,7 +140,7 @@ View: admin_league_settings (views/admin_config.py).
         </a>
         <a class="ls-link" href="{% purl 'admin_season' %}?league={{ current_league.id }}">
             <span class="h"><svg class="ic"><use href="#i-table"/></svg> Stagione e tetto salariale <span class="go">›</span></span>
-            <span class="v">Stagione n. <b>{{ current_league.season_number }}</b> · tetto {% if current_league.salary_cap_enabled %}<span class="on">attivo</span> ({{ current_league.get_salary_cap_spend_display|lower }}){% else %}<span class="off">spento</span>{% endif %}. Passaggio di stagione ed economia.</span>
+            <span class="v">Stagione n. <b>{{ current_league.season_number }}</b> · tetto {% if current_league.salary_cap_enabled %}<span class="on">attivo</span> ({{ current_league.get_salary_cap_spend_display|lower }}){% else %}<span class="off">spento</span>{% endif %} · Decreto {% if current_league.decree_mid_enabled or current_league.decree_final_enabled %}<span class="on">{% if current_league.decree_mid_enabled %}invernale{% endif %}{% if current_league.decree_mid_enabled and current_league.decree_final_enabled %} ed {% endif %}{% if current_league.decree_final_enabled %}estivo{% endif %}</span>{% else %}<span class="off">spento</span>{% endif %}. Passaggio di stagione, economia e tabellone del budget.</span>
         </a>
         <a class="ls-link" id="ls-competizioni" href="{% purl 'admin_competitions' %}?league={{ current_league.id }}">
             <span class="h"><svg class="ic"><use href="#i-trophy"/></svg> Competizioni <span class="go">›</span></span>

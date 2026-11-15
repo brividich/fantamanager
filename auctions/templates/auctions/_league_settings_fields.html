@@ -81,7 +81,15 @@ _league_settings_assets.html, incluso una volta per pagina.
     </label>
     <label class="sw-row">
         <span class="sw"><input type="checkbox" name="salary_cap_enabled" value="1" {% if lg.salary_cap_enabled %}checked{% endif %}><i></i></span>
-        <span class="txt"><b>Tetto salariale e Decreto</b><span>Limite di spesa per stagione. <a href="{% purl 'admin_season' %}?league={{ lg.id }}">Tabelle ›</a></span></span>
+        <span class="txt"><b>Tetto salariale</b><span>Limite di spesa per stagione. <a href="{% purl 'admin_season' %}?league={{ lg.id }}">Tabelle ›</a></span></span>
+    </label>
+    <label class="sw-row">
+        <span class="sw"><input type="checkbox" name="decree_mid_enabled" value="1" {% if lg.decree_mid_enabled %}checked{% endif %}><i></i></span>
+        <span class="txt"><b>Decreto Salvacalcio invernale</b><span>Crediti per posizione a metà stagione, con «Metà stagione» o «Assegna ora» in Stagione.</span></span>
+    </label>
+    <label class="sw-row">
+        <span class="sw"><input type="checkbox" name="decree_final_enabled" value="1" {% if lg.decree_final_enabled %}checked{% endif %}><i></i></span>
+        <span class="txt"><b>Decreto Salvacalcio estivo</b><span>Premi del campionato a fine stagione, con «Nuova stagione» o «Assegna ora» in Stagione.</span></span>
     </label>
     <p class="hint">Regole delle buste e finestre degli scambi: <a href="{% purl 'admin_market_dashboard' %}?league={{ lg.id }}">Mercato ›</a></p>
 </div>

@@ -65,6 +65,7 @@ from .admin_competitions import (
     admin_competition_create,
     admin_competition_regenerate,
     admin_competition_delete,
+    admin_competition_prizes,
 )
 from .admin_voti import admin_formation_edit, admin_giornata_lock, admin_giornata_manual_scores, admin_scoring_rules, admin_giornate, admin_upload_voti, admin_voti_import, admin_live_voti_sync, admin_live_voti_consolidate
 from .admin_mail import admin_mail_settings
@@ -243,6 +244,7 @@ from .auth import (
     register_view,
 )
 from .history import admin_storico, app_storico
+from .economy import admin_tabellone, app_tabellone
 from .images import remote_image
 from .invite import co_invite_answer, coadmin_invite, invite
 from .admin_onboarding import admin_coadmin, admin_invite_missing, admin_setup_card
@@ -286,6 +288,8 @@ __all__ = [
     "login_view",
     "admin_storico",
     "app_storico",
+    "admin_tabellone",
+    "app_tabellone",
     "remote_image",
     "coadmin_invite",
     "co_invite_answer",
@@ -548,6 +552,7 @@ __all__ = [
     "admin_competition_create",
     "admin_competition_regenerate",
     "admin_competition_delete",
+    "admin_competition_prizes",
 ]
 from .reports import (
     admin_report_auction,

@@ -64,6 +64,27 @@ def admin_competitions(request):
     teams = list(league.participants.filter(is_active=True).order_by("display_name"))
     giornate = list(season.giornate.all().order_by("number")) if season else []
 
+    prize_ctx = {}
+    if selected_comp:
+        from ..services import prizes
+        table = prizes.table(selected_comp)
+        suggested = prizes.suggested_order(selected_comp)
+        n = prizes.places(selected_comp)
+        example = prizes.EXAMPLES.get(selected_comp.kind, ("400,200,100", ""))
+        prize_ctx = {
+            "prize_table": table,
+            "prize_credits_raw": ",".join(str(x) for x in table["credits"]),
+            "prize_euro_raw": ",".join(str(x) for x in table["euro"]),
+            "prize_example": example,
+            "prize_award": prizes.award(selected_comp),
+            "prize_slots": [
+                {"position": i, "credits": table["credits"][i - 1] if i <= len(table["credits"]) else 0,
+                 "euro": table["euro"][i - 1] if i <= len(table["euro"]) else 0,
+                 "suggested": suggested[i - 1] if i <= len(suggested) else None}
+                for i in range(1, n + 1)
+            ],
+        }
+
     return render(request, "auctions/admin_competitions.html", {
         **page_frame(request, league, own_messages=True),
         # «Nuova Competizione» dall'app torna alle competizioni dell'app.
@@ -79,6 +100,7 @@ def admin_competitions(request):
         "teams": teams,
         "giornate": giornate,
         "competition_types": Competition.Type.choices,
+        **prize_ctx,
         "console_section": "Competizioni & Calendari",
         "console_active": "competitions",
     })
@@ -209,3 +231,34 @@ def admin_competition_delete(request, comp_id):
     comp.delete()
     messages.success(request, f"Competizione «{name}» eliminata.")
     return redirect(back_to_page(request, "admin_competitions", f"?league={league.id}"))
+
+
+@staff_member_required
+@require_POST
+def admin_competition_prizes(request, comp_id):
+    """Premi della competizione: salva la tabella (fantamilioni ed euro per
+    posizione) o li assegna alle squadre scelte, una volta sola."""
+    from ..services import prizes
+
+    comp = get_object_or_404(Competition, pk=comp_id)
+    league = comp.season.league
+    if league is None or not user_can_manage_league(request.user, league):
+        return HttpResponseForbidden("Non hai i permessi per gestire questa lega.")
+    try:
+        if request.POST.get("action") == "award":
+            n = prizes.places(comp)
+            order = [request.POST.get(f"pos_{i}") or "" for i in range(1, n + 1)]
+            award = prizes.award_prizes(comp, order)
+            messages.success(request, f"Premi di «{comp.name}» assegnati: " + ", ".join(
+                f"{d['position']}° {d['name']}" + (f" +{d['credited']} FM" if d["credits"] else "")
+                + (f" +{d['euro']}€" if d["euro"] else "") for d in award.details) + ".")
+        else:
+            table = prizes.set_table(comp, request.POST.get("credits"), request.POST.get("euro"))
+            if table["credits"] or table["euro"]:
+                messages.success(request, f"Premi di «{comp.name}» salvati: {len(table['credits'] or table['euro'])} posti premiati. "
+                                          "Quando la competizione è finita scegli le squadre e premi «Assegna premi».")
+            else:
+                messages.success(request, f"«{comp.name}» non ha più premi.")
+    except ValueError as exc:
+        messages.error(request, str(exc))
+    return redirect(back_to_page(request, "admin_competitions", f"?league={league.id}&comp={comp.id}#premi"))

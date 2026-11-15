@@ -74,6 +74,15 @@ stessi testi**.
   manager: `_season_history.html`, in `admin_storico.html` (console) e
   `app_storico.html` (app, dalla pagina Lega); dati da `league_history`
   (`services/history.py`).
+- Il tabellone del budget (per squadra: budget a disposizione, tetto
+  iniziale e spendibile, totale spesa, voci e movimenti della stagione), che
+  vedono tutti i membri della lega: `_tabellone.html`, in `admin_tabellone.html`
+  (console, scheda di «Stagione e storico») e `app_tabellone.html` (app, dalla
+  pagina Lega); dati da `tabellone` (`services/economy.py`). Non tiene conti
+  suoi: legge `RosterLog` e gli scambi conclusi, e il budget di inizio stagione
+  è «a disposizione meno i movimenti». **Un nuovo movimento di soli crediti
+  scrive una riga `RosterLog` con `money`** (Decreto, premio, extra cap, a
+  mano), altrimenti finisce nel budget di inizio stagione.
 - Le squadre della lega (email e inviti, account del portale, link e QR,
   scheda): `_teams_manage.html`, in `admin_participants.html` (console) e
   `app_regia_teams.html` (app); dati da `teams_manage_context`
@@ -111,6 +120,7 @@ stessi testi**.
   `AppPagesParityTests` in `auctions/tests/test_app_pages.py`,
   `GiornatePageTests` e `AdminFormationEditorTests` in `auctions/tests/test_voti.py`,
   `HistoryPageTests` in `auctions/tests/test_competitions.py`,
+  `TabelloneTests` in `auctions/tests/test_tabellone.py`,
   `RosePanelParityTests` e `LeagueSettingsPageTests` in
   `auctions/tests/test_rose_settings.py`.
 
@@ -240,6 +250,19 @@ L'admin della lega modifica la formazione di ogni squadra per qualsiasi
 giornata dalla pagina Giornate (`admin_save_matchday_formation`): tocca solo
 la copia di quella giornata e, se la giornata ha già punteggi dai voti, li
 ricalcola.
+
+## Tetto salariale, Decreto e premi
+
+Tetto (`League.salary_cap_enabled`, fasi e voci in `services/salary.py`) e
+Decreto Salvacalcio sono separati: l'admin accende il **Decreto invernale**
+(metà stagione, `decree_mid_enabled`) e/o l'**estivo** (fine stagione,
+`decree_final_enabled`) in Stagione o in Impostazioni lega. Partono con «Metà
+stagione» / «Nuova stagione» o con «Assegna ora» (`season.award_decree_now`),
+una volta per stagione (`DecreeAward`). I premi delle competizioni stanno in
+`Competition.settings["prizes"]` (passano alla stagione dopo con la
+competizione) e si assegnano una volta (`PrizeAward`, `services/prizes.py`).
+Decreto e premi accreditano con `salary.add_credits` (oltre il budget massimo
+si brucia).
 
 ## Regole di punteggio della lega
 

@@ -28,6 +28,15 @@ class RosterLog(models.Model):
     by_admin      = models.BooleanField(default=False)
     note          = models.CharField(max_length=200, blank=True)
 
+    class Money(models.TextChoices):
+        """Movimenti di soli crediti (senza giocatore), per il tabellone del budget."""
+        DECREE = "decree", "Decreto Salvacalcio"
+        PRIZE  = "prize",  "Premio"
+        EXTRA  = "extra",  "Extra salary cap"
+        MANUAL = "manual", "Crediti a mano"
+
+    money = models.CharField(max_length=10, choices=Money.choices, blank=True)
+
     class Meta:
         ordering = ["-created_at", "-id"]
 

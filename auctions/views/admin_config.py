@@ -275,7 +275,7 @@ def admin_config_action(request):
         # unchecked box is simply absent from a POST).
         if request.POST.get("rules_present") == "1":
             for flag in ("trades_enabled", "trades_need_approval", "trades_same_roles",
-                         "contracts_enabled", "salary_cap_enabled"):
+                         "contracts_enabled", "salary_cap_enabled", "decree_mid_enabled", "decree_final_enabled"):
                 setattr(league, flag, request.POST.get(flag) == "1")
         league.save()
         messages.success(request, f"Lega «{league.name}» aggiornata.")

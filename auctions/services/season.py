@@ -42,6 +42,41 @@ def _step(report, text):
     report["steps"].append(text)
 
 
+DECREE_NAMES = {LeagueRanking.Kind.MIDSEASON: "invernale (metà stagione)",
+                LeagueRanking.Kind.FINAL: "estivo (fine stagione)"}
+
+
+def _award(report, league, kind, ranking):
+    try:
+        award = salary.award_decree(league, kind, ranking)
+    except ValueError as exc:
+        report["warnings"].append(str(exc))
+        return
+    _step(report, f"Decreto Salvacalcio {DECREE_NAMES[kind]}: "
+          + ", ".join(f"{d['name']} +{d['credited']}" for d in award.details) + ".")
+
+
+@transaction.atomic
+def award_decree_now(league_id, kind, order=None):
+    """L'admin assegna adesso il Decreto invernale o estivo della stagione in
+    corso, senza il passaggio di stagione (la classifica come per i passaggi:
+    quella scritta, il sito di lega, la classifica dell'app). Una volta sola:
+    il passaggio dopo lo trova già assegnato e lo salta."""
+    league = League.objects.select_for_update().get(pk=league_id)
+    _sala_guard(league)
+    ranking = _resolve_ranking(league, league.season_number, kind, order)
+    if ranking is None:
+        what = "di metà stagione" if kind == LeagueRanking.Kind.MIDSEASON else "finale"
+        return {"ok": False, "steps": [], "warnings": [],
+                "message": f"Serve la classifica {what}: scrivi la posizione di ogni squadra nella colonna "
+                           f"«{'Metà' if kind == LeagueRanking.Kind.MIDSEASON else 'Fine'}» e riprova."}
+    report = {"ok": True, "steps": [], "warnings": []}
+    _award(report, league, kind, ranking)
+    if report["warnings"] and not report["steps"]:
+        return {"ok": False, "message": report["warnings"][0], "steps": [], "warnings": []}
+    return report
+
+
 @transaction.atomic
 def start_new_season(league_id, final_order=None):
     league = League.objects.select_for_update().get(pk=league_id)
@@ -54,13 +89,8 @@ def start_new_season(league_id, final_order=None):
         report["warnings"].append("Classifica finale mancante: inseriscila per Decreto e tetto salariale.")
     else:
         _step(report, f"Classifica finale della stagione {finishing} salvata ({ranking.get_source_display()}).")
-        if league.salary_cap_enabled:
-            try:
-                award = salary.award_decree(league, LeagueRanking.Kind.FINAL, ranking)
-                _step(report, "Decreto Salvacalcio di fine stagione: "
-                      + ", ".join(f"{d['name']} +{d['credits']}" for d in award.details) + ".")
-            except ValueError as exc:
-                report["warnings"].append(str(exc))
+        if league.decree_final_enabled:
+            _award(report, league, LeagueRanking.Kind.FINAL, ranking)
 
     if league.contracts_enabled:
         res = contracts.new_season(league.id)
@@ -135,13 +165,9 @@ def midseason(league_id, mid_order=None):
         return {"ok": False, "message": "Serve la classifica di metà stagione.", "steps": [], "warnings": []}
     _step(report, f"Classifica di metà stagione salvata ({ranking.get_source_display()}).")
     _tick_loans(league, report)
+    if league.decree_mid_enabled:
+        _award(report, league, LeagueRanking.Kind.MIDSEASON, ranking)
     if league.salary_cap_enabled:
-        try:
-            award = salary.award_decree(league, LeagueRanking.Kind.MIDSEASON, ranking)
-            _step(report, "Decreto Salvacalcio di metà stagione: "
-                  + ", ".join(f"{d['name']} +{d['credits']}" for d in award.details) + ".")
-        except ValueError as exc:
-            report["warnings"].append(str(exc))
         try:
             salary.open_phase(league, CapPhase.Kind.WINTER, ranking)
             _step(report, "Fase invernale aperta: fondi invernali e bonus aggiunti ai tetti.")

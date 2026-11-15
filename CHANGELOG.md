@@ -44,6 +44,18 @@ Prima versione numerata (prima l'etichetta era 1.2.0, senza rilasci).
   `docker compose -f docker-compose.ghcr.yml up -d watchtower` (DOCKER.md).
 
 ### Lega
+- **Tabellone budget**: per ogni squadra budget a disposizione, tetto
+  iniziale, tetto spendibile e totale spesa, con le voci della stagione
+  (mercato estivo e invernale, scambi, Decreto, premi, extra cap, crediti a
+  mano) e ogni movimento datato, come il foglio Excel della lega. Lo vedono
+  tutti (app: Lega → Tabellone budget; console: Stagione e storico), si
+  aggiorna da solo; chi gestisce la lega corregge i crediti con un motivo.
+- **Decreto Salvacalcio invernale ed estivo a scelta**, indipendenti dal
+  tetto, con «Assegna ora»; tabelle predefinite del regolamento attuale
+  (metà 100…400, fine 400…1200 + 350/200/100/50 €).
+- **Premi delle competizioni** (Coppa, Champions, Supercoppa, Miglior
+  punteggio…): fantamilioni ed euro per posizione, classifica proposta dalla
+  competizione, assegnati una volta e visibili nel tabellone.
 - Listone senza doppioni: l'import delle rose e del listone riconosce il club
   anche scritto come nell'anagrafica («AC Milan», «AS Roma», «Hellas
   Verona»), così «Pulisic» in rosa non resta anche come «C. Pulisic»

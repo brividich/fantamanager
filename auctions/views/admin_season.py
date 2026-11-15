@@ -76,6 +76,18 @@ def admin_season(request):
             "has_winter": CapPhase.objects.filter(league=league, season=league.season_number,
                                                   kind=CapPhase.Kind.WINTER).exists(),
             "decrees": list(DecreeAward.objects.filter(league=league)[:6]),
+            "decree_mid_done": DecreeAward.objects.filter(league=league, season=league.season_number,
+                                                          kind=LeagueRanking.Kind.MIDSEASON).exists(),
+            "decree_final_done": DecreeAward.objects.filter(league=league, season=league.season_number,
+                                                            kind=LeagueRanking.Kind.FINAL).exists(),
+        })
+        ctx["decree_rows"] = [
+            ("decree_mid_now", "Decreto invernale", league.decree_mid_enabled, ctx["decree_mid_done"],
+             "decree_mid_enabled", "f-mid", "Metà stagione"),
+            ("decree_final_now", "Decreto estivo", league.decree_final_enabled, ctx["decree_final_done"],
+             "decree_final_enabled", "f-new", "Nuova stagione"),
+        ]
+        ctx.update({
             "rules": r,
             "rule_tables": [(k, ",".join(str(x) for x in r[k])) for k in _TABLES],
             "rule_numbers": [(k, r[k]) for k in _NUMBERS],
@@ -108,6 +120,8 @@ def admin_season_action(request):
     try:
         if action == "settings":
             league.salary_cap_enabled = request.POST.get("salary_cap_enabled") == "1"
+            league.decree_mid_enabled = request.POST.get("decree_mid_enabled") == "1"
+            league.decree_final_enabled = request.POST.get("decree_final_enabled") == "1"
             mode = request.POST.get("salary_cap_spend")
             if mode in League.CapSpend.values:
                 league.salary_cap_spend = mode
@@ -136,10 +150,23 @@ def admin_season_action(request):
             if bonus:
                 rules["lost_bonus"] = bonus
             league.salary_rules = rules
-            league.save(update_fields=["salary_cap_enabled", "salary_cap_spend", "standings_url", "salary_rules", "updated_at"])
+            league.save(update_fields=["salary_cap_enabled", "decree_mid_enabled", "decree_final_enabled",
+                                       "salary_cap_spend", "standings_url", "salary_rules", "updated_at"])
             messages.success(request, "Impostazioni economia salvate.")
         elif action == "new_season":
             _report(request, season.start_new_season(league.id, _order_from_post(request.POST, "final", teams)))
+        elif action == "decree_switches":
+            league.decree_mid_enabled = request.POST.get("decree_mid_enabled") == "1"
+            league.decree_final_enabled = request.POST.get("decree_final_enabled") == "1"
+            league.save(update_fields=["decree_mid_enabled", "decree_final_enabled", "updated_at"])
+            on = [n for n, f in (("invernale", league.decree_mid_enabled), ("estivo", league.decree_final_enabled)) if f]
+            messages.success(request, "Decreto Salvacalcio: " + (" e ".join(on) + " attivo" + ("i" if len(on) > 1 else "")
+                                                                 if on else "nessuno attivo") + ".")
+        elif action in ("decree_mid_now", "decree_final_now"):
+            mid = action == "decree_mid_now"
+            kind = LeagueRanking.Kind.MIDSEASON if mid else LeagueRanking.Kind.FINAL
+            _report(request, season.award_decree_now(
+                league.id, kind, _order_from_post(request.POST, "mid" if mid else "final", teams)))
         elif action == "close_renewals":
             _report(request, season.close_renewals(league.id))
         elif action == "midseason":

@@ -134,7 +134,7 @@ button) and everything else opens as a full-screen menu: ``.fm-chrome`` is
         <svg class="ic"><use href="#i-calendar"/></svg> Giornate e voti</a>
     <a class="fm-nav-link {% if console_active == 'competitions' %}is-active{% endif %}" href="{% url 'admin_competitions' %}{% if current_league %}?league={{ current_league.id }}{% endif %}" title="Campionato, coppe e calendari">
         <svg class="ic"><use href="#i-award"/></svg> Competizioni</a>
-    <a class="fm-nav-link {% if console_active == 'season' or console_active == 'storico' %}is-active{% endif %}" href="{% url 'admin_season' %}{% if current_league %}?league={{ current_league.id }}{% endif %}" title="I passaggi della stagione e lo storico: albo d'oro e classifica di sempre">
+    <a class="fm-nav-link {% if console_active == 'season' or console_active == 'storico' or console_active == 'tabellone' %}is-active{% endif %}" href="{% url 'admin_season' %}{% if current_league %}?league={{ current_league.id }}{% endif %}" title="I passaggi della stagione, il tabellone del budget e lo storico: albo d'oro e classifica di sempre">
         <svg class="ic"><use href="#i-chart"/></svg> Stagione e storico</a>
     <a class="fm-nav-link {% if console_active == 'import' or console_active == 'export' %}is-active{% endif %}" href="{% url 'admin_fantapazz' %}{% if current_league %}?league={{ current_league.id }}{% endif %}" title="Importa le rose da file; riepilogo delle rose ed export in Excel/CSV">
         <svg class="ic"><use href="#i-import"/></svg> Importa ed esporta</a>

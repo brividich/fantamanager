@@ -23,6 +23,10 @@
     .ss-bar { height: 6px; border-radius: 3px; background: rgba(var(--fm-tint-rgb),0.08); overflow: hidden; margin-top: 3px; }
     .ss-bar i { display: block; height: 100%; background: var(--accent); }
     .ss-bar i.hot { background: var(--fm-yellow-500); }
+    .ss-decrees { display: grid; gap: 8px; margin-bottom: 10px; }
+    .ss-decree { padding: 9px 11px; border-radius: 9px; border: 1px solid var(--line); font-size: 12.5px; }
+    .ss-decree.on { border-color: var(--accent-line); background: var(--accent-soft); }
+    .ss-decree .muted { margin: 3px 0 6px; font-size: 11.5px; }
     .ss-set { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 8px 12px; align-items: center; font-size: 12.5px; }
     @media (max-width: 1100px) { .ss-steps, .ss-grid { grid-template-columns: minmax(0, 1fr); } }
 </style>
@@ -43,8 +47,8 @@
         Qui porti la lega da una stagione all'altra: classifiche, <b>tetto salariale</b> e <b>Decreto Salvacalcio</b>.
         <ol>
             {% if not current_league.salary_cap_enabled %}
-            <li>Il tetto è spento: apri <b>Impostazioni economia (comma 3)</b>, spunta <b>attivi</b> accanto a
-                <b>Tetto salariale e Decreto</b>, controlla le tabelle e premi <b>Salva</b>.</li>
+            <li>Il tetto è spento: apri <b>Impostazioni economia (comma 3)</b>, spunta <b>attivo</b> accanto a
+                <b>Tetto salariale</b>, controlla le tabelle e premi <b>Salva</b>.</li>
             {% endif %}
             <li>Se è la prima stagione che gestisci qui, scrivi nella colonna <b>Anno prec.</b> la posizione finale
                 dell'anno scorso di ogni squadra e premi <b>Salva classifica anno precedente</b>.</li>
@@ -62,8 +66,10 @@
             {% if phases %}
             <li>Per una multa o un correttivo usa <b>Rettifica tetto</b>: scegli la squadra, scrivi importo e motivo e premi <b>Applica</b>.</li>
             {% endif %}
+            <li>Il <b>Decreto Salvacalcio</b> (a destra): accendi <b>invernale</b> e/o <b>estivo</b>. Parte da solo con
+                «Metà stagione» e «Nuova stagione», oppure subito con il suo <b>Assegna ora</b> (una volta per stagione).</li>
         </ol>
-        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Nella tabella vedi per ogni squadra tetto, spesi e margine; i Decreti assegnati compaiono a destra.</div>
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Budget, tetto e movimenti di ogni squadra, come nel tabellone Excel: scheda <b>Tabellone budget</b> qui sopra (la vedono anche i manager).</div>
     </div>
 </details>
 {% endif %}
@@ -80,10 +86,10 @@
 <div class="panel muted" style="padding:24px;text-align:center">Seleziona una lega dal menu in alto.</div>
 {% else %}
 
-<form id="f-new" method="post" action="{% url 'admin_season_action' %}" onsubmit="return confirm('Chiudere la stagione {{ current_league.season_number }} e iniziare la successiva? Verranno assegnati il Decreto di fine stagione, scalati i contratti e aperti i rinnovi.');">
+<form id="f-new" method="post" action="{% url 'admin_season_action' %}" onsubmit="return this.dataset.now === '1' || confirm('Chiudere la stagione {{ current_league.season_number }} e iniziare la successiva? Verranno assegnati il Decreto estivo (se attivo), scalati i contratti e aperti i rinnovi.');">
     {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="new_season">
 </form>
-<form id="f-mid" method="post" action="{% url 'admin_season_action' %}" onsubmit="return confirm('Applicare il passaggio di metà stagione? Decreto di metà stagione e fondi invernali del tetto.');">
+<form id="f-mid" method="post" action="{% url 'admin_season_action' %}" onsubmit="return this.dataset.now === '1' || confirm('Applicare il passaggio di metà stagione? Decreto invernale (se attivo) e fondi invernali del tetto.');">
     {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="midseason">
 </form>
 <form id="f-prev" method="post" action="{% url 'admin_season_action' %}">
@@ -168,13 +174,28 @@
 
     <section class="panel">
         <h3 style="margin:0 0 8px;font-size:15px">Decreto Salvacalcio</h3>
+        <form id="f-decree" method="post" action="{% url 'admin_season_action' %}">
+            {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="decree_switches">
+        </form>
+        <div class="ss-decrees">
+            {% for kind, label, on, done, field, form_id, when in decree_rows %}
+            <div class="ss-decree{% if on %} on{% endif %}">
+                <label><input type="checkbox" form="f-decree" name="{{ field }}" value="1"{% if on %} checked{% endif %} onchange="this.form.requestSubmit ? this.form.requestSubmit() : this.form.submit()"> <b>{{ label }}</b></label>
+                <div class="muted">{% if done %}✓ Assegnato in questa stagione.{% elif on %}Parte con «{{ when }}», oppure adesso:{% else %}Spento: non si assegna.{% endif %}</div>
+                {% if on and not done %}
+                <button type="submit" form="{{ form_id }}" class="ss-btn ghost" formaction="{% url 'admin_season_action' %}" name="action" value="{{ kind }}"
+                        onclick="if (!confirm('Assegnare adesso il {{ label }}? I crediti vanno subito alle squadre secondo la classifica (colonna {% if kind == 'decree_mid_now' %}Metà{% else %}Fine{% endif %}, sito di lega o classifica dell\'app).')) return false; this.form.dataset.now = '1'; return true;">Assegna ora</button>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
         {% for d in decrees %}
         <div style="font-size:12.5px;padding:6px 0;border-bottom:1px solid var(--line)">
             <b>Stagione {{ d.season }} · {{ d.get_kind_display }}</b>
             <div class="muted">{% for row in d.details %}{{ row.position }}° {{ row.name }} +{{ row.credited|default:row.credits }}{% if row.euro %} (+{{ row.euro }}€){% endif %}{% if not forloop.last %} · {% endif %}{% endfor %}</div>
         </div>
         {% empty %}
-        <div class="muted" style="font-size:12.5px">Nessun decreto assegnato: parte da solo con «Nuova stagione» e «Metà stagione».</div>
+        <div class="muted" style="font-size:12.5px">Nessun decreto assegnato.</div>
         {% endfor %}
 
         {% if current_league.standings_url %}
@@ -187,11 +208,13 @@
             <summary style="cursor:pointer;font-weight:800;font-size:13px">Impostazioni economia (comma 3)</summary>
             <form method="post" action="{% url 'admin_season_action' %}" class="ss-set" style="margin-top:10px">
                 {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="league_id" value="{{ current_league.id }}"><input type="hidden" name="action" value="settings">
-                <span>Tetto salariale e Decreto</span><label><input type="checkbox" name="salary_cap_enabled" value="1"{% if current_league.salary_cap_enabled %} checked{% endif %}> attivi</label>
+                <span>Tetto salariale</span><label><input type="checkbox" name="salary_cap_enabled" value="1"{% if current_league.salary_cap_enabled %} checked{% endif %}> attivo</label>
+                <span>Decreto Salvacalcio</span><span><label><input type="checkbox" name="decree_mid_enabled" value="1"{% if current_league.decree_mid_enabled %} checked{% endif %}> invernale</label>
+                    &nbsp; <label><input type="checkbox" name="decree_final_enabled" value="1"{% if current_league.decree_final_enabled %} checked{% endif %}> estivo</label></span>
                 <span>Spesa conteggiata</span><select name="salary_cap_spend" class="ss-in ss-wide">{% for v, l in spend_modes %}<option value="{{ v }}"{% if current_league.salary_cap_spend == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>
                 <span>Pagina classifica di lega</span><input class="ss-in ss-wide" name="standings_url" value="{{ current_league.standings_url }}" placeholder="https://www.fantapazz.com/fantacalcio/fantaclassifiche-competizione/…">
                 {% for key, value in rule_tables %}
-                <span>{% if key == "base_by_rank" %}Tetto base per posizione{% elif key == "winter_by_rank" %}Fondi girone di ritorno{% elif key == "decree_mid" %}Decreto metà stagione{% else %}Decreto fine stagione{% endif %}</span>
+                <span>{% if key == "base_by_rank" %}Tetto base per posizione{% elif key == "winter_by_rank" %}Fondi girone di ritorno{% elif key == "decree_mid" %}Decreto invernale (metà stagione){% else %}Decreto estivo (fine stagione){% endif %}</span>
                 <input class="ss-in ss-wide" name="{{ key }}" value="{{ value }}">
                 {% endfor %}
                 <span>Punti giocatori persi per ruolo</span><input class="ss-in ss-wide" name="lost_points" value="{{ lost_points }}">

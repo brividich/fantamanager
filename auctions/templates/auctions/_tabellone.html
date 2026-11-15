@@ -1,0 +1,196 @@
+{% load fm_pages %}{% comment %}
+Il tabellone del budget della lega (services/economy.py:tabellone), come il
+foglio Excel che la lega teneva a mano: per ogni squadra budget a
+disposizione, tetto iniziale, tetto spendibile e totale spesa, poi le voci e i
+movimenti della stagione. Lo vedono tutti (app: pagina Lega → Tabellone budget;
+console: Stagione → Tabellone budget); chi gestisce la lega (tab_can_manage)
+corregge i crediti con un motivo, che finisce fra i movimenti.
+
+Contesto: tab (il dizionario di tabellone), tab_can_manage, tab_league.
+{% endcomment %}
+<!-- tabellone:start -->
+<style>
+    .tb { container-type: inline-size; }
+    .tb-sum { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .tb-sum th { text-align: right; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--fm-text-muted);
+        padding: 6px 8px; white-space: nowrap; }
+    .tb-sum th:first-child, .tb-sum td:first-child { text-align: left; }
+    .tb-sum td { padding: 7px 8px; border-top: 1px solid var(--fm-border); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .tb-sum td b { color: var(--fm-strong); }
+    .tb-only-narrow { display: none; }
+    .tb-sum .neg { color: var(--fm-red-400); }
+    .tb-meta { display: flex; gap: 6px; margin: 10px 0 14px; }
+    .tb-chip { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 14px;
+        border: 1px solid var(--fm-border); background: var(--fm-card); font-size: 12px; color: var(--fm-text-muted); white-space: nowrap; }
+    .tb-chip b { color: var(--fm-strong); }
+    .tb-chip.on b { color: var(--fm-green-500); }
+    .tb-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr)); gap: 12px; margin-top: 14px; }
+    .tb-card { padding: 14px 16px; }
+    .tb-card h3 { margin: 0 0 10px; font-size: 15px; color: var(--fm-strong); display: flex; justify-content: space-between; gap: 8px; }
+    .tb-kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+    .tb-kpi { padding: 8px 10px; border-radius: 10px; background: var(--fm-well); }
+    .tb-kpi span { display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--fm-text-muted); }
+    .tb-kpi b { font-family: var(--fm-display); font-size: 19px; font-weight: 800; color: var(--fm-strong); font-variant-numeric: tabular-nums; }
+    .tb-kpi b.neg { color: var(--fm-red-400); }
+    .tb-kpi small { display: block; font-size: 11px; color: var(--fm-text-muted); }
+    .tb-lines { list-style: none; margin: 0; padding: 0; font-size: 12.5px; }
+    .tb-lines li { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; border-top: 1px solid var(--fm-border); }
+    .tb-lines li span:first-child { color: var(--fm-text-secondary); min-width: 0; }
+    .tb-lines li span:first-child small { color: var(--fm-text-muted); }
+    .tb-lines li span:last-child { font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--fm-strong); font-weight: 700; }
+    .tb-lines li.tot span { color: var(--fm-strong); font-weight: 800; }
+    .tb-pos { color: var(--fm-green-500) !important; }
+    .tb-neg { color: var(--fm-red-400) !important; }
+    .tb-card details { margin-top: 10px; font-size: 12.5px; }
+    .tb-card summary { cursor: pointer; font-weight: 700; color: var(--fm-text-secondary); }
+    .tb-moves { list-style: none; margin: 8px 0 0; padding: 0; max-height: 260px; overflow: auto; }
+    .tb-moves li { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 8px; padding: 4px 0; border-top: 1px solid var(--fm-border); }
+    .tb-moves time { color: var(--fm-text-muted); font-size: 11.5px; }
+    .tb-moves b { font-variant-numeric: tabular-nums; }
+    .tb-credits { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+    .tb-credits select, .tb-credits input { height: 32px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--fm-border);
+        background: var(--fm-input-bg); color: var(--fm-text); font-size: 12.5px; }
+    .tb-credits select { width: auto; flex: 0 0 auto; }
+    .tb-credits input[name=amount] { width: 80px; flex: 0 0 80px; }
+    .tb-credits input[name=note] { flex: 1 1 140px; min-width: 0; }
+    @container (max-width: 760px) { .tb-sum .tb-wide { display: none; } }
+    @container (max-width: 520px) {
+        .tb-sum .tb-mid { display: none; }
+        .tb-sum .tb-only-narrow { display: inline; }
+        .tb-sum td, .tb-sum th { padding: 6px 4px; white-space: normal; }
+        .tb-sum td:first-child { font-size: 12px; }
+        .table-scroll .tb-sum { min-width: 0; }
+    }
+</style>
+
+<div class="tb">
+<details class="howto noprint">
+    <summary><svg class="ic"><use href="#i-search"/></svg> Cosa fare in questa pagina <span class="chev">▼</span></summary>
+    <div class="howto-body">
+        Il <b>tabellone del budget</b> della stagione {{ tab.season_number }}: per ogni squadra quanto ha da spendere
+        (<b>budget a disposizione</b>), quanto può ancora spendere secondo il <b>tetto salariale</b> e da dove vengono i numeri.
+        Si aggiorna da solo con aste, buste, svincoli, scambi, Decreto e premi: non c'è niente da ricopiare.
+        <ol>
+            <li>In alto il riepilogo di tutte le squadre, come nel foglio Excel; sotto, una scheda per squadra.</li>
+            <li>Nella scheda: le voci della stagione (spese e ricavi del mercato estivo e invernale, scambi, Decreto, premi)
+                e, in <b>Movimenti</b>, ogni riga con la sua data.</li>
+            {% if tab_can_manage %}
+            <li>Per un premio, una multa o un errore: nella scheda della squadra scegli <b>Aggiungi</b>, <b>Togli</b> o
+                <b>Imposta</b>, scrivi importo e motivo e premi <b>Applica</b>. Il motivo compare fra i movimenti.</li>
+            <li>Tetto, Decreto invernale/estivo e premi delle coppe si accendono in
+                <a href="{% purl 'admin_season' %}?league={{ tab_league.id }}">Stagione</a> e
+                <a href="{% purl 'admin_competitions' %}?league={{ tab_league.id }}">Competizioni</a>.</li>
+            {% endif %}
+        </ol>
+        <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> «Budget a inizio stagione» è il budget di adesso meno i movimenti della stagione: i conti tornano sempre con i crediti veri delle squadre.</div>
+    </div>
+</details>
+
+<div class="tb-meta fm-onerow">
+    <span class="tb-chip">Budget massimo <b>{{ tab.budget_max }}</b></span>
+    <span class="tb-chip{% if tab.cap_on %} on{% endif %}">Tetto salariale <b>{% if tab.cap_on %}attivo · max {{ tab.max_per_year }}{% else %}spento{% endif %}</b></span>
+    {% if tab.cap_on %}<span class="tb-chip">Spesa <b>{% if tab.net %}netta{% else %}lorda{% endif %}</b></span>{% endif %}
+    <span class="tb-chip{% if tab.decree_mid_on %} on{% endif %}">Decreto invernale <b>{% if tab.decree_mid_on %}sì{% else %}no{% endif %}</b></span>
+    <span class="tb-chip{% if tab.decree_final_on %} on{% endif %}">Decreto estivo <b>{% if tab.decree_final_on %}sì{% else %}no{% endif %}</b></span>
+    {% if tab.winter_at %}<span class="tb-chip">Inverno dal <b>{{ tab.winter_at|date:"d/m/Y" }}</b></span>{% endif %}
+</div>
+
+{% if tab.rows %}
+<section class="fm-card" style="padding:10px 12px">
+    <div class="table-scroll">
+    <table class="tb-sum">
+        <thead><tr>
+            <th>Squadra</th>
+            <th title="I crediti che la squadra ha adesso">Budget<span class="tb-mid"> a disposizione</span></th>
+            {% if tab.cap_on %}
+            <th class="tb-mid" title="Base per la classifica dell'anno prima, bonus giocatori persi e rinnovi mancati, extra salary cap">Tetto iniziale</th>
+            <th class="tb-wide" title="Fondi del girone di ritorno, per la classifica di metà stagione">Bonus metà</th>
+            <th title="Quanto può ancora spendere in aste e buste">Tetto<span class="tb-mid"> spendibile</span><span class="tb-only-narrow"> spend.</span></th>
+            {% endif %}
+            <th class="tb-mid" title="Aste e buste della stagione">Totale spesa</th>
+            <th class="tb-wide" title="Cessioni, svincoli ed estero">Ricavi</th>
+        </tr></thead>
+        <tbody>
+        {% for r in tab.rows %}
+        <tr>
+            <td><b>{{ r.team.display_name }}</b></td>
+            <td><b>{{ r.budget|floatformat:0 }}</b></td>
+            {% if tab.cap_on %}
+            {% if r.cap %}
+            <td class="tb-mid">{{ r.cap.initial|floatformat:0 }}</td>
+            <td class="tb-wide">{% if r.cap.winter_bonus %}+{{ r.cap.winter_bonus|floatformat:0 }}{% else %}—{% endif %}</td>
+            <td><b{% if r.cap.left <= 0 %} class="neg"{% endif %}>{{ r.cap.left|floatformat:0 }}</b></td>
+            {% else %}
+            <td class="tb-mid muted">—</td><td class="tb-wide muted">—</td><td class="muted">fase non aperta</td>
+            {% endif %}
+            {% endif %}
+            <td class="tb-mid">{{ r.spent|floatformat:0 }}</td>
+            <td class="tb-wide">{{ r.income|floatformat:0 }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</section>
+
+<div class="tb-cards">
+    {% for r in tab.rows %}
+    <section class="fm-card tb-card" id="tb-team-{{ r.team.id }}">
+        <h3><span>{{ r.team.display_name }}</span></h3>
+        <div class="tb-kpis">
+            <div class="tb-kpi"><span>Budget a disposizione</span><b>{{ r.budget|floatformat:0 }}</b></div>
+            <div class="tb-kpi"><span>Totale spesa</span><b>{{ r.spent|floatformat:0 }}</b></div>
+            {% if r.cap %}
+            <div class="tb-kpi"><span>Tetto iniziale</span><b>{{ r.cap.initial|floatformat:0 }}</b>
+                {% if r.cap.winter_bonus %}<small>+{{ r.cap.winter_bonus|floatformat:0 }} a metà stagione</small>{% endif %}</div>
+            <div class="tb-kpi"><span>Tetto spendibile</span><b{% if r.cap.left <= 0 %} class="neg"{% endif %}>{{ r.cap.left|floatformat:0 }}</b>
+                <small>tetto {{ r.cap.cap|floatformat:0 }}{% if r.cap.capped %} (max {{ tab.max_per_year }}){% endif %} − spesi {{ r.cap.spent|floatformat:0 }}</small></div>
+            {% endif %}
+        </div>
+        <ul class="tb-lines">
+            <li><span>Budget a inizio stagione</span><span>{{ r.budget_start|floatformat:0 }}</span></li>
+            {% for label, hint, v in r.lines %}
+            <li><span>{{ label }} <small>· {{ hint }}</small></span><span class="{% if v > 0 %}tb-pos{% else %}tb-neg{% endif %}">{% if v > 0 %}+{% endif %}{{ v|floatformat:0 }}</span></li>
+            {% endfor %}
+            <li class="tot"><span>Budget a disposizione</span><span>{{ r.budget|floatformat:0 }}</span></li>
+        </ul>
+        {% if r.cap and r.cap.entries %}
+        <details>
+            <summary>Tetto salariale: le voci</summary>
+            <ul class="tb-lines" style="margin-top:6px">
+                {% for e in r.cap.entries %}
+                <li><span>{{ e.kind }}{% if e.note %} <small>· {{ e.note }}</small>{% endif %}</span><span>{% if e.amount > 0 %}+{% endif %}{{ e.amount|floatformat:0 }}</span></li>
+                {% endfor %}
+            </ul>
+        </details>
+        {% endif %}
+        <details>
+            <summary>Movimenti ({{ r.moves|length }})</summary>
+            {% if r.moves %}
+            <ul class="tb-moves">
+                {% for m in r.moves %}
+                <li><time datetime="{{ m.at|date:'c' }}">{{ m.at|date:"d/m" }}</time><span>{{ m.text }}</span>
+                    <b class="{% if m.amount > 0 %}tb-pos{% else %}tb-neg{% endif %}">{% if m.amount > 0 %}+{% endif %}{{ m.amount|floatformat:0 }}</b></li>
+                {% endfor %}
+            </ul>
+            {% else %}<p class="muted" style="margin:6px 0 0">Nessun movimento in questa stagione.</p>{% endif %}
+        </details>
+        {% if tab_can_manage %}
+        <form class="tb-credits noprint" method="post" action="{% url 'admin_adjust_team_credits' r.team.id %}">
+            {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}#tb-team-{{ r.team.id }}">
+            <select name="mode" aria-label="Operazione sui crediti di {{ r.team.display_name }}">
+                <option value="add">Aggiungi</option><option value="sub">Togli</option><option value="set">Imposta budget</option>
+            </select>
+            <input type="number" name="amount" min="0" step="1" required inputmode="numeric" placeholder="FM" aria-label="Importo">
+            <input type="text" name="note" maxlength="120" placeholder="Motivo (es. Premio Coppa)" aria-label="Motivo">
+            <button type="submit" class="fm-btn fm-btn-secondary fm-btn-sm">Applica</button>
+        </form>
+        {% endif %}
+    </section>
+    {% endfor %}
+</div>
+{% else %}
+<div class="fm-card muted" style="padding:20px;text-align:center">Nessuna squadra in questa lega.</div>
+{% endif %}
+</div>
+<!-- tabellone:end -->
