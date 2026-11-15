@@ -16,6 +16,7 @@ from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.text import slugify
+from django.views.decorators.http import require_POST
 
 from .. import legal, throttle
 from ..models import AccountPrivacy, Auction, CoAdminInvite, Participant
@@ -183,7 +184,34 @@ CO_LINK_MESSAGES = {
 CO_LINK_ERRORS = {
     "taken": onboarding.CO_TAKEN_MESSAGE,
     "other_team": onboarding.CO_OTHER_TEAM_MESSAGE,
+    "not_for_you": onboarding.CO_NOT_FOR_YOU_MESSAGE,
 }
+
+
+@require_POST
+def co_invite_answer(request, participant_id):
+    """L'invito per nome a fare il secondo allenatore: ``accept`` collega la
+    squadra all'account, ``decline`` ritira l'invito. Solo l'account invitato."""
+    back = safe_next(request, reverse("onboarding"))
+    if not request.user.is_authenticated:
+        return redirect(f"{reverse('login')}?next={back}")
+    team = (Participant.objects.filter(pk=participant_id, is_active=True, co_invite_user=request.user)
+            .exclude(co_invite_token="").select_related("league").first())
+    if team is None:
+        messages.error(request, "Questo invito non c'è più: il presidente l'ha ritirato o la squadra ha già "
+                                "il suo secondo allenatore. Chiedigliene uno nuovo se ti serve.")
+        return redirect(back)
+    if request.POST.get("action") == "decline":
+        onboarding.clear_co_invite(team)
+        messages.success(request, f"Invito di «{team.display_name}» rifiutato.")
+        return redirect(back)
+    outcome = onboarding.link_co_user(request.user, team)
+    if outcome in CO_LINK_ERRORS:
+        messages.error(request, CO_LINK_ERRORS[outcome])
+        return redirect(back)
+    onboarding.enter_team(request, team)
+    messages.success(request, CO_LINK_MESSAGES[outcome].format(team=team.display_name))
+    return redirect("home")
 
 
 def _co_invite(request, team):
@@ -211,8 +239,11 @@ def _co_invite(request, team):
                     messages.success(request, CO_LINK_MESSAGES[outcome].format(team=team.display_name))
                     return redirect(next_url)
     taken = team.co_user_id is not None and not team.has_account(user)
+    named = team.co_invite_user_id is not None
     return render(request, "auctions/invite.html", {
         "co": True,
+        # Invito per nome: si entra solo con quell'account, niente account nuovo.
+        "named": named,
         "team": team,
         "league": league,
         "inviter": _inviter_name(league),
@@ -225,7 +256,7 @@ def _co_invite(request, team):
         "account": user,
         "legal_required": privacy.legal_required(),
         "min_age": legal.MIN_AGE,
-        "active_mode": request.POST.get("action") or "signup",
+        "active_mode": request.POST.get("action") or ("login" if named else "signup"),
     })
 
 

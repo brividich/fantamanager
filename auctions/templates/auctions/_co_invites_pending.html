@@ -1,0 +1,42 @@
+{% comment %}
+Gli inviti per nome a fare l'allenatore in seconda che l'account deve ancora
+accettare (``onboarding.pending_co_invites``). Incluso da onboarding.html,
+app_home.html e home_portal.html; vuole ``co_invites`` e ``next``.
+{% endcomment %}
+{% if co_invites %}
+<style>
+    .coinv { margin: 0 0 16px; padding: 14px 16px; border-radius: 14px; border: 1px solid rgba(22,217,104,.45);
+             background: rgba(22,217,104,.08); }
+    .coinv h3 { margin: 0 0 4px; font-size: 15px; color: var(--fm-strong); }
+    .coinv p { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--fm-text-secondary); }
+    .coinv-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+                 padding: 10px 0 0; margin-top: 10px; border-top: 1px solid var(--fm-border); }
+    .coinv-row b { color: var(--fm-strong); }
+    .coinv-act { display: flex; gap: 8px; }
+    .coinv-act button { min-height: 40px; padding: 0 16px; border-radius: 10px; font-weight: 800; font-size: 14px; cursor: pointer;
+                        border: 1px solid var(--fm-border); background: rgba(var(--fm-tint-rgb), .04); color: var(--fm-text); }
+    .coinv-act button.yes { border: 0; background: var(--fm-green-500); color: #fff; }
+</style>
+<div class="coinv" role="status">
+    <h3>Ti hanno invitato come allenatore in seconda</h3>
+    <p>Accetti e guidi la squadra insieme al suo allenatore (formazione, offerte, buste, scambi), con il tuo account.
+       Rifiuti e non cambia niente.</p>
+    {% for t in co_invites %}
+    <div class="coinv-row">
+        <span><b>{{ t.display_name }}</b>{% if t.league %} · {{ t.league.name }}{% endif %}</span>
+        <div class="coinv-act">
+            <form method="post" action="{% url 'co_invite_answer' t.id %}">
+                {% csrf_token %}<input type="hidden" name="next" value="{{ next|default:request.get_full_path }}">
+                <input type="hidden" name="action" value="decline">
+                <button type="submit">Rifiuta</button>
+            </form>
+            <form method="post" action="{% url 'co_invite_answer' t.id %}">
+                {% csrf_token %}<input type="hidden" name="next" value="{{ next|default:request.get_full_path }}">
+                <input type="hidden" name="action" value="accept">
+                <button type="submit" class="yes">Accetta</button>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}

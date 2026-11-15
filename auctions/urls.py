@@ -25,6 +25,7 @@ urlpatterns = [
     path("account/verifica/<str:token>/", views.account_verify, name="account_verify"),
     path("email/disiscrivi/<str:token>/", views.email_unsubscribe, name="email_unsubscribe"),
     # Inviti: una squadra (account + squadra collegata in un passo) o un co-admin.
+    path("invito/secondo/<int:participant_id>/", views.co_invite_answer, name="co_invite_answer"),
     path("invito/<str:token>/", views.invite, name="invite"),
     path("invito-admin/<str:token>/", views.coadmin_invite, name="coadmin_invite"),
     path("onboarding/", views.onboarding_view, name="onboarding"),

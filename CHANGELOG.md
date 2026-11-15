@@ -46,7 +46,10 @@ Prima versione numerata (prima l'etichetta era 1.2.0, senza rilasci).
 ### Lega
 - **Due account per una squadra**: nella pagina Squadre (console e app),
   in «Gestisci account», il **secondo allenatore** si crea, si collega o
-  riceve il suo link, che vale una volta. Ognuno entra con la sua password e
+  riceve il suo link, che vale una volta. Chi si è registrato da solo e non
+  ha squadra nella lega si **invita per nome utente o email**: trova l'invito
+  nell'app (e per email) e diventa allenatore in seconda quando accetta.
+  Ognuno entra con la sua password e
   guida la squadra (formazione, offerte, buste, scambi). Il link d'invito e
   il codice della squadra collegano solo il primo account.
 - Nuova pagina **Impostazioni lega**, in console (barra in alto) e nell'app

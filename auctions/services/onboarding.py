@@ -125,13 +125,27 @@ CO_OTHER_TEAM_MESSAGE = ("Hai già una squadra in questa lega: un account guida 
                          "Entra con un altro account, o chiedi al presidente.")
 
 
-def new_co_invite(team):
-    """Un link nuovo per il secondo allenatore (quello di prima non vale più)."""
+CO_NOT_FOR_YOU_MESSAGE = ("Questo invito è per un altro account. Entra con l'account a cui l'ha mandato "
+                          "il presidente, o chiedigli un invito per il tuo.")
+
+
+def new_co_invite(team, user=None):
+    """Un invito nuovo per il secondo allenatore (quello di prima non vale più).
+
+    ``user`` = invito per nome: solo quell'account lo accetta; senza, è un link
+    per chi lo riceve."""
     import secrets
 
     team.co_invite_token = secrets.token_urlsafe(24)
-    team.save(update_fields=["co_invite_token"])
+    team.co_invite_user = user
+    team.save(update_fields=["co_invite_token", "co_invite_user"])
     return team.co_invite_token
+
+
+def clear_co_invite(team):
+    team.co_invite_token = ""
+    team.co_invite_user = None
+    team.save(update_fields=["co_invite_token", "co_invite_user"])
 
 
 def co_invite_path(team):
@@ -140,22 +154,62 @@ def co_invite_path(team):
     return reverse("invite", args=[team.co_invite_token]) if team.co_invite_token else ""
 
 
+def invitable_account(ident, team):
+    """``(account, errore)``: l'account senza squadra in questa lega che si
+    chiama ``ident`` (nome utente o email), da invitare come secondo
+    allenatore di ``team``. Solo account attivi; mai uno dei due della squadra."""
+    from django.contrib.auth import get_user_model
+    from ..models import Participant
+
+    ident = (ident or "").strip()
+    if not ident:
+        return None, "Scrivi il nome utente o l'email dell'account da invitare."
+    User = get_user_model()
+    account = User.objects.filter(username__iexact=ident, is_active=True).first()
+    if account is None and "@" in ident:
+        account = User.objects.filter(email__iexact=ident, is_active=True).first()
+    if account is None:
+        return None, (f"Nessun account attivo si chiama «{ident}». Controlla come l'ha scritto, oppure "
+                      "crea il link per il secondo allenatore e mandaglielo.")
+    if team.has_account(account):
+        return None, f"«{account.username}» guida già «{team.display_name}»."
+    if Participant.objects.of_user(account).filter(league_id=team.league_id).exists():
+        return None, (f"«{account.username}» guida già un'altra squadra di questa lega: un account guida "
+                      "una squadra sola per lega.")
+    return account, ""
+
+
+def pending_co_invites(user):
+    """Gli inviti per nome che ``user`` deve ancora accettare o rifiutare."""
+    from ..models import Participant
+
+    if user is None or not getattr(user, "is_authenticated", False):
+        return []
+    return list(Participant.objects.filter(co_invite_user=user, is_active=True, co_user__isnull=True)
+                .exclude(co_invite_token="").select_related("league", "user")
+                .order_by("league__name", "display_name"))
+
+
 def link_co_user(user, team):
-    """Collega ``user`` come secondo account di ``team`` (link del secondo
-    allenatore). ``"linked"``, ``"mine"`` (è già uno dei due account),
-    ``"taken"`` (il posto è occupato) o ``"other_team"`` (l'account ha già
-    un'altra squadra nella lega). Collegato, il link non vale più."""
+    """Collega ``user`` come secondo account di ``team`` (link o invito del
+    secondo allenatore). ``"linked"``, ``"mine"`` (è già uno dei due account),
+    ``"taken"`` (il posto è occupato), ``"other_team"`` (l'account ha già
+    un'altra squadra nella lega) o ``"not_for_you"`` (l'invito è per nome, di
+    un altro account). Collegato, l'invito non vale più."""
     from ..models import Participant
 
     if team.has_account(user):
         return "mine"
     if team.co_user_id is not None:
         return "taken"
+    if team.co_invite_user_id is not None and team.co_invite_user_id != user.id:
+        return "not_for_you"
     if Participant.objects.of_user(user).filter(league_id=team.league_id).exists():
         return "other_team"
     team.co_user = user
     team.co_invite_token = ""
-    team.save(update_fields=["co_user", "co_invite_token"])
+    team.co_invite_user = None
+    team.save(update_fields=["co_user", "co_invite_token", "co_invite_user"])
     return "linked"
 
 

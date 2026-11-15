@@ -52,8 +52,12 @@ Un clic sul link più un modulo: la squadra resta collegata all'account.
         <div class="howto-body">
             {% if co %}
             <ol>
+                {% if named %}
+                <li>L'invito è per il tuo account: <b>entra con nome utente e password</b> e la squadra si collega. Guidi {{ team.display_name }} insieme al suo allenatore (formazione, offerte, buste, scambi).</li>
+                {% else %}
                 <li><b>Crea l'account</b>: nome utente e password tuoi. Guidi {{ team.display_name }} insieme al suo allenatore (formazione, offerte, buste, scambi), ognuno col suo account.</li>
                 <li>Hai già un account FantaManager? <b>Ho già un account</b>: entri e la squadra si collega.</li>
+                {% endif %}
                 <li>Fatto: il link non vale più. Da lì entri con nome utente e password, da qualsiasi dispositivo.</li>
             </ol>
             <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Il link vale una volta sola e solo per te: non inoltrarlo.</div>
@@ -93,12 +97,13 @@ Un clic sul link più un modulo: la squadra resta collegata all'account.
     </form>
     <p class="auth-legal"><a href="{% url 'logout' %}">Non sei tu? Esci</a></p>
     {% else %}
-    <div class="inv-tabs" role="tablist"{% if co %} style="grid-template-columns:repeat(2, minmax(0, 1fr))"{% endif %}>
-        <button type="button" role="tab" data-pane="signup" aria-selected="{% if active_mode == 'signup' %}true{% else %}false{% endif %}">Crea l'account ed entra</button>
+    <div class="inv-tabs" role="tablist"{% if named %} style="grid-template-columns:minmax(0, 1fr)"{% elif co %} style="grid-template-columns:repeat(2, minmax(0, 1fr))"{% endif %}>
+        {% if not named %}<button type="button" role="tab" data-pane="signup" aria-selected="{% if active_mode == 'signup' %}true{% else %}false{% endif %}">Crea l'account ed entra</button>{% endif %}
         <button type="button" role="tab" data-pane="login" aria-selected="{% if active_mode == 'login' %}true{% else %}false{% endif %}">Ho già un account</button>
         {% if not co %}<button type="button" role="tab" data-pane="guest" aria-selected="{% if active_mode == 'guest' %}true{% else %}false{% endif %}">Solo l'asta, senza account</button>{% endif %}
     </div>
 
+    {% if not named %}
     <div class="inv-pane" data-pane="signup"{% if active_mode != 'signup' %} hidden{% endif %}>
         <form method="post">{% csrf_token %}
             <input type="hidden" name="action" value="signup"><input type="hidden" name="next" value="{{ next }}">
@@ -117,6 +122,7 @@ Un clic sul link più un modulo: la squadra resta collegata all'account.
             <button type="submit" class="btn-submit" style="margin-top:16px"{% if taken %} disabled{% endif %}>Crea l'account ed entra →</button>
         </form>
     </div>
+    {% endif %}
 
     <div class="inv-pane" data-pane="login"{% if active_mode != 'login' %} hidden{% endif %}>
         <form method="post">{% csrf_token %}
