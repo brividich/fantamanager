@@ -254,3 +254,18 @@ class IncomeNotDecreeTests(TestCase):
                                  credits_delta=Decimal("-80"))
         row = economy.tabellone(league)["rows"][0]
         self.assertEqual((row["totals"]["summer_income"], row["totals"]["decree"]), (Decimal("80"), Decimal("0")))
+
+
+class SetAvailableBudgetTests(TestCase):
+    def test_set_left_counts_what_was_already_spent(self):
+        owner = User.objects.create_user("pres_left", password="pw", is_staff=True)
+        league = League.objects.create(name="Lega Residui", owner=owner)
+        team = Participant.objects.create(display_name="Club", league=league, credits=Decimal("1000"),
+                                          spent_credits=Decimal("300"))
+        self.client.force_login(owner)
+        self.client.post(reverse("admin_adjust_team_credits", args=[team.id]),
+                         {"mode": "set_left", "amount": "500", "note": "Riallineo al foglio"})
+        team.refresh_from_db()
+        self.assertEqual((team.remaining_credits, team.credits), (Decimal("500"), Decimal("800")))
+        row = economy.tabellone(league)["rows"][0]
+        self.assertEqual(row["totals"]["manual"], Decimal("-200"))

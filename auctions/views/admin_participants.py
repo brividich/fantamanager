@@ -448,7 +448,7 @@ def admin_adjust_team_credits(request, participant_id):
     if denied:
         return denied
     _sala_guard(p.league_id)
-    mode = request.POST.get("mode", "add")  # "add", "sub", "set"
+    mode = request.POST.get("mode", "add")  # "add", "sub", "set" (totale), "set_left" (a disposizione)
     raw_amount = request.POST.get("amount", "0")
     try:
         val = Decimal(raw_amount)
@@ -462,6 +462,9 @@ def admin_adjust_team_credits(request, participant_id):
         p.credits = max(Decimal("0"), p.credits - val)
     elif mode == "set":
         p.credits = max(Decimal("0"), val)
+    elif mode == "set_left":
+        # Il budget a disposizione (quello del tabellone): i crediti già spesi restano spesi.
+        p.credits = max(Decimal("0"), p.spent_credits + val)
 
     p.save(update_fields=["credits"])
     if p.credits != before:

@@ -76,7 +76,8 @@ Contesto: tab (il dizionario di tabellone), tab_can_manage, tab_league.
                 e, in <b>Movimenti</b>, ogni riga con la sua data.</li>
             {% if tab_can_manage %}
             <li>Per un premio, una multa o un errore: nella scheda della squadra scegli <b>Aggiungi</b>, <b>Togli</b> o
-                <b>Imposta</b>, scrivi importo e motivo e premi <b>Applica</b>. Il motivo compare fra i movimenti.</li>
+                <b>Imposta a disposizione</b> (il budget a disposizione diventa quel numero; i crediti spesi restano spesi),
+                scrivi importo e motivo e premi <b>Applica</b>. Il motivo compare fra i movimenti.</li>
             <li>Tetto, Decreto invernale/estivo e premi delle coppe si accendono in
                 <a href="{% purl 'admin_season' %}?league={{ tab_league.id }}">Stagione</a> e
                 <a href="{% purl 'admin_competitions' %}?league={{ tab_league.id }}">Competizioni</a>.</li>
@@ -179,7 +180,7 @@ Contesto: tab (il dizionario di tabellone), tab_can_manage, tab_league.
         <form class="tb-credits noprint" method="post" action="{% url 'admin_adjust_team_credits' r.team.id %}">
             {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}#tb-team-{{ r.team.id }}">
             <select name="mode" aria-label="Operazione sui crediti di {{ r.team.display_name }}">
-                <option value="add">Aggiungi</option><option value="sub">Togli</option><option value="set">Imposta budget</option>
+                <option value="add">Aggiungi</option><option value="sub">Togli</option><option value="set_left">Imposta a disposizione</option>
             </select>
             <input type="number" name="amount" min="0" step="1" required inputmode="numeric" placeholder="FM" aria-label="Importo">
             <input type="text" name="note" maxlength="120" placeholder="Motivo (es. Premio Coppa)" aria-label="Motivo">
