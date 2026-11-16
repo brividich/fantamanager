@@ -33,6 +33,7 @@ from .common import (
     app_admin_league,
     app_admin_leagues,
     participant_join_url,
+    safe_next,
     user_can_manage_league,
 )
 
@@ -282,7 +283,8 @@ def app_view_as(request, participant_id):
             privacy.audit(request.user, "view_as", target_user=account, league=team.league,
                           detail=f"Squadra {team.display_name}")
     # No flash message: the shell's "Vista admin" banner already says it.
-    return redirect("app_home")
+    # ``next``: la pagina dell'app da aprire con quella squadra (es. le buste).
+    return redirect(safe_next(request, reverse("app_home")))
 
 
 @require_POST

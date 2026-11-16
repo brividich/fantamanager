@@ -9,7 +9,7 @@ Ogni tipo di mercato ha le sue fasi, i suoi numeri e le sue regole: i testi
 arrivano da mk_labels (SESSION_LABELS in views/admin_market.py) e i rinnovi
 hanno un quadro tutto loro (renewals: contratti da dichiarare e dadi per squadra).
 
-Parametri: s, current_league, participants_stats, delivered, bids_list,
+Parametri: s, current_league, my_team / my_team_next / my_team_moves (la squadra dell'admin in questa lega), participants_stats, delivered, bids_list,
 results, is_preview, sealed, ties_ahead (pareggi previsti, a consegna chiusa), pending_releases, pending_teams, free_total, free_by_role, reachable, mail_ready, now,
 release_board, list_team, list_view (lista «Chi lasceresti andare», buste aperte), share_text (riepilogo da copiare),
 mk_labels, is_buste, is_renewals, renewals,
@@ -27,12 +27,15 @@ mk_labels, is_buste, is_renewals, renewals,
         <ol>
             <li>{% if s.status == "draft" %}<b>Adesso:</b> la sessione è programmata{% if s.opens_at %} e si apre da sola il {{ s.opens_at|date:"d/m H:i" }}{% endif %}.
                 Per aprirla subito premi <b>Apri ora</b>.{% elif s.status == "open" %}✓ La sessione è aperta alle squadre.{% else %}✓ La sessione è stata aperta.{% endif %}</li>
+            {% if my_team and s.is_open %}
+            <li>Giochi anche tu con <b>{{ my_team.display_name }}</b>: {% if is_buste %}le tue buste{% else %}le tue mosse{% endif %} le fai come le altre squadre, dalla pagina Mercato della squadra: premi <b>{% if is_buste %}Consegna le tue buste{% else %}Fai le tue mosse{% endif %}</b>.</li>
+            {% endif %}
             {% if s.status != "resolved" %}
             <li>Controlla le regole sotto i numeri: per cambiarle, anche titolo e chiusura, premi <b>Regole</b>.
                 Con <b>Avvisa via email</b> mandi l'avviso alle squadre{% if not mail_ready %}{% if request.user.is_superuser %} (prima configura la posta: Impostazioni → Posta){% else %} (l'invio email non è attivo su questo sito: avvisa le squadre nel gruppo della lega){% endif %}{% endif %}.</li>
             {% endif %}
             {% if release_board %}
-            <li>Ogni squadra compila dall'app la lista <b>«Chi lasceresti andare»</b>: senza, le sue buste non partono.
+            <li>Ogni squadra compila dall'app la lista <b>«Chi lasceresti andare»</b>{% if s.release_list_required %}: senza, le sue buste non partono{% else %}: è facoltativa, serve da proposta per dopo lo spoglio{% endif %}.
                 {% if release_board.missing %}Non l'hanno ancora salvata: {{ release_board.missing|join:", " }}.{% else %}✓ L'hanno salvata tutte.{% endif %}
                 Per chi non usa l'app la compili tu, in fondo a <b>{{ mk_labels.deliveries }}</b>.</li>
             {% endif %}
@@ -53,7 +56,7 @@ mk_labels, is_buste, is_renewals, renewals,
             {% endif %}
             {% if pending_releases %}
             <li><b>Adesso:</b> ogni giocatore vinto entra al posto di un pari ruolo della rosa. Le squadre confermano chi esce dall'app
-                (Mercato → questa sessione), partendo dalla loro lista «Chi lasceresti andare»; per chi non lo fa, controlla le scelte in
+                (Mercato → questa sessione), partendo dalla loro lista «Chi lasceresti andare» se l'hanno compilata; per chi non lo fa, controlla le scelte in
                 <b>Aggiudicazioni effettuate</b> e premi <b>Conferma</b> sulla squadra{% if current_league.contracts_enabled %}: con
                 <b>Conferma e tira i dadi</b> si tirano anche i dadi del contratto, con <b>Conferma, dadi dopo</b> restano da tirare in Contratti{% endif %}.
                 Ne mancano {{ pending_releases|length }}.{% if s.release_confirm_hours %} Le squadre hanno {{ s.release_confirm_hours }} ore dallo spoglio:
@@ -70,6 +73,18 @@ mk_labels, is_buste, is_renewals, renewals,
         <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> {% if mk_labels.reveal and s.status != "resolved" %}Finché la finestra è aperta le offerte restano segrete anche per te: vedi solo chi ha consegnato. Le apri con <b>{{ mk_labels.reveal }}</b> dopo averla chiusa. {% endif %}Il cestino in alto elimina la sessione con tutte le sue offerte.</div>
     </div>
 </details>
+{% if my_team and s.is_open %}
+<div class="mk-banner info">
+    <svg class="ic"><use href="#i-shirt"/></svg>
+    <span><b>Giochi anche tu con {{ my_team.display_name }}.</b>
+    {% if is_buste %}Le tue buste{% else %}Le tue mosse{% endif %} non si fanno da questa pagina ma da quella della squadra, come per tutti{% if is_buste %} (qui restano segrete anche per te){% endif %}.
+    {% if my_team_moves and mk_labels.item %}Finora: {{ my_team_moves }} {% if my_team_moves == 1 %}{{ mk_labels.item }}{% else %}{{ mk_labels.items }}{% endif %}.{% endif %}</span>
+    <form method="post" action="{% url 'app_view_as' my_team.id %}" style="margin:0">
+        {% csrf_token %}<input type="hidden" name="next" value="{{ my_team_next }}">
+        <button type="submit" class="fm-btn fm-btn-primary fm-btn-sm">{% if is_buste %}Consegna le tue buste{% else %}Fai le tue mosse{% endif %} →</button>
+    </form>
+</div>
+{% endif %}
 <div class="mk-col">
 <article class="fm-card">
     <div class="mk-sess-top">

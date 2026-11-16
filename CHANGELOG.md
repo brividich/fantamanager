@@ -94,6 +94,11 @@ Prima versione numerata (prima l'etichetta era 1.2.0, senza rilasci).
   server si è aggiornato.
 
 ### Mercato
+- Mercato da PC: chi entra da computer con la sua squadra trova nel portale
+  «La tua squadra» con il mercato aperto («Consegna le buste»), rosa e
+  formazione; l'admin che gioca anche lui trova nella pagina della sessione
+  (console e app) «Consegna le tue buste», che apre la pagina Mercato con la
+  sua squadra.
 - Buste con chi esce scelto dopo lo spoglio: la lista «Chi lasceresti andare»
   può essere facoltativa (predefinito nel wizard «Nuovo Mercato», si cambia
   nelle regole della sessione). Le buste partono senza lista e chi esce si
