@@ -94,6 +94,10 @@ Prima versione numerata (prima l'etichetta era 1.2.0, senza rilasci).
   server si è aggiornato.
 
 ### Mercato
+- App da PC: la Rosa non mette più in riga titolo, griglia e piè di pagina
+  (un `<div>` non chiuso: nomi tagliati e barre di scorrimento); la pagina
+  Mercato scorre (prima su PC era alta quanto la finestra e il resto non si
+  raggiungeva); le pagine a schermo intero che non ci stanno scorrono.
 - Buste col taglio nella busta: se lo stesso giocatore da tagliare è indicato
   in due buste vinte, la seconda non si perde più quando il taglio serviva
   (pari ruolo obbligatorio o rosa piena): il giocatore si assegna e chi esce,
