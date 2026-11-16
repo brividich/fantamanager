@@ -318,12 +318,13 @@ app through one of their teams — a banner with the way back.
             margin: 0 0 0 216px; max-width: 960px;
             padding: 26px 32px 48px;
         }
-        /* Pagine "a schermo intero": su PC la pagina non scorre, occupa lo
-           spazio sotto la barra in alto e sono i singoli pannelli (liste
-           lunghe) ad avere uno scroll interno. */
+        /* Pagine "a schermo intero": su PC la pagina occupa lo spazio sotto
+           la barra in alto e sono i singoli pannelli (liste lunghe) ad avere
+           uno scroll interno. Se su uno schermo basso non ci sta, scorre:
+           mai contenuto tagliato e irraggiungibile. */
         .app-main.fit {
             max-width: none; box-sizing: border-box;
-            height: calc(100vh - 56px); overflow: hidden;
+            height: calc(100vh - 56px); overflow-y: auto;
             display: flex; flex-direction: column;
             padding: 20px 28px;
         }

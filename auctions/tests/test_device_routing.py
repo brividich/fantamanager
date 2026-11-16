@@ -161,3 +161,52 @@ class DesktopMarketAccessTests(TestCase):
         self.client.force_login(self.owner)
         page = self.client.get(reverse("admin_market_session", args=[self.session.id]), HTTP_USER_AGENT=self.desktop_ua)
         self.assertNotContains(page, "Giochi anche tu")
+
+
+class AppMainMarkupTests(TestCase):
+    """Ogni pagina dell'app chiude i suoi <div> dentro <main>: un div lasciato
+    aperto (Rosa) metteva in riga intestazione, griglia e piè di pagina su PC."""
+
+    def setUp(self):
+        from ..models import MarketSession, Player
+        self.user = User.objects.create_user("allenatore_html", password="pw")
+        self.league = League.objects.create(name="Lega HTML", budget=Decimal("500"))
+        self.team = Participant.objects.create(league=self.league, display_name="Squadra HTML", user=self.user)
+        Participant.objects.create(league=self.league, display_name="Altra squadra")
+        Player.objects.create(name="Portiere Uno", role="P", team="Roma", league=self.league, owner=self.team,
+                              cost=Decimal("5"))
+        Player.objects.create(name="Punta Libera", role="A", team="Lazio", league=self.league)
+        MarketSession.objects.create(league=self.league, title="Buste", status=MarketSession.Status.OPEN,
+                                     session_type=MarketSession.SessionType.SEALED_BIDS)
+
+    @staticmethod
+    def _main_div_balance(html):
+        from html.parser import HTMLParser
+
+        class P(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.depth, self.in_main, self.at_close = 0, False, None
+
+            def handle_starttag(self, tag, attrs):
+                if tag == "main":
+                    self.in_main, self.depth = True, 0
+                elif tag == "div" and self.in_main:
+                    self.depth += 1
+
+            def handle_endtag(self, tag):
+                if tag == "main" and self.in_main:
+                    self.in_main, self.at_close = False, self.depth
+                elif tag == "div" and self.in_main:
+                    self.depth -= 1
+
+        p = P()
+        p.feed(html)
+        return p.at_close
+
+    def test_app_pages_close_their_divs(self):
+        self.client.force_login(self.user)
+        for name in ("app_home", "app_rosa", "app_mercato", "app_formazione", "app_scambi", "app_lega"):
+            resp = self.client.get(reverse(name))
+            self.assertEqual(resp.status_code, 200, name)
+            self.assertEqual(self._main_div_balance(resp.content.decode()), 0, f"{name}: <div> non chiusi in <main>")
