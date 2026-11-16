@@ -65,6 +65,7 @@ def home_portal(request):
             return redirect(safe_next(request, reverse("dashboard")))
 
     return render(request, "auctions/home_portal.html", {
+        "my_team": _my_team_card(participant),
         "leagues": leagues,
         "current_league": current_league,
         "auctions": auctions,
@@ -75,3 +76,33 @@ def home_portal(request):
         "is_remote": remote.request_is_remote(request),
         "co_invites": pending_co_invites(user),
     })
+
+
+def _my_team_card(participant):
+    """Il riquadro «La tua squadra» del portale da PC: chi ha una squadra
+    arriva qui dopo l'accesso, e da qui va al mercato aperto, alla rosa e
+    alla formazione (le pagine dell'app, che funzionano anche da PC)."""
+    if participant is None or participant.league_id is None:
+        return None
+    from .. import services
+    from ..models import MarketBid, MarketSession
+    league = participant.league
+    services.sync_market_schedule(league)
+    market = next((s for s in MarketSession.objects.filter(league=league, status=MarketSession.Status.OPEN)
+                   if s.is_open), None)
+    # Buste scrutinate in cui la squadra deve ancora scegliere chi esce.
+    releases = None
+    for done in MarketSession.objects.filter(league=league,
+                                             status=MarketSession.Status.RESOLVED).order_by("-updated_at")[:5]:
+        if services.pending_releases(done, participant.id):
+            releases = done
+            break
+    return {
+        "team": participant,
+        "league": league,
+        "market": market,
+        "is_buste": bool(market and market.session_type in (MarketSession.SessionType.SEALED_BIDS,
+                                                            MarketSession.SessionType.REPAIR)),
+        "my_bids": MarketBid.objects.filter(session=market, participant=participant).count() if market else 0,
+        "releases": releases,
+    }

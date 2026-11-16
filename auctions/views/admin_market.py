@@ -562,8 +562,17 @@ def session_manage_context(request, session):
         mark_bids_seen(session)
 
     repair = _repair_data(league)
+    # L'admin gioca anche lui: la sua squadra in questa lega, per il tasto che
+    # porta alle sue mosse nella pagina Mercato dell'app (come le altre squadre).
+    my_team = None
+    if request.user.is_authenticated and session.session_type != _ST.LIVE_AUCTION:
+        my_team = Participant.objects.of_user(request.user).filter(league=league, is_active=True).first()
     return {
         "s": session,
+        "my_team": my_team,
+        # Si apre l'app con la sua squadra (app_view_as, POST) sulla pagina Mercato.
+        "my_team_next": f"{reverse('app_mercato')}?session_id={session.id}",
+        "my_team_moves": bid_counts.get(my_team.id, 0) if my_team is not None else 0,
         "current_league": league,
         "now": timezone.now(),
         "mk_labels": labels,

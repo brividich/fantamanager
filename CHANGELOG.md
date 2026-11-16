@@ -94,6 +94,16 @@ Prima versione numerata (prima l'etichetta era 1.2.0, senza rilasci).
   server si è aggiornato.
 
 ### Mercato
+- Buste col taglio nella busta: se lo stesso giocatore da tagliare è indicato
+  in due buste vinte, la seconda non si perde più quando il taglio serviva
+  (pari ruolo obbligatorio o rosa piena): il giocatore si assegna e chi esce,
+  di pari ruolo, si sceglie dopo lo spoglio (dall'app la squadra, o l'admin
+  dalla sessione). Si perde solo se non c'è un altro pari ruolo che possa uscire.
+- Mercato da PC: chi entra da computer con la sua squadra trova nel portale
+  «La tua squadra» con il mercato aperto («Consegna le buste»), rosa e
+  formazione; l'admin che gioca anche lui trova nella pagina della sessione
+  (console e app) «Consegna le tue buste», che apre la pagina Mercato con la
+  sua squadra.
 - Buste con chi esce scelto dopo lo spoglio: la lista «Chi lasceresti andare»
   può essere facoltativa (predefinito nel wizard «Nuovo Mercato», si cambia
   nelle regole della sessione). Le buste partono senza lista e chi esce si

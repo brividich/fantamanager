@@ -458,6 +458,16 @@ def get_participant_market_bids(session_id, participant_id):
 #   possibile, crediti e slot della rosa.
 
 
+# Esito di ``_Plan._check`` al posto del giocatore da tagliare: il taglio
+# indicato nella busta l'ha già usato un'altra busta vinta della squadra, ma
+# la squadra ha un altro pari ruolo che può uscire.
+# Il giocatore si assegna lo stesso e chi esce si sceglie dopo lo spoglio,
+# come nelle sessioni «dopo lo spoglio» (``release_pending``).
+SWAP_LATER = object()
+SWAP_LATER_NOTE = ("(il taglio indicato è già uscito per un'altra busta vinta: chi esce, di pari ruolo, "
+                   "si sceglie dopo lo spoglio)")
+
+
 class _Plan:
     """Stato in memoria dello spoglio: nessuna scrittura sul database."""
 
@@ -506,19 +516,31 @@ class _Plan:
         self.gk_fixed = defaultdict(list)    # club dei portieri che restano di sicuro
         self.gk_rel = defaultdict(list)      # club dei portieri che possono uscire
         self.pending = defaultdict(lambda: defaultdict(int))
-        if self.after:
-            # Allo spareggio (dopo lo spoglio) i vinti di questa sessione non
-            # sono sostituibili e le sostituzioni ancora da scegliere contano.
-            won = (session.results_summary or {}).get("won", [])
-            won_ids = {w["player_id"] for w in won}
-            for w in won:
-                if w.get("release_pending"):
-                    self.pending[w["winner_id"]][w["player_role"]] += 1
-            # Anche le sostituzioni ancora da scegliere di altre buste della
-            # lega impegnano un pari ruolo, e i loro vinti restano.
-            for w in _other_pending(session):
+        # Allo spareggio (dopo lo spoglio) i vinti di questa sessione non
+        # sono sostituibili e le sostituzioni ancora da scegliere contano.
+        won = (session.results_summary or {}).get("won", [])
+        won_ids = {w["player_id"] for w in won}
+        for w in won:
+            if w.get("release_pending"):
                 self.pending[w["winner_id"]][w["player_role"]] += 1
-                won_ids.add(w["player_id"])
+        # Anche le sostituzioni ancora da scegliere di altre buste della
+        # lega impegnano un pari ruolo, e i loro vinti restano.
+        for w in _other_pending(session):
+            self.pending[w["winner_id"]][w["player_role"]] += 1
+            won_ids.add(w["player_id"])
+        # Chi potrebbe uscire più tardi al posto di un acquisto il cui taglio
+        # indicato non c'è più (SWAP_LATER): (id, ruolo) per squadra.
+        self.swap_pool = defaultdict(list)
+        # I tagli già usati da buste vinte in questo spoglio: solo per questi
+        # vale SWAP_LATER (un taglio uscito di rosa per altro, es. uno scambio,
+        # si giudica come prima, senza il taglio).
+        # Allo spareggio contano anche i tagli già fatti dallo spoglio.
+        self.cut_used = {w["released_player_id"] for w in won if w.get("released_player_id")}
+        if not self.after:
+            for pl in Player.objects.filter(owner_id__in=list(self.participants), abroad_list=False):
+                if pl.pk not in won_ids and not _cut_problem(pl):
+                    self.swap_pool[pl.owner_id].append((pl.pk, pl.role))
+        if self.after:
             for pl in Player.objects.filter(owner_id__in=list(self.participants), abroad_list=False):
                 if pl.pk in won_ids or _cut_problem(pl):
                     # Restano in rosa comunque: vinti qui o non svincolabili.
@@ -553,6 +575,13 @@ class _Plan:
     def _rank(b):
         return (-b.amount, b.priority, b.created_at, b.id)
 
+    def _swappable(self, pid, role):
+        """Quanti giocatori di ``role`` della squadra potrebbero ancora uscire
+        al posto di un acquisto, tolti quelli già impegnati da sostituzioni da
+        scegliere."""
+        n = sum(1 for plid, r in self.swap_pool[pid] if r == role and self.owner.get(plid, pid) == pid)
+        return n - self.pending[pid][role]
+
     def _check(self, bid):
         """Can ``bid`` be awarded now? Returns (ok, note, release_player, refund)."""
         participant = self.participants.get(bid.participant_id)
@@ -571,19 +600,29 @@ class _Plan:
         refund = Decimal("0")
         release_note = ""
         if bid.release_player_id:
-            if (self.owner.get(bid.release_player_id) == participant.id
-                    and not _cut_problem(self.players[bid.release_player_id])):
-                release = self.players[bid.release_player_id]
+            cut = self.players[bid.release_player_id]
+            if (self.owner.get(bid.release_player_id) == participant.id and not _cut_problem(cut)
+                    # Non quello che serve a una sostituzione ancora da scegliere.
+                    and not (self.pending[participant.id][cut.role] and self._swappable(participant.id, cut.role) < 1)):
+                release = cut
                 refund = _calc_release_refund(self.session, release)
             else:
                 release_note = " (taglio condizionato non più possibile)"
+        # Il taglio indicato l'ha già usato un'altra busta vinta: se serviva
+        # (pari ruolo obbligatorio o rosa piena) e la squadra ha un altro pari
+        # ruolo che può uscire, l'acquisto vale lo stesso e chi esce si
+        # sceglie dopo lo spoglio.
+        can_swap = (release is None and bid.release_player_id in self.cut_used
+                    and self._swappable(participant.id, role) > 0)
+        swap = False
         if self.session.require_same_role_release and (release is None or release.role != role):
-            return (
-                False,
-                "Il giocatore da tagliare (pari ruolo) non è più in rosa: l'acquisto non può sostituire nessuno",
-                None,
-                Decimal("0"),
-            )
+            if not can_swap:
+                why = ("Il giocatore da tagliare (pari ruolo) è già uscito per un'altra busta vinta e non ce n'è "
+                       "un altro che possa uscire" if bid.release_player_id in self.cut_used
+                       else "Il giocatore da tagliare (pari ruolo) non è più in rosa")
+                return (False, why + ": l'acquisto non può sostituire nessuno", None, Decimal("0"))
+            swap = True
+            release_note = ""
 
         player = bid.player
         if self.gk_limit and role == "P" and player.team:
@@ -606,14 +645,19 @@ class _Plan:
             return (False, f"Tetto salariale: margine rimasto {room:.0f} FM", None, Decimal("0"))
 
         cap = self.league.slots_for(role)
-        if cap > 0:
+        if cap > 0 and not swap:
             bucket = self.league.slot_roles(role)
             count = sum(self.owned[participant.id][r] for r in bucket)
             if release is not None and release.role in bucket:
                 count -= 1
             if count + 1 > cap:
-                return False, f"Rosa piena per il ruolo {role} ({cap} slot)" + release_note, None, Decimal("0")
+                if not can_swap:
+                    return False, f"Rosa piena per il ruolo {role} ({cap} slot)" + release_note, None, Decimal("0")
+                swap = True
 
+        if swap:
+            # Entra al posto di un pari ruolo da scegliere: gli slot non cambiano.
+            return True, SWAP_LATER_NOTE, SWAP_LATER, Decimal("0")
         return True, release_note.strip(), release, refund
 
     def _check_after(self, participant, bid, role):
@@ -642,11 +686,17 @@ class _Plan:
     def _award(self, bid, release, refund, note):
         pid = bid.participant_id
         player = bid.player
+        swap = release is SWAP_LATER
+        if swap:
+            release = None
+            self.pending[pid][player.role] += 1
         self.owner[player.id] = pid
-        self.owned[pid][player.role] += 1
+        # Con la sostituzione da scegliere esce un pari ruolo: la rosa non cresce.
+        self.owned[pid][player.role] += 0 if swap else 1
         if player.role == "P" and player.team:
             self.gk_clubs[pid][player.team] += 1
         if release is not None:
+            self.cut_used.add(release.id)
             self.owner[release.id] = None
             self.owned[pid][release.role] -= 1
             if release.role == "P" and release.team:
@@ -675,7 +725,7 @@ class _Plan:
             "released_player_cost": str(release.cost) if release else None,
             "refund": int(refund),
             "refund_exact": str(refund),
-            "release_pending": self.after,
+            "release_pending": self.after or swap,
         })
 
     def _resolve_player(self, player_id, bids):
@@ -1248,6 +1298,9 @@ def settle_market_tie(session_id, player_id, winner_id=None, rng=None, rebids=No
         method = "draw"
 
     win_bid, release, refund = chosen
+    swap = release is SWAP_LATER
+    if swap:
+        release = None
     participant = plan.participants[win_bid.participant_id]
     refund = _apply_award(session, participant, win_bid.player, win_bid.amount, release, refund)
 
@@ -1282,7 +1335,7 @@ def settle_market_tie(session_id, player_id, winner_id=None, rng=None, rebids=No
         "refund": int(refund),
         "refund_exact": str(refund),
         "tie_break": method,
-        "release_pending": session.release_after_count,
+        "release_pending": session.release_after_count or swap,
         "pending_since": tie["settled"]["at"],
     })
     summary["total_acquisitions"] = len(summary["won"])
@@ -1422,8 +1475,11 @@ def release_list_board(session):
 
 def release_deadline(session, entry):
     """Fino a quando la squadra conferma chi esce per ``entry`` (None:
-    nessun termine). Conta dallo spoglio, o dallo spareggio per i pareggi."""
-    if not session.release_confirm_hours:
+    nessun termine). Conta dallo spoglio, o dallo spareggio per i pareggi.
+    Solo dove chi esce si sceglie dopo lo spoglio: col taglio nella busta
+    (taglio indicato non più disponibile) non c'è una lista da applicare,
+    la squadra sceglie finché non lo fa l'admin."""
+    if not session.release_confirm_hours or not session.release_after_count:
         return None
     since = entry.get("pending_since") or (session.results_summary or {}).get("resolved_at")
     try:
@@ -1618,8 +1674,9 @@ def confirm_market_releases(session_id, winner_id, choices, *, roll_dice=False, 
 
 def _other_pending(session):
     """Le sostituzioni ancora da scegliere nelle altre buste della lega."""
-    others = MarketSession.objects.filter(league_id=session.league_id, status=MarketSession.Status.RESOLVED,
-                                          release_after=True).exclude(pk=session.pk)
+    # Anche le buste col taglio nella busta possono averne (SWAP_LATER).
+    others = MarketSession.objects.filter(league_id=session.league_id,
+                                          status=MarketSession.Status.RESOLVED).exclude(pk=session.pk)
     return [w for other in others for w in pending_releases(other)]
 
 

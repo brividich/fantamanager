@@ -495,6 +495,13 @@
         align-items: center;
         gap: 10px;
     }
+    /* «La tua squadra»: chi ha una squadra va da qui al mercato, alla rosa, alla formazione. */
+    .hp-team { gap: 14px; min-width: 0; }
+    .hp-team:hover { transform: none; }
+    .hp-team .hp-team-now { font-size: 14px; color: var(--fm-text-secondary); line-height: 1.5; margin: 0; }
+    .hp-team .hp-team-now b { color: var(--fm-strong); }
+    .hp-team .hp-team-actions { display: flex; gap: 10px; align-items: center; }
+    .hp-team .hp-team-actions .hp-btn-large { padding: 12px 20px; flex-shrink: 0; }
 </style>
 
 <div class="hp-container">
@@ -597,7 +604,13 @@
                 <li>Fai l'asta come allenatore? Tocca <b>Partecipa all'Asta Live</b> ed entra con il codice o il link della tua squadra.</li>
                 <li>Vuoi l'asta sulla TV o sul proiettore? Tocca
                     {% if active_auction %}<b>Apri Maxischermo su Proiettore</b>{% else %}<b>Maxischermo (Scegli Sessione)</b> e scegli l'asta{% endif %}.</li>
+                {% if my_team %}
+                <li>{% if my_team.releases %}<b>Adesso:</b> hai vinto giocatori alle buste <b>{{ my_team.releases.title }}</b>: in <b>La tua squadra</b> premi <b>Conferma chi esce</b>.
+                    {% elif my_team.market %}<b>Adesso:</b> il mercato <b>{{ my_team.market.title }}</b> è aperto: in <b>La tua squadra</b> premi <b>{% if my_team.is_buste %}Consegna le buste{% else %}Vai al mercato{% endif %}</b>.
+                    {% else %}La tua squadra è <b>{{ my_team.team.display_name }}</b>: da <b>La tua squadra</b> vai a rosa, formazione e mercato.{% endif %}</li>
+                {% else %}
                 <li>Rosa, formazione e buste di mercato: tocca <b>Portale App Allenatori (Rosa &amp; Formazione)</b>.</li>
+                {% endif %}
                 {% if is_unlocked %}
                 <li>Organizzi la lega: tocca <b>Entra nel Command Center / Dashboard</b>.</li>
                 {% elif is_remote %}
@@ -609,6 +622,38 @@
             <div class="tip"><svg class="ic"><use href="#i-bulb"/></svg> Gli allenatori non hanno bisogno di password: il link o il QR della squadra li fa entrare già riconosciuti.</div>
         </div>
     </details>
+
+    {% if my_team %}
+    <!-- La tua squadra: da PC al mercato, alla rosa e alla formazione -->
+    <section class="hp-door-card hp-door-free hp-team" aria-label="La tua squadra">
+        <div class="hp-door-head">
+            <div>
+                <span class="hp-door-badge">La tua squadra · {{ my_team.league.name }}</span>
+                <h2 class="hp-door-title" style="margin-top:10px">{{ my_team.team.display_name }}</h2>
+                <p class="hp-door-sub">Budget disponibile: <b>{{ my_team.team.remaining_credits|floatformat:0 }} FM</b></p>
+            </div>
+            <div class="hp-door-icon"><svg class="ic"><use href="#i-shirt"/></svg></div>
+        </div>
+        <p class="hp-team-now">
+            {% if my_team.releases %}<b>Adesso: conferma chi esce.</b> Hai vinto giocatori alle buste «{{ my_team.releases.title }}»: scegli chi lascia la rosa al loro posto.
+            {% elif my_team.market %}<b>Mercato aperto: {{ my_team.market.title }}</b>{% if my_team.market.closes_at %}, chiude il {{ my_team.market.closes_at|date:"d/m H:i" }}{% endif %}.
+                {% if my_team.is_buste %}{% if my_team.my_bids %}Hai consegnato {{ my_team.my_bids }} bust{{ my_team.my_bids|pluralize:"a,e" }}: puoi aggiungerne o ritirarle fino alla chiusura.{% else %}Non hai ancora consegnato buste.{% endif %}{% endif %}
+            {% else %}Nessun mercato aperto in questo momento: rosa e formazione sono sempre qui.{% endif %}
+        </p>
+        <div class="hp-team-actions fm-onerow">
+            {% if my_team.releases %}
+            <a class="hp-btn-large hp-btn-emerald" href="{% url 'app_mercato' %}?session_id={{ my_team.releases.id }}">Conferma chi esce →</a>
+            {% elif my_team.market %}
+            <a class="hp-btn-large hp-btn-emerald" href="{% url 'app_mercato' %}?session_id={{ my_team.market.id }}">{% if my_team.is_buste %}Consegna le buste{% else %}Vai al mercato{% endif %} →</a>
+            {% else %}
+            <a class="fm-btn fm-btn-secondary" href="{% url 'app_mercato' %}">Mercato</a>
+            {% endif %}
+            <a class="fm-btn fm-btn-secondary" href="{% url 'app_rosa' %}">La mia rosa</a>
+            <a class="fm-btn fm-btn-secondary" href="{% url 'app_formazione' %}">Formazione</a>
+            <a class="fm-btn fm-btn-ghost" href="{% url 'app_home' %}">App della squadra</a>
+        </div>
+    </section>
+    {% endif %}
 
     <!-- 4. THE TWO DOORS (CHOOSER & LOGIN) -->
     <div class="hp-doors-grid">

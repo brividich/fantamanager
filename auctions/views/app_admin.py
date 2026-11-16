@@ -33,6 +33,7 @@ from .common import (
     app_admin_league,
     app_admin_leagues,
     participant_join_url,
+    safe_next,
     user_can_manage_league,
 )
 
@@ -90,7 +91,7 @@ def league_admin_digest(league):
                 "warn", "mail", f"{labels['todo']}: {closed.title}",
                 f"{labels['closed']}: riaprila o concludila con «{labels['resolve']}».",
                 reverse("app_regia_market_session", args=[closed.id]), "Apri la sessione"))
-    for done in sessions.filter(status=MarketSession.Status.RESOLVED, release_after=True).order_by("-updated_at")[:5]:
+    for done in sessions.filter(status=MarketSession.Status.RESOLVED).order_by("-updated_at")[:5]:
         waiting = services.pending_releases(done)
         if waiting:
             teams = sorted({w["winner_name"] for w in waiting})
@@ -282,7 +283,8 @@ def app_view_as(request, participant_id):
             privacy.audit(request.user, "view_as", target_user=account, league=team.league,
                           detail=f"Squadra {team.display_name}")
     # No flash message: the shell's "Vista admin" banner already says it.
-    return redirect("app_home")
+    # ``next``: la pagina dell'app da aprire con quella squadra (es. le buste).
+    return redirect(safe_next(request, reverse("app_home")))
 
 
 @require_POST
