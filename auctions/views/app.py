@@ -114,8 +114,8 @@ def app_home(request):
     # Buste scrutinate in cui questa squadra deve ancora scegliere chi esce.
     release_session, release_count, release_deadline = None, 0, None
     if league is not None:
-        for done in MarketSession.objects.filter(league=league, status=MarketSession.Status.RESOLVED,
-                                                 release_after=True).order_by("-updated_at")[:5]:
+        for done in MarketSession.objects.filter(league=league,
+                                                 status=MarketSession.Status.RESOLVED).order_by("-updated_at")[:5]:
             now = timezone.now()
             # Gli acquisti scaduti senza proposta dalla lista li decide l'admin.
             mine = [w for w in services.pending_releases(done, participant.id)

@@ -92,8 +92,8 @@ def _my_team_card(participant):
                    if s.is_open), None)
     # Buste scrutinate in cui la squadra deve ancora scegliere chi esce.
     releases = None
-    for done in MarketSession.objects.filter(league=league, status=MarketSession.Status.RESOLVED,
-                                             release_after=True).order_by("-updated_at")[:5]:
+    for done in MarketSession.objects.filter(league=league,
+                                             status=MarketSession.Status.RESOLVED).order_by("-updated_at")[:5]:
         if services.pending_releases(done, participant.id):
             releases = done
             break

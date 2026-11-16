@@ -1310,9 +1310,11 @@ class RegolamentoBusteTests(TestCase):
         self.assertIn("inserita prima", MarketBid.objects.get(participant=self.b).note)
 
     def test_a_rival_offer_that_cannot_win_does_not_raise_the_price(self):
-        # B indica lo stesso taglio per Iniesta (150) e per Boban (50): preso
-        # Iniesta, la sua busta su Boban non può più vincere. A, unica rivale
-        # valida di sé stessa, paga la sua offerta minima.
+        # B indica lo stesso taglio per Iniesta (150) e per Boban (50) e non ha
+        # un altro centrocampista che possa uscire: preso Iniesta, la sua busta
+        # su Boban non può più vincere. A, unica rivale valida di sé stessa,
+        # paga la sua offerta minima.
+        self._cut(self.b, "C", 1).delete()
         cut = self._cut(self.b, "C").id
         for name, amount in (("Iniesta", 150), ("Boban", 50)):
             self.assertTrue(place_market_bid(self.session.id, self.b.id, self.free[name].id, amount,
@@ -2280,3 +2282,91 @@ class SessionManageByTypeTests(TestCase):
         self.assertNotContains(resp, "Buste aperte")
         # A multi-line {# #} is not a comment for Django: it was printed on the page.
         self.assertNotContains(resp, "Dado animato per i contratti")
+
+
+class SameCutTwoBidsTests(TestCase):
+    """Lo stesso giocatore indicato come taglio in due buste vinte: la seconda
+    non si perde se la squadra ha un altro pari ruolo che può uscire; chi esce
+    si sceglie dopo lo spoglio (dall'app o dall'admin)."""
+
+    def _setup(self, *, same_role, slots_c=8, own_c=3):
+        self.owner = User.objects.create_user("pres_cut", password="pw")
+        self.league = League.objects.create(name="Lega Tagli", owner=self.owner,
+                                            slots_p=3, slots_d=8, slots_c=slots_c, slots_a=6)
+        self.a = Participant.objects.create(display_name="Team A", league=self.league, credits=Decimal("200"))
+        self.mine = [Player.objects.create(name=f"A C{i}", role="C", team="Milan", league=self.league,
+                                           owner=self.a, cost=Decimal("10")) for i in range(own_c)]
+        self.boban = Player.objects.create(name="Boban", role="C", team="Inter", league=self.league)
+        self.iniesta = Player.objects.create(name="Iniesta", role="C", team="Inter", league=self.league)
+        self.session = MarketSession.objects.create(
+            league=self.league, title="Buste", status=MarketSession.Status.OPEN,
+            require_same_role_release=same_role, allow_conditional_release=True,
+            release_refund_mode=Auction.RefundMode.PURCHASE)
+        cut = self.mine[0].id
+        self.assertTrue(place_market_bid(self.session.id, self.a.id, self.boban.id, 20, priority=1,
+                                         release_player_id=cut)["ok"])
+        self.assertTrue(place_market_bid(self.session.id, self.a.id, self.iniesta.id, 15, priority=2,
+                                         release_player_id=cut)["ok"])
+
+    def _resolve(self):
+        self.session.status = MarketSession.Status.CLOSED
+        self.session.save()
+        resolve_market_session(self.session.id)
+        self.session.refresh_from_db()
+        return {w["player_name"]: w for w in self.session.results_summary["won"]}
+
+    def test_mandatory_second_bid_wins_and_asks_another_same_role(self):
+        from ..services.market import confirm_market_releases, release_deadline, release_options
+        self._setup(same_role=True)
+        won = self._resolve()
+        self.assertEqual(set(won), {"Boban", "Iniesta"})
+        self.assertEqual(won["Boban"]["released_player"], "A C0")
+        self.assertFalse(won["Boban"]["release_pending"])
+        self.assertTrue(won["Iniesta"]["release_pending"])
+        self.assertIsNone(release_deadline(self.session, won["Iniesta"]))     # nessuna lista da applicare
+        self.assertIn("si sceglie dopo lo spoglio", MarketBid.objects.get(player=self.iniesta).note)
+        options = [p.name for p in release_options(self.session, won["Iniesta"])]
+        self.assertEqual(options, ["A C1", "A C2"])                          # non A C0, non Boban
+        # Finché non sceglie, la squadra ha un giocatore in più.
+        self.assertEqual(Player.objects.filter(owner=self.a, role="C").count(), 4)
+        res = confirm_market_releases(self.session.id, self.a.id,
+                                      {won["Iniesta"]["bid_id"]: self.mine[2].id}, participant_id=self.a.id)
+        self.assertTrue(res["ok"], res)
+        self.assertEqual(sorted(Player.objects.filter(owner=self.a).values_list("name", flat=True)),
+                         ["A C1", "Boban", "Iniesta"])
+
+    def test_mandatory_without_another_same_role_still_loses(self):
+        self._setup(same_role=True, own_c=1)
+        won = self._resolve()
+        self.assertEqual(set(won), {"Boban"})
+        note = MarketBid.objects.get(player=self.iniesta).note
+        self.assertIn("già uscito per un'altra busta vinta e non ce n'è un altro che possa uscire", note)
+
+    def test_optional_full_roster_asks_another_same_role(self):
+        self._setup(same_role=False, slots_c=3)
+        won = self._resolve()
+        self.assertEqual(set(won), {"Boban", "Iniesta"})
+        self.assertTrue(won["Iniesta"]["release_pending"])
+
+    def test_optional_with_room_wins_without_cut_as_before(self):
+        self._setup(same_role=False, slots_c=8)
+        won = self._resolve()
+        self.assertFalse(won["Iniesta"]["release_pending"])
+        self.assertIsNone(won["Iniesta"]["released_player"])
+        self.assertIn("taglio condizionato non più possibile", MarketBid.objects.get(player=self.iniesta).note)
+
+    def test_app_and_console_ask_who_leaves(self):
+        self._setup(same_role=True)
+        won = self._resolve()
+        self.a.user = User.objects.create_user("allenatore_cut", password="pw")
+        self.a.save()
+        self.client.force_login(self.a.user)
+        home = self.client.get(reverse("app_home"))
+        self.assertContains(home, "conferma chi esce")
+        page = self.client.get(reverse("app_mercato") + f"?session_id={self.session.id}")
+        self.assertContains(page, "Il giocatore che avevi indicato da tagliare è già uscito per un'altra tua busta vinta")
+        self.assertContains(page, f'name="rel_{won["Iniesta"]["bid_id"]}"')
+        self.client.force_login(self.owner)
+        page = self.client.get(reverse("admin_market_session", args=[self.session.id]))
+        self.assertContains(page, "Il taglio indicato nella busta è già uscito per un'altra busta vinta")
+        self.assertContains(page, "1 sostituzione da scegliere")

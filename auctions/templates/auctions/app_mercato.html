@@ -1220,8 +1220,11 @@
             
             {% if buste_results.my_pending %}
             <div style="margin-bottom:12px;padding:10px 12px;border-radius:10px;background:rgba(234,179,8,.08);border:1px solid rgba(234,179,8,.35);font-size:12.5px;line-height:1.45">
-                <b>Adesso: conferma chi esce.</b> Ogni giocatore vinto entra al posto di uno della tua rosa con lo stesso ruolo:
-                {% if market_session.release_list_required %}sotto c'è già chi esce, preso dalla tua lista «Chi lasceresti andare». Cambialo se vuoi (anche un giocatore fuori lista)
+                <b>Adesso: conferma chi esce.</b>
+                {% if not market_session.release_after_count %}Il giocatore che avevi indicato da tagliare è già uscito per un'altra tua busta vinta:
+                l'acquisto vale lo stesso, scegli sotto chi esce al suo posto tra i tuoi giocatori dello stesso ruolo
+                {% else %}Ogni giocatore vinto entra al posto di uno della tua rosa con lo stesso ruolo:
+                {% endif %}{% if not market_session.release_after_count %}{% elif market_session.release_list_required %}sotto c'è già chi esce, preso dalla tua lista «Chi lasceresti andare». Cambialo se vuoi (anche un giocatore fuori lista)
                 {% else %}scegli sotto chi esce per ognuno (se l'avevi messo in «Chi lasceresti andare» è già proposto, puoi cambiarlo)
                 {% endif %}e premi {% if contracts_on %}<b>Conferma e tira i dadi</b> oppure <b>Conferma, dadi dopo</b>{% else %}<b>Conferma</b>{% endif %}.
                 Finché non confermi hai un giocatore in più; {% if buste_results.my_deadline %}<b>entro il {{ buste_results.my_deadline|date:"d/m H:i" }}</b>, poi esce chi è proposto dalla tua lista (i dadi restano da tirare){% if not market_session.release_list_required %}; senza lista sceglie l'admin{% endif %}{% else %}se non lo fai, conferma l'admin{% endif %}.

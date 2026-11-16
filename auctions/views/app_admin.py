@@ -91,7 +91,7 @@ def league_admin_digest(league):
                 "warn", "mail", f"{labels['todo']}: {closed.title}",
                 f"{labels['closed']}: riaprila o concludila con «{labels['resolve']}».",
                 reverse("app_regia_market_session", args=[closed.id]), "Apri la sessione"))
-    for done in sessions.filter(status=MarketSession.Status.RESOLVED, release_after=True).order_by("-updated_at")[:5]:
+    for done in sessions.filter(status=MarketSession.Status.RESOLVED).order_by("-updated_at")[:5]:
         waiting = services.pending_releases(done)
         if waiting:
             teams = sorted({w["winner_name"] for w in waiting})
